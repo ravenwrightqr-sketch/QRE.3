@@ -1,615 +1,261 @@
 import { Agent } from "undici";
+import { fallbackModelForCapability, modelForCapability, type ModelCapability } from "./modelCapabilities.js";
 
 export type LocalModelMessage = {
-role: "system" | "user" | "assistant";
-content: string;
-images?: string[];
+  role: "system" | "user" | "assistant";
+  content: string;
+  images?: string[];
 };
 
 export type LocalModelResult = {
-text: string;
-model: string;
-provider: "local";
+  text: string;
+  model: string;
+  provider: "local";
 };
 
 export type LocalModelJsonSchema = {
-type: "object";
-properties: Record<string, unknown>;
-required?: string[];
-additionalProperties?: boolean;
+  type: "object";
+  properties: Record<string, unknown>;
+  required?: string[];
+  additionalProperties?: boolean;
 };
 
 export type LocalModelOptions = {
-numPredict?: number;
-numCtx?: number;
-temperature?: number;
-jsonSchema?: LocalModelJsonSchema;
+  numPredict?: number;
+  numCtx?: number;
+  temperature?: number;
+  jsonSchema?: LocalModelJsonSchema;
+  capability?: ModelCapability;
 };
+
 function baseUrl(): string {
-  return (
-    process.env.QRE_LOCAL_MODEL_URL ||
-    "http://127.0.0.1:11434"
-  ).replace(/\/$/, "");
-}
-
-function modelName(modelOverride?: string): string {
-return (
-modelOverride ||
-process.env.QRE_AUTHOR_FAST_MODEL ||
-process.env.QRE_LOCAL_MODEL ||
-"qwen2.5vl:7b"
-);
-}
-
-function fallbackModelName(primaryModel: string): string | undefined {
-const raw = process.env.QRE_AUTHOR_FALLBACK_MODEL;
-const configured = (raw === undefined ? "qwen2.5vl:7b" : String(raw)).trim();
-
-if (!configured || configured === primaryModel) return undefined;
-return configured;
+  return (process.env.QRE_LOCAL_MODEL_URL || "http://127.0.0.1:11434").replace(/\/$/, "");
 }
 
 function timeoutMs(): number {
-const raw = Number(process.env.QRE_LOCAL_MODEL_TIMEOUT_MS || 600000);
-return Number.isFinite(raw) && raw > 0 ? raw : 600000;
+  const raw = Number(process.env.QRE_LOCAL_MODEL_TIMEOUT_MS || 600000);
+  return Number.isFinite(raw) && raw > 0 ? raw : 600000;
 }
 
 function headersTimeoutMs(): number {
-const raw = Number(
-process.env.QRE_LOCAL_MODEL_HEADERS_TIMEOUT_MS || timeoutMs(),
-);
-
-return Number.isFinite(raw) && raw > 0 ? raw : timeoutMs();
+  const raw = Number(process.env.QRE_LOCAL_MODEL_HEADERS_TIMEOUT_MS || timeoutMs());
+  return Number.isFinite(raw) && raw > 0 ? raw : timeoutMs();
 }
 
 function bodyTimeoutMs(): number {
-const raw = Number(
-process.env.QRE_LOCAL_MODEL_BODY_TIMEOUT_MS || timeoutMs(),
-);
-
-return Number.isFinite(raw) && raw > 0 ? raw : timeoutMs();
+  const raw = Number(process.env.QRE_LOCAL_MODEL_BODY_TIMEOUT_MS || timeoutMs());
+  return Number.isFinite(raw) && raw > 0 ? raw : timeoutMs();
 }
 
 function connectTimeoutMs(): number {
-const raw = Number(
-process.env.QRE_LOCAL_MODEL_CONNECT_TIMEOUT_MS || 15000,
-);
-
-return Number.isFinite(raw) && raw > 0 ? raw : 15000;
+  const raw = Number(process.env.QRE_LOCAL_MODEL_CONNECT_TIMEOUT_MS || 15000);
+  return Number.isFinite(raw) && raw > 0 ? raw : 15000;
 }
 
 function keepAlive(): string {
-const fast = process.env.QRE_AUTHOR_FAST === "true";
-
-return (
-process.env.QRE_LOCAL_MODEL_KEEP_ALIVE ||
-(fast ? "10m" : "5m")
-);
+  const fast = process.env.QRE_AUTHOR_FAST === "true";
+  return process.env.QRE_LOCAL_MODEL_KEEP_ALIVE || (fast ? "10m" : "5m");
 }
 
-function defaultTemperature(options: LocalModelOptions): number {
-const fast = process.env.QRE_AUTHOR_FAST === "true";
-
-return (
-options.temperature ??
-Number(
-process.env.QRE_LOCAL_MODEL_TEMPERATURE ||
-(fast ? 0.78 : 0.82),
-)
-);
+function numPredict(options: LocalModelOptions): number {
+  return options.numPredict ?? Number(process.env.QRE_LOCAL_MODEL_NUM_PREDICT || 768);
 }
 
-function defaultNumPredict(options: LocalModelOptions): number {
-return (
-options.numPredict ??
-Number(process.env.QRE_LOCAL_MODEL_NUM_PREDICT || 768)
-);
+function numCtx(options: LocalModelOptions): number {
+  return options.numCtx ?? Number(process.env.QRE_LOCAL_MODEL_NUM_CTX || 16384);
 }
 
-/**
-
-* Ollama's context window is controlled separately from num_predict.
-*
-* This is intentionally configurable because the effective context must
-* accommodate BOTH:
-*
-* prompt tokens + generated tokens
-*
-* A caller can override it with `numCtx`, while the environment provides
-* the process-wide default.
-  */
-  function defaultNumCtx(options: LocalModelOptions): number {
-  return (
-  options.numCtx ??
-  Number(process.env.QRE_LOCAL_MODEL_NUM_CTX || 16384)
-  );
-  }
+function temperature(options: LocalModelOptions): number {
+  const fast = process.env.QRE_AUTHOR_FAST === "true";
+  return options.temperature ?? Number(process.env.QRE_LOCAL_MODEL_TEMPERATURE || (fast ? 0.78 : 0.82));
+}
 
 function stripDataUrl(value: string): string {
-const match = /^data:[^;]+;base64,(.+)$/s.exec(value);
-return match ? match[1] : value;
+  const match = /^data:[^;]+;base64,(.+)$/s.exec(value);
+  return match ? match[1] : value;
+}
+
+function inferCapability(messages: LocalModelMessage[], explicit?: ModelCapability): ModelCapability {
+  if (explicit) return explicit;
+  return messages.some((message) => message.images?.length) ? "vision" : "author";
 }
 
 let dispatcher: Agent | undefined;
 
 function getDispatcher(): Agent {
-if (!dispatcher) {
-dispatcher = new Agent({
-connect: { timeout: connectTimeoutMs() },
-headersTimeout: headersTimeoutMs(),
-bodyTimeout: bodyTimeoutMs(),
-keepAliveTimeout: 30000,
-keepAliveMaxTimeout: 120000,
-connections: 4,
-pipelining: 1,
-});
-}
-
-return dispatcher;
+  if (!dispatcher) {
+    dispatcher = new Agent({
+      connect: { timeout: connectTimeoutMs() },
+      headersTimeout: headersTimeoutMs(),
+      bodyTimeout: bodyTimeoutMs(),
+      keepAliveTimeout: 30000,
+      keepAliveMaxTimeout: 120000,
+      connections: 4,
+      pipelining: 1,
+    });
+  }
+  return dispatcher;
 }
 
 function resetDispatcher(): void {
-if (!dispatcher) return;
-
-const current = dispatcher;
-dispatcher = undefined;
-
-void current.close().catch(() => {});
-}
-
-function elapsedMs(startedAt: number): number {
-return Date.now() - startedAt;
+  if (!dispatcher) return;
+  const current = dispatcher;
+  dispatcher = undefined;
+  void current.close().catch(() => {});
 }
 
 function errorCode(error: unknown): string | undefined {
-if (typeof error === "object" && error !== null && "code" in error) {
-const code = (error as { code?: unknown }).code;
-
-
-if (typeof code === "string") return code;
-
-
-}
-
-const cause =
-typeof error === "object" &&
-error !== null &&
-"cause" in error
-? (error as { cause?: unknown }).cause
-: undefined;
-
-if (typeof cause === "object" && cause !== null && "code" in cause) {
-const code = (cause as { code?: unknown }).code;
-
-
-if (typeof code === "string") return code;
-
-
-}
-
-return undefined;
-}
-
-function isAbortError(error: unknown): boolean {
-return (
-typeof error === "object" &&
-error !== null &&
-"name" in error &&
-(error as { name?: unknown }).name === "AbortError"
-);
+  if (typeof error === "object" && error !== null && "code" in error) {
+    const code = (error as { code?: unknown }).code;
+    if (typeof code === "string") return code;
+  }
+  const cause = typeof error === "object" && error !== null && "cause" in error
+    ? (error as { cause?: unknown }).cause
+    : undefined;
+  if (typeof cause === "object" && cause !== null && "code" in cause) {
+    const code = (cause as { code?: unknown }).code;
+    if (typeof code === "string") return code;
+  }
+  return undefined;
 }
 
 function isTransportError(error: unknown): boolean {
-if (isAbortError(error)) return true;
-
-const code = errorCode(error);
-
-if (
-code &&
-[
-"UND_ERR_HEADERS_TIMEOUT",
-"UND_ERR_BODY_TIMEOUT",
-"UND_ERR_CONNECT_TIMEOUT",
-"UND_ERR_SOCKET",
-"UND_ERR_DESTROYED",
-"ECONNRESET",
-"ECONNREFUSED",
-"EPIPE",
-"ETIMEDOUT",
-].includes(code)
-) {
-return true;
-}
-
-return (
-error instanceof TypeError &&
-/fetch failed/i.test(error.message)
-);
+  const name = typeof error === "object" && error !== null && "name" in error
+    ? (error as { name?: unknown }).name
+    : undefined;
+  if (name === "AbortError") return true;
+  const code = errorCode(error);
+  return Boolean(code && [
+    "UND_ERR_HEADERS_TIMEOUT", "UND_ERR_BODY_TIMEOUT", "UND_ERR_CONNECT_TIMEOUT",
+    "UND_ERR_SOCKET", "UND_ERR_DESTROYED", "ECONNRESET", "ECONNREFUSED", "EPIPE", "ETIMEDOUT",
+  ].includes(code)) || (error instanceof TypeError && /fetch failed/i.test(error.message));
 }
 
 function outputText(data: unknown): string {
-if (typeof data !== "object" || data === null) return "";
-
-const record = data as Record<string, unknown>;
-
-const message = record.message;
-
-if (typeof message === "object" && message !== null) {
-const content = (message as { content?: unknown }).content;
-
-if (typeof content === "string") return content.trim();
-
-
-}
-
-const response = record.response;
-
-if (typeof response === "string") return response.trim();
-
-const choices = record.choices;
-
-if (Array.isArray(choices) && choices.length > 0) {
-const first = choices[0];
-
-
-if (typeof first === "object" && first !== null) {
-  const choiceMessage = (first as Record<string, unknown>).message;
-
-  if (
-    typeof choiceMessage === "object" &&
-    choiceMessage !== null
-  ) {
-    const content = (choiceMessage as { content?: unknown }).content;
-
+  if (typeof data !== "object" || data === null) return "";
+  const record = data as Record<string, unknown>;
+  const message = record.message;
+  if (typeof message === "object" && message !== null) {
+    const content = (message as { content?: unknown }).content;
     if (typeof content === "string") return content.trim();
   }
-}
-
-}
-
-return "";
-}
-
-type LocalRequestBody = {
-model: string;
-stream: false;
-keep_alive: string;
-format?: "json" | LocalModelJsonSchema;
-messages: Array<{
-role: "system" | "user" | "assistant";
-content: string;
-images?: string[];
-}>;
-options: {
-temperature: number;
-num_predict: number;
-num_ctx: number;
-};
-};
-
-async function request(
-path: string,
-body: LocalRequestBody,
-modelOverride?: string,
-): Promise<unknown> {
-const controller = new AbortController();
-const timeout = timeoutMs();
-const startedAt = Date.now();
-
-const timer = setTimeout(() => {
-console.log(
-"QRE LOCAL MODEL TIMEOUT FIRING",
-`after=${timeout}ms`,
-);
-
-
-controller.abort();
-
-}, timeout);
-
-const url = `${baseUrl()}${path}`;
-const serializedBody = JSON.stringify(body);
-const selectedModel = modelName(modelOverride);
-
-try {
-console.log("QRE REQUEST START");
-console.log("QRE REQUEST URL:", url);
-console.log("QRE REQUEST MODEL:", selectedModel);
-console.log("QRE REQUEST FORMAT:", body.format ?? "default");
-console.log(
-"QRE REQUEST NUM_PREDICT:",
-body.options.num_predict,
-);
-console.log(
-"QRE REQUEST NUM_CTX:",
-body.options.num_ctx,
-);
-console.log("QRE REQUEST MESSAGE COUNT:", body.messages.length);
-console.log(
-"QRE REQUEST BODY BYTES:",
-Buffer.byteLength(serializedBody, "utf8"),
-);
-console.log(
-"QRE REQUEST CONTENT CHARS:",
-body.messages.reduce(
-(total, message) => total + message.content.length,
-0,
-),
-);
-console.log("QRE REQUEST TIMEOUT:", timeout);
-console.log(
-"QRE REQUEST HEADERS TIMEOUT:",
-headersTimeoutMs(),
-);
-console.log(
-"QRE REQUEST BODY TIMEOUT:",
-bodyTimeoutMs(),
-);
-console.log(
-"QRE REQUEST CONNECT TIMEOUT:",
-connectTimeoutMs(),
-);
-console.log("QRE FETCH ENTER");
-
-
-const response = await fetch(url, {
-  method: "POST",
-  headers: {
-    "Content-Type": "application/json",
-  },
-  body: serializedBody,
-  signal: controller.signal,
-  dispatcher: getDispatcher(),
-} as RequestInit & { dispatcher?: unknown });
-
-console.log("QRE FETCH RETURNED");
-console.log("QRE RESPONSE STATUS:", response.status);
-console.log(
-  "QRE TIME TO HEADERS MS:",
-  elapsedMs(startedAt),
-);
-
-if (!response.ok) {
-  const detail = await response.text().catch(() => "");
-
-  console.log("QRE RESPONSE ERROR BODY:", detail);
-
-  throw new Error(
-    `Local model failed (${response.status}): ${detail.slice(
-      0,
-      300,
-    )}`,
-  );
-}
-
-console.log("QRE READING RESPONSE JSON");
-
-const json = await response.json();
-
-if (typeof json === "object" && json !== null) {
-  const record = json as Record<string, unknown>;
-
-  console.log("QRE RESPONSE DONE:", record.done);
-  console.log(
-    "QRE RESPONSE DONE_REASON:",
-    record.done_reason,
-  );
-  console.log(
-    "QRE RESPONSE PROMPT_EVAL_COUNT:",
-    record.prompt_eval_count,
-  );
-  console.log(
-    "QRE RESPONSE EVAL_COUNT:",
-    record.eval_count,
-  );
-  console.log(
-    "QRE RESPONSE EVAL_DURATION_NS:",
-    record.eval_duration,
-  );
-}
-
-console.log("QRE RESPONSE JSON RECEIVED");
-console.log(
-  "QRE REQUEST TOTAL MS:",
-  elapsedMs(startedAt),
-);
-
-return json;
-
-
-} catch (error) {
-console.log("QRE LOCAL REQUEST ERROR:", error);
-
-
-if (isTransportError(error)) {
-  const code = errorCode(error);
-
-  console.log(
-    "QRE LOCAL REQUEST TRANSPORT FAILURE",
-    `code=${code ?? "unknown"}`,
-    `elapsedMs=${elapsedMs(startedAt)}`,
-  );
-
-  if (
-    [
-      "UND_ERR_SOCKET",
-      "UND_ERR_DESTROYED",
-      "ECONNRESET",
-      "EPIPE",
-    ].includes(code ?? "")
-  ) {
-    resetDispatcher();
+  const response = record.response;
+  if (typeof response === "string") return response.trim();
+  const choices = record.choices;
+  if (Array.isArray(choices) && choices.length) {
+    const first = choices[0];
+    if (typeof first === "object" && first !== null) {
+      const choiceMessage = (first as Record<string, unknown>).message;
+      if (typeof choiceMessage === "object" && choiceMessage !== null) {
+        const content = (choiceMessage as { content?: unknown }).content;
+        if (typeof content === "string") return content.trim();
+      }
+    }
   }
+  return "";
 }
 
-throw error;
+type RequestBody = {
+  model: string;
+  stream: false;
+  keep_alive: string;
+  format?: "json" | LocalModelJsonSchema;
+  messages: LocalModelMessage[];
+  options: { temperature: number; num_predict: number; num_ctx: number };
+};
 
-
-} finally {
-clearTimeout(timer);
-
-
-console.log(
-  "QRE REQUEST FINISHED",
-  `totalMs=${elapsedMs(startedAt)}`,
-);
-
-
-}
+async function request(body: RequestBody): Promise<unknown> {
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), timeoutMs());
+  const started = Date.now();
+  try {
+    const response = await fetch(`${baseUrl()}/api/chat`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(body),
+      signal: controller.signal,
+      dispatcher: getDispatcher(),
+    } as RequestInit & { dispatcher?: unknown });
+    if (!response.ok) {
+      const detail = await response.text().catch(() => "");
+      throw new Error(`Local model failed (${response.status})${detail ? `: ${detail.slice(0, 300)}` : ""}`);
+    }
+    console.log("QRE MODEL REQUEST", { model: body.model, ms: Date.now() - started });
+    return await response.json();
+  } catch (error) {
+    if (isTransportError(error) && ["UND_ERR_SOCKET", "UND_ERR_DESTROYED", "ECONNRESET", "EPIPE"].includes(errorCode(error) ?? "")) resetDispatcher();
+    throw error;
+  } finally {
+    clearTimeout(timer);
+  }
 }
 
 export async function localModelGenerate(
-messages: LocalModelMessage[],
-format?: "json",
-options: LocalModelOptions = {},
+  messages: LocalModelMessage[],
+  format?: "json",
+  options: LocalModelOptions = {},
 ): Promise<LocalModelResult> {
-const primaryModel = modelName();
+  const capability = inferCapability(messages, options.capability);
+  const primaryModel = modelForCapability(capability);
+  const fallbackModel = fallbackModelForCapability(capability, primaryModel);
+  const predict = numPredict(options);
+  const context = numCtx(options);
 
-console.trace("QRE MODEL CALLER");
+  if (!Number.isFinite(predict) || predict <= 0) throw new Error(`Invalid local model num_predict: ${predict}`);
+  if (!Number.isFinite(context) || context <= 0) throw new Error(`Invalid local model context size: ${context}`);
 
-const fallbackModel = fallbackModelName(primaryModel);
+  const requestBody: RequestBody = {
+    model: primaryModel,
+    stream: false,
+    keep_alive: keepAlive(),
+    format: options.jsonSchema ?? format,
+    messages: messages.map((message) => ({
+      role: message.role,
+      content: message.content,
+      ...(message.images?.length ? { images: message.images.map(stripDataUrl) } : {}),
+    })),
+    options: { temperature: temperature(options), num_predict: predict, num_ctx: context },
+  };
 
-const numPredict = defaultNumPredict(options);
-const numCtx = defaultNumCtx(options);
-
-if (numCtx <= 0 || !Number.isFinite(numCtx)) {
-throw new Error(
-`Invalid local model context size: ${numCtx}`,
-);
-}
-
-if (numPredict <= 0 || !Number.isFinite(numPredict)) {
-throw new Error(
-`Invalid local model num_predict: ${numPredict}`,
-);
-}
-
-const requestBody: LocalRequestBody = {
-model: primaryModel,
-stream: false,
-keep_alive: keepAlive(),
-format: options.jsonSchema ?? format,
-messages: messages.map((message) => ({
-role: message.role,
-content: message.content,
-...(message.images?.length
-? {
-images: message.images.map(stripDataUrl),
-}
-: {}),
-})),
-options: {
-temperature: defaultTemperature(options),
-num_predict: numPredict,
-num_ctx: numCtx,
-},
-};
-
-try {
-const data = await request(
-"/api/chat",
-requestBody,
-primaryModel,
-);
-
-
-const text = outputText(data);
-
-if (process.env.QRE_AUTHOR_DEBUG_RAW === "true") {
-  console.log(
-    "\n--- QRE RAW MODEL OUTPUT ---\n" +
-      text +
-      "\n--- END QRE RAW MODEL OUTPUT ---\n",
-  );
-}
-
-return {
-  text,
-  model: primaryModel,
-  provider: "local",
-};
-
-
-} catch (error) {
-if (!isTransportError(error) || !fallbackModel) {
-throw error;
-}
-
-
-console.log(
-  "QRE LOCAL MODEL FALLBACK",
-  `primary=${primaryModel}`,
-  `fallback=${fallbackModel}`,
-  `code=${errorCode(error) ?? "unknown"}`,
-);
-
-const data = await request(
-  "/api/chat",
-  {
-    ...requestBody,
-    model: fallbackModel,
-  },
-  fallbackModel,
-);
-
-const text = outputText(data);
-
-if (process.env.QRE_AUTHOR_DEBUG_RAW === "true") {
-  console.log(
-    "\n--- QRE RAW FALLBACK MODEL OUTPUT ---\n" +
-      text +
-      "\n--- END QRE RAW FALLBACK MODEL OUTPUT ---\n",
-  );
-}
-
-return {
-  text,
-  model: fallbackModel,
-  provider: "local",
-};
-
-
-}
+  try {
+    const data = await request(requestBody);
+    return { text: outputText(data), model: primaryModel, provider: "local" };
+  } catch (error) {
+    if (!isTransportError(error) || !fallbackModel) throw error;
+    console.log("QRE MODEL FALLBACK", { capability, primaryModel, fallbackModel, code: errorCode(error) ?? "unknown" });
+    const data = await request({ ...requestBody, model: fallbackModel });
+    return { text: outputText(data), model: fallbackModel, provider: "local" };
+  }
 }
 
 export async function localModelHealthy(): Promise<boolean> {
-const controller = new AbortController();
-const timer = setTimeout(() => controller.abort(), 3000);
-
-try {
-const response = await fetch(
-`${baseUrl()}/api/tags`,
-{
-signal: controller.signal,
-dispatcher: getDispatcher(),
-} as RequestInit & { dispatcher?: unknown },
-);
-
-
-return response.ok;
-
-} catch {
-return false;
-} finally {
-clearTimeout(timer);
-}
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), 3000);
+  try {
+    const response = await fetch(`${baseUrl()}/api/tags`, { signal: controller.signal, dispatcher: getDispatcher() } as RequestInit & { dispatcher?: unknown });
+    return response.ok;
+  } catch {
+    return false;
+  } finally {
+    clearTimeout(timer);
+  }
 }
 
-export function localModelConfig() {
-const model = modelName();
-
-return {
-provider: "local" as const,
-url: baseUrl(),
-model,
-fallbackModel: fallbackModelName(model),
-timeoutMs: timeoutMs(),
-headersTimeoutMs: headersTimeoutMs(),
-bodyTimeoutMs: bodyTimeoutMs(),
-connectTimeoutMs: connectTimeoutMs(),
-keepAlive: keepAlive(),
-numCtx: defaultNumCtx({}),
-numPredict: defaultNumPredict({}),
-temperature: defaultTemperature({}),
-};
+export function localModelConfig(capability: ModelCapability = "author") {
+  const model = modelForCapability(capability);
+  return {
+    provider: "local" as const,
+    capability,
+    url: baseUrl(),
+    model,
+    fallbackModel: fallbackModelForCapability(capability, model),
+    timeoutMs: timeoutMs(),
+    headersTimeoutMs: headersTimeoutMs(),
+    bodyTimeoutMs: bodyTimeoutMs(),
+    connectTimeoutMs: connectTimeoutMs(),
+    keepAlive: keepAlive(),
+    numCtx: numCtx({}),
+    numPredict: numPredict({}),
+    temperature: temperature({}),
+  };
 }
