@@ -82,7 +82,7 @@ export default function CustomerCatalog() {
         <section style={recommendationSection} aria-label="You might like">
           <div style={sectionLabel}>YOU MIGHT LIKE</div>
           <div style={recommendationList}>
-            {recommendations.map((product) => (
+            {recommendations.slice(0, 5).map((product) => (
               <button key={product.id} type="button" style={recommendationButton} onClick={() => void chooseFavorite(product)}>
                 {displayName(product.name)}
               </button>
