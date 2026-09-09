@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useState } from "react";
 import { getCatalogView, setCatalogView, type CatalogViewConfig } from "../../lib/api";
 
 type Facets = {
@@ -9,16 +9,7 @@ type Facets = {
 
 type Props = { slug: string };
 
-const baseInputStyle: React.CSSProperties = {
-  width: "100%",
-  minHeight: 42,
-  boxSizing: "border-box",
-  padding: "8px 10px",
-  borderRadius: 10,
-  border: "1px solid rgba(255,255,255,.14)",
-  background: "rgba(255,255,255,.04)",
-  color: "#fff",
-};
+const baseInputStyle: React.CSSProperties = { width: "100%", minHeight: 42, boxSizing: "border-box", padding: "8px 10px", borderRadius: 10, border: "1px solid rgba(255,255,255,.14)", background: "rgba(255,255,255,.04)", color: "#fff" };
 
 export default function CatalogViewPanel({ slug }: Props) {
   const [view, setView] = useState<CatalogViewConfig | null>(null);
@@ -27,28 +18,19 @@ export default function CatalogViewPanel({ slug }: Props) {
 
   useEffect(() => {
     void getCatalogView(slug)
-      .then((result) => {
-        setView(result.view);
-        setFacets(result.facets ?? { brands: [], categories: [], attributes: [] });
-      })
+      .then((result) => { setView(result.view); setFacets(result.facets ?? { brands: [], categories: [], attributes: [] }); })
       .catch((error) => setStatus(error instanceof Error ? error.message : "Could not load catalog view."));
   }, [slug]);
 
-  const selectedAttribute = useMemo(
-    () => facets.attributes.find((attribute) => attribute.key === (view?.nameAttributeKey || view?.groupAttributeKey || view?.scope.key)),
-    [facets.attributes, view?.groupAttributeKey, view?.nameAttributeKey, view?.scope.key],
-  );
-
-  function patch(next: Partial<CatalogViewConfig>) {
-    setView((current) => current ? { ...current, ...next } : current);
-  }
-
-  function setScope(kind: CatalogViewConfig["scope"]["kind"]) {
-    setView((current) => current ? { ...current, scope: { kind } } : current);
-  }
-
+  function patch(next: Partial<CatalogViewConfig>) { setView((current) => current ? { ...current, ...next } : current); }
+  function setScope(kind: CatalogViewConfig["scope"]["kind"]) { setView((current) => current ? { ...current, scope: { kind } } : current); }
   function setAttributeKey(nextKey: string) {
-    setView((current) => current ? { ...current, nameAttributeKey: nextKey || undefined, groupAttributeKey: nextKey || undefined, scope: { kind: current.scope.kind === "attribute" ? "attribute" : current.scope.kind, key: nextKey || undefined, value: current.scope.value } } : current);
+    setView((current) => current ? {
+      ...current,
+      nameAttributeKey: nextKey || undefined,
+      groupAttributeKey: nextKey || undefined,
+      scope: { kind: current.scope.kind === "attribute" ? "attribute" : current.scope.kind, key: nextKey || undefined, value: current.scope.value },
+    } : current);
   }
 
   async function save() {
@@ -59,9 +41,7 @@ export default function CatalogViewPanel({ slug }: Props) {
       setView(result.view);
       setFacets(result.facets ?? facets);
       setStatus("Saved");
-    } catch (error) {
-      setStatus(error instanceof Error ? error.message : "Could not save catalog view.");
-    }
+    } catch (error) { setStatus(error instanceof Error ? error.message : "Could not save catalog view."); }
   }
 
   if (!view) return <section style={panelStyle}><strong>Catalog view</strong><p style={mutedStyle}>{status || "Loading…"}</p></section>;
@@ -73,14 +53,12 @@ export default function CatalogViewPanel({ slug }: Props) {
   return (
     <section style={panelStyle}>
       <div style={headingRow}><div><p style={eyebrowStyle}>CATALOG CONTROL</p><h2 style={{ margin: 0 }}>View / detonator</h2></div><span style={statusStyle}>{status}</span></div>
-      <p style={mutedStyle}>This changes presentation only. Catalog reality, evidence, relationships, and availability stay intact.</p>
+      <p style={mutedStyle}>Presentation changes only. Catalog reality, evidence, relationships, and availability stay intact.</p>
 
       <div style={gridStyle}>
         <label style={labelStyle}>Title<input value={view.title ?? ""} onChange={(event) => patch({ title: event.target.value || undefined })} placeholder="What’s here" style={baseInputStyle} /></label>
         <label style={labelStyle}>Name<select value={view.nameMode} onChange={(event) => patch({ nameMode: event.target.value as CatalogViewConfig["nameMode"] })} style={baseInputStyle}>
-          <option value="item">Item name</option>
-          <option value="brand_item">Brand + item</option>
-          <option value="attribute">One discovered attribute</option>
+          <option value="item">Item name</option><option value="brand_item">Brand + item</option><option value="attribute">One discovered attribute</option>
         </select></label>
         <label style={labelStyle}>Attribute used for name<select value={view.nameAttributeKey ?? ""} onChange={(event) => setAttributeKey(event.target.value)} style={baseInputStyle} disabled={view.nameMode !== "attribute" && view.groupBy !== "attribute" && view.scope.kind !== "attribute"}>
           <option value="">Choose an attribute</option>{attributeOptions.map((attribute) => <option key={attribute.key} value={attribute.key}>{attribute.key}</option>)}
