@@ -4,15 +4,398 @@ import { analyzeImageForCatalog, type CatalogVisionItem } from "./catalogVision.
 import { decodeDataUrl, extractPdfKnowledge, extractSpreadsheetKnowledge } from "./documentKnowledge.js";
 import { learnWebsiteWorld } from "./websiteLearning.js";
 
-type Input = { assetId: string; userId: string; sourceType: string; originalName?: string; mimeType?: string; content?: string; imageDataUrl?: string; text?: string };
-type Fact = { label: string; value: string; category?: string; unit?: string; notes?: string; confidence?: number };
+type Input = {
+  assetId: string;
+  userId: string;
+  sourceType: string;
+  originalName?: string;
+  mimeType?: string;
+  content?: string;
+  imageDataUrl?: string;
+  text?: string;
+};
+
+type Fact = {
+  label: string;
+  value: string;
+  category?: string;
+  unit?: string;
+  notes?: string;
+  confidence?: number;
+};
+
 const norm = (v: string) => v.trim().toLowerCase().replace(/\s+/g, " ").replace(/[^\p{L}\p{N}\s._-]/gu, "");
 const conf = (v: unknown) => Math.max(0, Math.min(1, typeof v === "number" ? v : 0.7));
 const hash = (v: string) => crypto.createHash("sha256").update(v).digest("hex");
-function textOf(input: Input) { if (input.text?.trim()) return input.text.trim(); if (input.content?.startsWith("data:")) { const d = decodeDataUrl(input.content); return d?.mimeType.startsWith("text/") ? d.bytes.toString("utf8").trim() || undefined : undefined; } return input.content?.trim() || undefined; }
-function simpleFacts(text: string): Fact[] { const facts = text.split(/\r?\n/).map((line) => line.trim()).filter(Boolean).slice(0, 250).flatMap((line) => { const m = line.match(/^(?:[-*•]\s*)?([^:]{1,120}):\s*(.{1,1000})$/); return m ? [{ label: m[1].trim(), value: m[2].trim(), category: "text", confidence: .86 }] : []; }); return (facts.length ? facts : [{ label: "Owner-provided knowledge", value: text.slice(0, 12000), category: "text", confidence: .92 }]).slice(0, 100); }
-function rowFact(fact: Fact) { if (fact.category !== "spreadsheet_row" && fact.category !== "visual_catalog_item") return null; try { const record = JSON.parse(fact.value) as Record<string, unknown>; const entries = Object.entries(record).filter(([,v]) => typeof v === "string" && v.trim()); if (!entries.length) return null; const pick = (patterns: RegExp[]) => { const hit = entries.find(([k]) => patterns.some((p) => p.test(k))); return hit ? String(hit[1]).trim() : undefined; }; const name = pick([/^name$/i,/^product$/i,/^item$/i,/^title$/i,/^model$/i,/^service$/i,/^sku$/i]) || fact.label.replace(/^[^:]+:\s*/, "").trim(); if (!name) return null; const brand = pick([/^brand$/i,/^manufacturer$/i,/^make$/i]); const category = pick([/^category$/i,/^type$/i,/^kind$/i,/^product[_ ]?type$/i]); const attributes = entries.filter(([k]) => !/^(name|product|item|title|model|service|sku|brand|manufacturer|make|category|type|kind|product[_ ]?type)$/i.test(k)).map(([k,v]) => ({ key: norm(k), value: String(v).trim().slice(0,1000) })).filter((x) => x.key && x.value).slice(0, 32); return { name: name.slice(0,240), brand, category, attributes }; } catch { return null; } }
-async function persistFacts(input: Input, evidenceId: string, facts: Fact[]) { const catalogIds: string[] = [], observationIds: string[] = []; for (const fact of facts) { const row = rowFact(fact); const name = row?.name || fact.label || fact.value; const normalizedName = norm(name); if (!normalizedName) continue; const existing = await db.catalogItem.findFirst({ where: { assetId: input.assetId, normalizedName } }); const item = existing ? await db.catalogItem.update({ where: { id: existing.id }, data: { brand: row?.brand || existing.brand || undefined, category: row?.category || fact.category || existing.category || undefined, description: existing.description || fact.notes || undefined } }) : await db.catalogItem.create({ data: { assetId: input.assetId, kind: row?.category || fact.category || "item", name, normalizedName, brand: row?.brand, category: row?.category || fact.category || undefined, description: fact.notes || undefined } }); catalogIds.push(item.id); const attrs = row?.attributes?.length ? row.attributes : [{ key: "value", value: fact.value }]; for (const attr of attrs) await db.catalogAttribute.create({ data: { catalogItemId: item.id, key: attr.key, value: attr.value, normalizedValue: norm(attr.value), confidence: conf(fact.confidence), evidenceId } }); const obs = await db.knowledgeObservation.create({ data: { assetId: input.assetId, catalogItemId: item.id, evidenceId, type: input.sourceType === "photo" ? "VISUAL_OBSERVATION" : "OBSERVED", value: { label: name, value: fact.value, brand: row?.brand, category: row?.category || fact.category, attributes: attrs, notes: fact.notes }, source: input.sourceType, confidence: conf(fact.confidence), observedAt: new Date() } }); observationIds.push(obs.id); } return { catalogIds, observationIds, factCount: facts.length }; }
-async function persistVision(input: Input, evidenceId: string, items: CatalogVisionItem[]) { const facts: Fact[] = items.map((item) => ({ label: item.name, value: JSON.stringify({ name: item.name, brand: item.brand || "", category: item.category || "", description: item.description || "", ...(Object.fromEntries((item.attributes || []).map((attribute: { key: string; value: string }) => [attribute.key, attribute.value]))) }), category: "visual_catalog_item", notes: item.notes, confidence: item.confidence })); return persistFacts(input, evidenceId, facts); }
-async function website(input: Input, evidenceId: string) { const url = input.text?.trim() || input.content?.trim() || ""; if (!url) throw new Error("Website URL is missing."); const learned = await learnWebsiteWorld({ url }); const w = learned.world; const asset = await db.asset.findUnique({ where: { id: input.assetId }, select: { displayName: true, templateData: true } }); const payload = { label: "Business world learned from website", value: w.businessName || asset?.displayName || "Business world", category: "business_world", source: "website", sourceUrl: learned.url, sourceTitle: learned.title || undefined, confidence: .9, businessName: w.businessName, businessType: w.businessType, businessDescription: w.description, services: w.services, differentiators: w.differentiators, signals: w.signals, subjectKinds: w.subjectKinds, importantFacts: w.importantFacts, sourceExcerpt: learned.sourceExcerpt, evidenceId, updatedBy: input.userId }; await db.insight.create({ data: { assetId: input.assetId, type: "KNOWLEDGE", message: JSON.stringify(payload), impact: w.description || w.businessType || w.businessName || learned.title } }); const observationIds: string[] = []; for (const value of [...w.services.slice(0,100), ...w.importantFacts.slice(0,100)]) { const obs = await db.knowledgeObservation.create({ data: { assetId: input.assetId, evidenceId, type: w.services.includes(value) ? "WEBSITE_SERVICE" : "WEBSITE_FACT", value: { value }, source: "website", confidence: .9, observedAt: new Date() } }); observationIds.push(obs.id); } const current = asset?.templateData && typeof asset.templateData === "object" && !Array.isArray(asset.templateData) ? asset.templateData as Record<string, unknown> : {}; await db.asset.update({ where: { id: input.assetId }, data: { templateData: JSON.parse(JSON.stringify({ ...current, businessName: w.businessName || current.businessName || asset?.displayName, businessType: w.businessType || current.businessType || "", businessDescription: w.description || current.businessDescription || "", services: w.services.length ? w.services : current.services || [], capabilities: w.services.length ? w.services : current.capabilities || [], contextualSignals: [...new Set([...(Array.isArray(current.contextualSignals) ? current.contextualSignals.filter((v): v is string => typeof v === "string") : []), ...w.signals, ...w.differentiators])].slice(0,48), subjectKinds: w.subjectKinds.length ? w.subjectKinds : current.subjectKinds || [], websiteKnowledge: { sourceUrl: learned.url, sourceTitle: learned.title, businessName: w.businessName, businessType: w.businessType, description: w.description, services: w.services, differentiators: w.differentiators, signals: w.signals, subjectKinds: w.subjectKinds, importantFacts: w.importantFacts, learnedAt: new Date().toISOString() } })) } }); return { catalogIds: [], observationIds, factCount: 1 + w.services.length + w.importantFacts.length }; }
-export async function createAndProcessKnowledgeIntake(input: Input) { const raw = input.imageDataUrl || input.text || input.content || ""; const contentHash = raw ? hash(raw) : undefined; if (contentHash) { const existing = await db.knowledgeIntakeJob.findFirst({ where: { assetId: input.assetId, contentHash }, orderBy: { createdAt: "desc" } }); if (existing?.status === "completed") return { job: existing, duplicate: true }; } const job = await db.knowledgeIntakeJob.create({ data: { assetId: input.assetId, status: "processing", sourceType: input.sourceType, originalName: input.originalName, contentHash, payload: { mimeType: input.mimeType, content: input.content, imageDataUrl: input.imageDataUrl, text: input.text, userId: input.userId } } }); try { const decodedImage = input.imageDataUrl?.startsWith("data:") ? decodeDataUrl(input.imageDataUrl) : undefined; const evidence = await db.knowledgeEvidence.create({ data: { assetId: input.assetId, intakeJobId: job.id, type: input.mimeType || input.sourceType, source: input.sourceType, storageKey: `intake-job:${job.id}`, contentHash: hash(raw), text: textOf(input), metadata: { originalName: input.originalName, mimeType: input.mimeType, userId: input.userId, byteLength: decodedImage?.bytes.length }, confidence: 1 }); let result: { catalogIds: string[]; observationIds: string[]; factCount: number }; if (input.sourceType === "website") result = await website(input, evidence.id); else if (input.imageDataUrl?.startsWith("data:image/")) result = await persistVision(input, evidence.id, await analyzeImageForCatalog(input.imageDataUrl, input.assetId)); else if (input.sourceType === "pdf") { const decoded = decodeDataUrl(input.content || ""); if (!decoded) throw new Error("PDF upload is not a valid data URL."); const extracted = await extractPdfKnowledge(decoded.bytes); await db.knowledgeEvidence.update({ where: { id: evidence.id }, data: { text: extracted.text, metadata: { ...extracted.metadata, originalName: input.originalName, mimeType: input.mimeType } } }); result = await persistFacts(input, evidence.id, extracted.facts); } else if (input.sourceType === "spreadsheet") { const decoded = decodeDataUrl(input.content || ""); if (!decoded) throw new Error("Spreadsheet upload is not a valid data URL."); const extracted = extractSpreadsheetKnowledge(decoded.bytes, input.originalName); await db.knowledgeEvidence.update({ where: { id: evidence.id }, data: { text: extracted.text, metadata: { ...extracted.metadata, originalName: input.originalName, mimeType: input.mimeType } } }); result = await persistFacts(input, evidence.id, extracted.facts); } else { const text = textOf(input); result = text ? await persistFacts(input, evidence.id, simpleFacts(text)) : { catalogIds: [], observationIds: [], factCount: 0 }; } const completed = await db.knowledgeIntakeJob.update({ where: { id: job.id }, data: { status: "completed", result: { stage: "complete", evidenceId: evidence.id, ...result }, error: null, completedAt: new Date() } }); return { job: completed, duplicate: false }; } catch (error) { const message = error instanceof Error ? error.message : "Knowledge intake failed"; const failed = await db.knowledgeIntakeJob.update({ where: { id: job.id }, data: { status: "failed", result: { stage: "failed" }, error: message, completedAt: new Date() } }); return { job: failed, duplicate: false }; } }
+
+function textOf(input: Input) {
+  if (input.text?.trim()) return input.text.trim();
+  if (input.content?.startsWith("data:")) {
+    const d = decodeDataUrl(input.content);
+    return d?.mimeType.startsWith("text/") ? d.bytes.toString("utf8").trim() || undefined : undefined;
+  }
+  return input.content?.trim() || undefined;
+}
+
+function simpleFacts(text: string): Fact[] {
+  const facts = text
+    .split(/\r?\n/)
+    .map((line) => line.trim())
+    .filter(Boolean)
+    .slice(0, 250)
+    .flatMap((line) => {
+      const m = line.match(/^(?:[-*•]\s*)?([^:]{1,120}):\s*(.{1,1000})$/);
+      return m ? [{ label: m[1].trim(), value: m[2].trim(), category: "text", confidence: 0.86 }] : [];
+    });
+
+  return (facts.length
+    ? facts
+    : [{ label: "Owner-provided knowledge", value: text.slice(0, 12000), category: "text", confidence: 0.92 }]
+  ).slice(0, 100);
+}
+
+function rowFact(fact: Fact) {
+  if (fact.category !== "spreadsheet_row" && fact.category !== "visual_catalog_item") return null;
+
+  try {
+    const record = JSON.parse(fact.value) as Record<string, unknown>;
+    const entries = Object.entries(record).filter(([, v]) => typeof v === "string" && v.trim());
+    if (!entries.length) return null;
+
+    const pick = (patterns: RegExp[]) => {
+      const hit = entries.find(([k]) => patterns.some((p) => p.test(k)));
+      return hit ? String(hit[1]).trim() : undefined;
+    };
+
+    const name = pick([/^name$/i, /^product$/i, /^item$/i, /^title$/i, /^model$/i, /^service$/i, /^sku$/i])
+      || fact.label.replace(/^[^:]+:\s*/, "").trim();
+    if (!name) return null;
+
+    const brand = pick([/^brand$/i, /^manufacturer$/i, /^make$/i]);
+    const category = pick([/^category$/i, /^type$/i, /^kind$/i, /^product[_ ]?type$/i]);
+    const attributes = entries
+      .filter(([k]) => !/^(name|product|item|title|model|service|sku|brand|manufacturer|make|category|type|kind|product[_ ]?type)$/i.test(k))
+      .map(([k, v]) => ({ key: norm(k), value: String(v).trim().slice(0, 1000) }))
+      .filter((x) => x.key && x.value)
+      .slice(0, 32);
+
+    return { name: name.slice(0, 240), brand, category, attributes };
+  } catch {
+    return null;
+  }
+}
+
+async function persistFacts(input: Input, evidenceId: string, facts: Fact[]) {
+  const catalogIds: string[] = [];
+  const observationIds: string[] = [];
+
+  for (const fact of facts) {
+    const row = rowFact(fact);
+    const name = row?.name || fact.label || fact.value;
+    const normalizedName = norm(name);
+    if (!normalizedName) continue;
+
+    const existing = await db.catalogItem.findFirst({
+      where: { assetId: input.assetId, normalizedName },
+    });
+
+    const item = existing
+      ? await db.catalogItem.update({
+          where: { id: existing.id },
+          data: {
+            brand: row?.brand || existing.brand || undefined,
+            category: row?.category || fact.category || existing.category || undefined,
+            description: existing.description || fact.notes || undefined,
+          },
+        })
+      : await db.catalogItem.create({
+          data: {
+            assetId: input.assetId,
+            kind: row?.category || fact.category || "item",
+            name,
+            normalizedName,
+            brand: row?.brand,
+            category: row?.category || fact.category || undefined,
+            description: fact.notes || undefined,
+          },
+        });
+
+    catalogIds.push(item.id);
+
+    const attrs = row?.attributes?.length ? row.attributes : [{ key: "value", value: fact.value }];
+    for (const attr of attrs) {
+      await db.catalogAttribute.create({
+        data: {
+          catalogItemId: item.id,
+          key: attr.key,
+          value: attr.value,
+          normalizedValue: norm(attr.value),
+          confidence: conf(fact.confidence),
+          evidenceId,
+        },
+      });
+    }
+
+    const obs = await db.knowledgeObservation.create({
+      data: {
+        assetId: input.assetId,
+        catalogItemId: item.id,
+        evidenceId,
+        type: input.sourceType === "photo" ? "VISUAL_OBSERVATION" : "OBSERVED",
+        value: {
+          label: name,
+          value: fact.value,
+          brand: row?.brand,
+          category: row?.category || fact.category,
+          attributes: attrs,
+          notes: fact.notes,
+        },
+        source: input.sourceType,
+        confidence: conf(fact.confidence),
+        observedAt: new Date(),
+      },
+    });
+
+    observationIds.push(obs.id);
+  }
+
+  return { catalogIds, observationIds, factCount: facts.length };
+}
+
+async function persistVision(input: Input, evidenceId: string, items: CatalogVisionItem[]) {
+  const facts: Fact[] = items.map((item) => ({
+    label: item.name,
+    value: JSON.stringify({
+      name: item.name,
+      brand: item.brand || "",
+      category: item.category || "",
+      description: item.description || "",
+      ...(Object.fromEntries((item.attributes || []).map((attribute) => [attribute.key, attribute.value]))),
+    }),
+    category: "visual_catalog_item",
+    notes: item.notes,
+    confidence: item.confidence,
+  }));
+
+  return persistFacts(input, evidenceId, facts);
+}
+
+async function website(input: Input, evidenceId: string) {
+  const url = input.text?.trim() || input.content?.trim() || "";
+  if (!url) throw new Error("Website URL is missing.");
+
+  const learned = await learnWebsiteWorld({ url });
+  const w = learned.world;
+  const asset = await db.asset.findUnique({
+    where: { id: input.assetId },
+    select: { displayName: true, templateData: true },
+  });
+
+  const payload = {
+    label: "Business world learned from website",
+    value: w.businessName || asset?.displayName || "Business world",
+    category: "business_world",
+    source: "website",
+    sourceUrl: learned.url,
+    sourceTitle: learned.title || undefined,
+    confidence: 0.9,
+    businessName: w.businessName,
+    businessType: w.businessType,
+    businessDescription: w.description,
+    services: w.services,
+    differentiators: w.differentiators,
+    signals: w.signals,
+    subjectKinds: w.subjectKinds,
+    importantFacts: w.importantFacts,
+    sourceExcerpt: learned.sourceExcerpt,
+    evidenceId,
+    updatedBy: input.userId,
+  };
+
+  await db.insight.create({
+    data: {
+      assetId: input.assetId,
+      type: "KNOWLEDGE",
+      message: JSON.stringify(payload),
+      impact: w.description || w.businessType || w.businessName || learned.title,
+    },
+  });
+
+  const observationIds: string[] = [];
+  for (const value of [...w.services.slice(0, 100), ...w.importantFacts.slice(0, 100)]) {
+    const obs = await db.knowledgeObservation.create({
+      data: {
+        assetId: input.assetId,
+        evidenceId,
+        type: w.services.includes(value) ? "WEBSITE_SERVICE" : "WEBSITE_FACT",
+        value: { value },
+        source: "website",
+        confidence: 0.9,
+        observedAt: new Date(),
+      },
+    });
+    observationIds.push(obs.id);
+  }
+
+  const current = asset?.templateData && typeof asset.templateData === "object" && !Array.isArray(asset.templateData)
+    ? asset.templateData as Record<string, unknown>
+    : {};
+
+  await db.asset.update({
+    where: { id: input.assetId },
+    data: {
+      templateData: JSON.parse(JSON.stringify({
+        ...current,
+        businessName: w.businessName || current.businessName || asset?.displayName,
+        businessType: w.businessType || current.businessType || "",
+        businessDescription: w.description || current.businessDescription || "",
+        services: w.services.length ? w.services : current.services || [],
+        capabilities: w.services.length ? w.services : current.capabilities || [],
+        contextualSignals: [...new Set([
+          ...(Array.isArray(current.contextualSignals)
+            ? current.contextualSignals.filter((v): v is string => typeof v === "string")
+            : []),
+          ...w.signals,
+          ...w.differentiators,
+        ])].slice(0, 48),
+        subjectKinds: w.subjectKinds.length ? w.subjectKinds : current.subjectKinds || [],
+        websiteKnowledge: {
+          sourceUrl: learned.url,
+          sourceTitle: learned.title,
+          businessName: w.businessName,
+          businessType: w.businessType,
+          description: w.description,
+          services: w.services,
+          differentiators: w.differentiators,
+          signals: w.signals,
+          subjectKinds: w.subjectKinds,
+          importantFacts: w.importantFacts,
+          learnedAt: new Date().toISOString(),
+        },
+      })),
+    },
+  });
+
+  return { catalogIds: [], observationIds, factCount: 1 + w.services.length + w.importantFacts.length };
+}
+
+export async function createAndProcessKnowledgeIntake(input: Input) {
+  const raw = input.imageDataUrl || input.text || input.content || "";
+  const contentHash = raw ? hash(raw) : undefined;
+
+  if (contentHash) {
+    const existing = await db.knowledgeIntakeJob.findFirst({
+      where: { assetId: input.assetId, contentHash },
+      orderBy: { createdAt: "desc" },
+    });
+    if (existing?.status === "completed") return { job: existing, duplicate: true };
+  }
+
+  const job = await db.knowledgeIntakeJob.create({
+    data: {
+      assetId: input.assetId,
+      status: "processing",
+      sourceType: input.sourceType,
+      originalName: input.originalName,
+      contentHash,
+      payload: {
+        mimeType: input.mimeType,
+        content: input.content,
+        imageDataUrl: input.imageDataUrl,
+        text: input.text,
+        userId: input.userId,
+      },
+    },
+  });
+
+  try {
+    const decodedImage = input.imageDataUrl?.startsWith("data:") ? decodeDataUrl(input.imageDataUrl) : undefined;
+    const evidence = await db.knowledgeEvidence.create({
+      data: {
+        assetId: input.assetId,
+        intakeJobId: job.id,
+        type: input.mimeType || input.sourceType,
+        source: input.sourceType,
+        storageKey: `intake-job:${job.id}`,
+        contentHash: hash(raw),
+        text: textOf(input),
+        metadata: {
+          originalName: input.originalName,
+          mimeType: input.mimeType,
+          userId: input.userId,
+          byteLength: decodedImage?.bytes.length,
+        },
+        confidence: 1,
+      },
+    });
+
+    let result: { catalogIds: string[]; observationIds: string[]; factCount: number };
+
+    if (input.sourceType === "website") {
+      result = await website(input, evidence.id);
+    } else if (input.imageDataUrl?.startsWith("data:image/")) {
+      result = await persistVision(input, evidence.id, await analyzeImageForCatalog(input.assetId, input.imageDataUrl));
+    } else if (input.sourceType === "pdf") {
+      const decoded = decodeDataUrl(input.content || "");
+      if (!decoded) throw new Error("PDF upload is not a valid data URL.");
+      const extracted = await extractPdfKnowledge(decoded.bytes);
+      await db.knowledgeEvidence.update({
+        where: { id: evidence.id },
+        data: {
+          text: extracted.text,
+          metadata: {
+            ...extracted.metadata,
+            originalName: input.originalName,
+            mimeType: input.mimeType,
+          },
+        },
+      });
+      result = await persistFacts(input, evidence.id, extracted.facts);
+    } else if (input.sourceType === "spreadsheet") {
+      const decoded = decodeDataUrl(input.content || "");
+      if (!decoded) throw new Error("Spreadsheet upload is not a valid data URL.");
+      const extracted = extractSpreadsheetKnowledge(decoded.bytes, input.originalName);
+      await db.knowledgeEvidence.update({
+        where: { id: evidence.id },
+        data: {
+          text: extracted.text,
+          metadata: {
+            ...extracted.metadata,
+            originalName: input.originalName,
+            mimeType: input.mimeType,
+          },
+        },
+      });
+      result = await persistFacts(input, evidence.id, extracted.facts);
+    } else {
+      const text = textOf(input);
+      result = text
+        ? await persistFacts(input, evidence.id, simpleFacts(text))
+        : { catalogIds: [], observationIds: [], factCount: 0 };
+    }
+
+    const completed = await db.knowledgeIntakeJob.update({
+      where: { id: job.id },
+      data: {
+        status: "completed",
+        result: { stage: "complete", evidenceId: evidence.id, ...result },
+        error: null,
+        completedAt: new Date(),
+      },
+    });
+
+    return { job: completed, duplicate: false };
+  } catch (error) {
+    const message = error instanceof Error ? error.message : "Knowledge intake failed";
+    const failed = await db.knowledgeIntakeJob.update({
+      where: { id: job.id },
+      data: {
+        status: "failed",
+        result: { stage: "failed" },
+        error: message,
+        completedAt: new Date(),
+      },
+    });
+    return { job: failed, duplicate: false };
+  }
+}
