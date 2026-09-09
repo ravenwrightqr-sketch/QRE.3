@@ -165,6 +165,7 @@ export async function applyCatalogView(assetId: string, input?: unknown) {
     const name = view.nameMode === "attribute" && attributeValue ? attributeValue : view.nameMode === "brand_item" && item.brand ? `${item.brand} — ${item.name}` : item.name;
     const merchantOrderRaw = item.metadata && typeof item.metadata === "object" && !Array.isArray(item.metadata) ? (item.metadata as Record<string, unknown>).merchantOrder : undefined;
     const merchantOrder = typeof merchantOrderRaw === "number" ? merchantOrderRaw : Number.MAX_SAFE_INTEGER;
+    const searchText = [item.name, item.brand, item.category, item.description, ...item.attributes.flatMap((attribute) => [attribute.key, attribute.value])].filter(Boolean).join(" ").toLowerCase();
     return {
       id: item.id,
       kind: item.kind,
@@ -173,6 +174,7 @@ export async function applyCatalogView(assetId: string, input?: unknown) {
       category: view.showCategory ? item.category : null,
       description: view.showDescription ? item.description : null,
       groupValue: view.groupBy === "brand" ? item.brand ?? "" : view.groupBy === "category" ? item.category ?? "" : view.groupBy === "attribute" ? attributes.get(normalize(view.groupAttributeKey ?? ""))?.value ?? "" : null,
+      searchText,
       _name: item.name,
       _brand: item.brand ?? "",
       _createdAt: item.createdAt.getTime(),
