@@ -158,7 +158,7 @@ function matchesScope(item: { brand: string | null; category: string | null; att
 export async function applyCatalogView(assetId: string, input?: unknown) {
   const view = input === undefined ? await getCatalogView(assetId) : normalizeCatalogView(input);
   const items = await readCatalogItems(assetId);
-  const visible = items.filter((item) => availability(item) !== "unavailable").filter((item) => matchesScope(item, view.scope));
+  const visible = items.filter((item) => availability(item) === "available").filter((item) => matchesScope(item, view.scope));
   const rendered = visible.map((item) => {
     const attributes = latestAttributes(item.attributes);
     const attributeValue = view.nameAttributeKey ? attributes.get(normalize(view.nameAttributeKey))?.value : undefined;
