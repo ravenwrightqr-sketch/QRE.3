@@ -70,7 +70,8 @@ router.get("/:slug/customer", async (req, res) => {
     const slug = safeStringParam(req.params.slug); if (!slug) return res.status(400).json({ error: "Missing asset." });
     const asset = await resolveAssetBySlug(slug); if (!asset) return res.status(404).json({ error: "Catalog not found." });
     const result = await applyCatalogView(asset.id);
-    return res.json({ asset, view: { version: result.view.version, title: result.view.title }, products: result.products, count: result.count });
+    const products = result.products.map(({ id, name, brand, category, description, searchText }) => ({ id, name, brand, category, description, searchText }));
+    return res.json({ asset, view: { version: result.view.version, title: result.view.title }, products, count: products.length });
   } catch (error) { console.error("Customer catalog load failed:", error); return res.status(500).json({ error: "Customer catalog load failed." }); }
 });
 
