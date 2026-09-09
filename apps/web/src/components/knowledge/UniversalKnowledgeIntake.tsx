@@ -13,18 +13,11 @@ export type UniversalIntakeJob = {
   status: string;
   sourceType: string;
   originalName?: string | null;
-  result?: {
-    factCount?: number;
-    catalogIds?: string[];
-    observationIds?: string[];
-  } | null;
+  result?: { factCount?: number; catalogIds?: string[]; observationIds?: string[] } | null;
   error?: string | null;
 };
 
-type Props = {
-  slug: string;
-  onLearned?: () => Promise<void> | void;
-};
+type Props = { slug: string; onLearned?: () => Promise<void> | void };
 
 type Payload = {
   sourceType: string;
@@ -58,7 +51,6 @@ const button: CSSProperties = {
 export default function UniversalKnowledgeIntake({ slug, onLearned }: Props) {
   const fileRef = useRef<HTMLInputElement | null>(null);
   const photoRef = useRef<HTMLInputElement | null>(null);
-
   const [jobs, setJobs] = useState<UniversalIntakeJob[]>([]);
   const [dragging, setDragging] = useState(false);
   const [textOpen, setTextOpen] = useState(false);
@@ -79,31 +71,23 @@ export default function UniversalKnowledgeIntake({ slug, onLearned }: Props) {
 
   async function submitFiles(files: File[]) {
     if (!slug || !files.length) return;
-
     setBusy(true);
     setError("");
-
     try {
       const created: UniversalIntakeJob[] = [];
-
       for (const file of files) {
-        const payload = await fileToPayload(file);
-        const response = await apiPost(
-          `/api/knowledge/${encodeURIComponent(slug)}/intake`,
-          payload,
-        );
-
-        const job: UniversalIntakeJob = {
-          id: String(response.jobId),
-          status: String(response.status ?? "queued"),
-          sourceType: payload.sourceType,
-          originalName: file.name,
-        };
-
-        created.push(job);
+        const payloads = await fileToPayloads(file);
+        for (const payload of payloads) {
+          const response = await apiPost(`/api/knowledge/${encodeURIComponent(slug)}/intake`, payload);
+          created.push({
+            id: String(response.jobId),
+            status: String(response.status ?? "queued"),
+            sourceType: payload.sourceType,
+            originalName: payload.originalName || file.name,
+          });
+        }
       }
-
-      setJobs((current) => [...created, ...current]);
+      setJobs((current) => [...created.reverse(), ...current]);
       for (const job of created) void watchJob(job.id);
     } catch (err) {
       setError(err instanceof Error ? err.message : "QRE could not accept the upload.");
@@ -115,94 +99,55 @@ export default function UniversalKnowledgeIntake({ slug, onLearned }: Props) {
   async function submitText() {
     const value = text.trim();
     if (!value || !slug) return;
-
     setBusy(true);
     setError("");
-
     try {
-      const response = await apiPost(
-        `/api/knowledge/${encodeURIComponent(slug)}/intake`,
-        { sourceType: "text", text: value, content: value, originalName: "Pasted text" },
-      );
-
-      const job: UniversalIntakeJob = {
-        id: String(response.jobId),
-        status: String(response.status ?? "queued"),
-        sourceType: "text",
-        originalName: "Pasted text",
-      };
-
+      const response = await apiPost(`/api/knowledge/${encodeURIComponent(slug)}/intake`, {
+        sourceType: "text", text: value, content: value, originalName: "Pasted text",
+      });
+      const job: UniversalIntakeJob = { id: String(response.jobId), status: String(response.status ?? "queued"), sourceType: "text", originalName: "Pasted text" };
       setJobs((current) => [job, ...current]);
       setText("");
       setTextOpen(false);
       void watchJob(job.id);
     } catch (err) {
       setError(err instanceof Error ? err.message : "QRE could not accept the text.");
-    } finally {
-      setBusy(false);
-    }
+    } finally { setBusy(false); }
   }
 
   async function submitWebsite() {
     const value = website.trim();
     if (!value || !slug) return;
-
     setBusy(true);
     setError("");
-
     try {
-      const response = await apiPost(
-        `/api/knowledge/${encodeURIComponent(slug)}/intake`,
-        {
-          sourceType: "website",
-          originalName: value,
-          mimeType: "text/uri-list",
-          content: value,
-          text: value,
-        },
-      );
-
-      const job: UniversalIntakeJob = {
-        id: String(response.jobId),
-        status: String(response.status ?? "queued"),
-        sourceType: "website",
-        originalName: value,
-      };
-
+      const response = await apiPost(`/api/knowledge/${encodeURIComponent(slug)}/intake`, {
+        sourceType: "website", originalName: value, mimeType: "text/uri-list", content: value, text: value,
+      });
+      const job: UniversalIntakeJob = { id: String(response.jobId), status: String(response.status ?? "queued"), sourceType: "website", originalName: value };
       setJobs((current) => [job, ...current]);
       setWebsite("");
       setWebsiteOpen(false);
       void watchJob(job.id);
     } catch (err) {
       setError(err instanceof Error ? err.message : "QRE could not learn that website.");
-    } finally {
-      setBusy(false);
-    }
+    } finally { setBusy(false); }
   }
 
   async function watchJob(jobId: string) {
     try {
       for (;;) {
-        const response = await apiGet(
-          `/api/knowledge/${encodeURIComponent(slug)}/intake/${encodeURIComponent(jobId)}`,
-        );
+        const response = await apiGet(`/api/knowledge/${encodeURIComponent(slug)}/intake/${encodeURIComponent(jobId)}`);
         const next = response.job as UniversalIntakeJob;
-
         setJobs((current) => current.map((job) => job.id === jobId ? { ...job, ...next } : job));
-
         if (next.status === "completed" || next.status === "failed") {
           if (next.status === "completed") await onLearned?.();
           return;
         }
-
         await wait(1200);
       }
     } catch (err) {
-      setJobs((current) => current.map((job) => job.id === jobId ? {
-        ...job,
-        status: "failed",
-        error: err instanceof Error ? err.message : "Processing failed.",
-      } : job));
+      setJobs((current) => current.map((job) => job.id === jobId ? { ...job, status: "failed", error: err instanceof Error ? err.message : "Processing failed." } : job));
     }
   }
 
@@ -224,166 +169,104 @@ export default function UniversalKnowledgeIntake({ slug, onLearned }: Props) {
   return (
     <section style={{ display: "grid", gap: 18 }}>
       <div
-        onDragEnter={(event) => {
-          event.preventDefault();
-          setDragging(true);
-        }}
+        onDragEnter={(event) => { event.preventDefault(); setDragging(true); }}
         onDragOver={(event) => event.preventDefault()}
-        onDragLeave={(event) => {
-          if (event.currentTarget === event.target) setDragging(false);
-        }}
+        onDragLeave={(event) => { if (event.currentTarget === event.target) setDragging(false); }}
         onDrop={onDrop}
-        style={{
-          ...panel,
-          padding: "clamp(24px, 5vw, 54px)",
-          textAlign: "center",
-          borderColor: dragging ? "rgba(185,255,241,.62)" : "rgba(255,255,255,.12)",
-          boxShadow: dragging ? "0 0 90px rgba(80,255,220,.12)" : panel.boxShadow,
-        }}
+        style={{ ...panel, padding: "clamp(24px, 5vw, 54px)", textAlign: "center", borderColor: dragging ? "rgba(185,255,241,.62)" : "rgba(255,255,255,.12)", boxShadow: dragging ? "0 0 90px rgba(80,255,220,.12)" : panel.boxShadow }}
       >
         <div style={{ fontSize: 10, letterSpacing: 4, opacity: .38, marginBottom: 14 }}>ADD BUSINESS KNOWLEDGE</div>
-        <h2 style={{ margin: 0, fontSize: "clamp(34px, 7vw, 70px)", fontWeight: 500, letterSpacing: "-3px" }}>
-          GIVE QRE ANYTHING
-        </h2>
+        <h2 style={{ margin: 0, fontSize: "clamp(34px, 7vw, 70px)", fontWeight: 500, letterSpacing: "-3px" }}>GIVE QRE ANYTHING</h2>
         <p style={{ margin: "16px auto 30px", maxWidth: 620, opacity: .5, fontSize: 15, lineHeight: 1.6 }}>
           Drop anything here. QRE figures out what it is, learns from it, and puts what matters into your world.
         </p>
-
         <div style={{ display: "flex", justifyContent: "center", flexWrap: "wrap", gap: 10 }}>
-          <label style={button}>
-            📷 Take photo
-            <input ref={photoRef} type="file" accept="image/*" capture="environment" hidden onChange={onPick} />
-          </label>
-          <label style={button}>
-            🖼 Upload photos
-            <input ref={fileRef} type="file" accept="image/*" multiple hidden onChange={onPick} />
-          </label>
-          <label style={button}>
-            📄 Upload PDF
-            <input type="file" accept="application/pdf,.pdf" multiple hidden onChange={onPick} />
-          </label>
-          <label style={button}>
-            📊 Upload spreadsheet
-            <input type="file" accept=".csv,.xls,.xlsx,text/csv,application/vnd.ms-excel,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" multiple hidden onChange={onPick} />
-          </label>
-          <button type="button" style={button} onClick={() => setTextOpen((value) => !value)}>
-            ✎ Paste text
-          </button>
-          <button type="button" style={button} onClick={() => setWebsiteOpen((value) => !value)}>
-            🌐 Learn website
-          </button>
+          <label style={button}>📷 Take photo<input ref={photoRef} type="file" accept="image/*" capture="environment" hidden onChange={onPick} /></label>
+          <label style={button}>🖼 Upload photos<input ref={fileRef} type="file" accept="image/*" multiple hidden onChange={onPick} /></label>
+          <label style={button}>📄 Upload PDF<input type="file" accept="application/pdf,.pdf" multiple hidden onChange={onPick} /></label>
+          <label style={button}>📊 Upload spreadsheet<input type="file" accept=".csv,.xls,.xlsx,text/csv,application/vnd.ms-excel,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" multiple hidden onChange={onPick} /></label>
+          <button type="button" style={button} onClick={() => setTextOpen((value) => !value)}>✎ Paste text</button>
+          <button type="button" style={button} onClick={() => setWebsiteOpen((value) => !value)}>🌐 Learn website</button>
         </div>
-
-        <div
-          style={{
-            margin: "28px auto 0",
-            maxWidth: 760,
-            minHeight: 110,
-            display: "grid",
-            placeItems: "center",
-            borderRadius: 18,
-            border: "1px dashed rgba(255,255,255,.13)",
-            background: "rgba(255,255,255,.018)",
-            color: "rgba(255,255,255,.36)",
-            letterSpacing: 1.8,
-            fontSize: 11,
-          }}
-        >
+        <div style={{ margin: "28px auto 0", maxWidth: 760, minHeight: 110, display: "grid", placeItems: "center", borderRadius: 18, border: "1px dashed rgba(255,255,255,.13)", background: "rgba(255,255,255,.018)", color: "rgba(255,255,255,.36)", letterSpacing: 1.8, fontSize: 11 }}>
           DROP FILES HERE
           <span style={{ display: "block", marginTop: -24, fontSize: 10, letterSpacing: 1, opacity: .6 }}>photo · PDF · spreadsheet · anything QRE can receive</span>
         </div>
-
-        {textOpen && (
-          <div style={subPanel}>
-            <textarea
-              value={text}
-              onChange={(event) => setText(event.target.value)}
-              placeholder="Paste anything. Notes, product lists, policies, descriptions, conversations..."
-              style={textareaStyle}
-              autoFocus
-            />
-            <button type="button" onClick={() => void submitText()} disabled={busy || !text.trim()} style={primaryButton}>
-              {busy ? "QUEUING…" : "SEND TO QRE"}
-            </button>
-          </div>
-        )}
-
-        {websiteOpen && (
-          <div style={subPanel}>
-            <input
-              value={website}
-              onChange={(event) => setWebsite(event.target.value)}
-              onKeyDown={(event) => {
-                if (event.key === "Enter") {
-                  event.preventDefault();
-                  void submitWebsite();
-                }
-              }}
-              placeholder="https://yourbusiness.com"
-              style={textareaStyle}
-              autoFocus
-            />
-            <button type="button" onClick={() => void submitWebsite()} disabled={busy || !website.trim()} style={primaryButton}>
-              {busy ? "QUEUING…" : "LEARN WEBSITE"}
-            </button>
-          </div>
-        )}
+        {textOpen && <div style={subPanel}><textarea value={text} onChange={(event) => setText(event.target.value)} placeholder="Paste anything. Notes, product lists, policies, descriptions, conversations..." style={textareaStyle} autoFocus /><button type="button" onClick={() => void submitText()} disabled={busy || !text.trim()} style={primaryButton}>{busy ? "QUEUING…" : "SEND TO QRE"}</button></div>}
+        {websiteOpen && <div style={subPanel}><input value={website} onChange={(event) => setWebsite(event.target.value)} onKeyDown={(event) => { if (event.key === "Enter") { event.preventDefault(); void submitWebsite(); } }} placeholder="https://yourbusiness.com" style={textareaStyle} autoFocus /><button type="button" onClick={() => void submitWebsite()} disabled={busy || !website.trim()} style={primaryButton}>{busy ? "QUEUING…" : "LEARN WEBSITE"}</button></div>}
       </div>
 
       {(activeJobs.length > 0 || jobs.some((job) => job.status === "completed" || job.status === "failed")) && (
         <div style={{ ...panel, padding: 20 }}>
-          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 14 }}>
-            <div style={{ fontSize: 10, letterSpacing: 3, opacity: .4 }}>QRE LEARNING</div>
-            {activeJobs.length > 0 && <div style={{ fontSize: 10, letterSpacing: 1, opacity: .45 }}>{activeJobs.length} active</div>}
-          </div>
-
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 14 }}><div style={{ fontSize: 10, letterSpacing: 3, opacity: .4 }}>QRE LEARNING</div>{activeJobs.length > 0 && <div style={{ fontSize: 10, letterSpacing: 1, opacity: .45 }}>{activeJobs.length} active</div>}</div>
           <div style={{ display: "grid", gap: 8 }}>
-            {jobs.slice(0, 10).map((job) => (
-              <div key={job.id} style={{ display: "grid", gridTemplateColumns: "minmax(0,1fr) auto", gap: 16, alignItems: "center", padding: "12px 0", borderTop: "1px solid rgba(255,255,255,.06)" }}>
-                <div>
-                  <div style={{ fontSize: 12 }}>{job.originalName || job.sourceType}</div>
-                  <div style={{ marginTop: 4, fontSize: 10, opacity: .38 }}>{job.sourceType}</div>
-                </div>
-                <div style={{ fontSize: 10, letterSpacing: 1.4, opacity: .65 }}>
-                  {job.status === "queued" && "UPLOADED"}
-                  {job.status === "processing" && "PROCESSING"}
-                  {job.status === "completed" && `LEARNED${job.result?.factCount ? ` · ${job.result.factCount} facts` : ""}`}
-                  {job.status === "failed" && "FAILED"}
-                </div>
-              </div>
-            ))}
+            {jobs.slice(0, 10).map((job) => <div key={job.id} style={{ display: "grid", gridTemplateColumns: "minmax(0,1fr) auto", gap: 16, alignItems: "center", padding: "12px 0", borderTop: "1px solid rgba(255,255,255,.06)" }}><div><div style={{ fontSize: 12 }}>{job.originalName || job.sourceType}</div><div style={{ marginTop: 4, fontSize: 10, opacity: .38 }}>{job.sourceType}</div></div><div style={{ fontSize: 10, letterSpacing: 1.4, opacity: .65 }}>{job.status === "queued" && "UPLOADED"}{job.status === "processing" && "PROCESSING"}{job.status === "completed" && `LEARNED${job.result?.factCount ? ` · ${job.result.factCount} facts` : ""}`}{job.status === "failed" && "FAILED"}</div></div>)}
           </div>
         </div>
       )}
-
       {error && <div style={{ border: "1px solid rgba(255,100,100,.18)", borderRadius: 14, padding: 14, background: "rgba(255,80,80,.08)", fontSize: 12 }}>{error}</div>}
     </section>
   );
 }
 
-async function fileToPayload(file: File): Promise<Payload> {
-  const dataUrl = await fileToDataUrl(file);
+async function fileToPayloads(file: File): Promise<Payload[]> {
   const sourceType = classifyFile(file);
+  if (!file.type.startsWith("image/")) {
+    const dataUrl = await fileToDataUrl(file);
+    return [{ sourceType, originalName: file.name, mimeType: file.type || undefined, imageDataUrl: undefined, content: dataUrl }];
+  }
 
-  return {
-    sourceType,
-    originalName: file.name,
-    mimeType: file.type || undefined,
-    imageDataUrl: file.type.startsWith("image/") ? dataUrl : undefined,
-    content: file.type.startsWith("image/") ? undefined : dataUrl,
-  };
+  const dataUrl = await fileToDataUrl(file);
+  const payloads: Payload[] = [{ sourceType: "photo", originalName: `${file.name} · full frame`, mimeType: file.type || undefined, imageDataUrl: dataUrl }];
+
+  const image = await loadImage(dataUrl);
+  const columns = 3;
+  const rows = 3;
+  for (let row = 0; row < rows; row += 1) {
+    for (let column = 0; column < columns; column += 1) {
+      const crop = cropImage(image, column, row, columns, rows);
+      payloads.push({
+        sourceType: "photo",
+        originalName: `${file.name} · detail ${row * columns + column + 1}/9`,
+        mimeType: "image/jpeg",
+        imageDataUrl: crop,
+      });
+    }
+  }
+  return payloads;
+}
+
+function cropImage(image: HTMLImageElement, column: number, row: number, columns: number, rows: number): string {
+  const sourceWidth = image.naturalWidth || image.width;
+  const sourceHeight = image.naturalHeight || image.height;
+  const sx = Math.floor(sourceWidth * column / columns);
+  const sy = Math.floor(sourceHeight * row / rows);
+  const sw = Math.floor(sourceWidth / columns) + (column === columns - 1 ? sourceWidth % columns : 0);
+  const sh = Math.floor(sourceHeight / rows) + (row === rows - 1 ? sourceHeight % rows : 0);
+  const maxSide = 1800;
+  const scale = Math.min(1, maxSide / Math.max(sw, sh));
+  const canvas = document.createElement("canvas");
+  canvas.width = Math.max(1, Math.round(sw * scale));
+  canvas.height = Math.max(1, Math.round(sh * scale));
+  const context = canvas.getContext("2d");
+  if (!context) throw new Error("Browser could not prepare the photo detail pass.");
+  context.drawImage(image, sx, sy, sw, sh, 0, 0, canvas.width, canvas.height);
+  return canvas.toDataURL("image/jpeg", 0.94);
+}
+
+function loadImage(dataUrl: string): Promise<HTMLImageElement> {
+  return new Promise((resolve, reject) => {
+    const image = new Image();
+    image.onload = () => resolve(image);
+    image.onerror = () => reject(new Error("QRE could not prepare the photo for detail passes."));
+    image.src = dataUrl;
+  });
 }
 
 function fileToDataUrl(file: File): Promise<string> {
   return new Promise((resolve, reject) => {
     const reader = new FileReader();
-    reader.onload = () => {
-      if (typeof reader.result !== "string") {
-        reject(new Error("Could not read file."));
-        return;
-      }
-      resolve(reader.result);
-    };
+    reader.onload = () => typeof reader.result === "string" ? resolve(reader.result) : reject(new Error("Could not read file."));
     reader.onerror = () => reject(new Error("Could not read file."));
     reader.readAsDataURL(file);
   });
@@ -396,44 +279,8 @@ function classifyFile(file: File): string {
   return "file";
 }
 
-function wait(milliseconds: number): Promise<void> {
-  return new Promise((resolve) => setTimeout(resolve, milliseconds));
-}
+function wait(milliseconds: number): Promise<void> { return new Promise((resolve) => setTimeout(resolve, milliseconds)); }
 
-const subPanel: CSSProperties = {
-  margin: "18px auto 0",
-  maxWidth: 760,
-  padding: 16,
-  borderRadius: 18,
-  border: "1px solid rgba(255,255,255,.08)",
-  background: "rgba(255,255,255,.025)",
-  display: "grid",
-  gap: 10,
-};
-
-const textareaStyle: CSSProperties = {
-  width: "100%",
-  boxSizing: "border-box",
-  minHeight: 110,
-  resize: "vertical",
-  border: "1px solid rgba(255,255,255,.1)",
-  borderRadius: 14,
-  background: "rgba(0,0,0,.25)",
-  color: "#fff",
-  padding: 14,
-  font: "inherit",
-  outline: "none",
-};
-
-const primaryButton: CSSProperties = {
-  justifySelf: "end",
-  border: 0,
-  borderRadius: 999,
-  background: "#fff",
-  color: "#000",
-  padding: "11px 18px",
-  cursor: "pointer",
-  fontSize: 10,
-  fontWeight: 800,
-  letterSpacing: 1.5,
-};
+const subPanel: CSSProperties = { margin: "18px auto 0", maxWidth: 760, padding: 16, borderRadius: 18, border: "1px solid rgba(255,255,255,.08)", background: "rgba(255,255,255,.025)", display: "grid", gap: 10 };
+const textareaStyle: CSSProperties = { width: "100%", boxSizing: "border-box", minHeight: 110, resize: "vertical", border: "1px solid rgba(255,255,255,.1)", borderRadius: 14, background: "rgba(0,0,0,.25)", color: "#fff", padding: 14, font: "inherit", outline: "none" };
+const primaryButton: CSSProperties = { justifySelf: "end", border: 0, borderRadius: 999, background: "#fff", color: "#000", padding: "11px 18px", cursor: "pointer", fontSize: 10, fontWeight: 800, letterSpacing: 1.5 };
