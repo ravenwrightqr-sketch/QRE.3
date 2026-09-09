@@ -2,10 +2,11 @@ import { useEffect, useMemo, useState } from "react";
 import { useParams } from "react-router-dom";
 import { favoriteCatalogItem, getCustomerCatalog, recordCatalogTryFeedback } from "../lib/api";
 
-type Product = { id: string; name: string; brand?: string | null; category?: string | null; description?: string | null };
+type Product = { id: string; name: string; brand?: string | null; category?: string | null; description?: string | null; groupValue?: string | null; searchText?: string };
 
 type CatalogResponse = {
   asset?: { displayName?: string | null };
+  view?: { title?: string | null };
   products?: Product[];
 };
 
@@ -21,6 +22,7 @@ function getVisitorId(slug: string) {
 export default function CustomerCatalog() {
   const { slug = "" } = useParams();
   const [businessName, setBusinessName] = useState("");
+  const [title, setTitle] = useState("What’s here");
   const [products, setProducts] = useState<Product[]>([]);
   const [search, setSearch] = useState("");
   const [favoriteId, setFavoriteId] = useState("");
@@ -33,6 +35,7 @@ export default function CustomerCatalog() {
     getCustomerCatalog(slug)
       .then((result: CatalogResponse) => {
         setBusinessName(result.asset?.displayName?.trim() || "");
+        setTitle(result.view?.title?.trim() || "What’s here");
         setProducts(result.products ?? []);
       })
       .catch((err) => setError(err instanceof Error ? err.message : "Could not load catalog."));
@@ -41,7 +44,7 @@ export default function CustomerCatalog() {
   const visibleProducts = useMemo(() => {
     const query = search.trim().toLowerCase();
     if (!query) return products;
-    return products.filter((product) => [product.name, product.brand, product.category, product.description].filter(Boolean).join(" ").toLowerCase().includes(query));
+    return products.filter((product) => (product.searchText || [product.name, product.brand, product.category, product.description].filter(Boolean).join(" ")).toLowerCase().includes(query));
   }, [products, search]);
 
   async function chooseFavorite(product: Product) {
@@ -75,25 +78,30 @@ export default function CustomerCatalog() {
     <main style={pageStyle}>
       <header style={headerStyle}>
         {businessName && <p style={businessNameStyle}>{businessName}</p>}
-        <h1 style={titleStyle}>What’s here</h1>
+        <h1 style={titleStyle}>{title}</h1>
         <input value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Search" aria-label="Search products" style={searchStyle} />
       </header>
 
       {error && <p style={errorStyle}>{error}</p>}
 
       <section aria-label="Available products" style={productList}>
-        {visibleProducts.map((product) => {
+        {visibleProducts.map((product, index) => {
           const reaction = feedbackIds[product.id];
           const selected = favoriteId === product.id;
+          const previousGroup = index > 0 ? visibleProducts[index - 1]?.groupValue : null;
+          const showGroup = Boolean(product.groupValue && product.groupValue !== previousGroup);
           return (
-            <div key={product.id} style={rowStyle}>
-              <div style={productLine}>
-                <button type="button" onClick={() => void chooseFavorite(product)} aria-pressed={selected} style={{ ...nameButton, ...(selected ? selectedNameButton : {}) }}>
-                  {product.name}
-                </button>
-                <div style={reactionButtons} aria-label={`Rate ${product.name}`}>
-                  <button type="button" onClick={() => void react(product, "positive")} aria-label={`Like ${product.name}`} aria-pressed={reaction === "positive"} style={{ ...heartButton, ...(reaction === "positive" ? heartSelected : {}) }}>♥</button>
-                  <button type="button" onClick={() => void react(product, "negative")} aria-label={`Nope ${product.name}`} aria-pressed={reaction === "negative"} style={{ ...xButton, ...(reaction === "negative" ? xSelected : {}) }}>×</button>
+            <div key={product.id}>
+              {showGroup && <p style={groupStyle}>{product.groupValue}</p>}
+              <div style={rowStyle}>
+                <div style={productLine}>
+                  <button type="button" onClick={() => void chooseFavorite(product)} aria-pressed={selected} style={{ ...nameButton, ...(selected ? selectedNameButton : {}) }}>
+                    {product.name}
+                  </button>
+                  <div style={reactionButtons} aria-label={`Rate ${product.name}`}>
+                    <button type="button" onClick={() => void react(product, "positive")} aria-label={`Like ${product.name}`} aria-pressed={reaction === "positive"} style={{ ...heartButton, ...(reaction === "positive" ? heartSelected : {}) }}>♥</button>
+                    <button type="button" onClick={() => void react(product, "negative")} aria-label={`Nope ${product.name}`} aria-pressed={reaction === "negative"} style={{ ...xButton, ...(reaction === "negative" ? xSelected : {}) }}>×</button>
+                  </div>
                 </div>
               </div>
             </div>
@@ -110,6 +118,7 @@ const businessNameStyle: React.CSSProperties = { margin: "0 0 8px", fontSize: "c
 const titleStyle: React.CSSProperties = { margin: "0 0 16px", fontSize: "clamp(30px, 9vw, 44px)", lineHeight: 0.95, fontWeight: 800 };
 const searchStyle: React.CSSProperties = { width: "100%", minHeight: 48, boxSizing: "border-box", padding: "10px 0", border: "none", borderBottom: "1px solid #444", background: "transparent", color: "white", outline: "none", fontSize: 18, borderRadius: 0 };
 const productList: React.CSSProperties = { width: "100%", maxWidth: 680, margin: "0 auto" };
+const groupStyle: React.CSSProperties = { margin: "28px 0 8px", fontSize: 12, fontWeight: 800, letterSpacing: 2.5, textTransform: "uppercase", color: "#777" };
 const rowStyle: React.CSSProperties = { padding: "7px 0", borderBottom: "1px solid #171717" };
 const productLine: React.CSSProperties = { display: "grid", gridTemplateColumns: "minmax(0, 1fr) auto", alignItems: "center", gap: 8 };
 const nameButton: React.CSSProperties = { width: "100%", minHeight: 48, border: 0, background: "transparent", color: "white", padding: "4px 0", fontSize: "clamp(18px, 5vw, 21px)", fontWeight: 650, cursor: "pointer", textAlign: "left", WebkitTapHighlightColor: "transparent" };
