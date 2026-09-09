@@ -17,6 +17,7 @@ import Scan from "./pages/scan";
 import Contribution from "./pages/Contribution";
 import Store from "./pages/store";
 import Product from "./pages/product";
+import CustomerCatalog from "./pages/CustomerCatalog";
 import Success from "./pages/Success";
 import Cancel from "./pages/Cancel";
 import { useAuth } from "./components/auth/authContext";
@@ -32,8 +33,7 @@ export default function App() {
     );
   }
 
-  const gate = (element: JSX.Element) =>
-    isAuthed ? element : <Navigate to="/login" replace />;
+  const gate = (element: JSX.Element) => isAuthed ? element : <Navigate to="/login" replace />;
 
   return (
     <BrowserRouter>
@@ -41,7 +41,6 @@ export default function App() {
         <Route path="/login" element={isAuthed ? <Navigate to="/dashboard" replace /> : <Login />} />
         <Route path="/" element={<Navigate to={isAuthed ? "/dashboard" : "/login"} replace />} />
         <Route path="/dashboard" element={gate(<Dashboard />)} />
-
         <Route path="/dashboard/service-receipt" element={gate(<ServiceReceipt />)} />
         <Route path="/dashboard/info" element={gate(<QreInfo />)} />
         <Route path="/dashboard/assets/:slug" element={gate(<AssetDashboard />)} />
@@ -56,6 +55,7 @@ export default function App() {
         <Route path="/checkout/:slug" element={<Checkout />} />
         <Route path="/scan/:slug" element={<Scan />} />
         <Route path="/s/:slug" element={<Scan />} />
+        <Route path="/catalog/:slug" element={<CustomerCatalog />} />
         <Route path="/add/:slug" element={<Contribution />} />
         <Route path="/product/:slug" element={<Product />} />
         <Route path="/store" element={<Store />} />
