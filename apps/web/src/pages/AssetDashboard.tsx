@@ -3,6 +3,7 @@ import { Link, useParams } from "react-router-dom";
 import { getUserAssets } from "../lib/api";
 import DashboardLayout from "../components/layout/DashboardLayout";
 import LocationPicker from "../components/dashboard/LocationPicker";
+import CatalogViewPanel from "../components/dashboard/CatalogViewPanel";
 
 type Asset = {
   id: string;
@@ -82,6 +83,8 @@ export default function AssetDashboard() {
             <Link to="/dashboard/info" style={{ color: "#fff", textDecoration: "none", border: "1px solid rgba(255,255,255,.16)", borderRadius: 12, padding: "10px 14px" }}>WHAT QRE CAN DO</Link>
           </div>
         </section>
+
+        <CatalogViewPanel slug={asset.slug} />
 
         <LocationPicker initial={location} onSave={saveLocation} />
 
