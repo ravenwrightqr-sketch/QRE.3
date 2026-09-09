@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState, type ReactNode } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { apiGet, apiPost } from "../../lib/api";
 import UniversalKnowledgeIntake from "../../components/knowledge/UniversalKnowledgeIntake";
@@ -170,7 +170,7 @@ export default function AdminDashboard() {
           ))}
         </nav>
         <div style={sidebarBottom}>
-          <div style={healthDot}><span /> {health}</div>
+          <div style={healthDot}><span style={healthDotSpan} /> {health}</div>
           <Link to="/admin/create" style={addBusiness}>+ Add business</Link>
         </div>
       </aside>
@@ -217,14 +217,14 @@ export default function AdminDashboard() {
                 <section style={dashboardGrid}>
                   <section style={panel}>
                     <PanelHeader eyebrow="YOUR WORLDS" title="Businesses" action={<button type="button" onClick={() => setView("businesses")} style={tinyButton}>View all</button>} />
-                    <div style={compactList}>{assets.slice(0, 7).map((asset) => <button key={asset.id} type="button" onClick={() => selectBusiness(asset.id)} style={worldRow}><span><strong>{asset.displayName || asset.slug}</strong><small>{asset.category || "QRE world"}</small></span><span style={worldStatus}>{asset.accountId ? "Connected" : "Available"}</span></button>)}</div>
+                    <div style={compactList}>{assets.slice(0, 7).map((asset) => <button key={asset.id} type="button" onClick={() => selectBusiness(asset.id)} style={worldRow}><span><strong style={worldRowStrong}>{asset.displayName || asset.slug}</strong><small style={worldRowSmall}>{asset.category || "QRE world"}</small></span><span style={worldStatus}>{asset.accountId ? "Connected" : "Available"}</span></button>)}</div>
                   </section>
 
                   <section style={panel}>
                     <PanelHeader eyebrow="SELECTED WORLD" title={selected?.displayName || "Nothing selected"} />
                     {selected ? (
                       <div style={selectedCard}>
-                        <div style={selectedIdentity}><span>{selected.category || "Business"}</span><b>{selected.slug}</b></div>
+                        <div style={selectedIdentity}><span>{selected.category || "Business"}</span><b style={selectedIdentityB}>{selected.slug}</b></div>
                         <div style={worldMetrics}>
                           <MiniStat value={Number(knowledge?.counts?.catalog ?? 0)} label="catalog" />
                           <MiniStat value={Number(knowledge?.counts?.observations ?? 0)} label="observations" />
@@ -248,10 +248,7 @@ export default function AdminDashboard() {
                   <div style={listHeader}><div><div style={panelKicker}>BUSINESS WORLDS</div><div style={listCount}>{assets.length} total</div></div><Link to="/admin/create" style={tinyButton}>+ New</Link></div>
                   <input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Search…" style={searchInput} />
                   <div style={filterBar}>{(["all", "connected", "unassigned", "attention"] as const).map((item) => <button key={item} type="button" onClick={() => setFilter(item)} style={{ ...filterButton, ...(filter === item ? filterButtonActive : {}) }}>{item}</button>)}</div>
-                  <div style={assetList}>{visibleAssets.map((asset) => {
-                    const active = asset.id === selected?.id;
-                    return <button key={asset.id} type="button" onClick={() => setSelectedId(asset.id)} style={{ ...assetButton, ...(active ? assetButtonActive : {}) }}><div style={assetButtonTop}><span style={assetName}>{asset.displayName || asset.slug}</span><span style={statusPill}>{asset.accountId ? "CONNECTED" : "AVAILABLE"}</span></div><div style={assetMeta}>{asset.category || "Business"} · {asset.slug}</div></button>;
-                  })}</div>
+                  <div style={assetList}>{visibleAssets.map((asset) => { const active = asset.id === selected?.id; return <button key={asset.id} type="button" onClick={() => setSelectedId(asset.id)} style={{ ...assetButton, ...(active ? assetButtonActive : {}) }}><div style={assetButtonTop}><span style={assetName}>{asset.displayName || asset.slug}</span><span style={statusPill}>{asset.accountId ? "CONNECTED" : "AVAILABLE"}</span></div><div style={assetMeta}>{asset.category || "Business"} · {asset.slug}</div></button>; })}</div>
                 </aside>
 
                 <section style={workspace}>
@@ -269,7 +266,7 @@ export default function AdminDashboard() {
             {view === "knowledge" && (
               <section style={contentStack}>
                 <section style={sectionHero}><div style={panelKicker}>KNOWLEDGE OPERATIONS</div><h1 style={sectionTitle}>Teach QRE once.<br />Build the world over time.</h1><p style={sectionText}>Different sources do not create different worlds. They add evidence, observations and patterns to the selected business.</p></section>
-                <div style={worldPickerBar}>{selected ? <><span>WORLD</span><strong>{selected.displayName || selected.slug}</strong><button type="button" onClick={() => setView("businesses")} style={tinyButton}>Change</button></> : <button type="button" onClick={() => setView("businesses")} style={primaryButton}>Choose business</button>}</div>
+                <div style={worldPickerBar}>{selected ? <><span style={worldPickerBarSpan}>WORLD</span><strong>{selected.displayName || selected.slug}</strong><button type="button" onClick={() => setView("businesses")} style={tinyButton}>Change</button></> : <button type="button" onClick={() => setView("businesses")} style={primaryButton}>Choose business</button>}</div>
                 {selected ? <UniversalKnowledgeIntake slug={selected.slug} onLearned={() => loadAssets()} /> : null}
                 {selected && knowledge?.jobs?.length ? <section style={panel}><PanelHeader eyebrow="RECENT LEARNING" title="What QRE just processed" /><div style={compactList}>{knowledge.jobs.slice(0, 12).map((job) => <div key={job.id} style={jobRow}><span><strong>{job.originalName || job.sourceType}</strong><small>{job.sourceType}</small></span><span style={jobStatus}>{job.status}</span></div>)}</div></section> : null}
               </section>
@@ -304,7 +301,7 @@ function MiniStat({ value, label }: { value: number; label: string }) {
   return <div><div style={miniValue}>{value.toLocaleString()}</div><div style={miniLabel}>{label}</div></div>;
 }
 
-function PanelHeader({ eyebrow, title, action }: { eyebrow: string; title: string; action?: React.ReactNode }) {
+function PanelHeader({ eyebrow, title, action }: { eyebrow: string; title: string; action?: ReactNode }) {
   return <div style={panelHeader}><div><div style={panelKicker}>{eyebrow}</div><div style={panelTitle}>{title}</div></div>{action}</div>;
 }
 
@@ -313,7 +310,7 @@ const sidebar = { display: "flex", flexDirection: "column" as const, position: "
 const logoButton = { border: 0, background: "transparent", textAlign: "left" as const, padding: "2px 8px", fontSize: 18, fontWeight: 800, letterSpacing: "-.04em", cursor: "pointer" };
 const sidebarLabel = { margin: "34px 8px 10px", fontSize: 8, letterSpacing: 2.4, color: "#aaa" };
 const sideNav = { display: "grid", gap: 3 };
-const sideNavButton = { border: 0, borderRadius: 12, padding: "11px 10px", background: "transparent", color: "#555", textAlign: "left" as const, font: "inherit", cursor: "pointer" };
+const sideNavButton = { display: "grid", gap: 2, border: 0, borderRadius: 12, padding: "11px 10px", background: "transparent", color: "#555", textAlign: "left" as const, font: "inherit", cursor: "pointer" };
 const sideNavActive = { background: "#fff", color: "#111", boxShadow: "0 4px 18px rgba(0,0,0,.05)" };
 const sideNavSmall = { display: "block", marginTop: 3, fontSize: 9, color: "#999" };
 const sidebarBottom = { marginTop: "auto", display: "grid", gap: 10 };
@@ -403,7 +400,3 @@ const capabilityCard = { minHeight: 165, padding: 18, borderRadius: 18, backgrou
 const capabilityTitle = { fontSize: 17, fontWeight: 700, letterSpacing: "-.4px" };
 const capabilityText = { margin: "8px 0 0", color: "#8b8b86", fontSize: 11, lineHeight: 1.5 };
 const capabilityState = { display: "inline-block", marginTop: 17, color: "#aaa", fontSize: 7, letterSpacing: 1.3, textTransform: "uppercase" as const };
-
-/* React namespace type is available through the existing TSX configuration. */
-const _unusedStyleReferences = [sideNavSmall, healthDotSpan, worldRowStrong, worldRowSmall, selectedIdentityB, worldPickerBarSpan];
-void _unusedStyleReferences;
