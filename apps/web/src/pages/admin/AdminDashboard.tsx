@@ -17,12 +17,7 @@ type AdminAsset = {
 };
 
 type KnowledgeState = {
-  counts?: {
-    catalog?: number;
-    observations?: number;
-    patterns?: number;
-    jobs?: number;
-  };
+  counts?: { catalog?: number; observations?: number; patterns?: number; jobs?: number };
   jobs?: Array<{
     id: string;
     status: string;
@@ -35,34 +30,42 @@ type KnowledgeState = {
   }>;
 };
 
-type AdminView = "overview" | "businesses" | "knowledge" | "activity" | "capabilities";
+type AdminView = "overview" | "businesses" | "knowledge" | "operations" | "system";
+
+const navItems: Array<[AdminView, string, string]> = [
+  ["overview", "Overview", "Command center"],
+  ["businesses", "Businesses", "All business worlds"],
+  ["knowledge", "Knowledge", "Teach & inspect"],
+  ["operations", "Operations", "Jobs & attention"],
+  ["system", "System", "Capabilities & controls"],
+];
 
 const capabilityGroups = [
   {
-    title: "Business control",
+    title: "Worlds",
     items: [
-      ["Businesses", "Create, connect, search, inspect and manage every QRE business world."],
-      ["Knowledge", "Feed photos, PDFs, spreadsheets, text and websites into one durable world."],
-      ["Catalog", "See the products, services, objects and attributes QRE has learned."],
-      ["Observations", "Inspect what QRE has seen and when it was observed."],
+      ["Businesses", "Create, connect, search and inspect business worlds."],
+      ["Knowledge", "Feed photos, PDFs, spreadsheets, text and websites."],
+      ["Catalog", "See products, services, objects and learned attributes."],
+      ["Observations", "Inspect what QRE has seen and when it saw it."],
     ],
   },
   {
     title: "Operations",
     items: [
-      ["Activity", "See intake jobs, learning status, failures and recent system work."],
-      ["Patterns", "Surface repeated observations, changes and relationships across the business world."],
+      ["Patterns", "Surface repeated observations, changes and relationships."],
+      ["Jobs", "Track intake, processing, completion and failures."],
+      ["Alerts", "Put things needing attention in front of the operator."],
       ["Automations", "Turn conditions and learned changes into repeatable actions."],
-      ["Alerts", "Show operators what needs attention instead of making them hunt for it."],
     ],
   },
   {
-    title: "Enterprise control",
+    title: "Enterprise",
     items: [
-      ["Analytics", "Measure scans, learning, engagement, assets and business performance."],
-      ["Integrations", "Connect QRE to websites, commerce, calendars, storage, CRM and external systems."],
-      ["Team & Access", "Control who can see and change business worlds and operational surfaces."],
-      ["Audit", "Keep a durable record of important administrative and data-changing actions."],
+      ["Analytics", "Measure scans, engagement, learning and business performance."],
+      ["Integrations", "Connect websites, commerce, calendars, CRM and external systems."],
+      ["Team & Access", "Control who can see and change business worlds."],
+      ["Audit", "Keep a durable record of important administrative actions."],
     ],
   },
 ];
@@ -97,29 +100,33 @@ export default function AdminDashboard() {
     }
   }
 
-  useEffect(() => {
-    void loadAssets(true);
-  }, []);
+  useEffect(() => { void loadAssets(true); }, []);
 
-  const selected = useMemo(
-    () => assets.find((asset) => asset.id === selectedId) ?? assets[0] ?? null,
-    [assets, selectedId],
-  );
+  const selected = useMemo(() => assets.find((asset) => asset.id === selectedId) ?? assets[0] ?? null, [assets, selectedId]);
+
+  useEffect(() => {
+    if (!selected?.slug) { setKnowledge(null); return; }
+    let cancelled = false;
+    setKnowledgeLoading(true);
+    void apiGet(`/api/knowledge/${encodeURIComponent(selected.slug)}/state`)
+      .then((result) => { if (!cancelled) setKnowledge(result as KnowledgeState); })
+      .catch(() => { if (!cancelled) setKnowledge(null); })
+      .finally(() => { if (!cancelled) setKnowledgeLoading(false); });
+    return () => { cancelled = true; };
+  }, [selected?.slug]);
 
   const visibleAssets = useMemo(() => {
     const normalized = query.trim().toLowerCase();
     return assets.filter((asset) => {
       const unassigned = !asset.accountId;
-      const attention = asset.status && asset.status !== "active";
+      const attention = Boolean(asset.status && asset.status !== "active");
       if (filter === "connected" && unassigned) return false;
       if (filter === "unassigned" && !unassigned) return false;
       if (filter === "attention" && !attention) return false;
       if (!normalized) return true;
-      return [asset.displayName, asset.slug, asset.category]
-        .filter(Boolean)
-        .some((value) => String(value).toLowerCase().includes(normalized));
+      return [asset.displayName, asset.slug, asset.category].filter(Boolean).some((value) => String(value).toLowerCase().includes(normalized));
     });
-  }, [assets, query, filter]);
+  }, [assets, filter, query]);
 
   const stats = useMemo(() => ({
     businesses: assets.length,
@@ -129,29 +136,7 @@ export default function AdminDashboard() {
     unlocks: assets.reduce((sum, asset) => sum + Number(asset.totalUnlocks ?? 0), 0),
   }), [assets]);
 
-  useEffect(() => {
-    if (!selected?.slug) {
-      setKnowledge(null);
-      return;
-    }
-
-    let cancelled = false;
-    setKnowledgeLoading(true);
-    void apiGet(`/api/knowledge/${encodeURIComponent(selected.slug)}/state`)
-      .then((result) => {
-        if (!cancelled) setKnowledge(result as KnowledgeState);
-      })
-      .catch(() => {
-        if (!cancelled) setKnowledge(null);
-      })
-      .finally(() => {
-        if (!cancelled) setKnowledgeLoading(false);
-      });
-
-    return () => {
-      cancelled = true;
-    };
-  }, [selected?.slug]);
+  const health = stats.unassigned === 0 ? "HEALTHY" : "READY TO CONNECT";
 
   async function claim(asset: AdminAsset) {
     setBusyId(asset.id);
@@ -174,277 +159,251 @@ export default function AdminDashboard() {
 
   return (
     <main style={page}>
-      <header style={header}>
-        <div>
-          <div style={kicker}>QRE ADMIN / CONTROL PLANE</div>
-          <h1 style={title}>Run QRE.</h1>
-          <p style={subtitle}>One place to manage businesses, knowledge, operations, intelligence and the systems around them.</p>
+      <aside style={sidebar}>
+        <button type="button" onClick={() => navigate("/dashboard")} style={logoButton} aria-label="Return to QRE">QRE</button>
+        <div style={sidebarLabel}>ADMIN</div>
+        <nav style={sideNav}>
+          {navItems.map(([key, label, hint]) => (
+            <button key={key} type="button" onClick={() => setView(key)} style={{ ...sideNavButton, ...(view === key ? sideNavActive : {}) }}>
+              <span>{label}</span><small>{hint}</small>
+            </button>
+          ))}
+        </nav>
+        <div style={sidebarBottom}>
+          <div style={healthDot}><span /> {health}</div>
+          <Link to="/admin/create" style={addBusiness}>+ Add business</Link>
         </div>
-        <div style={headerActions}>
-          <Link to="/admin/create" style={primaryButton}>+ Add business</Link>
-          <button type="button" onClick={() => navigate("/dashboard")} style={secondaryButton}>Back to QRE</button>
-        </div>
-      </header>
+      </aside>
 
-      <nav style={navBar} aria-label="QRE admin sections">
-        {(["overview", "businesses", "knowledge", "activity", "capabilities"] as AdminView[]).map((item) => (
-          <button key={item} type="button" onClick={() => setView(item)} style={{ ...navButton, ...(view === item ? navButtonActive : {}) }}>
-            {item === "businesses" ? "Businesses" : item.charAt(0).toUpperCase() + item.slice(1)}
-          </button>
-        ))}
-      </nav>
+      <section style={mainArea}>
+        <header style={topBar}>
+          <div>
+            <div style={eyebrow}>CONTROL CENTER / {view.toUpperCase()}</div>
+            <div style={topTitle}>{view === "overview" ? "Command center" : navItems.find(([key]) => key === view)?.[1]}</div>
+          </div>
+          <div style={topActions}>
+            <button type="button" onClick={() => void loadAssets()} style={iconButton} title="Refresh">↻</button>
+            <Link to="/dashboard" style={quietLink}>Exit admin</Link>
+          </div>
+        </header>
 
-      {error ? <div style={errorBox}>{error}</div> : null}
+        {error ? <div style={errorBox}>{error}</div> : null}
 
-      {loading ? (
-        <div style={loadingBox}>LOADING QRE CONTROL PLANE…</div>
-      ) : (
-        <>
-          {view === "overview" ? (
-            <section style={overviewStack}>
-              <div style={metricGrid}>
-                <Metric value={stats.businesses} label="Business worlds" />
-                <Metric value={stats.connected} label="Connected" />
-                <Metric value={stats.unassigned} label="Available" />
-                <Metric value={stats.scans} label="Scans" />
-                <Metric value={stats.unlocks} label="Unlocks" />
-              </div>
-
-              <section style={heroCard}>
-                <div style={heroEyebrow}>UNIVERSAL CONTROL</div>
-                <div style={heroTitle}>Choose a world. QRE handles the complexity.</div>
-                <div style={heroText}>Find a business, see what QRE knows, add new evidence, inspect what changed, and move directly into creation.</div>
-                <div style={heroActions}>
-                  <button type="button" onClick={() => setView("businesses")} style={primaryButton}>Open businesses</button>
-                  <button type="button" onClick={() => setView("capabilities")} style={secondaryButton}>See capabilities</button>
-                </div>
-              </section>
-
-              <section style={splitGrid}>
-                <section style={panel}>
-                  <div style={panelHeader}>
-                    <div>
-                      <div style={panelKicker}>RECENT WORLDS</div>
-                      <div style={panelTitle}>Businesses</div>
-                    </div>
-                    <button type="button" onClick={() => setView("businesses")} style={tinyButton}>View all</button>
+        {loading ? <div style={loadingBox}>Preparing QRE control center…</div> : (
+          <>
+            {view === "overview" && (
+              <section style={contentStack}>
+                <section style={hero}>
+                  <div style={heroTop}>
+                    <span style={statusPill}>{health}</span>
+                    <span style={heroDate}>LIVE BUSINESS CONTROL</span>
                   </div>
-                  <div style={compactList}>
-                    {assets.slice(0, 6).map((asset) => (
-                      <button key={asset.id} type="button" onClick={() => selectBusiness(asset.id)} style={compactRow}>
-                        <span style={compactName}>{asset.displayName || asset.slug}</span>
-                        <span style={compactMeta}>{asset.accountId ? "CONNECTED" : "UNASSIGNED"}</span>
-                      </button>
-                    ))}
+                  <h1 style={heroTitle}>Everything QRE knows.<br />One place to run it.</h1>
+                  <p style={heroText}>Choose a business, add knowledge, see what changed, and move straight into the next action.</p>
+                  <div style={heroActions}>
+                    <button type="button" onClick={() => setView("businesses")} style={primaryButton}>Open businesses</button>
+                    <button type="button" onClick={() => setView("knowledge")} style={secondaryButton}>Teach QRE</button>
                   </div>
                 </section>
 
-                <section style={panel}>
-                  <div style={panelHeader}>
-                    <div>
-                      <div style={panelKicker}>SELECTED WORLD</div>
-                      <div style={panelTitle}>{selected?.displayName || "None selected"}</div>
-                    </div>
-                  </div>
-                  {selected ? (
-                    <div style={worldSummary}>
-                      <div style={summaryLine}><span>Knowledge</span><strong>{knowledgeLoading ? "…" : Number(knowledge?.counts?.catalog ?? 0) + Number(knowledge?.counts?.observations ?? 0)}</strong></div>
-                      <div style={summaryLine}><span>Patterns</span><strong>{Number(knowledge?.counts?.patterns ?? 0)}</strong></div>
-                      <div style={summaryLine}><span>Jobs</span><strong>{Number(knowledge?.counts?.jobs ?? 0)}</strong></div>
-                      <div style={heroActions}>
-                        <button type="button" onClick={() => setView("knowledge")} style={primaryButton}>Give QRE anything</button>
-                        <Link to={`/dashboard/assets/${encodeURIComponent(selected.slug)}/knowledge`} style={secondaryButton}>Open memory</Link>
-                      </div>
-                    </div>
-                  ) : <div style={muted}>Create or connect a business to begin.</div>}
+                <section style={metricGrid}>
+                  <Metric value={stats.businesses} label="Business worlds" />
+                  <Metric value={stats.connected} label="Connected" />
+                  <Metric value={stats.unassigned} label="Available" />
+                  <Metric value={stats.scans} label="Scans" />
+                  <Metric value={Number(knowledge?.counts?.patterns ?? 0)} label="Patterns · selected world" muted={!selected} />
                 </section>
-              </section>
-            </section>
-          ) : null}
 
-          {view === "businesses" ? (
-            <section style={layout}>
-              <aside style={listPanel}>
-                <div style={panelLabel}>BUSINESS INVENTORY · {assets.length}</div>
-                <div style={searchWrap}>
-                  <input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Search businesses…" style={searchInput} />
-                </div>
-                <div style={filterBar}>
-                  {(["all", "connected", "unassigned", "attention"] as const).map((item) => (
-                    <button key={item} type="button" onClick={() => setFilter(item)} style={{ ...filterButton, ...(filter === item ? filterButtonActive : {}) }}>{item}</button>
-                  ))}
-                </div>
-                <div style={assetList}>
-                  {visibleAssets.map((asset) => {
-                    const active = asset.id === selected?.id;
-                    const unassigned = !asset.accountId;
-                    return (
-                      <button key={asset.id} type="button" onClick={() => setSelectedId(asset.id)} style={{ ...assetButton, ...(active ? assetButtonActive : {}) }}>
-                        <div style={assetButtonTop}>
-                          <span style={assetName}>{asset.displayName || asset.slug}</span>
-                          <span style={statusPill}>{unassigned ? "UNASSIGNED" : "CONNECTED"}</span>
+                <section style={dashboardGrid}>
+                  <section style={panel}>
+                    <PanelHeader eyebrow="YOUR WORLDS" title="Businesses" action={<button type="button" onClick={() => setView("businesses")} style={tinyButton}>View all</button>} />
+                    <div style={compactList}>{assets.slice(0, 7).map((asset) => <button key={asset.id} type="button" onClick={() => selectBusiness(asset.id)} style={worldRow}><span><strong>{asset.displayName || asset.slug}</strong><small>{asset.category || "QRE world"}</small></span><span style={worldStatus}>{asset.accountId ? "Connected" : "Available"}</span></button>)}</div>
+                  </section>
+
+                  <section style={panel}>
+                    <PanelHeader eyebrow="SELECTED WORLD" title={selected?.displayName || "Nothing selected"} />
+                    {selected ? (
+                      <div style={selectedCard}>
+                        <div style={selectedIdentity}><span>{selected.category || "Business"}</span><b>{selected.slug}</b></div>
+                        <div style={worldMetrics}>
+                          <MiniStat value={Number(knowledge?.counts?.catalog ?? 0)} label="catalog" />
+                          <MiniStat value={Number(knowledge?.counts?.observations ?? 0)} label="observations" />
+                          <MiniStat value={Number(knowledge?.counts?.patterns ?? 0)} label="patterns" />
+                          <MiniStat value={Number(knowledge?.counts?.jobs ?? 0)} label="jobs" />
                         </div>
-                        <div style={assetMeta}>{asset.category || "QRE world"} · {asset.slug}</div>
-                      </button>
-                    );
-                  })}
-                  {!visibleAssets.length ? <div style={emptyList}>No businesses match that filter.</div> : null}
-                </div>
-              </aside>
-
-              <section style={workspace}>
-                {selected ? (
-                  <>
-                    <div style={selectedHeader}>
-                      <div>
-                        <div style={selectedKicker}>SELECTED BUSINESS</div>
-                        <h2 style={selectedTitle}>{selected.displayName || selected.slug}</h2>
-                        <div style={selectedMeta}>{selected.category || "Business"} · {selected.slug}</div>
+                        <div style={heroActions}>
+                          <button type="button" onClick={() => setView("knowledge")} style={primaryButton}>{knowledgeLoading ? "Loading…" : "Give QRE anything"}</button>
+                          <Link to={`/dashboard/assets/${encodeURIComponent(selected.slug)}/knowledge`} style={secondaryButton}>Open memory</Link>
+                        </div>
                       </div>
-                      <div style={selectedActions}>
-                        {!selected.accountId ? <button type="button" onClick={() => void claim(selected)} disabled={busyId === selected.id} style={claimButton}>{busyId === selected.id ? "Connecting…" : "Connect to my account"}</button> : null}
-                        <Link to={`/dashboard/assets/${encodeURIComponent(selected.slug)}/knowledge`} style={secondaryButton}>Open memory</Link>
-                        <Link to={`/dashboard/assets/${encodeURIComponent(selected.slug)}`} style={secondaryButton}>Open business</Link>
-                      </div>
-                    </div>
-
-                    <section style={knowledgeCommand}>
-                      <div style={instructionKicker}>UNIVERSAL KNOWLEDGE INBOX</div>
-                      <div style={instructionTitle}>Give QRE anything.</div>
-                      <div style={instructionText}>Photo, photos, PDF, spreadsheet, text or website. Everything lands in this business world.</div>
-                      <UniversalKnowledgeIntake slug={selected.slug} onLearned={() => loadAssets()} />
-                    </section>
-                  </>
-                ) : <section style={emptyBox}><div style={emptyTitle}>No business selected.</div></section>}
-              </section>
-            </section>
-          ) : null}
-
-          {view === "knowledge" ? (
-            <section style={knowledgePage}>
-              <div style={sectionIntro}>
-                <div style={panelKicker}>KNOWLEDGE OPERATIONS</div>
-                <h2 style={sectionTitle}>Teach QRE without thinking about the database.</h2>
-                <p style={sectionText}>Pick the world once. Every source becomes evidence for that same business world.</p>
-              </div>
-              <div style={businessStrip}>
-                {selected ? <><span style={businessStripLabel}>WORLD</span><strong>{selected.displayName || selected.slug}</strong><button type="button" onClick={() => setView("businesses")} style={tinyButton}>Change</button></> : <button type="button" onClick={() => setView("businesses")} style={primaryButton}>Choose a business</button>}
-              </div>
-              {selected ? <UniversalKnowledgeIntake slug={selected.slug} onLearned={() => loadAssets()} /> : null}
-              {selected && knowledge?.jobs?.length ? (
-                <section style={panel}>
-                  <div style={panelHeader}><div><div style={panelKicker}>RECENT JOBS</div><div style={panelTitle}>Learning activity</div></div></div>
-                  <div style={compactList}>{knowledge.jobs.slice(0, 12).map((job) => <div key={job.id} style={jobRow}><span><strong>{job.originalName || job.sourceType}</strong><small>{job.sourceType}</small></span><span style={jobStatus}>{job.status}</span></div>)}</div>
+                    ) : <div style={emptyText}>Choose a business world to see its intelligence.</div>}
+                  </section>
                 </section>
-              ) : null}
-            </section>
-          ) : null}
-
-          {view === "activity" ? (
-            <section style={knowledgePage}>
-              <div style={sectionIntro}><div style={panelKicker}>OPERATIONS</div><h2 style={sectionTitle}>What is happening in QRE?</h2><p style={sectionText}>A unified operator surface for learning jobs and business state. This is where failures become visible instead of hidden.</p></div>
-              <section style={panel}>
-                <div style={panelHeader}><div><div style={panelKicker}>GLOBAL ACTIVITY</div><div style={panelTitle}>Recent business activity</div></div><button type="button" onClick={() => void loadAssets()} style={tinyButton}>Refresh</button></div>
-                <div style={compactList}>
-                  {assets.slice(0, 20).map((asset) => <button key={asset.id} type="button" onClick={() => selectBusiness(asset.id)} style={compactRow}><span><span style={compactName}>{asset.displayName || asset.slug}</span><span style={compactMeta}>{asset.status || "unknown"} · {asset.accountId ? "connected" : "unassigned"}</span></span><span style={compactMeta}>{asset.totalScans ?? 0} scans</span></button>)}
-                </div>
               </section>
-            </section>
-          ) : null}
+            )}
 
-          {view === "capabilities" ? (
-            <section style={knowledgePage}>
-              <div style={sectionIntro}><div style={panelKicker}>QRE ADMIN CAPABILITY MAP</div><h2 style={sectionTitle}>The control plane is bigger than the asset list.</h2><p style={sectionText}>These are the recurring capabilities mature business platforms expose. QRE should make them feel like one connected system instead of separate products.</p></div>
-              <div style={capabilityGrid}>{capabilityGroups.flatMap((group) => group.items.map(([name, description]) => <article key={name} style={capabilityCard}><div style={capabilityGroup}>{group.title}</div><h3 style={capabilityTitle}>{name}</h3><p style={capabilityText}>{description}</p><span style={capabilityState}>{["Businesses", "Knowledge", "Catalog", "Observations", "Activity"].includes(name) ? "LIVE IN QRE" : "NEXT CONTROL SURFACE"}</span></article>))}</div>
-            </section>
-          ) : null}
-        </>
-      )}
+            {view === "businesses" && (
+              <section style={businessLayout}>
+                <aside style={businessListPanel}>
+                  <div style={listHeader}><div><div style={panelKicker}>BUSINESS WORLDS</div><div style={listCount}>{assets.length} total</div></div><Link to="/admin/create" style={tinyButton}>+ New</Link></div>
+                  <input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Search…" style={searchInput} />
+                  <div style={filterBar}>{(["all", "connected", "unassigned", "attention"] as const).map((item) => <button key={item} type="button" onClick={() => setFilter(item)} style={{ ...filterButton, ...(filter === item ? filterButtonActive : {}) }}>{item}</button>)}</div>
+                  <div style={assetList}>{visibleAssets.map((asset) => {
+                    const active = asset.id === selected?.id;
+                    return <button key={asset.id} type="button" onClick={() => setSelectedId(asset.id)} style={{ ...assetButton, ...(active ? assetButtonActive : {}) }}><div style={assetButtonTop}><span style={assetName}>{asset.displayName || asset.slug}</span><span style={statusPill}>{asset.accountId ? "CONNECTED" : "AVAILABLE"}</span></div><div style={assetMeta}>{asset.category || "Business"} · {asset.slug}</div></button>;
+                  })}</div>
+                </aside>
+
+                <section style={workspace}>
+                  {selected ? <>
+                    <div style={workspaceHeader}>
+                      <div><div style={selectedKicker}>BUSINESS WORLD</div><h1 style={selectedTitle}>{selected.displayName || selected.slug}</h1><div style={selectedMeta}>{selected.category || "Business"} · {selected.slug}</div></div>
+                      <div style={selectedActions}>{!selected.accountId ? <button type="button" onClick={() => void claim(selected)} disabled={busyId === selected.id} style={claimButton}>{busyId === selected.id ? "Connecting…" : "Connect to my account"}</button> : <span style={connectedBadge}>Connected</span>}<Link to={`/dashboard/assets/${encodeURIComponent(selected.slug)}/knowledge`} style={secondaryButton}>Memory</Link><Link to={`/dashboard/assets/${encodeURIComponent(selected.slug)}`} style={secondaryButton}>Business</Link></div>
+                    </div>
+                    <section style={commandCard}><div><div style={panelKicker}>UNIVERSAL KNOWLEDGE</div><h2 style={commandTitle}>Give QRE anything.</h2><p style={commandText}>Photo · photos · PDF · spreadsheet · text · website. Everything becomes evidence for this world.</p></div><UniversalKnowledgeIntake slug={selected.slug} onLearned={() => loadAssets()} /></section>
+                  </> : <section style={emptyBox}><div style={emptyTitle}>No business selected.</div></section>}
+                </section>
+              </section>
+            )}
+
+            {view === "knowledge" && (
+              <section style={contentStack}>
+                <section style={sectionHero}><div style={panelKicker}>KNOWLEDGE OPERATIONS</div><h1 style={sectionTitle}>Teach QRE once.<br />Build the world over time.</h1><p style={sectionText}>Different sources do not create different worlds. They add evidence, observations and patterns to the selected business.</p></section>
+                <div style={worldPickerBar}>{selected ? <><span>WORLD</span><strong>{selected.displayName || selected.slug}</strong><button type="button" onClick={() => setView("businesses")} style={tinyButton}>Change</button></> : <button type="button" onClick={() => setView("businesses")} style={primaryButton}>Choose business</button>}</div>
+                {selected ? <UniversalKnowledgeIntake slug={selected.slug} onLearned={() => loadAssets()} /> : null}
+                {selected && knowledge?.jobs?.length ? <section style={panel}><PanelHeader eyebrow="RECENT LEARNING" title="What QRE just processed" /><div style={compactList}>{knowledge.jobs.slice(0, 12).map((job) => <div key={job.id} style={jobRow}><span><strong>{job.originalName || job.sourceType}</strong><small>{job.sourceType}</small></span><span style={jobStatus}>{job.status}</span></div>)}</div></section> : null}
+              </section>
+            )}
+
+            {view === "operations" && (
+              <section style={contentStack}>
+                <section style={sectionHero}><div style={panelKicker}>OPERATIONS</div><h1 style={sectionTitle}>See what needs attention.</h1><p style={sectionText}>A good control plane turns hidden system state into obvious operator decisions.</p></section>
+                <section style={metricGrid}><Metric value={stats.businesses} label="Worlds" /><Metric value={stats.connected} label="Connected" /><Metric value={stats.unassigned} label="Available" /><Metric value={stats.scans} label="Total scans" /><Metric value={stats.unlocks} label="Total unlocks" /></section>
+                <section style={panel}><PanelHeader eyebrow="BUSINESS ACTIVITY" title="Current inventory state" action={<button type="button" onClick={() => void loadAssets()} style={tinyButton}>Refresh</button>} /><div style={compactList}>{assets.map((asset) => <button key={asset.id} type="button" onClick={() => selectBusiness(asset.id)} style={compactRow}><span><strong>{asset.displayName || asset.slug}</strong><small>{asset.accountId ? "Connected" : "Available"} · {asset.status || "active"}</small></span><span style={compactMeta}>{asset.totalScans ?? 0} scans</span></button>)}</div></section>
+              </section>
+            )}
+
+            {view === "system" && (
+              <section style={contentStack}>
+                <section style={sectionHero}><div style={panelKicker}>SYSTEM</div><h1 style={sectionTitle}>Everything a serious business platform eventually needs.</h1><p style={sectionText}>QRE should expose capabilities as one operating system: worlds, data, workflows, intelligence, permissions and evidence.</p></section>
+                {capabilityGroups.map((group) => <section key={group.title} style={capabilitySection}><div style={panelKicker}>{group.title.toUpperCase()}</div><div style={capabilityGrid}>{group.items.map(([name, description]) => <article key={name} style={capabilityCard}><div style={capabilityTitle}>{name}</div><p style={capabilityText}>{description}</p><span style={capabilityState}>{["Businesses", "Knowledge", "Catalog", "Observations", "Jobs"].includes(name) ? "AVAILABLE NOW" : "CONTROL SURFACE TO BUILD"}</span></article>)}</div></section>)}
+              </section>
+            )}
+          </>
+        )}
+      </section>
     </main>
   );
 }
 
-function Metric({ value, label }: { value: number; label: string }) {
-  return <div style={metricCard}><div style={metricValue}>{value.toLocaleString()}</div><div style={metricLabel}>{label}</div></div>;
+function Metric({ value, label, muted = false }: { value: number; label: string; muted?: boolean }) {
+  return <div style={{ ...metricCard, opacity: muted ? .5 : 1 }}><div style={metricValue}>{value.toLocaleString()}</div><div style={metricLabel}>{label}</div></div>;
 }
 
-const page = { minHeight: "100vh", padding: "34px clamp(16px, 4vw, 52px) 80px", background: "radial-gradient(circle at 70% 10%, rgba(0,255,210,.08), transparent 30%), #050608", color: "#f4ffff", boxSizing: "border-box" as const, fontFamily: "Inter, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif" };
-const header = { display: "flex", justifyContent: "space-between", alignItems: "flex-end", gap: 24, marginBottom: 18 };
-const kicker = { fontSize: 9, letterSpacing: 4, opacity: .34 };
-const title = { margin: "8px 0 0", fontSize: "clamp(46px, 8vw, 92px)", lineHeight: .9, fontWeight: 500, letterSpacing: "-5px" };
-const subtitle = { maxWidth: 720, margin: "16px 0 0", fontSize: 15, lineHeight: 1.5, color: "rgba(255,255,255,.48)" };
-const headerActions = { display: "flex", gap: 8, flexWrap: "wrap" as const };
-const navBar = { display: "flex", gap: 6, padding: "6px 0 24px", flexWrap: "wrap" as const };
-const navButton = { border: "1px solid transparent", borderRadius: 999, padding: "9px 14px", background: "transparent", color: "rgba(255,255,255,.4)", font: "inherit", fontSize: 10, cursor: "pointer" };
-const navButtonActive = { borderColor: "rgba(255,255,255,.12)", background: "rgba(255,255,255,.05)", color: "#fff" };
-const primaryButton = { display: "inline-flex", alignItems: "center", justifyContent: "center", textDecoration: "none", border: 0, borderRadius: 999, padding: "11px 16px", background: "#fff", color: "#050608", fontSize: 11, fontWeight: 800, cursor: "pointer" };
-const secondaryButton = { display: "inline-flex", alignItems: "center", justifyContent: "center", textDecoration: "none", border: "1px solid rgba(255,255,255,.13)", borderRadius: 999, padding: "10px 14px", background: "rgba(255,255,255,.035)", color: "#fff", fontSize: 10, fontWeight: 700, cursor: "pointer" };
-const tinyButton = { border: "1px solid rgba(255,255,255,.1)", borderRadius: 999, padding: "7px 10px", background: "transparent", color: "rgba(255,255,255,.6)", font: "inherit", fontSize: 9, cursor: "pointer" };
-const errorBox = { marginBottom: 18, padding: "12px 14px", borderRadius: 14, background: "rgba(255,70,70,.08)", border: "1px solid rgba(255,90,90,.18)", fontSize: 12 };
-const loadingBox = { padding: 34, borderRadius: 22, border: "1px solid rgba(255,255,255,.08)", color: "rgba(255,255,255,.5)", letterSpacing: 2, fontSize: 10 };
-const overviewStack = { display: "grid", gap: 16 };
-const metricGrid = { display: "grid", gridTemplateColumns: "repeat(5, minmax(0,1fr))", gap: 9 };
-const metricCard = { padding: "18px 18px 16px", borderRadius: 18, border: "1px solid rgba(255,255,255,.08)", background: "rgba(255,255,255,.025)" };
-const metricValue = { fontSize: 27, letterSpacing: "-1px" };
-const metricLabel = { marginTop: 6, fontSize: 9, letterSpacing: 1.8, textTransform: "uppercase" as const, opacity: .3 };
-const heroCard = { padding: 28, borderRadius: 24, border: "1px solid rgba(255,255,255,.09)", background: "linear-gradient(135deg, rgba(255,255,255,.045), rgba(0,255,210,.035))" };
-const heroEyebrow = { fontSize: 8, letterSpacing: 3, opacity: .3 };
-const heroTitle = { marginTop: 9, maxWidth: 850, fontSize: "clamp(27px, 4vw, 46px)", lineHeight: 1.04, letterSpacing: "-1.8px" };
-const heroText = { maxWidth: 760, marginTop: 12, color: "rgba(255,255,255,.46)", fontSize: 13, lineHeight: 1.55 };
-const heroActions = { display: "flex", gap: 8, flexWrap: "wrap" as const, marginTop: 18 };
-const splitGrid = { display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16 };
-const panel = { border: "1px solid rgba(255,255,255,.08)", borderRadius: 22, background: "rgba(255,255,255,.025)", overflow: "hidden" };
-const panelHeader = { display: "flex", justifyContent: "space-between", alignItems: "center", gap: 14, padding: "18px 20px", borderBottom: "1px solid rgba(255,255,255,.06)" };
-const panelKicker = { fontSize: 8, letterSpacing: 2.6, opacity: .3 };
-const panelTitle = { marginTop: 6, fontSize: 20, letterSpacing: "-.5px" };
-const compactList = { display: "grid" };
-const compactRow = { display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12, width: "100%", textAlign: "left" as const, border: 0, borderTop: "1px solid rgba(255,255,255,.05)", padding: "13px 18px", background: "transparent", color: "#fff", font: "inherit", cursor: "pointer" };
-const compactName = { display: "block", fontSize: 12, fontWeight: 700 };
-const compactMeta = { display: "block", marginTop: 4, color: "rgba(255,255,255,.3)", fontSize: 8, letterSpacing: 1.2, textTransform: "uppercase" as const };
-const worldSummary = { padding: 18 };
-const summaryLine = { display: "flex", justifyContent: "space-between", padding: "10px 0", borderBottom: "1px solid rgba(255,255,255,.05)", color: "rgba(255,255,255,.46)", fontSize: 11 };
-const muted = { padding: 20, color: "rgba(255,255,255,.35)", fontSize: 12 };
-const layout = { display: "grid", gridTemplateColumns: "minmax(280px,350px) minmax(0,1fr)", gap: 18, alignItems: "start" };
-const listPanel = { border: "1px solid rgba(255,255,255,.08)", borderRadius: 22, background: "rgba(255,255,255,.025)", overflow: "hidden", position: "sticky" as const, top: 20, maxHeight: "calc(100vh - 120px)", display: "flex", flexDirection: "column" as const };
-const panelLabel = { padding: "14px 16px 10px", color: "rgba(255,255,255,.35)", fontSize: 9, letterSpacing: 2 };
-const searchWrap = { padding: "0 12px 10px" };
-const searchInput = { width: "100%", boxSizing: "border-box" as const, border: "1px solid rgba(255,255,255,.1)", borderRadius: 12, padding: "10px 12px", background: "rgba(255,255,255,.035)", color: "#fff", outline: "none", font: "inherit", fontSize: 12 };
-const filterBar = { display: "flex", gap: 5, padding: "0 12px 12px", flexWrap: "wrap" as const };
-const filterButton = { border: "1px solid rgba(255,255,255,.07)", borderRadius: 999, padding: "6px 9px", background: "transparent", color: "rgba(255,255,255,.34)", font: "inherit", fontSize: 8, cursor: "pointer" };
-const filterButtonActive = { background: "rgba(0,255,210,.07)", borderColor: "rgba(0,255,210,.18)", color: "#cffff6" };
-const assetList = { overflowY: "auto" as const, flex: 1 };
-const assetButton = { width: "100%", textAlign: "left" as const, border: 0, borderTop: "1px solid rgba(255,255,255,.06)", padding: 16, background: "transparent", color: "#fff", cursor: "pointer" };
-const assetButtonActive = { background: "rgba(0,255,210,.06)" };
-const assetButtonTop = { display: "flex", justifyContent: "space-between", gap: 10, alignItems: "center" };
-const assetName = { fontSize: 14, fontWeight: 700 };
-const statusPill = { flexShrink: 0, borderRadius: 999, padding: "5px 7px", background: "rgba(255,255,255,.06)", color: "rgba(255,255,255,.42)", fontSize: 7, letterSpacing: 1 };
-const assetMeta = { marginTop: 7, color: "rgba(255,255,255,.34)", fontSize: 10, overflow: "hidden", textOverflow: "ellipsis" as const };
-const emptyList = { padding: 18, color: "rgba(255,255,255,.32)", fontSize: 11 };
-const workspace = { minWidth: 0 };
-const selectedHeader = { display: "flex", justifyContent: "space-between", alignItems: "flex-end", gap: 18, marginBottom: 18 };
-const selectedKicker = { fontSize: 8, letterSpacing: 2.8, opacity: .3 };
-const selectedTitle = { margin: "7px 0 5px", fontSize: "clamp(28px, 4vw, 46px)", fontWeight: 520, letterSpacing: "-2px" };
-const selectedMeta = { color: "rgba(255,255,255,.34)", fontSize: 11 };
-const selectedActions = { display: "flex", flexWrap: "wrap" as const, justifyContent: "flex-end", gap: 7 };
-const claimButton = { border: "1px solid rgba(0,255,210,.26)", borderRadius: 999, padding: "10px 14px", background: "rgba(0,255,210,.08)", color: "#cffff6", fontSize: 10, fontWeight: 800, cursor: "pointer" };
-const knowledgeCommand = { display: "grid", gap: 12 };
-const instructionKicker = { fontSize: 8, letterSpacing: 2.5, opacity: .3 };
-const instructionTitle = { marginTop: 7, fontSize: 22, letterSpacing: "-.8px" };
-const instructionText = { marginTop: 5, color: "rgba(255,255,255,.46)", fontSize: 12, lineHeight: 1.5 };
-const emptyBox = { padding: 44, borderRadius: 26, border: "1px solid rgba(255,255,255,.09)", background: "rgba(255,255,255,.025)", textAlign: "center" as const };
-const emptyTitle = { fontSize: 28, marginBottom: 10 };
-const knowledgePage = { display: "grid", gap: 16 };
-const sectionIntro = { padding: "8px 0 4px" };
-const sectionTitle = { margin: "8px 0 0", maxWidth: 850, fontSize: "clamp(30px, 5vw, 56px)", lineHeight: 1, letterSpacing: "-2.5px", fontWeight: 520 };
-const sectionText = { maxWidth: 760, margin: "12px 0 0", color: "rgba(255,255,255,.45)", lineHeight: 1.55, fontSize: 13 };
-const businessStrip = { display: "flex", alignItems: "center", gap: 12, padding: "12px 14px", border: "1px solid rgba(255,255,255,.09)", borderRadius: 16, background: "rgba(255,255,255,.025)" };
-const businessStripLabel = { fontSize: 8, letterSpacing: 2, opacity: .3 };
-const jobRow = { display: "flex", justifyContent: "space-between", gap: 12, alignItems: "center", padding: "14px 18px", borderTop: "1px solid rgba(255,255,255,.05)", fontSize: 11 };
-const jobStatus = { color: "rgba(255,255,255,.42)", fontSize: 8, letterSpacing: 1.2, textTransform: "uppercase" as const };
-const capabilityGrid = { display: "grid", gridTemplateColumns: "repeat(4, minmax(0,1fr))", gap: 10 };
-const capabilityCard = { minHeight: 185, padding: 20, borderRadius: 20, border: "1px solid rgba(255,255,255,.08)", background: "rgba(255,255,255,.025)" };
-const capabilityGroup = { fontSize: 7, letterSpacing: 2, textTransform: "uppercase" as const, color: "rgba(0,255,210,.52)" };
-const capabilityTitle = { margin: "13px 0 0", fontSize: 18, fontWeight: 650 };
-const capabilityText = { margin: "8px 0 0", color: "rgba(255,255,255,.42)", fontSize: 11, lineHeight: 1.5 };
-const capabilityState = { display: "inline-block", marginTop: 16, fontSize: 7, letterSpacing: 1.5, color: "rgba(255,255,255,.28)" };
+function MiniStat({ value, label }: { value: number; label: string }) {
+  return <div><div style={miniValue}>{value.toLocaleString()}</div><div style={miniLabel}>{label}</div></div>;
+}
 
+function PanelHeader({ eyebrow, title, action }: { eyebrow: string; title: string; action?: React.ReactNode }) {
+  return <div style={panelHeader}><div><div style={panelKicker}>{eyebrow}</div><div style={panelTitle}>{title}</div></div>{action}</div>;
+}
+
+const page = { minHeight: "100vh", display: "grid", gridTemplateColumns: "230px minmax(0,1fr)", background: "#f5f5f2", color: "#111" };
+const sidebar = { display: "flex", flexDirection: "column" as const, position: "sticky" as const, top: 0, height: "100vh", padding: "24px 16px", boxSizing: "border-box" as const, borderRight: "1px solid rgba(0,0,0,.065)", background: "rgba(250,250,248,.9)", backdropFilter: "blur(20px)" };
+const logoButton = { border: 0, background: "transparent", textAlign: "left" as const, padding: "2px 8px", fontSize: 18, fontWeight: 800, letterSpacing: "-.04em", cursor: "pointer" };
+const sidebarLabel = { margin: "34px 8px 10px", fontSize: 8, letterSpacing: 2.4, color: "#aaa" };
+const sideNav = { display: "grid", gap: 3 };
+const sideNavButton = { border: 0, borderRadius: 12, padding: "11px 10px", background: "transparent", color: "#555", textAlign: "left" as const, font: "inherit", cursor: "pointer" };
+const sideNavActive = { background: "#fff", color: "#111", boxShadow: "0 4px 18px rgba(0,0,0,.05)" };
+const sideNavSmall = { display: "block", marginTop: 3, fontSize: 9, color: "#999" };
+const sidebarBottom = { marginTop: "auto", display: "grid", gap: 10 };
+const healthDot = { display: "flex", alignItems: "center", gap: 7, padding: "10px 8px", color: "#6f6f6a", fontSize: 9, letterSpacing: 1.4, textTransform: "uppercase" as const };
+const healthDotSpan = { width: 6, height: 6, borderRadius: "50%", background: "#39a76a" };
+const addBusiness = { display: "flex", justifyContent: "center", padding: "11px 12px", borderRadius: 12, background: "#111", color: "#fff", textDecoration: "none", fontSize: 11, fontWeight: 700 };
+const mainArea = { minWidth: 0, padding: "0 clamp(18px, 4vw, 52px) 70px" };
+const topBar = { height: 84, display: "flex", alignItems: "center", justifyContent: "space-between", borderBottom: "1px solid rgba(0,0,0,.065)", marginBottom: 30 };
+const eyebrow = { fontSize: 8, letterSpacing: 2.3, color: "#aaa" };
+const topTitle = { marginTop: 5, fontSize: 14, fontWeight: 650, letterSpacing: "-.01em" };
+const topActions = { display: "flex", alignItems: "center", gap: 14 };
+const iconButton = { width: 30, height: 30, border: "1px solid rgba(0,0,0,.08)", borderRadius: "50%", background: "#fff", color: "#555", cursor: "pointer", fontSize: 15 };
+const quietLink = { color: "#999", textDecoration: "none", fontSize: 11 };
+const errorBox = { marginBottom: 18, padding: "12px 14px", borderRadius: 12, background: "#fff2f0", border: "1px solid #f0d5d1", color: "#8b3128", fontSize: 12 };
+const loadingBox = { minHeight: 320, display: "grid", placeItems: "center", color: "#999", fontSize: 12 };
+const contentStack = { display: "grid", gap: 16 };
+const hero = { padding: "38px 40px 34px", borderRadius: 28, background: "#111", color: "#fff", boxShadow: "0 22px 70px rgba(0,0,0,.1)" };
+const heroTop = { display: "flex", justifyContent: "space-between", alignItems: "center" };
+const statusPill = { display: "inline-flex", alignItems: "center", borderRadius: 999, padding: "7px 10px", background: "rgba(255,255,255,.08)", color: "rgba(255,255,255,.66)", fontSize: 8, letterSpacing: 1.5 };
+const heroDate = { fontSize: 8, letterSpacing: 2, color: "rgba(255,255,255,.3)" };
+const heroTitle = { margin: "55px 0 0", maxWidth: 830, fontSize: "clamp(42px, 6.4vw, 82px)", lineHeight: .92, letterSpacing: "-5px", fontWeight: 600 };
+const heroText = { maxWidth: 670, margin: "22px 0 0", color: "rgba(255,255,255,.52)", fontSize: 15, lineHeight: 1.55 };
+const heroActions = { display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" as const, marginTop: 24 };
+const primaryButton = { display: "inline-flex", alignItems: "center", justifyContent: "center", border: 0, borderRadius: 999, padding: "11px 16px", background: "#fff", color: "#111", textDecoration: "none", font: "inherit", fontSize: 11, fontWeight: 800, cursor: "pointer" };
+const secondaryButton = { display: "inline-flex", alignItems: "center", justifyContent: "center", border: "1px solid rgba(0,0,0,.09)", borderRadius: 999, padding: "10px 14px", background: "#fff", color: "#333", textDecoration: "none", font: "inherit", fontSize: 10, fontWeight: 700, cursor: "pointer" };
+const metricGrid = { display: "grid", gridTemplateColumns: "repeat(5, minmax(0,1fr))", gap: 9 };
+const metricCard = { padding: "19px 18px 16px", borderRadius: 18, background: "#fff", border: "1px solid rgba(0,0,0,.06)" };
+const metricValue = { fontSize: 28, letterSpacing: "-1.4px", fontWeight: 650 };
+const metricLabel = { marginTop: 7, color: "#a1a19d", fontSize: 8, letterSpacing: 1.5, textTransform: "uppercase" as const };
+const dashboardGrid = { display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16 };
+const panel = { background: "#fff", border: "1px solid rgba(0,0,0,.06)", borderRadius: 22, overflow: "hidden" };
+const panelHeader = { minHeight: 74, display: "flex", justifyContent: "space-between", alignItems: "center", gap: 14, padding: "16px 20px", borderBottom: "1px solid rgba(0,0,0,.055)" };
+const panelKicker = { fontSize: 8, letterSpacing: 2.2, color: "#aaa" };
+const panelTitle = { marginTop: 5, fontSize: 19, fontWeight: 650, letterSpacing: "-.5px" };
+const tinyButton = { display: "inline-flex", alignItems: "center", justifyContent: "center", border: "1px solid rgba(0,0,0,.09)", borderRadius: 999, padding: "7px 10px", background: "#fff", color: "#555", font: "inherit", fontSize: 9, cursor: "pointer", textDecoration: "none" };
+const compactList = { display: "grid" };
+const worldRow = { display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12, width: "100%", padding: "14px 20px", border: 0, borderTop: "1px solid rgba(0,0,0,.05)", background: "#fff", textAlign: "left" as const, cursor: "pointer" };
+const worldRowStrong = { display: "block", fontSize: 12, fontWeight: 700 };
+const worldRowSmall = { display: "block", marginTop: 4, color: "#999", fontSize: 9 };
+const worldStatus = { flexShrink: 0, color: "#7b7b76", fontSize: 9 };
+const selectedCard = { padding: 20 };
+const selectedIdentity = { display: "flex", justifyContent: "space-between", gap: 10, color: "#999", fontSize: 10 };
+const selectedIdentityB = { color: "#555", fontWeight: 500 };
+const worldMetrics = { display: "grid", gridTemplateColumns: "repeat(4,1fr)", gap: 10, margin: "26px 0" };
+const miniValue = { fontSize: 22, fontWeight: 650, letterSpacing: "-1px" };
+const miniLabel = { marginTop: 3, color: "#aaa", fontSize: 8, letterSpacing: 1.2, textTransform: "uppercase" as const };
+const emptyText = { padding: 24, color: "#999", fontSize: 12 };
+const businessLayout = { display: "grid", gridTemplateColumns: "minmax(280px,340px) minmax(0,1fr)", gap: 18, alignItems: "start" };
+const businessListPanel = { background: "#fff", border: "1px solid rgba(0,0,0,.06)", borderRadius: 22, overflow: "hidden", position: "sticky" as const, top: 20, maxHeight: "calc(100vh - 120px)", display: "flex", flexDirection: "column" as const };
+const listHeader = { display: "flex", justifyContent: "space-between", alignItems: "center", padding: "17px 16px 12px" };
+const listCount = { marginTop: 5, fontSize: 13, fontWeight: 600 };
+const searchInput = { margin: "0 12px 10px", width: "calc(100% - 24px)", boxSizing: "border-box" as const, border: "1px solid rgba(0,0,0,.09)", borderRadius: 12, padding: "10px 12px", background: "#fafaf8", outline: 0, font: "inherit", fontSize: 12 };
+const filterBar = { display: "flex", gap: 5, padding: "0 12px 11px", flexWrap: "wrap" as const };
+const filterButton = { border: 0, borderRadius: 999, padding: "6px 9px", background: "#f2f2ee", color: "#888", font: "inherit", fontSize: 8, cursor: "pointer" };
+const filterButtonActive = { background: "#111", color: "#fff" };
+const assetList = { overflowY: "auto" as const, flex: 1, borderTop: "1px solid rgba(0,0,0,.05)" };
+const assetButton = { width: "100%", padding: "14px 16px", border: 0, borderBottom: "1px solid rgba(0,0,0,.045)", background: "#fff", textAlign: "left" as const, cursor: "pointer" };
+const assetButtonActive = { background: "#f4f4f1" };
+const assetButtonTop = { display: "flex", justifyContent: "space-between", gap: 10, alignItems: "center" };
+const assetName = { fontSize: 12, fontWeight: 700 };
+const assetMeta = { marginTop: 5, color: "#a0a09b", fontSize: 8, overflow: "hidden", textOverflow: "ellipsis" as const, whiteSpace: "nowrap" as const };
+const workspace = { minWidth: 0 };
+const workspaceHeader = { display: "flex", justifyContent: "space-between", alignItems: "flex-end", gap: 18, marginBottom: 18 };
+const selectedKicker = { fontSize: 8, letterSpacing: 2.4, color: "#aaa" };
+const selectedTitle = { margin: "7px 0 4px", fontSize: "clamp(34px, 5vw, 58px)", lineHeight: .95, letterSpacing: "-3px", fontWeight: 600 };
+const selectedMeta = { color: "#999", fontSize: 10 };
+const selectedActions = { display: "flex", flexWrap: "wrap" as const, justifyContent: "flex-end", gap: 7 };
+const claimButton = { border: 0, borderRadius: 999, padding: "10px 14px", background: "#111", color: "#fff", fontSize: 10, fontWeight: 800, cursor: "pointer" };
+const connectedBadge = { display: "inline-flex", alignItems: "center", borderRadius: 999, padding: "10px 13px", background: "#eaf5ee", color: "#2e7b4f", fontSize: 9, fontWeight: 700 };
+const commandCard = { display: "grid", gap: 18, padding: 24, background: "#fff", border: "1px solid rgba(0,0,0,.06)", borderRadius: 22 };
+const commandTitle = { margin: "5px 0 0", fontSize: 30, letterSpacing: "-1.3px" };
+const commandText = { maxWidth: 680, margin: "7px 0 0", color: "#8e8e89", fontSize: 12, lineHeight: 1.55 };
+const sectionHero = { padding: "12px 0 10px" };
+const sectionTitle = { margin: "10px 0 0", fontSize: "clamp(38px, 6vw, 70px)", lineHeight: .95, letterSpacing: "-4px", fontWeight: 600 };
+const sectionText = { maxWidth: 740, margin: "16px 0 0", color: "#858580", fontSize: 14, lineHeight: 1.55 };
+const worldPickerBar = { display: "flex", alignItems: "center", gap: 12, minHeight: 48, padding: "0 14px", background: "#fff", border: "1px solid rgba(0,0,0,.06)", borderRadius: 14, fontSize: 11 };
+const worldPickerBarSpan = { color: "#aaa", fontSize: 8, letterSpacing: 1.8 };
+const jobRow = { display: "flex", justifyContent: "space-between", alignItems: "center", gap: 12, padding: "14px 20px", borderTop: "1px solid rgba(0,0,0,.05)", fontSize: 11 };
+const jobStatus = { color: "#777", fontSize: 8, textTransform: "uppercase" as const, letterSpacing: 1.1 };
+const compactRow = { display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12, width: "100%", textAlign: "left" as const, border: 0, borderTop: "1px solid rgba(0,0,0,.05)", padding: "14px 20px", background: "#fff", cursor: "pointer" };
+const compactMeta = { color: "#aaa", fontSize: 8, letterSpacing: 1.2, textTransform: "uppercase" as const };
+const emptyBox = { padding: 50, borderRadius: 22, background: "#fff", border: "1px solid rgba(0,0,0,.06)", textAlign: "center" as const };
+const emptyTitle = { fontSize: 25, marginBottom: 8 };
+const capabilitySection = { display: "grid", gap: 11 };
+const capabilityGrid = { display: "grid", gridTemplateColumns: "repeat(4, minmax(0,1fr))", gap: 10 };
+const capabilityCard = { minHeight: 165, padding: 18, borderRadius: 18, background: "#fff", border: "1px solid rgba(0,0,0,.06)" };
+const capabilityTitle = { fontSize: 17, fontWeight: 700, letterSpacing: "-.4px" };
+const capabilityText = { margin: "8px 0 0", color: "#8b8b86", fontSize: 11, lineHeight: 1.5 };
+const capabilityState = { display: "inline-block", marginTop: 17, color: "#aaa", fontSize: 7, letterSpacing: 1.3, textTransform: "uppercase" as const };
+
+/* React namespace type is available through the existing TSX configuration. */
+const _unusedStyleReferences = [sideNavSmall, healthDotSpan, worldRowStrong, worldRowSmall, selectedIdentityB, worldPickerBarSpan];
+void _unusedStyleReferences;
