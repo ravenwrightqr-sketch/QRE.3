@@ -54,8 +54,6 @@ function conceptsFor(item: CatalogNode): Set<string> {
     if (word.length >= 3 && !STOP_WORDS.has(word) && !/^\d+$/.test(word)) terms.add(word);
   }
 
-  // Descriptions are only used as additional supporting evidence. The source
-  // of a relationship remains explicit: catalog_name or catalog_description.
   if (item.description) {
     for (const word of normalize(item.description).split(" ")) {
       if (word.length >= 4 && !STOP_WORDS.has(word) && !/^\d+$/.test(word)) terms.add(word);
@@ -230,7 +228,7 @@ export async function deriveCatalogRecommendations(input: {
   for (const recommendation of selected) {
     const target = nodes.find((item) => item.id === recommendation.item.id);
     if (target) {
-      await persistRelationship(assetId, favorite, target, recommendation.reasons, recommendation.score);
+      await persistRelationship(input.assetId, favorite, target, recommendation.reasons, recommendation.score);
     }
   }
 
