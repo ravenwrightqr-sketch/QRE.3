@@ -83,10 +83,12 @@ async function main() {
     fail("Favorite persistence/readback failed.");
   }
 
+  // Use a wide derivation window here so the acceptance test verifies
+  // relationship discovery rather than accidentally testing a top-K tie-break.
   const result = await deriveCatalogRecommendations({
     assetId: asset.id,
     favoriteItemId: favorite.id,
-    limit: 10,
+    limit: 50,
   });
 
   if (!result.model.explainable) fail("Recommendation model is not marked explainable.");
@@ -136,7 +138,7 @@ async function main() {
       catalogItemId: favorite.id,
     },
     orderBy: { updatedAt: "desc" },
-    take: 50,
+    take: 100,
     select: {
       statement: true,
       confidence: true,
@@ -145,15 +147,23 @@ async function main() {
     },
   });
 
+  for (const item of expectedStates) {
+    const pattern = relationshipPatterns.find((candidate) => candidate.statement.includes(item.name));
+    if (item.availability === "unavailable" && !pattern) {
+      fail(`Known relationship was not persisted for ${item.name}.`);
+    }
+    if (item.availability !== "unavailable" && !pattern) {
+      fail(`Expected persisted relationship for ${item.name} was not found.`);
+    }
+    if (pattern && (!Array.isArray(pattern.evidenceIds) || pattern.evidenceIds.length === 0)) {
+      fail(`Persisted relationship has no evidence IDs: ${item.name}.`);
+    }
+  }
+
   const strawberryKiwiPattern = relationshipPatterns.find((pattern) =>
     pattern.statement.includes("Strawberry Kiwi") && pattern.statement.includes("strawberry"),
   );
-  if (!strawberryKiwiPattern) {
-    fail("Expected persisted relationship for Strawberry Kiwi was not found.");
-  }
-  if (!Array.isArray(strawberryKiwiPattern.evidenceIds) || strawberryKiwiPattern.evidenceIds.length === 0) {
-    fail("Persisted relationship has no evidence IDs.");
-  }
+  if (!strawberryKiwiPattern) fail("Expected persisted relationship for Strawberry Kiwi was not found.");
 
   console.log(JSON.stringify({
     pass: true,
