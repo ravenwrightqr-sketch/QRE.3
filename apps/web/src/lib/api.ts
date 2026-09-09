@@ -88,6 +88,7 @@ export const setCatalogAvailability = (slug: string, itemId: string, availabilit
 export type CatalogViewConfig = {
   version: 1;
   title?: string;
+  query?: string;
   nameMode: "item" | "brand_item" | "attribute";
   nameAttributeKey?: string;
   showBrand: boolean;
