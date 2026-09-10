@@ -53,7 +53,7 @@ const strong = {
   id: "strong",
   trajectory: [
     { order: 1, operation: "establish", eventIds: ["event-1"], viewerChange: "A familiar pleasure appears", nextQuestion: "How specific is this world?" },
-    { order: 2, operation: "recur", eventIds: ["event-2"], viewerChange: "The pattern keeps returning through a different sensory detail", nextQuestion: "What completes the pattern?" },
+    { order: 2, operation: "recur", eventIds: ["event-1", "event-2"], viewerChange: "The pattern keeps returning through a different sensory detail", nextQuestion: "What completes the pattern?" },
     { order: 3, operation: "payoff", eventIds: ["event-3"], viewerChange: "The ordinary details form one particular world", nextQuestion: "What lands?" },
   ],
   payoff: "The same small world keeps returning in different forms.",
@@ -113,8 +113,6 @@ assert.equal(weakResult.accepted, false, `weak Movie passed: ${weakResult.reason
 assert.ok(weakResult.reasons.some((reason) => /summary|movement|unsupported|thesis/i.test(reason)));
 
 const missingResult = evaluateLatentMovie(missingThesis, graph);
-// Rich LatentStoryThesis is optional for compatibility with older/simple
-// model responses; semantic movement is still required and must be grounded.
 assert.equal(missingResult.accepted, true, `compatible Movie without rich thesis was rejected: ${missingResult.reasons.join("; ")}`);
 assert.ok(missingResult.signals.semanticMovement > 0.4);
 assert.ok(missingResult.signals.observerContract > 0.6);
