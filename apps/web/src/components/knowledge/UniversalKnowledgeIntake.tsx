@@ -28,6 +28,9 @@ type Payload = {
   text?: string;
 };
 
+const MAX_IMAGE_SIDE = 3200;
+const JPEG_QUALITY = 0.9;
+
 const panel: CSSProperties = {
   border: "1px solid rgba(255,255,255,.12)",
   borderRadius: 24,
@@ -76,16 +79,14 @@ export default function UniversalKnowledgeIntake({ slug, onLearned }: Props) {
     try {
       const created: UniversalIntakeJob[] = [];
       for (const file of files) {
-        const payloads = await fileToPayloads(file);
-        for (const payload of payloads) {
-          const response = await apiPost(`/api/knowledge/${encodeURIComponent(slug)}/intake`, payload);
-          created.push({
-            id: String(response.jobId),
-            status: String(response.status ?? "queued"),
-            sourceType: payload.sourceType,
-            originalName: payload.originalName || file.name,
-          });
-        }
+        const payload = await fileToPayload(file);
+        const response = await apiPost(`/api/knowledge/${encodeURIComponent(slug)}/intake`, payload);
+        created.push({
+          id: String(response.jobId),
+          status: String(response.status ?? "queued"),
+          sourceType: payload.sourceType,
+          originalName: payload.originalName || file.name,
+        });
       }
       setJobs((current) => [...created.reverse(), ...current]);
       for (const job of created) void watchJob(job.id);
@@ -209,58 +210,48 @@ export default function UniversalKnowledgeIntake({ slug, onLearned }: Props) {
   );
 }
 
-async function fileToPayloads(file: File): Promise<Payload[]> {
+async function fileToPayload(file: File): Promise<Payload> {
   const sourceType = classifyFile(file);
   if (!file.type.startsWith("image/")) {
     const dataUrl = await fileToDataUrl(file);
-    return [{ sourceType, originalName: file.name, mimeType: file.type || undefined, content: dataUrl }];
+    return { sourceType, originalName: file.name, mimeType: file.type || undefined, content: dataUrl };
   }
 
-  const dataUrl = await fileToDataUrl(file);
-  const payloads: Payload[] = [{ sourceType: "photo", originalName: `${file.name} · full frame`, mimeType: file.type || undefined, imageDataUrl: dataUrl }];
-
-  const image = await loadImage(dataUrl);
-  const columns = 3;
-  const rows = 3;
-  for (let row = 0; row < rows; row += 1) {
-    for (let column = 0; column < columns; column += 1) {
-      const crop = cropImage(image, column, row, columns, rows);
-      payloads.push({ sourceType: "photo", originalName: `${file.name} · detail ${row * columns + column + 1}/9`, mimeType: "image/jpeg", imageDataUrl: crop });
-    }
-  }
-  return payloads;
+  return {
+    sourceType: "photo",
+    originalName: file.name,
+    mimeType: "image/jpeg",
+    imageDataUrl: await prepareImageDataUrl(file),
+  };
 }
 
-function cropImage(image: HTMLImageElement, column: number, row: number, columns: number, rows: number): string {
-  const sourceWidth = image.naturalWidth || image.width;
-  const sourceHeight = image.naturalHeight || image.height;
-  const overlap = 0.18;
-  const tileWidth = Math.ceil(sourceWidth / columns + sourceWidth * overlap);
-  const tileHeight = Math.ceil(sourceHeight / rows + sourceHeight * overlap);
-  const maxX = Math.max(0, sourceWidth - tileWidth);
-  const maxY = Math.max(0, sourceHeight - tileHeight);
-  const sx = Math.min(maxX, Math.max(0, Math.round((maxX / Math.max(1, columns - 1)) * column)));
-  const sy = Math.min(maxY, Math.max(0, Math.round((maxY / Math.max(1, rows - 1)) * row)));
-  const sw = Math.min(tileWidth, sourceWidth - sx);
-  const sh = Math.min(tileHeight, sourceHeight - sy);
-  const targetMaxSide = 2200;
-  const scale = Math.min(4, Math.max(1, targetMaxSide / Math.max(sw, sh)));
+async function prepareImageDataUrl(file: File): Promise<string> {
+  const source = await fileToDataUrl(file);
+  const image = await loadImage(source);
+  const width = image.naturalWidth || image.width;
+  const height = image.naturalHeight || image.height;
+  const scale = Math.min(1, MAX_IMAGE_SIDE / Math.max(width, height));
+  const targetWidth = Math.max(1, Math.round(width * scale));
+  const targetHeight = Math.max(1, Math.round(height * scale));
+
+  if (scale === 1 && file.type === "image/jpeg") return source;
+
   const canvas = document.createElement("canvas");
-  canvas.width = Math.max(1, Math.round(sw * scale));
-  canvas.height = Math.max(1, Math.round(sh * scale));
+  canvas.width = targetWidth;
+  canvas.height = targetHeight;
   const context = canvas.getContext("2d");
-  if (!context) throw new Error("Browser could not prepare the photo detail pass.");
+  if (!context) throw new Error("QRE could not prepare the photo.");
   context.imageSmoothingEnabled = true;
   context.imageSmoothingQuality = "high";
-  context.drawImage(image, sx, sy, sw, sh, 0, 0, canvas.width, canvas.height);
-  return canvas.toDataURL("image/jpeg", 0.94);
+  context.drawImage(image, 0, 0, targetWidth, targetHeight);
+  return canvas.toDataURL("image/jpeg", JPEG_QUALITY);
 }
 
 function loadImage(dataUrl: string): Promise<HTMLImageElement> {
   return new Promise((resolve, reject) => {
     const image = new Image();
     image.onload = () => resolve(image);
-    image.onerror = () => reject(new Error("QRE could not prepare the photo for detail passes."));
+    image.onerror = () => reject(new Error("QRE could not prepare the photo."));
     image.src = dataUrl;
   });
 }
