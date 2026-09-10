@@ -1,6 +1,6 @@
 import crypto from "node:crypto";
 import { db } from "@qre/db";
-import { analyzeImageForKnowledge } from "./aiProvider.js";
+import { analyzeImageForCatalog, type CatalogVisionItem } from "./catalogVision.js";
 import { learnWebsiteWorld } from "./websiteLearning.js";
 import {
   decodeDataUrl,
@@ -33,6 +33,15 @@ type StoredPayload = {
   content?: string;
   imageDataUrl?: string;
   text?: string;
+};
+
+type Fact = {
+  label: string;
+  value: string;
+  category?: string;
+  unit?: string;
+  notes?: string;
+  confidence?: number;
 };
 
 let workerStarted = false;
@@ -79,9 +88,9 @@ function textFromInput(input: StoredPayload): string | undefined {
   return input.content?.trim() || undefined;
 }
 
-function simpleFactsFromText(text: string) {
+function simpleFactsFromText(text: string): Fact[] {
   const lines = text.split(/\r?\n/).map((line) => line.trim()).filter(Boolean).slice(0, 250);
-  const facts: Array<{ label: string; value: string; category: string; confidence: number }> = [];
+  const facts: Fact[] = [];
 
   for (const line of lines) {
     const match = line.match(/^(?:[-*•]\s*)?([^:]{1,120}):\s*(.{1,1000})$/);
@@ -163,7 +172,7 @@ async function learnWebsite(input: StoredPayload, evidenceId: string) {
   return { row, factCount: 1, catalogIds: [], observationIds: [] };
 }
 
-async function persistFacts(input: StoredPayload, evidenceId: string, facts: Array<{ label: string; value: string; category?: string; unit?: string; notes?: string; confidence?: number }>) {
+async function persistFacts(input: StoredPayload, evidenceId: string, facts: Fact[]) {
   const catalogIds: string[] = [];
   const observationIds: string[] = [];
 
@@ -173,12 +182,37 @@ async function persistFacts(input: StoredPayload, evidenceId: string, facts: Arr
 
     const existing = await db.catalogItem.findFirst({ where: { assetId: input.assetId, normalizedName } });
     const item = existing
-      ? await db.catalogItem.update({ where: { id: existing.id }, data: { category: fact.category || existing.category || undefined, description: existing.description || fact.notes || undefined } })
-      : await db.catalogItem.create({ data: { assetId: input.assetId, kind: fact.category || "item", name: fact.label || fact.value, normalizedName, category: fact.category || undefined, description: fact.notes || undefined } });
+      ? await db.catalogItem.update({
+          where: { id: existing.id },
+          data: {
+            category: fact.category || existing.category || undefined,
+            description: existing.description || fact.notes || undefined,
+          },
+        })
+      : await db.catalogItem.create({
+          data: {
+            assetId: input.assetId,
+            kind: fact.category || "item",
+            name: fact.label || fact.value,
+            normalizedName,
+            category: fact.category || undefined,
+            description: fact.notes || undefined,
+          },
+        });
 
     catalogIds.push(item.id);
 
-    await db.catalogAttribute.create({ data: { catalogItemId: item.id, key: "value", value: fact.value, unit: fact.unit || undefined, confidence: clampConfidence(fact.confidence), evidenceId } });
+    await db.catalogAttribute.create({
+      data: {
+        catalogItemId: item.id,
+        key: "value",
+        value: fact.value,
+        unit: fact.unit || undefined,
+        normalizedValue: normalizeName(fact.value),
+        confidence: clampConfidence(fact.confidence),
+        evidenceId,
+      },
+    });
 
     const observation = await db.knowledgeObservation.create({
       data: {
@@ -196,12 +230,11 @@ async function persistFacts(input: StoredPayload, evidenceId: string, facts: Arr
     observationIds.push(observation.id);
 
     const repeated = await db.knowledgeObservation.count({ where: { assetId: input.assetId, catalogItemId: item.id } });
-
     if (repeated >= 2) {
       const existingPattern = await db.knowledgePattern.findFirst({ where: { assetId: input.assetId, catalogItemId: item.id, type: "REPEATED_OBSERVATION" }, orderBy: { updatedAt: "desc" } });
-      const confidence = Math.min(.99, .55 + Math.log10(repeated + 1) * .45);
+      const confidence = Math.min(0.99, 0.55 + Math.log10(repeated + 1) * 0.45);
       const statement = `${item.name} has been observed repeatedly (${repeated} observations).`;
-      const strength = Math.min(.99, repeated / (repeated + 2));
+      const strength = Math.min(0.99, repeated / (repeated + 2));
 
       if (existingPattern) {
         await db.knowledgePattern.update({ where: { id: existingPattern.id }, data: { statement, confidence, strength, lastObservedAt: new Date() } });
@@ -212,6 +245,95 @@ async function persistFacts(input: StoredPayload, evidenceId: string, facts: Arr
   }
 
   return { catalogIds, observationIds, factCount: facts.length };
+}
+
+async function persistVision(input: StoredPayload, evidenceId: string, items: CatalogVisionItem[]) {
+  const catalogIds: string[] = [];
+  const observationIds: string[] = [];
+
+  for (const item of items) {
+    const name = item.name.trim();
+    const normalizedName = normalizeName(name);
+    if (!normalizedName) continue;
+
+    const existing = await db.catalogItem.findFirst({ where: { assetId: input.assetId, normalizedName } });
+    const catalogItem = existing
+      ? await db.catalogItem.update({
+          where: { id: existing.id },
+          data: {
+            brand: item.brand || existing.brand || undefined,
+            category: item.category || existing.category || undefined,
+            description: existing.description || item.description || item.notes || undefined,
+          },
+        })
+      : await db.catalogItem.create({
+          data: {
+            assetId: input.assetId,
+            kind: item.category || "visual_item",
+            name,
+            normalizedName,
+            brand: item.brand || undefined,
+            category: item.category || undefined,
+            description: item.description || item.notes || undefined,
+          },
+        });
+
+    catalogIds.push(catalogItem.id);
+
+    const attributes = item.attributes?.length
+      ? item.attributes
+      : [{ key: "observed_name", value: name }];
+
+    for (const attribute of attributes) {
+      await db.catalogAttribute.create({
+        data: {
+          catalogItemId: catalogItem.id,
+          key: attribute.key,
+          value: attribute.value,
+          normalizedValue: normalizeName(attribute.value),
+          confidence: clampConfidence(item.confidence),
+          evidenceId,
+        },
+      });
+    }
+
+    const observation = await db.knowledgeObservation.create({
+      data: {
+        assetId: input.assetId,
+        catalogItemId: catalogItem.id,
+        evidenceId,
+        type: "VISUAL_OBSERVATION",
+        value: {
+          name,
+          brand: item.brand,
+          category: item.category,
+          attributes,
+          notes: item.notes,
+        },
+        source: input.sourceType,
+        confidence: clampConfidence(item.confidence),
+        observedAt: new Date(),
+      },
+    });
+
+    observationIds.push(observation.id);
+
+    const repeated = await db.knowledgeObservation.count({ where: { assetId: input.assetId, catalogItemId: catalogItem.id } });
+    if (repeated >= 2) {
+      const existingPattern = await db.knowledgePattern.findFirst({ where: { assetId: input.assetId, catalogItemId: catalogItem.id, type: "REPEATED_OBSERVATION" }, orderBy: { updatedAt: "desc" } });
+      const confidence = Math.min(0.99, 0.55 + Math.log10(repeated + 1) * 0.45);
+      const statement = `${catalogItem.name} has been observed repeatedly (${repeated} observations).`;
+      const strength = Math.min(0.99, repeated / (repeated + 2));
+
+      if (existingPattern) {
+        await db.knowledgePattern.update({ where: { id: existingPattern.id }, data: { statement, confidence, strength, lastObservedAt: new Date() } });
+      } else {
+        await db.knowledgePattern.create({ data: { assetId: input.assetId, catalogItemId: catalogItem.id, type: "REPEATED_OBSERVATION", statement, confidence, strength, evidenceIds: [evidenceId], firstObservedAt: new Date(), lastObservedAt: new Date() } });
+      }
+    }
+  }
+
+  return { catalogIds, observationIds, factCount: items.length };
 }
 
 async function processIntake(jobId: string, input: StoredPayload): Promise<void> {
@@ -242,22 +364,31 @@ async function processIntake(jobId: string, input: StoredPayload): Promise<void>
     });
     evidenceId = evidence.id;
 
-    let result: { factCount: number; catalogIds: string[]; observationIds: string[] };
+    let result: { catalogIds: string[]; observationIds: string[]; factCount: number };
 
     if (input.sourceType === "website") {
       await setStage(jobId, "website");
       result = await learnWebsite(input, evidence.id);
     } else if (input.imageDataUrl?.startsWith("data:image/")) {
       await setStage(jobId, "vision");
-      const facts = await analyzeImageForKnowledge(input.imageDataUrl);
+      result = await persistVision(input, evidence.id, await analyzeImageForCatalog(input.imageDataUrl, input.assetId));
       await setStage(jobId, "persisting");
-      result = await persistFacts(input, evidence.id, facts);
     } else if (input.sourceType === "pdf") {
       await setStage(jobId, "extracting");
       const decoded = decodeDataUrl(input.content || "");
       if (!decoded) throw new Error("PDF upload is not a valid data URL.");
       const extracted = await extractPdfKnowledge(decoded.bytes);
-      await db.knowledgeEvidence.update({ where: { id: evidence.id }, data: { text: extracted.text, metadata: { originalName: input.originalName, mimeType: input.mimeType, userId: input.userId, storage: "knowledge_intake_job.payload", ...extracted.metadata } } });
+      await db.knowledgeEvidence.update({
+        where: { id: evidence.id },
+        data: {
+          text: extracted.text,
+          metadata: {
+            ...extracted.metadata,
+            originalName: input.originalName,
+            mimeType: input.mimeType,
+          },
+        },
+      });
       await setStage(jobId, "persisting");
       result = await persistFacts(input, evidence.id, extracted.facts);
     } else if (input.sourceType === "spreadsheet") {
@@ -265,7 +396,17 @@ async function processIntake(jobId: string, input: StoredPayload): Promise<void>
       const decoded = decodeDataUrl(input.content || "");
       if (!decoded) throw new Error("Spreadsheet upload is not a valid data URL.");
       const extracted = extractSpreadsheetKnowledge(decoded.bytes, input.originalName);
-      await db.knowledgeEvidence.update({ where: { id: evidence.id }, data: { text: extracted.text, metadata: { originalName: input.originalName, mimeType: input.mimeType, userId: input.userId, storage: "knowledge_intake_job.payload", ...extracted.metadata } } });
+      await db.knowledgeEvidence.update({
+        where: { id: evidence.id },
+        data: {
+          text: extracted.text,
+          metadata: {
+            ...extracted.metadata,
+            originalName: input.originalName,
+            mimeType: input.mimeType,
+          },
+        },
+      });
       await setStage(jobId, "persisting");
       result = await persistFacts(input, evidence.id, extracted.facts);
     } else {
@@ -274,7 +415,7 @@ async function processIntake(jobId: string, input: StoredPayload): Promise<void>
       await setStage(jobId, "persisting");
       result = text
         ? await persistFacts(input, evidence.id, simpleFactsFromText(text))
-        : { factCount: 0, catalogIds: [], observationIds: [] };
+        : { catalogIds: [], observationIds: [], factCount: 0 };
     }
 
     await db.knowledgeIntakeJob.update({ where: { id: jobId }, data: { status: "completed", result: { stage: "complete", evidenceId: evidence.id, ...result }, error: null, completedAt: new Date() } });
@@ -347,7 +488,13 @@ export async function enqueueKnowledgeIntake(input: IntakeInput) {
       sourceType: input.sourceType,
       originalName: input.originalName,
       contentHash,
-      payload: { mimeType: input.mimeType, content: input.content, imageDataUrl: input.imageDataUrl, text: input.text, userId: input.userId },
+      payload: {
+        mimeType: input.mimeType,
+        content: input.content,
+        imageDataUrl: input.imageDataUrl,
+        text: input.text,
+        userId: input.userId,
+      },
     },
   });
 
