@@ -11,6 +11,7 @@ import "dotenv/config";
  * Usage:
  *   pnpm exec tsx apps/api/author-play.ts
  *   pnpm exec tsx apps/api/author-play.ts "make a dog tag" "Coco" "Pomeranian|loves walks|squirrels|bacon|apples"
+ *   pnpm exec tsx apps/api/author-play.ts "make a dog tag" "Coco" "Pomeranian|loves walks|squirrels|bacon|apples" --lens negotiation
  *
  * Facts are pipe-delimited. The bench sends the same supplied facts as
  * source moments for a starter experience and starts with empty personal
@@ -23,6 +24,7 @@ type PlayInput = {
   facts: string[];
   memoryContext: string[];
   returning: boolean;
+  lens?: string;
 };
 
 function clean(value: unknown): string {
@@ -39,6 +41,7 @@ function splitFacts(value: string): string[] {
 function parseArgs(argv: string[]): PlayInput {
   const positional: string[] = [];
   const memoryContext: string[] = [];
+  let lens: string | undefined;
 
   for (let index = 0; index < argv.length; index += 1) {
     const value = argv[index];
@@ -46,6 +49,13 @@ function parseArgs(argv: string[]): PlayInput {
     if (value === "--memory") {
       const memory = clean(argv[index + 1]);
       if (memory) memoryContext.push(memory);
+      index += 1;
+      continue;
+    }
+
+    if (value === "--lens") {
+      const requestedLens = clean(argv[index + 1]);
+      if (requestedLens) lens = requestedLens;
       index += 1;
       continue;
     }
@@ -79,6 +89,7 @@ function parseArgs(argv: string[]): PlayInput {
     memoryContext,
     returning:
       argv.includes("--returning") || memoryContext.length > 0,
+    lens,
   };
 }
 
@@ -87,6 +98,8 @@ const input = parseArgs(process.argv.slice(2));
 // Development bench: still the canonical Author, but use its existing
 // one-selection/one-realization mode instead of four generated films.
 process.env.QRE_AUTHOR_REALIZATION_MODE = "single";
+process.env.QRE_AUTHOR_FAST_MODEL ??= "gemma3:12b";
+process.env.QRE_AUTHOR_FALLBACK_MODEL ??= "";
 process.env.QRE_AUTHOR_DEBUG_RAW = "false";
 
 const { authorBrainCanonical } = await import(
@@ -103,6 +116,7 @@ console.log("=".repeat(72));
 console.log(`PROMPT: ${input.prompt}`);
 console.log(`SUBJECT: ${input.subject}`);
 console.log(`FACTS: ${input.facts.join(" | ")}`);
+console.log(`LENS REQUEST: ${input.lens ?? "automatic"}`);
 console.log(
   `MEMORY: ${input.memoryContext.length ? input.memoryContext.join(" | ") : "none"}`,
 );
@@ -111,10 +125,11 @@ try {
   const result = await authorBrainCanonical({
     prompt: input.prompt,
     subject: input.subject,
+    lens: input.lens,
     facts: input.facts,
     sourceMoments: input.facts,
     memoryContext: input.memoryContext,
-    trajectory: input.memoryContext,
+    trajectory: [],
     creativeLearningContext: [],
     returning: input.returning,
   });
@@ -141,9 +156,7 @@ try {
 
   console.log("\n--- PROVENANCE ---");
   result.sequence.cuts.forEach((cut) => {
-    console.log(
-      `[${cut.order}] ${cut.sourceIds.join(", ") || "<none>"}`,
-    );
+    console.log(`[${cut.order}] ${cut.sourceIds.join(", ") || "<none>"}`);
   });
   console.log("--- END PROVENANCE ---");
 
