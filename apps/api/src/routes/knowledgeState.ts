@@ -1,5 +1,5 @@
 import express from "express";
-import { db, PrismaClient } from "@qre/db";
+import { db } from "@qre/db";
 import { getDashboardMetrics, getRecentActivity } from "@qre/engine";
 import { requireAuth, type AuthRequest } from "../middleware/requireAuth.js";
 import { createAnalyticsRepository } from "../repositories/analyticsRepository.js";
