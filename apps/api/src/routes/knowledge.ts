@@ -90,12 +90,7 @@ router.post("/:slug/intake", requireAuth, async (req: AuthRequest, res) => {
       text,
     });
 
-    return res.status(202).json({
-      accepted: true,
-      duplicate: queued.duplicate,
-      jobId: queued.job.id,
-      status: queued.job.status,
-    });
+    return res.status(202).json({ accepted: true, duplicate: queued.duplicate, jobId: queued.job.id, status: queued.job.status });
   } catch (error) {
     console.error("Knowledge intake enqueue failed:", error);
     return res.status(500).json({ error: error instanceof Error ? error.message : "Knowledge intake failed." });
@@ -114,17 +109,7 @@ router.get("/:slug/intake/:jobId", requireAuth, async (req: AuthRequest, res) =>
 
     const job = await db.knowledgeIntakeJob.findFirst({
       where: { id: jobId, assetId: asset.id },
-      select: {
-        id: true,
-        status: true,
-        sourceType: true,
-        originalName: true,
-        result: true,
-        error: true,
-        createdAt: true,
-        startedAt: true,
-        completedAt: true,
-      },
+      select: { id: true, status: true, sourceType: true, originalName: true, result: true, error: true, createdAt: true, startedAt: true, completedAt: true },
     });
 
     if (!job) return res.status(404).json({ error: "Intake job not found." });
@@ -135,17 +120,12 @@ router.get("/:slug/intake/:jobId", requireAuth, async (req: AuthRequest, res) =>
   }
 });
 
-/**
- * Backward-compatible knowledge writer. It deliberately does not analyze or persist
- * directly anymore; every write goes through the same durable intake path as the
- * universal uploader so there is one learning pipeline.
- */
+/** Backward-compatible writer. All learning writes use the durable intake pipeline. */
 router.post("/:slug", requireAuth, async (req: AuthRequest, res) => {
   try {
     const slug = safeStringParam(req.params.slug);
     const userId = req.user?.userId;
     if (!slug || !userId) return res.status(400).json({ error: "Missing asset." });
-
     const asset = await resolveOwnedAsset(slug, userId);
     if (!asset) return res.status(404).json({ error: "Asset not found." });
 
@@ -155,7 +135,6 @@ router.post("/:slug", requireAuth, async (req: AuthRequest, res) => {
     const category = normalizeValue(req.body?.category);
     const source = normalizeValue(req.body?.source) || "owner";
     const imageDataUrl = typeof req.body?.imageDataUrl === "string" ? req.body.imageDataUrl : "";
-
     if (!label && !value && !imageDataUrl && !notes) return res.status(400).json({ error: "Add a fact or image." });
 
     const text = [
@@ -165,15 +144,16 @@ router.post("/:slug", requireAuth, async (req: AuthRequest, res) => {
       source ? `Source: ${source}` : "",
     ].filter(Boolean).join("\n");
 
+    const isImage = imageDataUrl.startsWith("data:image/");
     const queued = await enqueueKnowledgeIntake({
       assetId: asset.id,
       userId,
-      sourceType: imageDataUrl.startsWith("data:image/") ? "photo" : "text",
+      sourceType: isImage ? "photo" : "text",
       originalName: "Legacy knowledge entry",
-      mimeType: imageDataUrl.startsWith("data:image/") ? undefined : "text/plain",
-      imageDataUrl: imageDataUrl.startsWith("data:image/") ? imageDataUrl : undefined,
-      text: imageDataUrl.startsWith("data:image/") ? undefined : text,
-      content: imageDataUrl.startsWith("data:image/") ? undefined : text,
+      mimeType: isImage ? undefined : "text/plain",
+      imageDataUrl: isImage ? imageDataUrl : undefined,
+      text: isImage ? undefined : text,
+      content: isImage ? undefined : text,
     });
 
     return res.status(202).json({ accepted: true, duplicate: queued.duplicate, jobId: queued.job.id, status: queued.job.status });
@@ -183,13 +163,12 @@ router.post("/:slug", requireAuth, async (req: AuthRequest, res) => {
   }
 });
 
-/** Backward-compatible website writer; website learning is also durable now. */
+/** Backward-compatible website writer. The actual crawl happens in the durable worker. */
 router.post("/:slug/learn-website", requireAuth, async (req: AuthRequest, res) => {
   try {
     const slug = safeStringParam(req.params.slug);
     const userId = req.user?.userId;
     const url = normalizeValue(req.body?.url);
-    const ownerDescription = normalizeValue(req.body?.ownerDescription);
     if (!slug || !userId) return res.status(400).json({ error: "Missing asset." });
     if (!url) return res.status(400).json({ error: "Website URL required." });
 
@@ -203,7 +182,7 @@ router.post("/:slug/learn-website", requireAuth, async (req: AuthRequest, res) =
       originalName: url,
       mimeType: "text/uri-list",
       content: url,
-      text: ownerDescription ? `${url}\nOwner context: ${ownerDescription}` : url,
+      text: url,
     });
 
     return res.status(202).json({ accepted: true, duplicate: queued.duplicate, jobId: queued.job.id, status: queued.job.status });
