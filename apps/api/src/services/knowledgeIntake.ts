@@ -87,16 +87,29 @@ async function persistFacts(input: StoredPayload, evidenceId: string, facts: Fac
   return { catalogIds, observationIds, factCount: facts.length };
 }
 function visionMetadata(item: CatalogVisionItem): Prisma.InputJsonObject {
-  const metadata: Prisma.InputJsonObject = { recognitionObservationId: item.observationId, recognitionState: item.state };
   const productIdentity = [item.brand, item.product || item.name, item.variant].filter((value): value is string => Boolean(value)).map((value) => normalizeName(value)).filter(Boolean).join("|");
-  if (productIdentity) metadata.productIdentity = productIdentity;
-  if (item.evidence?.length) metadata.evidence = item.evidence.map((entry) => ({ kind: entry.kind, ...(entry.value ? { value: entry.value } : {}), confidence: entry.confidence, ...(entry.source ? { source: entry.source } : {}) }));
-  if (item.location) metadata.location = { ...(item.location.section ? { section: item.location.section } : {}), ...(item.location.shelf ? { shelf: item.location.shelf } : {}), ...(item.location.row ? { row: item.location.row } : {}), ...(item.location.position ? { position: item.location.position } : {}), ...(item.location.bbox ? { bbox: [...item.location.bbox] } : {}) };
-  return metadata;
+  return {
+    recognitionObservationId: item.observationId,
+    recognitionState: item.state,
+    ...(productIdentity ? { productIdentity } : {}),
+    ...(item.evidence?.length ? { evidence: item.evidence.map((entry) => ({ kind: entry.kind, ...(entry.value ? { value: entry.value } : {}), confidence: entry.confidence, ...(entry.source ? { source: entry.source } : {}) })) } : {}),
+    ...(item.location ? { location: { ...(item.location.section ? { section: item.location.section } : {}), ...(item.location.shelf ? { shelf: item.location.shelf } : {}), ...(item.location.row ? { row: item.location.row } : {}), ...(item.location.position ? { position: item.location.position } : {}), ...(item.location.bbox ? { bbox: [...item.location.bbox] } : {}) } } : {}),
+  };
 }
 function observationValue(item: CatalogVisionItem, attributes: Array<{ key: string; value: string }>): Prisma.InputJsonObject {
-  const value: Prisma.InputJsonObject = { name: item.name, attributes, recognitionObservationId: item.observationId, recognitionState: item.state };
-  if (item.brand) value.brand = item.brand; if (item.product) value.product = item.product; if (item.variant) value.variant = item.variant; if (item.category) value.category = item.category; if (item.evidence?.length) value.evidence = item.evidence.map((entry) => ({ kind: entry.kind, ...(entry.value ? { value: entry.value } : {}), confidence: entry.confidence, ...(entry.source ? { source: entry.source } : {}) })); if (item.location) value.location = { ...(item.location.section ? { section: item.location.section } : {}), ...(item.location.shelf ? { shelf: item.location.shelf } : {}), ...(item.location.row ? { row: item.location.row } : {}), ...(item.location.position ? { position: item.location.position } : {}), ...(item.location.bbox ? { bbox: [...item.location.bbox] } : {}) }; if (item.notes) value.notes = item.notes; return value;
+  return {
+    name: item.name,
+    attributes,
+    recognitionObservationId: item.observationId,
+    recognitionState: item.state,
+    ...(item.brand ? { brand: item.brand } : {}),
+    ...(item.product ? { product: item.product } : {}),
+    ...(item.variant ? { variant: item.variant } : {}),
+    ...(item.category ? { category: item.category } : {}),
+    ...(item.evidence?.length ? { evidence: item.evidence.map((entry) => ({ kind: entry.kind, ...(entry.value ? { value: entry.value } : {}), confidence: entry.confidence, ...(entry.source ? { source: entry.source } : {}) })) } : {}),
+    ...(item.location ? { location: { ...(item.location.section ? { section: item.location.section } : {}), ...(item.location.shelf ? { shelf: item.location.shelf } : {}), ...(item.location.row ? { row: item.location.row } : {}), ...(item.location.position ? { position: item.location.position } : {}), ...(item.location.bbox ? { bbox: [...item.location.bbox] } : {}) } } : {}),
+    ...(item.notes ? { notes: item.notes } : {}),
+  };
 }
 async function persistVision(input: StoredPayload, evidenceId: string, items: CatalogVisionItem[]) {
   const catalogIds: string[] = []; const observationIds: string[] = [];
@@ -112,7 +125,15 @@ async function persistVision(input: StoredPayload, evidenceId: string, items: Ca
   }
   return { catalogIds, observationIds, factCount: items.length };
 }
-function compactPayload(input: StoredPayload): Prisma.InputJsonObject { const payload: Prisma.InputJsonObject = { userId: input.userId }; if (input.mimeType) payload.mimeType = input.mimeType; if (input.text) payload.text = input.text; if (input.storageKey) payload.storageKey = input.storageKey; if (input.content && !input.content.startsWith("data:")) payload.content = input.content; return payload; }
+function compactPayload(input: StoredPayload): Prisma.InputJsonObject {
+  return {
+    userId: input.userId,
+    ...(input.mimeType ? { mimeType: input.mimeType } : {}),
+    ...(input.text ? { text: input.text } : {}),
+    ...(input.storageKey ? { storageKey: input.storageKey } : {}),
+    ...(input.content && !input.content.startsWith("data:") ? { content: input.content } : {}),
+  };
+}
 async function processIntake(jobId: string, originalInput: StoredPayload): Promise<void> {
   let evidenceId: string | undefined;
   try {
@@ -122,8 +143,8 @@ async function processIntake(jobId: string, originalInput: StoredPayload): Promi
     let result: { catalogIds: string[]; observationIds: string[]; factCount: number };
     if (input.sourceType === "website") { await setStage(jobId, "website"); result = await learnWebsite(input, evidence.id); }
     else if ((mimeType || "").startsWith("image/")) { await setStage(jobId, "vision"); const imageDataUrl = binary ? mediaDataUrl(binary, mimeType || "image/jpeg") : input.imageDataUrl; if (!imageDataUrl) throw new Error("Image media is missing from intake storage."); result = await persistVision(input, evidence.id, await analyzeImageForCatalog(imageDataUrl, input.assetId)); await setStage(jobId, "persisting"); }
-    else if (input.sourceType === "pdf") { await setStage(jobId, "extracting"); const bytes = binary || decodeDataUrl(input.content || "")?.bytes; if (!bytes) throw new Error("PDF upload is not available in durable storage."); const extracted = await extractPdfKnowledge(bytes); await db.knowledgeEvidence.update({ where: { id: evidence.id }, data: { text: extracted.text, metadata: { ...extracted.metadata, originalName: input.originalName, ...(mimeType ? { mimeType } : {}) } } }); await setStage(jobId, "persisting"); result = await persistFacts(input, evidence.id, extracted.facts); }
-    else if (input.sourceType === "spreadsheet") { await setStage(jobId, "extracting"); const bytes = binary || decodeDataUrl(input.content || "")?.bytes; if (!bytes) throw new Error("Spreadsheet upload is not available in durable storage."); const extracted = extractSpreadsheetKnowledge(bytes, input.originalName); await db.knowledgeEvidence.update({ where: { id: evidence.id }, data: { text: extracted.text, metadata: { ...extracted.metadata, originalName: input.originalName, ...(mimeType ? { mimeType } : {}) } } }); await setStage(jobId, "persisting"); result = await persistFacts(input, evidence.id, extracted.facts); }
+    else if (input.sourceType === "pdf") { await setStage(jobId, "extracting"); const bytes = binary || decodeDataUrl(input.content || "")?.bytes; if (!bytes) throw new Error("PDF upload is not available in durable storage."); const extracted = await extractPdfKnowledge(bytes); await db.knowledgeEvidence.update({ where: { id: evidence.id }, data: { text: extracted.text, metadata: { ...extracted.metadata, originalName: input.originalName, ...(mimeType ? { mimeType } : {}) } }); await setStage(jobId, "persisting"); result = await persistFacts(input, evidence.id, extracted.facts); }
+    else if (input.sourceType === "spreadsheet") { await setStage(jobId, "extracting"); const bytes = binary || decodeDataUrl(input.content || "")?.bytes; if (!bytes) throw new Error("Spreadsheet upload is not available in durable storage."); const extracted = extractSpreadsheetKnowledge(bytes, input.originalName); await db.knowledgeEvidence.update({ where: { id: evidence.id }, data: { text: extracted.text, metadata: { ...extracted.metadata, originalName: input.originalName, ...(mimeType ? { mimeType } : {}) } }); await setStage(jobId, "persisting"); result = await persistFacts(input, evidence.id, extracted.facts); }
     else { await setStage(jobId, "extracting"); const text = textFromInput(input); await setStage(jobId, "persisting"); result = text ? await persistFacts(input, evidence.id, simpleFactsFromText(text)) : { catalogIds: [], observationIds: [], factCount: 0 }; }
     await db.knowledgeIntakeJob.update({ where: { id: jobId }, data: { status: "completed", payload: compactPayload(input), result: { stage: "complete", evidenceId: evidence.id, ...result }, error: null, completedAt: new Date() } });
     if ((input.mimeType || mimeType || "").startsWith("image/")) triggerRealityIntake(jobId);
