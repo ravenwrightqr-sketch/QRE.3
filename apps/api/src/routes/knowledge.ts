@@ -10,17 +10,11 @@ const router = express.Router();
 const analyticsRepository = createAnalyticsRepository();
 
 async function resolveOwnedAsset(slug: string, userId: string) {
-  const asset = await db.asset.findUnique({
-    where: { slug },
-    select: { id: true, slug: true, displayName: true, ownerId: true, accountId: true },
-  });
+  const asset = await db.asset.findUnique({ where: { slug }, select: { id: true, slug: true, displayName: true, ownerId: true, accountId: true } });
   if (!asset) return null;
   if (asset.ownerId === userId) return asset;
   if (!asset.accountId) return null;
-  const membership = await db.accountUser.findUnique({
-    where: { accountId_userId: { accountId: asset.accountId, userId } },
-    select: { userId: true },
-  });
+  const membership = await db.accountUser.findUnique({ where: { accountId_userId: { accountId: asset.accountId, userId } }, select: { userId: true } });
   return membership ? asset : null;
 }
 
@@ -37,13 +31,11 @@ router.get("/:slug", requireAuth, async (req: AuthRequest, res) => {
     if (!slug || !userId) return res.status(400).json({ error: "Missing asset." });
     const asset = await resolveOwnedAsset(slug, userId);
     if (!asset) return res.status(404).json({ error: "Asset not found." });
-
     const [rows, metrics, activity] = await Promise.all([
       db.insight.findMany({ where: { assetId: asset.id, type: "KNOWLEDGE" }, orderBy: { createdAt: "desc" }, take: 250 }),
       getDashboardMetrics(asset.id, analyticsRepository),
       getRecentActivity(asset.id, analyticsRepository, 30),
     ]);
-
     const knowledge = rows.map((row) => {
       try {
         const parsed = JSON.parse(row.message) as Record<string, unknown>;
@@ -52,7 +44,6 @@ router.get("/:slug", requireAuth, async (req: AuthRequest, res) => {
         return { id: row.id, createdAt: row.createdAt, label: row.message, value: row.impact ?? "", category: "general", source: "legacy" };
       }
     });
-
     const categories = [...new Set(knowledge.map((item) => typeof item.category === "string" ? item.category : "general"))];
     return res.json({ asset, knowledge, categories, metrics, activity });
   } catch (error) {
@@ -66,30 +57,16 @@ router.post("/:slug/intake", requireAuth, async (req: AuthRequest, res) => {
     const slug = safeStringParam(req.params.slug);
     const userId = req.user?.userId;
     if (!slug || !userId) return res.status(400).json({ error: "Missing asset." });
-
     const asset = await resolveOwnedAsset(slug, userId);
     if (!asset) return res.status(404).json({ error: "Asset not found." });
-
     const sourceType = normalizeValue(req.body?.sourceType) || "upload";
     const originalName = normalizeValue(req.body?.originalName) || undefined;
     const mimeType = normalizeValue(req.body?.mimeType) || undefined;
     const content = typeof req.body?.content === "string" ? req.body.content : undefined;
     const imageDataUrl = typeof req.body?.imageDataUrl === "string" ? req.body.imageDataUrl : undefined;
     const text = typeof req.body?.text === "string" ? req.body.text : undefined;
-
     if (!content && !imageDataUrl && !text) return res.status(400).json({ error: "No intake content supplied." });
-
-    const queued = await enqueueKnowledgeIntake({
-      assetId: asset.id,
-      userId,
-      sourceType,
-      originalName,
-      mimeType,
-      content,
-      imageDataUrl,
-      text,
-    });
-
+    const queued = await enqueueKnowledgeIntake({ assetId: asset.id, userId, sourceType, originalName, mimeType, content, imageDataUrl, text });
     return res.status(202).json({ accepted: true, duplicate: queued.duplicate, jobId: queued.job.id, status: queued.job.status });
   } catch (error) {
     console.error("Knowledge intake enqueue failed:", error);
@@ -103,15 +80,9 @@ router.get("/:slug/intake/:jobId", requireAuth, async (req: AuthRequest, res) =>
     const jobId = safeStringParam(req.params.jobId);
     const userId = req.user?.userId;
     if (!slug || !jobId || !userId) return res.status(400).json({ error: "Missing identifier." });
-
     const asset = await resolveOwnedAsset(slug, userId);
     if (!asset) return res.status(404).json({ error: "Asset not found." });
-
-    const job = await db.knowledgeIntakeJob.findFirst({
-      where: { id: jobId, assetId: asset.id },
-      select: { id: true, status: true, sourceType: true, originalName: true, result: true, error: true, createdAt: true, startedAt: true, completedAt: true },
-    });
-
+    const job = await db.knowledgeIntakeJob.findFirst({ where: { id: jobId, assetId: asset.id }, select: { id: true, status: true, sourceType: true, originalName: true, result: true, error: true, createdAt: true, startedAt: true, completedAt: true } });
     if (!job) return res.status(404).json({ error: "Intake job not found." });
     return res.json({ job });
   } catch (error) {
@@ -128,7 +99,6 @@ router.post("/:slug", requireAuth, async (req: AuthRequest, res) => {
     if (!slug || !userId) return res.status(400).json({ error: "Missing asset." });
     const asset = await resolveOwnedAsset(slug, userId);
     if (!asset) return res.status(404).json({ error: "Asset not found." });
-
     const label = normalizeValue(req.body?.label);
     const value = normalizeValue(req.body?.value);
     const notes = normalizeValue(req.body?.notes);
@@ -136,26 +106,9 @@ router.post("/:slug", requireAuth, async (req: AuthRequest, res) => {
     const source = normalizeValue(req.body?.source) || "owner";
     const imageDataUrl = typeof req.body?.imageDataUrl === "string" ? req.body.imageDataUrl : "";
     if (!label && !value && !imageDataUrl && !notes) return res.status(400).json({ error: "Add a fact or image." });
-
-    const text = [
-      label ? `${label}: ${value || ""}`.trim() : value,
-      category ? `Category: ${category}` : "",
-      notes ? `Notes: ${notes}` : "",
-      source ? `Source: ${source}` : "",
-    ].filter(Boolean).join("\n");
-
+    const text = [label ? `${label}: ${value || ""}`.trim() : value, category ? `Category: ${category}` : "", notes ? `Notes: ${notes}` : "", source ? `Source: ${source}` : ""].filter(Boolean).join("\n");
     const isImage = imageDataUrl.startsWith("data:image/");
-    const queued = await enqueueKnowledgeIntake({
-      assetId: asset.id,
-      userId,
-      sourceType: isImage ? "photo" : "text",
-      originalName: "Legacy knowledge entry",
-      mimeType: isImage ? undefined : "text/plain",
-      imageDataUrl: isImage ? imageDataUrl : undefined,
-      text: isImage ? undefined : text,
-      content: isImage ? undefined : text,
-    });
-
+    const queued = await enqueueKnowledgeIntake({ assetId: asset.id, userId, sourceType: isImage ? "photo" : "text", originalName: "Legacy knowledge entry", mimeType: isImage ? undefined : "text/plain", imageDataUrl: isImage ? imageDataUrl : undefined, text: isImage ? undefined : text, content: isImage ? undefined : text });
     return res.status(202).json({ accepted: true, duplicate: queued.duplicate, jobId: queued.job.id, status: queued.job.status });
   } catch (error) {
     console.error("Knowledge compatibility enqueue failed:", error);
@@ -171,20 +124,9 @@ router.post("/:slug/learn-website", requireAuth, async (req: AuthRequest, res) =
     const url = normalizeValue(req.body?.url);
     if (!slug || !userId) return res.status(400).json({ error: "Missing asset." });
     if (!url) return res.status(400).json({ error: "Website URL required." });
-
     const asset = await resolveOwnedAsset(slug, userId);
     if (!asset) return res.status(404).json({ error: "Asset not found." });
-
-    const queued = await enqueueKnowledgeIntake({
-      assetId: asset.id,
-      userId,
-      sourceType: "website",
-      originalName: url,
-      mimeType: "text/uri-list",
-      content: url,
-      text: url,
-    });
-
+    const queued = await enqueueKnowledgeIntake({ assetId: asset.id, userId, sourceType: "website", originalName: url, mimeType: "text/uri-list", content: url, text: url });
     return res.status(202).json({ accepted: true, duplicate: queued.duplicate, jobId: queued.job.id, status: queued.job.status });
   } catch (error) {
     console.error("Website learning enqueue failed:", error);
@@ -200,9 +142,17 @@ router.delete("/:slug/:itemId", requireAuth, async (req: AuthRequest, res) => {
     if (!slug || !itemId || !userId) return res.status(400).json({ error: "Missing identifier." });
     const asset = await resolveOwnedAsset(slug, userId);
     if (!asset) return res.status(404).json({ error: "Asset not found." });
-    await db.insight.deleteMany({ where: { id: itemId, assetId: asset.id, type: "KNOWLEDGE" } });
-    await analyticsRepository.trackEvent({ assetId: asset.id, type: "MEMORY_UPDATED", meta: { source: "knowledge_delete", itemId } });
-    return res.json({ success: true });
+
+    const catalogItem = await db.catalogItem.findFirst({ where: { id: itemId, assetId: asset.id }, select: { id: true } });
+    if (catalogItem) {
+      await db.catalogItem.update({ where: { id: catalogItem.id }, data: { status: "archived" } });
+      await analyticsRepository.trackEvent({ assetId: asset.id, type: "MEMORY_UPDATED", meta: { source: "knowledge_archive", itemId } });
+      return res.json({ success: true, archived: true });
+    }
+
+    const legacy = await db.insight.deleteMany({ where: { id: itemId, assetId: asset.id, type: "KNOWLEDGE" } });
+    await analyticsRepository.trackEvent({ assetId: asset.id, type: "MEMORY_UPDATED", meta: { source: "knowledge_delete_legacy", itemId, deleted: legacy.count === 1 } });
+    return res.json({ success: true, archived: false, legacyDeleted: legacy.count === 1 });
   } catch (error) {
     console.error("Knowledge delete failed:", error);
     return res.status(500).json({ error: "Knowledge delete failed." });
