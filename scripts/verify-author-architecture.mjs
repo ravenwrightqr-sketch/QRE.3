@@ -19,6 +19,7 @@ const canonical = "apps/api/src/services/authorBrainCanonical.ts";
 const cognition = "apps/api/src/services/authorCognition.ts";
 const creativeSpine = "apps/api/src/services/authorCreativeSpine.ts";
 const creativeRealizer = "apps/api/src/services/authorCreativeRealizer.ts";
+const artistImplementation = "apps/api/src/services/authorBeastRealizer.ts";
 const realityGraph = "apps/api/src/services/authorRealityGraph.ts";
 const readout = "apps/api/src/services/authorReadout.ts";
 const acceptance = "apps/api/author-acceptance.ts";
@@ -84,6 +85,7 @@ for (const path of [
   realityGraph,
   creativeSpine,
   creativeRealizer,
+  artistImplementation,
   readout,
   acceptance,
   experienceRoute,
@@ -118,6 +120,7 @@ for (const file of sourceFiles) {
 const canonicalSource = existsSync(join(root, canonical)) ? read(canonical) : "";
 const creativeSpineSource = existsSync(join(root, creativeSpine)) ? read(creativeSpine) : "";
 const realizerSource = existsSync(join(root, creativeRealizer)) ? read(creativeRealizer) : "";
+const artistSource = existsSync(join(root, artistImplementation)) ? read(artistImplementation) : "";
 const realityGraphSource = existsSync(join(root, realityGraph)) ? read(realityGraph) : "";
 const readoutSource = existsSync(join(root, readout)) ? read(readout) : "";
 
@@ -133,8 +136,9 @@ if (/authorBrainUniversal|author-acceptance-suite/.test(existsSync(join(root, ac
 
 if (!/function\s+buildAuthorRealityGraph\s*\(/.test(realityGraphSource)) fail("RealityGraph must own source-world compilation");
 if (!/function\s+buildAuthorCreativeSpine\s*\(/.test(creativeSpineSource)) fail("Creative Spine must own semantic creative opportunities");
-if (!/function\s+realizeAuthorExperience\s*\(/.test(realizerSource)) fail("Creative Realizer must own visible artistic realization");
-if (!/SOURCE-WORLD LOCK|world-lock|world lock/i.test(realizerSource)) warn("Creative Realizer source-world lock could not be mechanically verified; rely on its acceptance suite.");
+if (!/export\s*\{[\s\S]*realizeAuthorExperience[\s\S]*\}\s*from\s*[\"']\.\/authorBeastRealizer\.js[\"']/.test(realizerSource)) fail("Creative Realizer boundary must delegate visible realization to the Artist implementation");
+if (!/function\s+realizeAuthorExperience\s*\(/.test(artistSource)) fail("Artist implementation must own visible artistic realization");
+if (!/source reality|source truth|concrete facts|supplied reality/i.test(artistSource)) warn("Artist source-world lock could not be mechanically verified; rely on its acceptance suite.");
 if (!/buildAuthorReadout/.test(canonicalSource) || !/AuthorReadout/.test(readoutSource)) fail("Readout layer must remain present on the canonical Author path");
 
 const experienceRouteSource = existsSync(join(root, experienceRoute)) ? read(experienceRoute) : "";
@@ -153,6 +157,7 @@ console.log(`COGNITION: ${cognition}`);
 console.log(`REALITY GRAPH: ${realityGraph}`);
 console.log(`CREATIVE SPINE: ${creativeSpine}`);
 console.log(`CREATIVE REALIZER: ${creativeRealizer}`);
+console.log(`ARTIST IMPLEMENTATION: ${artistImplementation}`);
 console.log(`READOUT: ${readout}`);
 console.log(`EXPERIENCE ROUTE: ${experienceRoute}`);
 console.log(`EXPERIENCE SERVICE: ${experienceService}`);
