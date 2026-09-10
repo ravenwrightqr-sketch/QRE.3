@@ -1,9 +1,12 @@
 import express from "express";
-import { db } from "@qre/db";
+import { db, PrismaClient } from "@qre/db";
+import { getDashboardMetrics, getRecentActivity } from "@qre/engine";
 import { requireAuth, type AuthRequest } from "../middleware/requireAuth.js";
+import { createAnalyticsRepository } from "../repositories/analyticsRepository.js";
 import { safeStringParam } from "../lib/safeParam.js";
 
 const router = express.Router();
+const analyticsRepository = createAnalyticsRepository();
 
 async function resolveOwnedAsset(slug: string, userId: string) {
   const asset = await db.asset.findUnique({ where: { slug }, select: { id: true, slug: true, displayName: true, ownerId: true, accountId: true } });
@@ -22,14 +25,16 @@ router.get("/:slug/state", requireAuth, async (req: AuthRequest, res) => {
     const asset = await resolveOwnedAsset(slug, userId);
     if (!asset) return res.status(404).json({ error: "Asset not found." });
 
-    const [catalog, observations, patterns, jobs] = await Promise.all([
+    const [catalog, observations, patterns, jobs, metrics, activity] = await Promise.all([
       db.catalogItem.findMany({ where: { assetId: asset.id }, orderBy: { updatedAt: "desc" }, take: 500, select: { id: true, name: true, kind: true, category: true, brand: true, description: true, updatedAt: true } }),
       db.knowledgeObservation.findMany({ where: { assetId: asset.id }, orderBy: { observedAt: "desc" }, take: 500, select: { id: true, type: true, value: true, source: true, confidence: true, observedAt: true } }),
       db.knowledgePattern.findMany({ where: { assetId: asset.id, status: "active" }, orderBy: { updatedAt: "desc" }, take: 250, select: { id: true, type: true, statement: true, confidence: true, strength: true, firstObservedAt: true, lastObservedAt: true } }),
       db.knowledgeIntakeJob.findMany({ where: { assetId: asset.id }, orderBy: { createdAt: "desc" }, take: 25, select: { id: true, status: true, sourceType: true, originalName: true, result: true, error: true, createdAt: true, startedAt: true, completedAt: true } }),
+      getDashboardMetrics(asset.id, analyticsRepository),
+      getRecentActivity(asset.id, analyticsRepository, 30),
     ]);
 
-    return res.json({ asset, catalog, observations, patterns, jobs, counts: { catalog: catalog.length, observations: observations.length, patterns: patterns.length, jobs: jobs.length } });
+    return res.json({ asset, catalog, observations, patterns, jobs, metrics, activity, counts: { catalog: catalog.length, observations: observations.length, patterns: patterns.length, jobs: jobs.length } });
   } catch (error) {
     console.error("Knowledge state load failed:", error);
     return res.status(500).json({ error: "Knowledge state load failed." });
