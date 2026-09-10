@@ -1,4 +1,4 @@
-import type { AuthorDomainContext, CreativeFrameSelection, LatentMovieCandidate, LatentMovieTrajectoryStep, RealityGraph } from "@qre/contracts";
+﻿import type { AuthorDomainContext, CreativeFrameSelection, LatentMovieCandidate, LatentMovieTrajectoryStep, RealityGraph } from "@qre/contracts";
 import { localModelGenerate } from "./localModelRuntime.js";
 
 export type AuthorCognitionInput = {
@@ -176,33 +176,152 @@ function parse(text: string): Record<string, unknown> | undefined {
 
 function normalizeModelCandidates(raw: unknown, graph: RealityGraph, returning: boolean): LatentMovieCandidate[] {
   const object = raw && typeof raw === "object" ? raw as Record<string, unknown> : {};
-  const rows = Array.isArray(object.movies) ? object.movies : Array.isArray(object.candidates) ? object.candidates : [];
+  const rows = Array.isArray(object.movies)
+    ? object.movies
+    : Array.isArray(object.candidates)
+      ? object.candidates
+      : [];
+
+  const knownIds = new Set(graph.events.map((event) => event.id));
+
   return rows.slice(0, 8).flatMap((row, index) => {
     if (!row || typeof row !== "object") return [];
+
     const value = row as Record<string, unknown>;
-    const ids = validIds(value.anchorEventIds ?? value.evidenceEventIds ?? value.eventIds, graph);
-    const rawTrajectory = Array.isArray(value.trajectory) ? value.trajectory : [];
-    const trajectory: LatentMovieTrajectoryStep[] = rawTrajectory.flatMap((step, stepIndex) => {
-      if (!step || typeof step !== "object") return [];
-      const item = step as Record<string, unknown>;
-      const operation = clean(item.operation).toLowerCase() as LatentMovieTrajectoryStep["operation"];
-      const eventIds = validIds(item.eventIds ?? item.eventId, graph);
-      if (!OPS.has(operation) || !eventIds.length) return [];
-      return [{ order: stepIndex + 1, operation, eventIds, viewerChange: clean(item.viewerChange ?? item.attentionMove) || "the reading changes", nextQuestion: clean(item.nextQuestion ?? item.nextPromise) || "What changes next?" }];
-    });
-    if (trajectory.length < 1 || !ids.length) return [];
-    const hypothesis = Array.isArray(value.hypothesis) ? value.hypothesis.filter((x): x is string => typeof x === "string").map(clean).filter(Boolean).slice(0, 5) : [];
+
+    const rawEvidence = Array.isArray(value.evidence)
+      ? value.evidence
+          .filter((x): x is string => typeof x === "string")
+          .map(clean)
+      : [];
+
+    const explicitIds = validIds(
+      value.anchorEventIds ??
+      value.evidenceEventIds ??
+      value.eventIds,
+      graph,
+    );
+
+    const evidenceIds = rawEvidence.filter((id) => knownIds.has(id));
+
+    const ids = unique([...explicitIds, ...evidenceIds]).slice(0, 6);
+    if (!ids.length) return [];
+
+    const hypothesis = Array.isArray(value.hypothesis)
+      ? value.hypothesis
+          .filter((x): x is string => typeof x === "string")
+          .map(clean)
+          .filter(Boolean)
+          .slice(0, 5)
+      : [];
+
     const thesis = clean(value.thesis);
-    if ((!hypothesis.length && !thesis) || BAD_THESIS.test(hypothesis[0] ?? thesis)) return [];
+
+    if ((!hypothesis.length && !thesis) || BAD_THESIS.test(hypothesis[0] ?? thesis)) {
+      return [];
+    }
+
+    const trajectory: LatentMovieTrajectoryStep[] = [];
+
+    const rawTrajectory = Array.isArray(value.trajectory)
+      ? value.trajectory
+      : [];
+
+    for (let stepIndex = 0; stepIndex < rawTrajectory.length; stepIndex += 1) {
+      const step = rawTrajectory[stepIndex];
+
+      if (step && typeof step === "object") {
+        const item = step as Record<string, unknown>;
+        const operation =
+          clean(item.operation).toLowerCase() as LatentMovieTrajectoryStep["operation"];
+        const eventIds = validIds(item.eventIds ?? item.eventId, graph);
+
+        if (OPS.has(operation) && eventIds.length) {
+          trajectory.push({
+            order: trajectory.length + 1,
+            operation,
+            eventIds,
+            viewerChange:
+              clean(item.viewerChange ?? item.attentionMove) ||
+              "the reading changes",
+            nextQuestion:
+              clean(item.nextQuestion ?? item.nextPromise) ||
+              "What changes next?",
+          });
+          continue;
+        }
+      }
+
+      const text = clean(step);
+      if (!text) continue;
+
+      const from = ids[Math.min(stepIndex, ids.length - 1)];
+      const to = ids[Math.min(stepIndex + 1, ids.length - 1)];
+
+      trajectory.push({
+        order: trajectory.length + 1,
+        operation:
+          stepIndex === 0
+            ? "establish"
+            : stepIndex === rawTrajectory.length - 1
+              ? "payoff"
+              : "reframe",
+        eventIds: unique([from, to].filter(Boolean)),
+        viewerChange: text,
+        nextQuestion:
+          clean(value.unresolvedQuestion ?? value.nextQuestion) ||
+          "What changes next?",
+      });
+    }
+
+    if (trajectory.length === 0) {
+      trajectory.push(
+        {
+          order: 1,
+          operation: "establish",
+          eventIds: ids.slice(0, 1),
+          viewerChange: hypothesis[0] ?? thesis,
+          nextQuestion:
+            clean(value.unresolvedQuestion ?? value.nextQuestion) ||
+            "What becomes newly noticeable?",
+        },
+        {
+          order: 2,
+          operation: "payoff",
+          eventIds: ids.slice(Math.max(0, ids.length - 2)),
+          viewerChange:
+            clean(value.payoff ?? value.landing) ||
+            graph.events.find((event) => event.id === ids.at(-1))?.label ||
+            "the changed reading lands",
+          nextQuestion:
+            clean(value.unresolvedQuestion ?? value.nextQuestion) ||
+            "What lingers?",
+        },
+      );
+    }
+
     const candidate: LatentMovieCandidate = {
-      id: clean(value.id ?? value.movieId) || `model-movie-${index + 1}`,
+      id:
+        clean(value.id ?? value.movieId ?? value.title) ||
+        `model-movie-${index + 1}`,
       lens: "NONE",
-      anchorEventIds: ids.slice(0, 6),
-      supportingRelationKinds: Array.isArray(value.supportingRelationKinds) ? unique(value.supportingRelationKinds.filter((x): x is string => typeof x === "string").map(clean)) : [],
+      anchorEventIds: ids,
+      supportingRelationKinds: Array.isArray(value.supportingRelationKinds)
+        ? unique(
+            value.supportingRelationKinds
+              .filter((x): x is string => typeof x === "string")
+              .map(clean),
+          )
+        : [],
       trajectory,
-      payoff: clean(value.payoff ?? value.landing) || graph.events.find((event) => event.id === ids.at(-1))?.label || "",
-      unresolvedQuestion: clean(value.unresolvedQuestion ?? value.nextQuestion) || "What becomes newly noticeable?",
-      evidence: Array.isArray(value.evidence) ? value.evidence.filter((x): x is string => typeof x === "string").map(clean).filter(Boolean).slice(0, 24) : [],
+      payoff:
+        clean(value.payoff ?? value.landing) ||
+        graph.events.find((event) => event.id === ids.at(-1))?.label ||
+        "",
+      unresolvedQuestion:
+        clean(value.unresolvedQuestion ?? value.nextQuestion) ||
+        "What becomes newly noticeable?",
+      evidence: rawEvidence.slice(0, 24),
       hypothesis: hypothesis.length ? hypothesis : [thesis],
       truthRisk: clamp(value.truthRisk),
       novelty: clamp(value.novelty, 0.7),
@@ -211,12 +330,16 @@ function normalizeModelCandidates(raw: unknown, graph: RealityGraph, returning: 
       uncertainty: clamp(value.uncertainty, 0.3),
       attentionPotential: clamp(value.attentionPotential, 0.7),
       consequencePotential: clamp(value.consequencePotential, 0.55),
-      callbackPotential: clamp(value.callbackPotential, returning ? 0.75 : 0.2),
+      callbackPotential: clamp(
+        value.callbackPotential,
+        returning ? 0.75 : 0.2,
+      ),
       compressionPotential: clamp(value.compressionPotential, 0.8),
       repetitionRisk: clamp(value.repetitionRisk, 0.08),
       distinctiveness: clamp(value.distinctiveness, 0.75),
       score: 0,
     };
+
     candidate.score = candidateScore(candidate, returning);
     return [candidate];
   });
@@ -338,3 +461,4 @@ export async function buildAuthorCognitivePlan(input: AuthorCognitionInput): Pro
     modelCalls,
   };
 }
+

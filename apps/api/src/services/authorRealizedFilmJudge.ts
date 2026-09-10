@@ -110,8 +110,13 @@ function sourceCopyRisk(scenes: readonly RealizedScene[], graph: RealityGraph): 
   const risks = scenes.map((scene) => {
     const source = sourceEvents([scene], graph);
     if (!source.length) return 1;
-    return Math.max(...source.map((event) => overlap(scene.text, event.label)) >= 0.85 ? overlap(scene.text, event.label) : 0);
-  });
+    return Math.max(
+  ...source.map((event) => {
+    const value = overlap(scene.text, event.label);
+    return value >= 0.85 ? value : 0;
+  }),
+);
+    });
   return clamp(risks.reduce((sum, value) => sum + value, 0) / risks.length);
 }
 
@@ -127,7 +132,7 @@ function artisticTransformation(scenes: readonly RealizedScene[], graph: Reality
 
 function inventionRisk(scenes: readonly RealizedScene[], graph: RealityGraph): number {
   if (!scenes.length) return 1;
-  const risks = scenes.map((scene) => {
+  const risks: number[] = scenes.map((scene) => {
     const source = sourceEvents([scene], graph);
     if (!source.length) return 1;
     const descriptiveOnly = source.every((event) => !authorized(event, graph));

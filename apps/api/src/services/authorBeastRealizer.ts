@@ -128,7 +128,8 @@ function deterministicFactCuts(input: Input): RealizedScene[] {
   const candidates: Array<{ text: string; eventId: string }> = [];
 
   for (const item of descriptive) {
-    const label = item.event.label.replace(new RegExp(`^${input.subject.replace(/[.*+?^${}()|[\\]\\]/g, "\\$&")}\\s+`, "i"), "").trim();
+    const escapedSubject = input.subject.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+    const label = item.event.label.replace(new RegExp("^" + escapedSubject + "\\s+", "i"), "").trim();
     const lowerLabel = label.toLowerCase();
     if (item.role === "habit" && /\bwalks\b/i.test(label)) {
       candidates.push({ text: "Love walks.", eventId: item.event.id });
@@ -136,7 +137,7 @@ function deterministicFactCuts(input: Input): RealizedScene[] {
     }
     if (item.role === "preference") {
       const match = label.match(/^(?:loves?|likes?|enjoys?|hates?|prefers?|adores?)\s+(.+)$/i);
-      if (match?.[1]) candidates.push({ text: `${match[1].replace(/[.!?]+$/, "")} fan.", eventId: item.event.id });
+      if (match?.[1]) candidates.push({ text: `${match[1].replace(/[.!?]+$/, "")} fan.`, eventId: item.event.id });
       continue;
     }
     if (item.role === "attribute") {
