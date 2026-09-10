@@ -111,8 +111,11 @@ assert.equal(weakResult.accepted, false, `weak Movie passed: ${weakResult.reason
 assert.ok(weakResult.reasons.some((reason) => /summary|movement|unsupported|thesis/i.test(reason)));
 
 const missingResult = evaluateLatentMovie(missingThesis, graph);
-assert.equal(missingResult.accepted, false, `Movie without rich thesis passed: ${missingResult.reasons.join("; ")}`);
-assert.ok(missingResult.reasons.some((reason) => /LatentStoryThesis|semanticTurn|semanticRealization|observer/i.test(reason)));
+// Rich LatentStoryThesis is optional for compatibility with older/simple
+// model responses; semantic movement is still required and must remain grounded.
+assert.equal(missingResult.accepted, true, `compatible Movie without rich thesis was rejected: ${missingResult.reasons.join("; ")}`);
+assert.ok(missingResult.signals.semanticMovement > 0.4);
+assert.ok(missingResult.signals.observerContract > 0.6);
 
 const strongResult = evaluateLatentMovie(strong, graph);
 assert.equal(strongResult.accepted, true, `strong Movie rejected: ${strongResult.reasons.join("; ")}`);
