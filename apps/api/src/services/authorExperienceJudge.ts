@@ -36,7 +36,7 @@ export type AuthorExperienceJudgment = {
 const clean = (value: unknown): string => String(value ?? "").replace(/\s+/g, " ").trim();
 const clamp = (n: number): number => Number(Math.max(0, Math.min(1, Number.isFinite(n) ? n : 0)).toFixed(3));
 const unique = <T>(values: readonly T[]): T[] => [...new Set(values)];
-const GENERIC = /\b(?:a\s+day|the\s+journey|memories?|moments?|something\s+special|special\s+moment|good\s+times?|beautiful\s+moment|life|adventure|experience|story|one\s+of\s+those|it\s+all\s+started|at\s+the\s+end\s+of\s+the\s+day)\b/i;
+const GENERIC = /\b(?:a\s+day|the\s+journey|memories?|moments?|something\s+special|special\s+moment|good\s+times?|beautiful\s+moment|life|adventure|experience|story|one\s+of\s+those|it\s+all\s+started|at\s+the\s+end\s+of\s+the\s+day)\b/gi;
 const INTERNAL = /\b(?:cognition|trajectory|candidate|viewer\s+state|semantic\s+turn|evidence\s+id|planner|compiler|realizer|provenance)\b/i;
 
 function semanticMovement(candidate: LatentMovieCandidate): number {
@@ -77,7 +77,7 @@ function informationDensity(candidate: LatentMovieCandidate): number {
 function genericityRisk(candidate: LatentMovieCandidate): number {
   const corpus = [...candidate.hypothesis, candidate.payoff, candidate.unresolvedQuestion].map(clean).join(" ");
   if (!corpus) return 0.9;
-  const matches = corpus.match(GENERIC)?.length ?? 0;
+  const matches = [...corpus.matchAll(GENERIC)].length;
   const internal = INTERNAL.test(corpus) ? 1 : 0;
   return clamp(Math.min(1, matches * 0.16 + internal * 0.5));
 }
