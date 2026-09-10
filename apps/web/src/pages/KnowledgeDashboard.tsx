@@ -4,18 +4,23 @@ import DashboardLayout from "../components/layout/DashboardLayout";
 import { apiGet, setCatalogAvailability } from "../lib/api";
 import UniversalKnowledgeIntake from "../components/knowledge/UniversalKnowledgeIntake";
 
-type KnowledgeItem = { id: string; createdAt: string; label?: string; value?: string; category?: string; source?: string; notes?: string };
 type MemoryCatalogItem = { id: string; name: string; kind: string; category?: string | null; brand?: string | null; description?: string | null; updatedAt: string };
 type MemoryObservation = { id: string; type: string; value: unknown; source: string; confidence: number; observedAt: string };
-type MemoryState = { catalog: MemoryCatalogItem[]; observations: MemoryObservation[]; patterns: Array<{ id: string; type: string; statement: string; confidence: number; strength: number; firstObservedAt?: string | null; lastObservedAt?: string | null }>; counts: { catalog: number; observations: number; patterns: number; jobs: number } };
+type MemoryState = {
+  asset: { slug: string; displayName?: string | null };
+  catalog: MemoryCatalogItem[];
+  observations: MemoryObservation[];
+  patterns: Array<{ id: string; type: string; statement: string; confidence: number; strength: number; firstObservedAt?: string | null; lastObservedAt?: string | null }>;
+  jobs: Array<{ id: string; status: string; sourceType: string; originalName?: string | null; result?: unknown; error?: string | null; createdAt: string; startedAt?: string | null; completedAt?: string | null }>;
+  metrics?: Record<string, unknown> | null;
+  counts: { catalog: number; observations: number; patterns: number; jobs: number };
+};
 type CatalogResponse = { products: Array<MemoryCatalogItem & { status: string; availability: "available" | "unavailable" | "observed"; confidence: number; source: string | null; observedAt: string | null }>; count: number; availableCount: number };
-type KnowledgeResponse = { asset: { slug: string; displayName?: string | null }; knowledge: KnowledgeItem[]; categories: string[]; metrics?: Record<string, unknown> | null };
 type Tab = "recent" | "catalog" | "observations" | "patterns";
 type CatalogFilter = "all" | "available" | "unavailable";
 
 export default function KnowledgeDashboard() {
   const { slug = "" } = useParams();
-  const [data, setData] = useState<KnowledgeResponse | null>(null);
   const [memory, setMemory] = useState<MemoryState | null>(null);
   const [catalog, setCatalog] = useState<CatalogResponse | null>(null);
   const [tab, setTab] = useState<Tab>("recent");
@@ -28,12 +33,10 @@ export default function KnowledgeDashboard() {
     if (!slug) return;
     try {
       setError("");
-      const [knowledge, state, catalogState] = await Promise.all([
-        apiGet(`/api/knowledge/${encodeURIComponent(slug)}`),
+      const [state, catalogState] = await Promise.all([
         apiGet(`/api/knowledge/${encodeURIComponent(slug)}/state`),
         apiGet(`/api/catalog/${encodeURIComponent(slug)}`),
       ]);
-      setData(knowledge);
       setMemory(state);
       setCatalog(catalogState);
     } catch (err) {
@@ -62,14 +65,14 @@ export default function KnowledgeDashboard() {
     finally { setUpdatingId(""); }
   }
 
-  if (!data || !memory || !catalog) return <DashboardLayout><main style={loadingStyle}>{error || "LOADING QRE MEMORY…"}</main></DashboardLayout>;
-  const metricScans = Number(data.metrics?.scans ?? data.metrics?.totalScans ?? 0);
+  if (!memory || !catalog) return <DashboardLayout><main style={loadingStyle}>{error || "LOADING QRE MEMORY…"}</main></DashboardLayout>;
+  const metricScans = Number(memory.metrics?.scans ?? memory.metrics?.totalScans ?? 0);
 
   return (
     <DashboardLayout>
       <main style={pageStyle}>
         <header style={headerStyle}>
-          <div><div style={eyebrow}>BUSINESS MEMORY</div><h1 style={titleStyle}>{data.asset.displayName || data.asset.slug}</h1><p style={subStyle}>Give QRE anything. This is where what it learns accumulates.</p></div>
+          <div><div style={eyebrow}>BUSINESS MEMORY</div><h1 style={titleStyle}>{memory.asset.displayName || memory.asset.slug}</h1><p style={subStyle}>Give QRE anything. This is where what it learns accumulates.</p></div>
           <Link to="/dashboard" style={backLink}>← GIVE QRE SOMETHING</Link>
         </header>
         <UniversalKnowledgeIntake slug={slug} onLearned={load} />
@@ -109,7 +112,6 @@ const statLabel: CSSProperties = { marginTop: 4, fontSize: 9, letterSpacing: 2, 
 const tabs: CSSProperties = { display: "flex", gap: 8, flexWrap: "wrap", borderBottom: "1px solid rgba(255,255,255,.07)", paddingBottom: 8 };
 const tabButton: CSSProperties = { border: "1px solid transparent", borderRadius: 999, background: "transparent", color: "rgba(255,255,255,.42)", padding: "8px 11px", cursor: "pointer", font: "inherit", fontSize: 9, letterSpacing: 1.3 };
 const activeTabButton: CSSProperties = { color: "#fff", borderColor: "rgba(185,255,241,.22)", background: "rgba(185,255,241,.055)" };
-const sectionStack: CSSProperties = { display: "grid", gap: 14, marginTop: 16 };
 const sectionPanel: CSSProperties = { border: "1px solid rgba(255,255,255,.08)", borderRadius: 18, background: "rgba(255,255,255,.025)", padding: 18 };
 const sectionHeading: CSSProperties = { display: "flex", justifyContent: "space-between", alignItems: "center", gap: 12, marginBottom: 10 };
 const sectionTitle: CSSProperties = { margin: 0, fontSize: 17, fontWeight: 500, textTransform: "capitalize" };
