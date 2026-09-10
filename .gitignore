@@ -8,7 +8,7 @@ dist
 coverage
 .vscode
 .DS_Store
-
+.qre-media/
 
 pnpm-debug.log*
 npm-debug.log*
