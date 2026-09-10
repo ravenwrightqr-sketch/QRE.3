@@ -22,6 +22,7 @@ const canonicalFiles = {
   realityGraph: "apps/api/src/services/authorRealityGraph.ts",
   creativeSpine: "apps/api/src/services/authorCreativeSpine.ts",
   creativeRealizer: "apps/api/src/services/authorCreativeRealizer.ts",
+  artistImplementation: "apps/api/src/services/authorBeastRealizer.ts",
   readout: "apps/api/src/services/authorReadout.ts",
   experienceService: "apps/api/src/services/experienceService.ts",
   experienceRoute: "apps/api/src/routes/experience.ts",
@@ -94,6 +95,7 @@ const allowedDirectModelCallers = new Set([
   "apps/api/src/services/authorBrainCanonical.ts",
   "apps/api/src/services/authorCognitionUniversal.ts",
   "apps/api/src/services/authorCreativeRealizer.ts",
+  "apps/api/src/services/authorBeastRealizer.ts",
   "apps/api/src/services/authorMouthCritic.ts",
   "apps/api/src/services/authorMouthSequenceCritic.ts",
   "apps/api/src/services/creativeSeedEngine.ts",
@@ -161,9 +163,11 @@ const cognition = existsSync(join(root, canonicalFiles.cognition)) ? read(canoni
 const cognitionModel = existsSync(join(root, canonicalFiles.cognitionModel)) ? read(canonicalFiles.cognitionModel) : "";
 const creativeSpine = existsSync(join(root, canonicalFiles.creativeSpine)) ? read(canonicalFiles.creativeSpine) : "";
 const realizer = existsSync(join(root, canonicalFiles.creativeRealizer)) ? read(canonicalFiles.creativeRealizer) : "";
+const artistImplementation = existsSync(join(root, canonicalFiles.artistImplementation)) ? read(canonicalFiles.artistImplementation) : "";
 const experienceService = existsSync(join(root, canonicalFiles.experienceService)) ? read(canonicalFiles.experienceService) : "";
 const memoryProjection = existsSync(join(root, canonicalFiles.memoryProjection)) ? read(canonicalFiles.memoryProjection) : "";
 const acceptance = existsSync(join(root, canonicalFiles.acceptance)) ? read(canonicalFiles.acceptance) : "";
+const artistBoundarySource = `${realizer}\n${artistImplementation}`;
 
 // Canonical orchestrator ownership.
 if (!/authorCognition\.js/.test(brain)) fail("Canonical Author must consume authorCognition");
@@ -174,24 +178,31 @@ if (!/realizeAuthorExperience\s*\(/.test(brain)) fail("Canonical Author must cro
 if (!/buildAuthorReadout\s*\(/.test(brain)) fail("Canonical Author must produce the factual Readout");
 if (/compileCognitiveExperience/.test(brain)) fail("Legacy cognitive compiler is forbidden from Canonical Author");
 
-// Cognition owns semantic possibility discovery, with model hypotheses plus
-// grounded relation discovery merged into one candidate surface.
-if (!/buildModelCognitivePlan\s*\(/.test(cognition)) fail("Cognition must delegate model hypothesis discovery through its canonical wrapper");
-if (!/searchSatanicoRelations\s*\(/.test(cognition)) fail("Cognition must perform grounded relationship discovery");
-if (!/latentMovieCandidates/.test(cognition)) fail("Cognition must return semantic movie possibilities");
-if (!/groundedCandidate\s*\(/.test(cognition)) fail("Cognition must enforce grounded candidate provenance");
-if (!/dedupeCandidates\s*\(/.test(cognition)) fail("Cognition must differentiate/dedupe semantic candidates");
+// Cognition owns semantic possibility discovery. The public cognition module is
+// the canonical wrapper and the universal implementation supplies model-backed
+// hypotheses plus grounded relation candidates.
+if (!/authorCognitionUniversal\.js/.test(cognition)) fail("Cognition must delegate semantic discovery to the canonical universal cognition implementation");
+if (!/buildUniversalCognitivePlan\s*\(/.test(cognition)) fail("Cognition wrapper must execute the universal cognitive plan");
+if (!/localModelGenerate\s*\(/.test(cognitionModel)) fail("Universal cognition must own model-backed hypothesis discovery");
+if (!/groundedObservationCandidates\s*\(/.test(cognitionModel)) fail("Cognition must perform grounded relationship discovery");
+if (!/latentMovieCandidates/.test(cognitionModel)) fail("Cognition must return semantic movie possibilities");
+if (!/validIds\s*\(/.test(cognitionModel) || !/anchorEventIds/.test(cognitionModel)) fail("Cognition must enforce grounded candidate provenance");
+if (!/dedupe\s*\(/.test(cognitionModel)) fail("Cognition must differentiate/dedupe semantic candidates");
 if (!/buildAuthorCognitivePlan\s*\(/.test(cognitionModel)) fail("Canonical cognition model adapter is missing its cognitive plan entrypoint");
 
-// Artist/Creative Realizer is the sole visible-language boundary.
-if (!/localModelGenerate\s*\(/.test(realizer)) fail("Creative Realizer must own model-backed visible-language realization");
-if (!/validateSet\s*\(/.test(realizer)) fail("Creative Realizer must validate complete film sets before acceptance");
-if (!/bindProvenance\s*\(/.test(realizer)) fail("Creative Realizer must bind finished language back to supplied reality");
-if (!/INTERNAL/.test(realizer) || !/EXPLANATION/.test(realizer)) fail("Creative Realizer must block internal-architecture and explanatory leakage");
-if (!/selectedMovieIndex/.test(realizer) || !/selectedSetIndex/.test(realizer)) fail("Creative Realizer must retain Artist selection state");
-if (!/judgeRealizedFilm\s*\(/.test(realizer)) warn("Creative Realizer film judgment is not mechanically visible; rely on the acceptance suite");
-if (/authorMouthLanguageGate|authorMouthQualityAdapter|authorMouthAttentionGate|authorMouthGroundedFallback|authorMouthRepairPlanner|authorMouthMonster/.test(realizer)) {
-  fail("Creative Realizer still depends on retired Mouth services");
+// Artist/Creative Realizer is the sole visible-language boundary. The public
+// boundary is intentionally a thin delegation layer; the Beast implementation
+// owns the model call and finished-film validation.
+if (!/realizeAuthorExperience/.test(realizer) || !/authorBeastRealizer\.js/.test(realizer)) fail("Creative Realizer boundary must delegate visible realization to the Artist implementation");
+if (!/function\s+realizeAuthorExperience\s*\(/.test(artistImplementation)) fail("Artist implementation must own model-backed visible-language realization");
+if (!/localModelGenerate\s*\(/.test(artistBoundarySource)) fail("Artist boundary must own model-backed visible-language realization");
+if (!/validateScenes\s*\(/.test(artistImplementation)) fail("Artist must validate complete film sets before acceptance");
+if (!/sourceEventIds/.test(artistImplementation) || !/validSourceIds\s*\(/.test(artistImplementation)) fail("Artist must bind finished language back to supplied reality");
+if (!/INTERNAL/.test(artistImplementation) || !/EXPLAINING/.test(artistImplementation)) fail("Artist must block internal-architecture and explanatory leakage");
+if (!/selectedMovieIndex/.test(artistImplementation) || !/selectedSetIndex/.test(artistImplementation)) fail("Artist must retain Artist selection state");
+if (!/judgeRealizedFilm\s*\(/.test(artistImplementation)) warn("Artist film judgment is not mechanically visible; rely on the acceptance suite");
+if (/authorMouthLanguageGate|authorMouthQualityAdapter|authorMouthAttentionGate|authorMouthGroundedFallback|authorMouthRepairPlanner|authorMouthMonster/.test(artistBoundarySource)) {
+  fail("Artist realization still depends on retired Mouth services");
 }
 
 // Creative Spine remains an internal semantic-to-artistic preparation layer;
