@@ -208,7 +208,7 @@ function defaultNumCtx(
 function retryCount(): number {
   const configured = positiveNumber(
     process.env.QRE_LOCAL_MODEL_RETRIES,
-    2,
+    0,
   );
 
   return Math.min(5, Math.max(0, Math.floor(configured)));
