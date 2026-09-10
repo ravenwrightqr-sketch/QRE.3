@@ -7,7 +7,6 @@ import { learnWebsiteWorld } from "./websiteLearning.js";
 import { decodeDataUrl, extractPdfKnowledge, extractSpreadsheetKnowledge } from "./documentKnowledge.js";
 import { triggerRealityIntake } from "./realityIntakeWorker.js";
 
-const WORKER_POLL_MS = 1200;
 const STALE_PROCESSING_MS = 30 * 60 * 1000;
 type IntakeStage = "queued" | "evidence" | "website" | "vision" | "extracting" | "persisting" | "complete" | "failed";
 type IntakeInput = { assetId: string; userId: string; sourceType: string; originalName?: string; mimeType?: string; content?: string; imageDataUrl?: string; text?: string };
@@ -17,6 +16,7 @@ type Location = { section?: string; shelf?: string; row?: string; position?: str
 
 let workerStarted = false;
 let workerBusy = false;
+let workerKickPending = false;
 
 function sha256(value: string): string { return crypto.createHash("sha256").update(value).digest("hex"); }
 function sha256Bytes(value: Buffer): string { return crypto.createHash("sha256").update(value).digest("hex"); }
@@ -155,12 +155,44 @@ async function processIntake(jobId: string, originalInput: StoredPayload): Promi
 }
 async function requeueStaleJobs(): Promise<void> { const cutoff = new Date(Date.now() - STALE_PROCESSING_MS); await db.knowledgeIntakeJob.updateMany({ where: { status: "processing", startedAt: { lt: cutoff } }, data: { status: "queued", startedAt: null } }); }
 async function claimQueuedJob() { const candidate = await db.knowledgeIntakeJob.findFirst({ where: { status: "queued" }, orderBy: { createdAt: "asc" } }); if (!candidate) return null; const claimed = await db.knowledgeIntakeJob.updateMany({ where: { id: candidate.id, status: "queued" }, data: { status: "processing", startedAt: new Date(), result: { stage: "evidence" }, error: null } }); if (claimed.count !== 1) return null; return db.knowledgeIntakeJob.findUnique({ where: { id: candidate.id }, select: { id: true, assetId: true, sourceType: true, originalName: true, payload: true } }); }
-async function workerTick(): Promise<void> { if (workerBusy) return; workerBusy = true; try { await requeueStaleJobs(); const job = await claimQueuedJob(); if (job) await processIntake(job.id, parseStoredPayload(job)); } catch (error) { console.error("[KnowledgeIntake] worker tick failed", error); } finally { workerBusy = false; } }
-export function startKnowledgeIntakeWorker(): void { if (workerStarted) return; workerStarted = true; console.log("[KnowledgeIntake] durable worker started"); const loop = async () => { await workerTick(); setTimeout(loop, WORKER_POLL_MS); }; void loop(); }
+async function workerDrain(): Promise<void> {
+  if (workerBusy) { workerKickPending = true; return; }
+  workerBusy = true;
+  try {
+    do {
+      workerKickPending = false;
+      const job = await claimQueuedJob();
+      if (job) await processIntake(job.id, parseStoredPayload(job));
+    } while (workerKickPending || await hasQueuedJob());
+  } catch (error) {
+    console.error("[KnowledgeIntake] worker drain failed", error);
+  } finally {
+    workerBusy = false;
+  }
+}
+async function hasQueuedJob(): Promise<boolean> {
+  const queued = await db.knowledgeIntakeJob.findFirst({ where: { status: "queued" }, select: { id: true } });
+  return Boolean(queued);
+}
+export function startKnowledgeIntakeWorker(): void {
+  if (workerStarted) return;
+  workerStarted = true;
+  console.log("[KnowledgeIntake] durable worker started");
+  void (async () => {
+    try { await requeueStaleJobs(); } catch (error) { console.error("[KnowledgeIntake] startup recovery failed", error); }
+    await workerDrain();
+  })();
+}
+export function triggerKnowledgeIntake(): void {
+  if (!workerStarted) return;
+  void workerDrain();
+}
 export async function enqueueKnowledgeIntake(input: IntakeInput) {
   const rawContent = input.imageDataUrl || input.text || input.content || ""; const contentHash = rawContent ? sha256(rawContent) : undefined;
   if (contentHash) { const existing = await db.knowledgeIntakeJob.findFirst({ where: { assetId: input.assetId, contentHash }, orderBy: { createdAt: "desc" } }); if (existing) return { job: existing, duplicate: true }; }
   let storageKey: string | undefined;
   if (input.imageDataUrl || input.content?.startsWith("data:")) { const dataUrl = input.imageDataUrl || input.content || ""; const decoded = decodeDataUrl(dataUrl); if (!decoded) throw new Error("Uploaded content is not a valid data URL."); const extension = decoded.mimeType === "application/pdf" ? "pdf" : decoded.mimeType.startsWith("image/") ? (decoded.mimeType.split("/", 2)[1] || "bin") : "bin"; storageKey = `intake/${input.assetId}/${contentHash || sha256Bytes(decoded.bytes)}.${extension}`; await writeKnowledgeMedia(storageKey, decoded.bytes); }
-  const job = await db.knowledgeIntakeJob.create({ data: { assetId: input.assetId, status: "queued", sourceType: input.sourceType, originalName: input.originalName, contentHash, payload: compactPayload({ ...input, storageKey }) } }); return { job, duplicate: false };
+  const job = await db.knowledgeIntakeJob.create({ data: { assetId: input.assetId, status: "queued", sourceType: input.sourceType, originalName: input.originalName, contentHash, payload: compactPayload({ ...input, storageKey }) } });
+  triggerKnowledgeIntake();
+  return { job, duplicate: false };
 }
