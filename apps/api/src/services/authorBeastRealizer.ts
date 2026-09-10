@@ -30,12 +30,7 @@ type Input = {
 
 type RawScene = { text?: unknown; kind?: unknown; sourceEventIds?: unknown };
 type RawSet = { scenes?: unknown };
-
-type Parsed = {
-  selectedMovieIndex?: unknown;
-  selectedSetIndex?: unknown;
-  sets?: unknown;
-};
+type Parsed = { selectedMovieIndex?: unknown; selectedSetIndex?: unknown; sets?: unknown };
 
 const INTERNAL = /\b(?:cognition|planner|planning|candidate|trajectory|viewer state|audience state|observer state|evidence id|source event|provenance|compiler|realizer|semantic turn|latent movie|creative opportunity)\b/i;
 const EXPLAINING = /\b(?:this means|which means|this shows|which shows|the point is|the meaning is|in other words|the viewer|the audience|the relationship between|what this means)\b/i;
@@ -75,9 +70,7 @@ function validSourceIds(value: unknown, graph: RealityGraph): string[] {
 
 function sceneKind(value: unknown, index: number, total: number): AuthorScene["kind"] {
   const normalized = clean(value).toLowerCase();
-  if (["line", "hook", "movement", "discovery", "turn", "payoff", "afterglow"].includes(normalized)) {
-    return normalized as AuthorScene["kind"];
-  }
+  if (["line", "hook", "movement", "discovery", "turn", "payoff", "afterglow"].includes(normalized)) return normalized as AuthorScene["kind"];
   if (index === 0) return "hook";
   if (index === total - 1) return "payoff";
   return "discovery";
@@ -86,7 +79,6 @@ function sceneKind(value: unknown, index: number, total: number): AuthorScene["k
 function validateScenes(raw: unknown, graph: RealityGraph): RealizedScene[] | undefined {
   if (!Array.isArray(raw) || raw.length < 2 || raw.length > MAX_CUTS) return undefined;
   const scenes: RealizedScene[] = [];
-  const corpus = graph.events.flatMap((event) => [event.label, ...event.entities, event.place, event.time]).filter(Boolean).join(" ");
   for (let index = 0; index < raw.length; index += 1) {
     const item = raw[index];
     if (!item || typeof item !== "object") return undefined;
@@ -99,11 +91,7 @@ function validateScenes(raw: unknown, graph: RealityGraph): RealizedScene[] | un
   }
   const distinctSources = new Set(scenes.flatMap((scene) => scene.sourceEventIds)).size;
   const bridges = scenes.filter((scene) => scene.sourceEventIds.length >= 2).length;
-  const copySignals = scenes.reduce((sum, scene) => {
-    const compact = scene.text.toLowerCase();
-    return sum + (corpus && compact === corpus.toLowerCase() ? 1 : 0);
-  }, 0);
-  const quality = Math.max(0.25, Math.min(0.99, 0.5 + Math.min(0.25, distinctSources / Math.max(1, graph.events.length) * 0.25) + Math.min(0.2, bridges * 0.04) - copySignals * 0.1));
+  const quality = Math.max(0.25, Math.min(0.99, 0.5 + Math.min(0.25, distinctSources / Math.max(1, graph.events.length) * 0.25) + Math.min(0.2, bridges * 0.04)));
   return scenes.map((scene, index) => ({ ...scene, score: Number(Math.max(0.25, quality - index * 0.01).toFixed(3)) }));
 }
 
@@ -119,15 +107,7 @@ function candidatePacket(movie: LatentMovieCandidate, index: number, graph: Real
     anchorEventIds: movie.anchorEventIds,
     supportingRelationKinds: movie.supportingRelationKinds,
     trajectory: movie.trajectory.map((step) => ({ order: step.order, operation: step.operation, eventIds: step.eventIds, viewerChange: step.viewerChange, nextQuestion: step.nextQuestion })),
-    metrics: {
-      novelty: movie.novelty,
-      specificity: movie.specificity,
-      attentionPotential: movie.attentionPotential,
-      consequencePotential: movie.consequencePotential,
-      callbackPotential: movie.callbackPotential,
-      compressionPotential: movie.compressionPotential,
-      distinctiveness: movie.distinctiveness,
-    },
+    metrics: { novelty: movie.novelty, specificity: movie.specificity, attentionPotential: movie.attentionPotential, consequencePotential: movie.consequencePotential, callbackPotential: movie.callbackPotential, compressionPotential: movie.compressionPotential, distinctiveness: movie.distinctiveness },
     suppliedReality: graph.events.filter((event) => movie.anchorEventIds.includes(event.id)).map((event) => ({ id: event.id, label: event.label })),
   };
 }
@@ -135,11 +115,11 @@ function candidatePacket(movie: LatentMovieCandidate, index: number, graph: Real
 function buildSystemPrompt(input: Input): string {
   const requestedLens = clean(input.lens).toLowerCase();
   const lensRule = requestedLens && requestedLens !== "none"
-    ? `A creative lens was explicitly requested: ${requestedLens}. Apply it as pressure over the discovered reality. It may change framing, rhythm, attitude, metaphor, implication, or emphasis. It may NEVER create a concrete event or fact.`
-    : "NO LENS IS REQUIRED. Do not choose a genre merely because the domain suggests one. Let the supplied relationships determine the creative treatment.";
+    ? `A creative lens was explicitly requested: ${requestedLens}. Apply it only as pressure over discovered reality. It may change framing, rhythm, attitude, metaphor, implication, or emphasis. It may NEVER create a concrete event or fact.`
+    : "NO LENS IS REQUIRED. Do not choose a genre merely because the domain suggests one. Let the supplied relationships determine the treatment.";
   return [
     "You are the QRE Artist.",
-    "Your job is to find the film hiding inside supplied reality, then render it as short moving cuts.",
+    "Find the film hiding inside supplied reality, then render it as short moving cuts.",
     "The source reality is the only authority for concrete facts.",
     "Interpretation is allowed. Invention of concrete reality is forbidden.",
     "Do not turn ordinary facts into a themed story just because a genre is available.",
@@ -150,14 +130,22 @@ function buildSystemPrompt(input: Input): string {
     "Do not force a hook-build-hit formula. The strongest realization may land anywhere, may split across cuts, or may not be explicit.",
     "Use repetition, fragments, contradiction, callbacks, one-word cuts, full sentences, silence-like brevity, and unusual phrasing when earned.",
     "Never add a new person, object, action, place, motive, emotion, sound, sensory property, outcome, or backstory unless the supplied evidence supports it.",
-    "A figurative transformation is allowed when it remains clearly figurative and is grounded in the supplied relationship. Do not write fictional literal events.",
+    "A figurative transformation is allowed when it remains clearly figurative and grounded in the supplied relationship. Do not write fictional literal events.",
     "Do not restate the source as a receipt or one-fact-per-cut caption reel.",
-    "Produce several materially different possible films, not several rewrites of one film. Then choose the strongest one as Artist.",
-    "Each final cut must include one or more source event IDs that genuinely support the cut.",
-    "Keep cuts concise. Prefer short clean language. Avoid generic adjectives and generic emotional declarations.",
+    "Produce three materially different possible films, not three rewrites of one film. Then choose the strongest one as Artist.",
+    "Every final cut must include one or more source event IDs that genuinely support that cut.",
+    "Keep cuts concise. Prefer exact language and high meaning per word. Avoid generic emotional declarations.",
     "Do not use internal architecture language in visible text.",
     "Return JSON only.",
   ].join("\n");
+}
+
+function judgmentAcceptable(judgment: RealizedFilmJudgment): boolean {
+  return judgment.accepted &&
+    judgment.dimensions.inventionRisk <= 0.4 &&
+    judgment.dimensions.explanationRisk === 0 &&
+    judgment.dimensions.captionReelRisk <= 0.85 &&
+    judgment.score >= 0.58;
 }
 
 export async function realizeAuthorExperience(input: Input): Promise<AuthorRealizationResult> {
@@ -183,25 +171,7 @@ export async function realizeAuthorExperience(input: Input): Promise<AuthorReali
     properties: {
       selectedMovieIndex: { type: "integer", minimum: 0, maximum: Math.max(0, movies.length - 1) },
       selectedSetIndex: { type: "integer", minimum: 0, maximum: 2 },
-      sets: {
-        type: "array", minItems: 3, maxItems: 3,
-        items: {
-          type: "object", additionalProperties: false, required: ["scenes"],
-          properties: {
-            scenes: {
-              type: "array", minItems: 2, maxItems: MAX_CUTS,
-              items: {
-                type: "object", additionalProperties: false, required: ["text", "kind", "sourceEventIds"],
-                properties: {
-                  text: { type: "string", minLength: 1, maxLength: MAX_CHARS },
-                  kind: { type: "string", enum: ["line", "hook", "movement", "discovery", "turn", "payoff", "afterglow"] },
-                  sourceEventIds: { type: "array", minItems: 1, maxItems: 4, items: { type: "string" } },
-                },
-              },
-            },
-          },
-        },
-      },
+      sets: { type: "array", minItems: 3, maxItems: 3, items: { type: "object", additionalProperties: false, required: ["scenes"], properties: { scenes: { type: "array", minItems: 2, maxItems: MAX_CUTS, items: { type: "object", additionalProperties: false, required: ["text", "kind", "sourceEventIds"], properties: { text: { type: "string", minLength: 1, maxLength: MAX_CHARS }, kind: { type: "string", enum: ["line", "hook", "movement", "discovery", "turn", "payoff", "afterglow"] }, sourceEventIds: { type: "array", minItems: 1, maxItems: 4, items: { type: "string" } } } } } } } },
     },
   } as const;
 
@@ -212,9 +182,9 @@ export async function realizeAuthorExperience(input: Input): Promise<AuthorReali
   const rejectionReasons: string[] = [];
 
   for (let attempt = 0; attempt < 2; attempt += 1) {
-    const feedback = rejectionReasons.slice(-4);
+    const feedback = rejectionReasons.slice(-5);
     const prompt = feedback.length
-      ? `${buildSystemPrompt(input)}\nPrevious attempt was rejected for: ${feedback.join(" | ")}\nCorrect those failures without explaining them.`
+      ? `${buildSystemPrompt(input)}\nThe previous output failed validation: ${feedback.join(" | ")}\nMake a new film. Do not mention the failure.`
       : buildSystemPrompt(input);
     try {
       const result = await localModelGenerate(
@@ -235,35 +205,25 @@ export async function realizeAuthorExperience(input: Input): Promise<AuthorReali
       const normalized = rawSets.flatMap((raw, index) => {
         const scenes = validateScenes(raw?.scenes, input.graph);
         if (!scenes) { rejectedSets += 1; rejectionReasons.push(`set ${index + 1} failed reality/style validation`); return []; }
-        const movie = movies[Math.min(selectedMovieIndex, movies.length - 1)]!;
+        const movie = movies[selectedMovieIndex]!;
         const judgment = judgeRealizedFilm({ scenes, movie, graph: input.graph });
         lastJudgment = judgment;
+        if (!judgmentAcceptable(judgment)) {
+          rejectedSets += 1;
+          rejectionReasons.push(`set ${index + 1} failed film judgment: ${judgment.reasons.join("; ") || "quality below creative threshold"}`);
+          return [];
+        }
         return [{ scenes, judgment, index }];
       });
 
       const chosen = normalized.find((item) => item.index === selectedSetIndex) ?? normalized[0];
       if (!chosen) continue;
-
-      return {
-        scenes: chosen.scenes,
-        score: chosen.judgment.score,
-        model,
-        modelCalls,
-        rejectedSets,
-        selectedMovieIndex,
-        selectedSetIndex: chosen.index,
-        judgment: chosen.judgment,
-        reason: rejectionReasons.length ? rejectionReasons.join(" | ") : undefined,
-      };
+      return { scenes: chosen.scenes, score: chosen.judgment.score, model, modelCalls, rejectedSets, selectedMovieIndex, selectedSetIndex: chosen.index, judgment: chosen.judgment, reason: rejectionReasons.length ? rejectionReasons.join(" | ") : undefined };
     } catch (error) {
       modelCalls += 1;
       rejectionReasons.push(error instanceof Error ? error.message : "Artist call failed");
     }
   }
 
-  return {
-    scenes: [], score: 0, model, modelCalls, rejectedSets,
-    judgment: lastJudgment,
-    reason: rejectionReasons.join(" | ") || "Artist failed to realize a valid film",
-  };
+  return { scenes: [], score: 0, model, modelCalls, rejectedSets, judgment: lastJudgment, reason: rejectionReasons.join(" | ") || "Artist failed to realize a valid film" };
 }
