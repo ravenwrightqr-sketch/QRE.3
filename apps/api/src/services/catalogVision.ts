@@ -51,12 +51,7 @@ async function loadContext(assetId?: string): Promise<RecognitionContext> {
       take: 1000,
     }),
   ]);
-  return {
-    assetId,
-    businessName: asset?.displayName || undefined,
-    templateData: asset?.templateData,
-    knownItems: catalogItems,
-  };
+  return { assetId, businessName: asset?.displayName || undefined, templateData: asset?.templateData, knownItems: catalogItems };
 }
 
 export async function analyzeImageForCatalog(imageDataUrl: string, assetId?: string): Promise<CatalogVisionItem[]> {
@@ -67,13 +62,7 @@ export async function analyzeImageForCatalog(imageDataUrl: string, assetId?: str
     businessName: context.businessName,
     businessType: context.businessType,
     templateData: context.templateData,
-    knownEntities: context.knownItems?.map((item) => ({
-      id: item.id,
-      name: item.name,
-      brand: item.brand || undefined,
-      category: item.category || undefined,
-      attributes: item.description ? { description: item.description } : undefined,
-    })),
+    knownEntities: context.knownItems?.map((item) => ({ id: item.id, name: item.name, brand: item.brand || undefined, category: item.category || undefined, attributes: item.description ? { description: item.description } : undefined })),
   });
 
   const result = await recognizeImage({ imageDataUrl, brief });
@@ -86,34 +75,25 @@ export async function analyzeImageForCatalog(imageDataUrl: string, assetId?: str
         if (value.trim()) attributes.push({ key, value: value.trim().slice(0, 1000) });
       }
       for (const evidence of candidate.evidence) {
-        if ((evidence.kind === "printed_text" || evidence.kind === "logo") && evidence.value?.trim()) {
-          attributes.push({ key: evidence.kind, value: evidence.value.trim().slice(0, 4000) });
-        }
+        if ((evidence.kind === "printed_text" || evidence.kind === "logo") && evidence.value?.trim()) attributes.push({ key: evidence.kind, value: evidence.value.trim().slice(0, 4000) });
       }
       if (candidate.variant?.trim()) attributes.push({ key: "variant", value: candidate.variant.trim().slice(0, 500) });
       if (item.location) {
-        for (const [key, value] of Object.entries(item.location)) {
-          if (value) attributes.push({ key: `placement.${key}`, value: String(value).trim().slice(0, 500) });
-        }
+        for (const [key, value] of Object.entries(item.location)) if (value) attributes.push({ key: `placement.${key}`, value: String(value).trim().slice(0, 500) });
       }
-      if (candidate.attributes?.visibility_state?.trim()) {
-        attributes.push({ key: "visibility_state", value: candidate.attributes.visibility_state.trim().slice(0, 200) });
-      }
+      if (candidate.attributes?.visibility_state?.trim()) attributes.push({ key: "visibility_state", value: candidate.attributes.visibility_state.trim().slice(0, 200) });
       const deduped = [...new Map(attributes.map((attribute) => [`${attribute.key}\u0000${attribute.value}`, attribute])).values()].slice(0, 96);
+      const baseName = candidate.product || candidate.name || "Unresolved visual item";
+      const identityName = candidate.variant?.trim() ? `${baseName} — ${candidate.variant.trim()}` : baseName;
       return {
         observationId: item.observationId,
-        name: (candidate.name || candidate.product || "Unresolved visual item").slice(0, 240),
+        name: identityName.slice(0, 240),
         brand: candidate.brand?.slice(0, 160),
         product: candidate.product?.slice(0, 240),
         variant: candidate.variant?.slice(0, 240),
         category: candidate.category?.slice(0, 160),
         attributes: deduped,
-        evidence: candidate.evidence.map((evidence) => ({
-          kind: evidence.kind,
-          value: evidence.value?.trim().slice(0, 4000),
-          confidence: Math.max(0, Math.min(1, evidence.confidence)),
-          source: evidence.source,
-        })),
+        evidence: candidate.evidence.map((evidence) => ({ kind: evidence.kind, value: evidence.value?.trim().slice(0, 4000), confidence: Math.max(0, Math.min(1, evidence.confidence)), source: evidence.source })),
         location: item.location,
         state: candidate.state,
         confidence: Math.max(0, Math.min(1, candidate.confidence)),
