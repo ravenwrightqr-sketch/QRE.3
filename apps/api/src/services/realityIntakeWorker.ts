@@ -1,12 +1,12 @@
 import { db } from "@qre/db";
 import { analyzeImageForReality, type RealityEntity, type RealityGraph, type RealityRelation } from "./realityEngine.js";
 import { decodeDataUrl } from "./documentKnowledge.js";
+import { mediaDataUrl, readKnowledgeMedia } from "./knowledgeMedia.js";
 
-const POLL_MS = 1800;
-const PAGE_SIZE = 8;
 const MAX_REALITY_ATTEMPTS = 3;
 let started = false;
 let busy = false;
+const pendingJobIds = new Set<string>();
 
 function normalize(value: string): string {
   return value.trim().toLowerCase().replace(/\s+/g, " ").replace(/[^\p{L}\p{N}\s._-]/gu, "");
@@ -17,12 +17,14 @@ function fingerprint(entity: RealityEntity): string {
   return `${normalize(entity.kind)}:${identity}`;
 }
 
-function storedImage(job: { payload: unknown }): string | undefined {
+async function storedImage(job: { payload: unknown }): Promise<string | undefined> {
   if (!job.payload || typeof job.payload !== "object" || Array.isArray(job.payload)) return undefined;
   const payload = job.payload as Record<string, unknown>;
-  return typeof payload.imageDataUrl === "string" && payload.imageDataUrl.startsWith("data:image/")
-    ? payload.imageDataUrl
-    : undefined;
+  if (typeof payload.imageDataUrl === "string" && payload.imageDataUrl.startsWith("data:image/")) return payload.imageDataUrl;
+  if (typeof payload.storageKey !== "string" || !payload.storageKey) return undefined;
+  const bytes = await readKnowledgeMedia(payload.storageKey);
+  const mimeType = typeof payload.mimeType === "string" && payload.mimeType.startsWith("image/") ? payload.mimeType : "image/jpeg";
+  return mediaDataUrl(bytes, mimeType);
 }
 
 function resultRecord(value: unknown): Record<string, unknown> {
@@ -289,7 +291,7 @@ async function learnPatterns(assetId: string, current: RealityGraph, evidenceId:
 }
 
 async function processJob(job: { id: string; assetId: string; payload: unknown }) {
-  const imageDataUrl = storedImage(job);
+  const imageDataUrl = await storedImage(job);
   if (!imageDataUrl) return;
 
   const raw = decodeDataUrl(imageDataUrl);
@@ -378,60 +380,88 @@ async function processJob(job: { id: string; assetId: string; payload: unknown }
   });
 }
 
-async function tick() {
-  if (busy) return;
+async function runJob(jobId: string): Promise<void> {
+  if (busy) {
+    pendingJobIds.add(jobId);
+    return;
+  }
   busy = true;
   try {
-    const jobs = await db.knowledgeIntakeJob.findMany({
-      where: {
-        sourceType: "photo",
-        status: { in: ["failed", "completed"] },
-      },
-      orderBy: { createdAt: "asc" },
-      take: PAGE_SIZE,
-      select: { id: true, assetId: true, payload: true, result: true },
+    const job = await db.knowledgeIntakeJob.findUnique({
+      where: { id: jobId },
+      select: { id: true, assetId: true, status: true, payload: true, result: true },
     });
+    if (!job || !["failed", "completed"].includes(job.status)) return;
+    const result = resultRecord(job.result);
+    if (result.realityEngineVersion === "1") return;
+    if (!(await storedImage(job))) return;
 
-    for (const job of jobs) {
-      const result = resultRecord(job.result);
-      if (result.realityEngineVersion === "1") continue;
-      if (!storedImage(job)) continue;
+    const attempts = typeof result.realityAttempts === "number" ? result.realityAttempts : 0;
+    if (attempts >= MAX_REALITY_ATTEMPTS) return;
 
-      const attempts = typeof result.realityAttempts === "number" ? result.realityAttempts : 0;
-      if (attempts >= MAX_REALITY_ATTEMPTS) continue;
-
-      try {
-        await processJob(job);
-      } catch (error) {
-        const message = error instanceof Error ? error.message : "Reality learning failed";
-        const nextAttempts = attempts + 1;
-        console.error("[QRE][RealityWorker] failed", job.id, `attempt=${nextAttempts}`, message, error);
-        await db.knowledgeIntakeJob.update({
-          where: { id: job.id },
-          data: {
-            result: {
-              ...result,
-              realityAttempts: nextAttempts,
-              realityStage: nextAttempts >= MAX_REALITY_ATTEMPTS ? "failed" : "retryable",
-              ...(nextAttempts >= MAX_REALITY_ATTEMPTS ? { realityEngineVersion: "1" } : {}),
-            },
-            error: `Reality engine: ${message}`,
+    try {
+      await processJob(job);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "Reality learning failed";
+      const nextAttempts = attempts + 1;
+      console.error("[QRE][RealityWorker] failed", job.id, `attempt=${nextAttempts}`, message, error);
+      await db.knowledgeIntakeJob.update({
+        where: { id: job.id },
+        data: {
+          result: {
+            ...result,
+            realityAttempts: nextAttempts,
+            realityStage: nextAttempts >= MAX_REALITY_ATTEMPTS ? "failed" : "retryable",
+            ...(nextAttempts >= MAX_REALITY_ATTEMPTS ? { realityEngineVersion: "1" } : {}),
           },
-        });
-      }
+          error: `Reality engine: ${message}`,
+        },
+      });
     }
   } finally {
     busy = false;
+    const nextJobId = pendingJobIds.values().next().value as string | undefined;
+    if (nextJobId) {
+      pendingJobIds.delete(nextJobId);
+      void runJob(nextJobId);
+    }
+  }
+}
+
+export function triggerRealityIntake(jobId: string): void {
+  pendingJobIds.add(jobId);
+  if (!started) return;
+  const nextJobId = pendingJobIds.values().next().value as string | undefined;
+  if (!nextJobId || busy) return;
+  pendingJobIds.delete(nextJobId);
+  void runJob(nextJobId);
+}
+
+async function recoverPendingRealityJobs(): Promise<void> {
+  try {
+    const jobs = await db.knowledgeIntakeJob.findMany({
+      where: { sourceType: "photo", status: { in: ["failed", "completed"] } },
+      orderBy: { createdAt: "asc" },
+      take: 25,
+      select: { id: true, result: true },
+    });
+    for (const job of jobs) {
+      const result = resultRecord(job.result);
+      if (result.realityEngineVersion !== "1") pendingJobIds.add(job.id);
+    }
+    const nextJobId = pendingJobIds.values().next().value as string | undefined;
+    if (nextJobId && !busy) {
+      pendingJobIds.delete(nextJobId);
+      void runJob(nextJobId);
+    }
+  } catch (error) {
+    console.error("[QRE][RealityWorker] recovery sweep failed", error);
   }
 }
 
 export function startRealityIntakeWorker(): void {
   if (started) return;
   started = true;
-  console.log("[QRE][RealityWorker] started");
-  const loop = async () => {
-    await tick();
-    setTimeout(loop, POLL_MS);
-  };
-  void loop();
+  console.log("[QRE][RealityWorker] started (event-driven)");
+  void recoverPendingRealityJobs();
 }
