@@ -9,7 +9,9 @@ const graph = {
     { id: "event-2", label: "Coco rolls in grass", entities: ["Coco"], place: undefined, time: undefined },
     { id: "event-3", label: "Coco likes bacon", entities: ["Coco"], place: undefined, time: undefined },
   ],
-  relations: [],
+  relations: [
+    { from: "event-1", to: "event-2", kind: "repeats" },
+  ],
   eventStructure: [],
   entityContinuity: [],
   patterns: [],
@@ -112,7 +114,7 @@ assert.ok(weakResult.reasons.some((reason) => /summary|movement|unsupported|thes
 
 const missingResult = evaluateLatentMovie(missingThesis, graph);
 // Rich LatentStoryThesis is optional for compatibility with older/simple
-// model responses; semantic movement is still required and must remain grounded.
+// model responses; semantic movement is still required and must be grounded.
 assert.equal(missingResult.accepted, true, `compatible Movie without rich thesis was rejected: ${missingResult.reasons.join("; ")}`);
 assert.ok(missingResult.signals.semanticMovement > 0.4);
 assert.ok(missingResult.signals.observerContract > 0.6);
