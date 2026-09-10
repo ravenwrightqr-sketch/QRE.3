@@ -24,8 +24,7 @@ function clampConfidence(value: unknown): number { return Math.max(0, Math.min(1
 function locationSignature(location?: Location): string { return location ? [location.section, location.shelf, location.row, location.position, location.bbox?.join(",")].filter((value): value is string => Boolean(value)).join(" / ") : ""; }
 function storedLocation(value: unknown): Location | undefined {
   if (!value || typeof value !== "object" || Array.isArray(value)) return undefined;
-  const source = value as Record<string, unknown>;
-  const location = source.location;
+  const source = value as Record<string, unknown>; const location = source.location;
   if (!location || typeof location !== "object" || Array.isArray(location)) return undefined;
   const raw = location as Record<string, unknown>;
   const bbox = Array.isArray(raw.bbox) && raw.bbox.length === 4 && raw.bbox.every((item) => typeof item === "number") ? raw.bbox as [number, number, number, number] : undefined;
@@ -41,21 +40,17 @@ function textFromInput(input: StoredPayload): string | undefined {
   return input.content?.trim() || undefined;
 }
 function simpleFactsFromText(text: string): Fact[] {
-  const lines = text.split(/\r?\n/).map((line) => line.trim()).filter(Boolean).slice(0, 250);
-  const facts: Fact[] = [];
+  const lines = text.split(/\r?\n/).map((line) => line.trim()).filter(Boolean).slice(0, 250); const facts: Fact[] = [];
   for (const line of lines) { const match = line.match(/^(?:[-*•]\s*)?([^:]{1,120}):\s*(.{1,1000})$/); if (match) facts.push({ label: match[1].trim(), value: match[2].trim(), category: "text", confidence: 0.86 }); }
-  if (!facts.length) facts.push({ label: "Owner-provided knowledge", value: text.slice(0, 12000), category: "text", confidence: 0.92 });
-  return facts.slice(0, 50);
+  if (!facts.length) facts.push({ label: "Owner-provided knowledge", value: text.slice(0, 12000), category: "text", confidence: 0.92 }); return facts.slice(0, 50);
 }
 async function setStage(jobId: string, stage: IntakeStage): Promise<void> { await db.knowledgeIntakeJob.update({ where: { id: jobId }, data: { result: { stage } } }); }
-async function ensureMedia(input: StoredPayload, jobId: string, contentHash: string): Promise<{ input: StoredPayload; bytes?: Buffer; mimeType?: string }> {
+async function ensureMedia(input: StoredPayload, contentHash: string): Promise<{ input: StoredPayload; bytes?: Buffer; mimeType?: string }> {
   if (input.storageKey) return { input, bytes: await readKnowledgeMedia(input.storageKey), mimeType: input.mimeType };
-  const dataUrl = input.imageDataUrl || (input.content?.startsWith("data:") ? input.content : undefined);
-  if (!dataUrl) return { input };
+  const dataUrl = input.imageDataUrl || (input.content?.startsWith("data:") ? input.content : undefined); if (!dataUrl) return { input };
   const decoded = decodeDataUrl(dataUrl); if (!decoded) throw new Error("Uploaded content is not a valid data URL.");
   const extension = decoded.mimeType === "application/pdf" ? "pdf" : decoded.mimeType.startsWith("image/") ? (decoded.mimeType.split("/", 2)[1] || "bin") : "bin";
-  const storageKey = `intake/${input.assetId}/${contentHash}.${extension}`;
-  await writeKnowledgeMedia(storageKey, decoded.bytes);
+  const storageKey = `intake/${input.assetId}/${contentHash}.${extension}`; await writeKnowledgeMedia(storageKey, decoded.bytes);
   return { input: { ...input, storageKey, imageDataUrl: undefined, content: input.imageDataUrl ? undefined : input.content }, bytes: decoded.bytes, mimeType: decoded.mimeType };
 }
 async function learnWebsite(input: StoredPayload, evidenceId: string) {
@@ -74,9 +69,8 @@ async function persistPattern(assetId: string, catalogItemId: string, type: stri
   else await db.knowledgePattern.create({ data: { assetId, catalogItemId, type, statement, confidence, strength, evidenceIds: [evidenceId], firstObservedAt: now, lastObservedAt: now } });
 }
 async function maybeLearnTemporalPattern(assetId: string, catalogItemId: string, itemName: string, evidenceId: string, currentValue: unknown): Promise<void> {
-  const previous = await db.knowledgeObservation.findFirst({ where: { assetId, catalogItemId, type: "VISUAL_OBSERVATION", evidenceId: { not: evidenceId } }, orderBy: { observedAt: "desc" }, select: { value: true, observedAt: true } });
-  if (!previous) return; const before = locationSignature(storedLocation(previous.value)); const after = locationSignature(storedLocation(currentValue));
-  if (!before || !after || before === after) return;
+  const previous = await db.knowledgeObservation.findFirst({ where: { assetId, catalogItemId, type: "VISUAL_OBSERVATION", evidenceId: { not: evidenceId } }, orderBy: { observedAt: "desc" }, select: { value: true } }); if (!previous) return;
+  const before = locationSignature(storedLocation(previous.value)); const after = locationSignature(storedLocation(currentValue)); if (!before || !after || before === after) return;
   await persistPattern(assetId, catalogItemId, "POSITION_CHANGE", `${itemName} changed position from ${before} to ${after}.`, evidenceId, 0.86, 0.78);
 }
 async function persistFacts(input: StoredPayload, evidenceId: string, facts: Fact[]) {
@@ -91,40 +85,44 @@ async function persistFacts(input: StoredPayload, evidenceId: string, facts: Fac
   }
   return { catalogIds, observationIds, factCount: facts.length };
 }
-function visionMetadata(input: StoredPayload, item: CatalogVisionItem): Prisma.InputJsonObject {
-  const location: Prisma.InputJsonValue = item.location ? { section: item.location.section ?? null, shelf: item.location.shelf ?? null, row: item.location.row ?? null, position: item.location.position ?? null, bbox: item.location.bbox ? [...item.location.bbox] : null } : null;
-  const evidence: Prisma.InputJsonValue = (item.evidence || []).map((entry) => ({ kind: entry.kind, value: entry.value ?? null, confidence: entry.confidence, source: entry.source ?? null }));
-  return { recognitionObservationId: item.observationId, recognitionState: item.state, productIdentity: [item.brand, item.product || item.name, item.variant].filter((value): value is string => Boolean(value)).map((value) => normalizeName(value)).filter(Boolean).join("|"), evidence, location };
+function visionMetadata(item: CatalogVisionItem): Prisma.InputJsonObject {
+  const metadata: Prisma.InputJsonObject = { recognitionObservationId: item.observationId, recognitionState: item.state };
+  const productIdentity = [item.brand, item.product || item.name, item.variant].filter((value): value is string => Boolean(value)).map((value) => normalizeName(value)).filter(Boolean).join("|");
+  if (productIdentity) metadata.productIdentity = productIdentity;
+  if (item.evidence?.length) metadata.evidence = item.evidence.map((entry) => ({ kind: entry.kind, ...(entry.value ? { value: entry.value } : {}), confidence: entry.confidence, ...(entry.source ? { source: entry.source } : {}) }));
+  if (item.location) metadata.location = { ...(item.location.section ? { section: item.location.section } : {}), ...(item.location.shelf ? { shelf: item.location.shelf } : {}), ...(item.location.row ? { row: item.location.row } : {}), ...(item.location.position ? { position: item.location.position } : {}), ...(item.location.bbox ? { bbox: [...item.location.bbox] } : {}) };
+  return metadata;
+}
+function observationValue(item: CatalogVisionItem, attributes: Array<{ key: string; value: string }>): Prisma.InputJsonObject {
+  const value: Prisma.InputJsonObject = { name: item.name, attributes, recognitionObservationId: item.observationId, recognitionState: item.state };
+  if (item.brand) value.brand = item.brand; if (item.product) value.product = item.product; if (item.variant) value.variant = item.variant; if (item.category) value.category = item.category; if (item.evidence?.length) value.evidence = item.evidence.map((entry) => ({ kind: entry.kind, ...(entry.value ? { value: entry.value } : {}), confidence: entry.confidence, ...(entry.source ? { source: entry.source } : {}) })); if (item.location) value.location = { ...(item.location.section ? { section: item.location.section } : {}), ...(item.location.shelf ? { shelf: item.location.shelf } : {}), ...(item.location.row ? { row: item.location.row } : {}), ...(item.location.position ? { position: item.location.position } : {}), ...(item.location.bbox ? { bbox: [...item.location.bbox] } : {}) }; if (item.notes) value.notes = item.notes; return value;
 }
 async function persistVision(input: StoredPayload, evidenceId: string, items: CatalogVisionItem[]) {
   const catalogIds: string[] = []; const observationIds: string[] = [];
   for (const item of items) {
     const name = item.name.trim(); const normalizedName = normalizeName(name); if (!normalizedName) continue;
-    const metadata = visionMetadata(input, item);
-    const existing = await db.catalogItem.findFirst({ where: { assetId: input.assetId, normalizedName } });
+    const metadata = visionMetadata(item); const existing = await db.catalogItem.findFirst({ where: { assetId: input.assetId, normalizedName } });
     const catalogItem = existing ? await db.catalogItem.update({ where: { id: existing.id }, data: { brand: item.brand || existing.brand || undefined, category: item.category || existing.category || undefined, description: existing.description || item.notes || undefined, metadata } }) : await db.catalogItem.create({ data: { assetId: input.assetId, kind: item.category || "visual_item", name, normalizedName, brand: item.brand || undefined, category: item.category || undefined, description: item.notes || undefined, metadata } });
     catalogIds.push(catalogItem.id);
-    const attributes = item.attributes?.length ? item.attributes : [{ key: "observed_name", value: name }];
-    for (const attribute of attributes) await db.catalogAttribute.create({ data: { catalogItemId: catalogItem.id, key: attribute.key, value: attribute.value, normalizedValue: normalizeName(attribute.value), confidence: clampConfidence(item.confidence), evidenceId } });
-    const observationValue: Prisma.InputJsonObject = { name, brand: item.brand ?? null, product: item.product ?? null, variant: item.variant ?? null, category: item.category ?? null, attributes, evidence: item.evidence || [], location: item.location ?? null, recognitionObservationId: item.observationId, recognitionState: item.state, notes: item.notes ?? null };
-    const observation = await db.knowledgeObservation.create({ data: { assetId: input.assetId, catalogItemId: catalogItem.id, evidenceId, type: "VISUAL_OBSERVATION", value: observationValue, metadata, source: input.sourceType, confidence: clampConfidence(item.confidence), observedAt: new Date() } });
-    observationIds.push(observation.id); await maybeLearnTemporalPattern(input.assetId, catalogItem.id, catalogItem.name, evidenceId, observationValue);
+    const attributes = item.attributes?.length ? item.attributes : [{ key: "observed_name", value: name }]; for (const attribute of attributes) await db.catalogAttribute.create({ data: { catalogItemId: catalogItem.id, key: attribute.key, value: attribute.value, normalizedValue: normalizeName(attribute.value), confidence: clampConfidence(item.confidence), evidenceId } });
+    const value = observationValue(item, attributes); const observation = await db.knowledgeObservation.create({ data: { assetId: input.assetId, catalogItemId: catalogItem.id, evidenceId, type: "VISUAL_OBSERVATION", value, metadata, source: input.sourceType, confidence: clampConfidence(item.confidence), observedAt: new Date() } }); observationIds.push(observation.id);
+    await maybeLearnTemporalPattern(input.assetId, catalogItem.id, catalogItem.name, evidenceId, value);
     const repeated = await db.knowledgeObservation.count({ where: { assetId: input.assetId, catalogItemId: catalogItem.id } }); if (repeated >= 2) await persistPattern(input.assetId, catalogItem.id, "REPEATED_OBSERVATION", `${catalogItem.name} has been observed repeatedly (${repeated} observations).`, evidenceId, Math.min(0.99, 0.55 + Math.log10(repeated + 1) * 0.45), Math.min(0.99, repeated / (repeated + 2)));
   }
   return { catalogIds, observationIds, factCount: items.length };
 }
-function compactPayload(input: StoredPayload): Prisma.InputJsonObject { return { mimeType: input.mimeType ?? null, text: input.text ?? null, userId: input.userId, storageKey: input.storageKey ?? null }; }
+function compactPayload(input: StoredPayload): Prisma.InputJsonObject { const payload: Prisma.InputJsonObject = { userId: input.userId }; if (input.mimeType) payload.mimeType = input.mimeType; if (input.text) payload.text = input.text; if (input.storageKey) payload.storageKey = input.storageKey; if (input.content && !input.content.startsWith("data:")) payload.content = input.content; return payload; }
 async function processIntake(jobId: string, originalInput: StoredPayload): Promise<void> {
   let evidenceId: string | undefined;
   try {
     await setStage(jobId, "evidence"); const raw = originalInput.imageDataUrl || originalInput.text || originalInput.content || ""; const contentHash = raw ? sha256(raw) : undefined;
-    const media = await ensureMedia(originalInput, jobId, contentHash || jobId); const input = media.input; const binary = media.bytes; const mimeType = media.mimeType || input.mimeType;
-    const evidence = await db.knowledgeEvidence.create({ data: { assetId: input.assetId, intakeJobId: jobId, type: mimeType || input.sourceType, source: input.sourceType, storageKey: input.storageKey || `intake-job:${jobId}`, contentHash: binary ? sha256Bytes(binary) : contentHash, text: binary && mimeType?.startsWith("text/") ? binary.toString("utf8").trim() || undefined : textFromInput(input), metadata: { originalName: input.originalName, mimeType: mimeType || null, userId: input.userId, storage: input.storageKey ? "knowledge_media" : "legacy_job_payload", byteLength: binary?.length ?? null }, confidence: 1 } }); evidenceId = evidence.id;
+    const media = await ensureMedia(originalInput, contentHash || jobId); const input = media.input; const binary = media.bytes; const mimeType = media.mimeType || input.mimeType;
+    const evidence = await db.knowledgeEvidence.create({ data: { assetId: input.assetId, intakeJobId: jobId, type: mimeType || input.sourceType, source: input.sourceType, storageKey: input.storageKey || `intake-job:${jobId}`, contentHash: binary ? sha256Bytes(binary) : contentHash, text: binary && mimeType?.startsWith("text/") ? binary.toString("utf8").trim() || undefined : textFromInput(input), metadata: { originalName: input.originalName, ...(mimeType ? { mimeType } : {}), userId: input.userId, storage: input.storageKey ? "knowledge_media" : "legacy_job_payload", ...(binary ? { byteLength: binary.length } : {}) }, confidence: 1 } }); evidenceId = evidence.id;
     let result: { catalogIds: string[]; observationIds: string[]; factCount: number };
     if (input.sourceType === "website") { await setStage(jobId, "website"); result = await learnWebsite(input, evidence.id); }
     else if ((mimeType || "").startsWith("image/")) { await setStage(jobId, "vision"); const imageDataUrl = binary ? mediaDataUrl(binary, mimeType || "image/jpeg") : input.imageDataUrl; if (!imageDataUrl) throw new Error("Image media is missing from intake storage."); result = await persistVision(input, evidence.id, await analyzeImageForCatalog(imageDataUrl, input.assetId)); await setStage(jobId, "persisting"); }
-    else if (input.sourceType === "pdf") { await setStage(jobId, "extracting"); const bytes = binary || decodeDataUrl(input.content || "")?.bytes; if (!bytes) throw new Error("PDF upload is not available in durable storage."); const extracted = await extractPdfKnowledge(bytes); await db.knowledgeEvidence.update({ where: { id: evidence.id }, data: { text: extracted.text, metadata: { ...extracted.metadata, originalName: input.originalName, mimeType: mimeType || null } } }); await setStage(jobId, "persisting"); result = await persistFacts(input, evidence.id, extracted.facts); }
-    else if (input.sourceType === "spreadsheet") { await setStage(jobId, "extracting"); const bytes = binary || decodeDataUrl(input.content || "")?.bytes; if (!bytes) throw new Error("Spreadsheet upload is not available in durable storage."); const extracted = extractSpreadsheetKnowledge(bytes, input.originalName); await db.knowledgeEvidence.update({ where: { id: evidence.id }, data: { text: extracted.text, metadata: { ...extracted.metadata, originalName: input.originalName, mimeType: mimeType || null } } }); await setStage(jobId, "persisting"); result = await persistFacts(input, evidence.id, extracted.facts); }
+    else if (input.sourceType === "pdf") { await setStage(jobId, "extracting"); const bytes = binary || decodeDataUrl(input.content || "")?.bytes; if (!bytes) throw new Error("PDF upload is not available in durable storage."); const extracted = await extractPdfKnowledge(bytes); await db.knowledgeEvidence.update({ where: { id: evidence.id }, data: { text: extracted.text, metadata: { ...extracted.metadata, originalName: input.originalName, ...(mimeType ? { mimeType } : {}) } } }); await setStage(jobId, "persisting"); result = await persistFacts(input, evidence.id, extracted.facts); }
+    else if (input.sourceType === "spreadsheet") { await setStage(jobId, "extracting"); const bytes = binary || decodeDataUrl(input.content || "")?.bytes; if (!bytes) throw new Error("Spreadsheet upload is not available in durable storage."); const extracted = extractSpreadsheetKnowledge(bytes, input.originalName); await db.knowledgeEvidence.update({ where: { id: evidence.id }, data: { text: extracted.text, metadata: { ...extracted.metadata, originalName: input.originalName, ...(mimeType ? { mimeType } : {}) } } }); await setStage(jobId, "persisting"); result = await persistFacts(input, evidence.id, extracted.facts); }
     else { await setStage(jobId, "extracting"); const text = textFromInput(input); await setStage(jobId, "persisting"); result = text ? await persistFacts(input, evidence.id, simpleFactsFromText(text)) : { catalogIds: [], observationIds: [], factCount: 0 }; }
     await db.knowledgeIntakeJob.update({ where: { id: jobId }, data: { status: "completed", payload: compactPayload(input), result: { stage: "complete", evidenceId: evidence.id, ...result }, error: null, completedAt: new Date() } });
   } catch (error) {
@@ -141,6 +139,5 @@ export async function enqueueKnowledgeIntake(input: IntakeInput) {
   if (contentHash) { const existing = await db.knowledgeIntakeJob.findFirst({ where: { assetId: input.assetId, contentHash }, orderBy: { createdAt: "desc" } }); if (existing) return { job: existing, duplicate: true }; }
   let storageKey: string | undefined;
   if (input.imageDataUrl || input.content?.startsWith("data:")) { const dataUrl = input.imageDataUrl || input.content || ""; const decoded = decodeDataUrl(dataUrl); if (!decoded) throw new Error("Uploaded content is not a valid data URL."); const extension = decoded.mimeType === "application/pdf" ? "pdf" : decoded.mimeType.startsWith("image/") ? (decoded.mimeType.split("/", 2)[1] || "bin") : "bin"; storageKey = `intake/${input.assetId}/${contentHash || sha256Bytes(decoded.bytes)}.${extension}`; await writeKnowledgeMedia(storageKey, decoded.bytes); }
-  const job = await db.knowledgeIntakeJob.create({ data: { assetId: input.assetId, status: "queued", sourceType: input.sourceType, originalName: input.originalName, contentHash, payload: compactPayload({ ...input, storageKey }) } });
-  return { job, duplicate: false };
+  const job = await db.knowledgeIntakeJob.create({ data: { assetId: input.assetId, status: "queued", sourceType: input.sourceType, originalName: input.originalName, contentHash, payload: compactPayload({ ...input, storageKey }) } }); return { job, duplicate: false };
 }
