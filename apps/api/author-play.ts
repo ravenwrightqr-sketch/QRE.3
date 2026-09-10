@@ -5,7 +5,8 @@ import "dotenv/config";
  *
  * This intentionally does not start the API, touch Prisma, persist anything,
  * or create a second Author implementation. It exercises the same canonical
- * Author orchestrator used by production.
+ * Author orchestrator used by production, using the existing single
+ * realization mode so development tests do not generate four full films.
  *
  * Usage:
  *   pnpm exec tsx apps/api/author-play.ts
@@ -83,7 +84,9 @@ function parseArgs(argv: string[]): PlayInput {
 
 const input = parseArgs(process.argv.slice(2));
 
-// Keep this development path deliberately local and single-shot.
+// Development bench: still the canonical Author, but use its existing
+// one-selection/one-realization mode instead of four generated films.
+process.env.QRE_AUTHOR_REALIZATION_MODE = "single";
 process.env.QRE_AUTHOR_DEBUG_RAW = "false";
 
 const { authorBrainCanonical } = await import(
@@ -95,6 +98,7 @@ const started = Date.now();
 console.log("=".repeat(72));
 console.log("QRE AUTHOR PLAY");
 console.log("CANONICAL AUTHOR · ONE CASE · NO DATABASE");
+console.log("DEVELOPMENT MODE · SINGLE ARTIST SELECTION + REALIZATION");
 console.log("=".repeat(72));
 console.log(`PROMPT: ${input.prompt}`);
 console.log(`SUBJECT: ${input.subject}`);
