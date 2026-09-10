@@ -78,8 +78,10 @@ function genericityRisk(candidate: LatentMovieCandidate): number {
   const corpus = [...candidate.hypothesis, candidate.payoff, candidate.unresolvedQuestion].map(clean).join(" ");
   if (!corpus) return 0.9;
   const matches = [...corpus.matchAll(GENERIC)].length;
+  const normalizedLength = corpus.split(/\s+/).filter(Boolean).length;
+  const genericDensity = matches / Math.max(1, normalizedLength);
   const internal = INTERNAL.test(corpus) ? 1 : 0;
-  return clamp(Math.min(1, matches * 0.16 + internal * 0.5));
+  return clamp(Math.min(1, matches * 0.2 + genericDensity * 0.8 + internal * 0.5));
 }
 
 function signature(candidate: LatentMovieCandidate): string {
