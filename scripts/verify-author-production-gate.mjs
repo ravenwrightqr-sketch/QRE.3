@@ -100,6 +100,7 @@ const allowedDirectModelCallers = new Set([
   "apps/api/src/services/authorInformationFinder.ts",
   "apps/api/src/services/documentKnowledge.ts",
   "apps/api/src/services/websiteLearning.ts",
+  "apps/api/src/services/recognition/recognitionEngine.ts",
 ]);
 
 function read(path) {
