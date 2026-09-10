@@ -1,4 +1,4 @@
-﻿import type { AuthorDomainContext, CreativeFrameSelection, LatentMovieCandidate, LatentMovieTrajectoryStep, RealityGraph } from "@qre/contracts";
+import type { AuthorDomainContext, CreativeFrameSelection, LatentMovieCandidate, LatentMovieTrajectoryStep, RealityGraph } from "@qre/contracts";
 import { localModelGenerate } from "./localModelRuntime.js";
 
 export type AuthorCognitionInput = {
@@ -461,4 +461,3 @@ export async function buildAuthorCognitivePlan(input: AuthorCognitionInput): Pro
     modelCalls,
   };
 }
-
