@@ -131,12 +131,28 @@ function dedupeCandidates(candidates: LatentMovieCandidate[], limit = 12): Laten
   return out;
 }
 
+const AUTO_LENS_POLICY = [
+  "AUTO LENS MODE: the user did not specify a lens.",
+  "Treat a lens as optional creative pressure, never as reality and never as a business type.",
+  "Choose exactly ONE treatment from this list, or choose NONE:",
+  "comedy, fierce, heist, game, noir, romance, horror, documentary, deadpan, tender, surreal, wild, spy, mission, speedrun, investigation, backstage, transformation, race, restoration, expedition, quest, countdown, archive, NONE.",
+  "Choose a treatment only when the supplied facts contain a real creative relationship that the treatment makes more watchable, memorable, surprising, funny, tense, tender, or vivid.",
+  "NONE is a valid success. NONE does not mean boring: the Artist may still use compression, personification, attitude, fragments, surprise, rhythm, and other creative treatment directly from the supplied reality.",
+  "Do not decide the lens from the domain alone. A housekeeping experience can be comedy, fierce, mission, or NONE depending on the actual supplied details. A dog can be comedy, fierce, investigation, or NONE. Real estate can be transformation, romance, comedy, or NONE.",
+  "Do not invent an event merely to justify a lens.",
+  "Prefer a lens that amplifies what is already there. If forcing a lens would make the work feel artificial, choose NONE.",
+].join("\n");
+
 export async function buildAuthorCognitivePlan(input: AuthorCognitionInput): Promise<AuthorCognitionPlan> {
   const returning = Boolean(input.returning || (input.visitNumber ?? 1) > 1);
-  // Relation discovery happens before model cognition so the model can actually
-  // see the grounded semantic structure it is being asked to compete on.
   const derived = relationCandidates(input.realityGraph, cleanSubject(input.subject), returning);
-  const modelPlan = await buildModelCognitivePlan(input);
+  const modelPlan = await buildModelCognitivePlan({
+    ...input,
+    creativeLearningContext: [
+      ...(input.creativeLearningContext ?? []),
+      AUTO_LENS_POLICY,
+    ],
+  });
   const modelGrounded = modelPlan.latentMovieCandidates.filter((candidate) => groundedCandidate(input.realityGraph, candidate));
   const candidates = dedupeCandidates([...modelGrounded, ...derived], 12);
   const requestedMovieId = clean((input as AuthorCognitionInput & { selectedMovieId?: string }).selectedMovieId);
