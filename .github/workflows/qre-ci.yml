@@ -7,6 +7,7 @@ on:
       - cognitive-superstar-final
       - elite-universal-rebuild-v10
       - build/universal-author-local
+      - feature/universal-visual-recognition
   pull_request:
 
 concurrency:
