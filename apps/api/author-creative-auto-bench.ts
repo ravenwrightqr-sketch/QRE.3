@@ -1,0 +1,218 @@
+import "dotenv/config";
+import type { AuthorBrainTruth } from "@qre/contracts";
+import { authorBrainCanonical } from "./src/services/authorBrainCanonical.js";
+
+/**
+ * QRE CREATIVE PROOF BENCH
+ *
+ * This is the creative-first acceptance bench for QRE.
+ *
+ * Every case uses the SAME Canonical Author. The lens is intentionally omitted
+ * unless the case is explicitly testing a forced treatment. This lets the
+ * Author choose a creative lens OR NONE from the supplied reality.
+ *
+ * It does not start the API, touch Prisma, persist anything, or use Neon.
+ *
+ * Default:
+ *   pnpm author:creative
+ *
+ * One case:
+ *   pnpm exec tsx apps/api/author-creative-auto-bench.ts coco
+ *
+ * Full realization mode:
+ *   pnpm exec tsx apps/api/author-creative-auto-bench.ts --full
+ */
+
+type CreativeCase = {
+  id: string;
+  name: string;
+  input: AuthorBrainTruth;
+  usefulTreatments: string[];
+};
+
+const makeInput = (
+  input: Omit<AuthorBrainTruth, "memoryContext" | "trajectory" | "creativeLearningContext" | "returning">,
+): AuthorBrainTruth => ({
+  ...input,
+  memoryContext: [],
+  trajectory: [],
+  creativeLearningContext: [],
+  returning: false,
+});
+
+const cases: CreativeCase[] = [
+  {
+    id: "coco",
+    name: "COCO TAG",
+    usefulTreatments: ["comedy", "fierce", "negotiation", "NONE"],
+    input: makeInput({
+      prompt: "Make a living dog tag that makes Coco feel like a real character, not a fact list.",
+      subject: "Coco",
+      facts: ["Pomeranian", "loves walks", "squirrels", "bacon", "apples"],
+      sourceMoments: ["Pomeranian", "loves walks", "squirrels", "bacon", "apples"],
+    }),
+  },
+  {
+    id: "groomer",
+    name: "DOG GROOMER",
+    usefulTreatments: ["comedy", "fierce", "negotiation", "transformation", "NONE"],
+    input: makeInput({
+      prompt: "Make a dog-grooming service experience the client will actually want to watch.",
+      subject: "Coco",
+      facts: ["poodle", "came in nervous", "got a bath", "stole a blue bow", "left looking fabulous"],
+      sourceMoments: ["came in nervous", "got a bath", "stole a blue bow", "left looking fabulous"],
+    }),
+  },
+  {
+    id: "housekeeping",
+    name: "HOUSEKEEPING + CAT",
+    usefulTreatments: ["comedy", "fierce", "operation", "NONE"],
+    input: makeInput({
+      prompt: "Make a housekeeping service experience from the real work. Do not make a boring chronological receipt.",
+      subject: "Maria",
+      facts: [
+        "arrived at 9:04",
+        "cleaned the kitchen",
+        "cleaned two bathrooms",
+        "finished at 11:47",
+        "a cat followed her while she was cleaning",
+      ],
+      sourceMoments: [
+        "arrived at 9:04",
+        "cleaned the kitchen",
+        "cleaned two bathrooms",
+        "finished at 11:47",
+        "a cat followed her while she was cleaning",
+      ],
+    }),
+  },
+  {
+    id: "moving",
+    name: "MOVING COMPANY",
+    usefulTreatments: ["investigation", "heist", "mission", "comedy", "NONE"],
+    input: makeInput({
+      prompt: "Make a moving-service experience that feels like an experience, not a report.",
+      subject: "the family",
+      place: "Riverside to Portland",
+      facts: ["three days", "kitchen packed first", "one mystery box was still missing at the end"],
+      sourceMoments: ["three days", "kitchen packed first", "mystery box missing"],
+    }),
+  },
+  {
+    id: "realestate",
+    name: "REAL ESTATE MEDIA",
+    usefulTreatments: ["transformation", "romance", "comedy", "noir", "NONE"],
+    input: makeInput({
+      prompt: "Make real-estate media that makes someone stop scrolling and look again.",
+      subject: "the house",
+      facts: ["three bedrooms", "sunlit kitchen", "large backyard", "new flooring", "Riverside"],
+      sourceMoments: ["three bedrooms", "sunlit kitchen", "large backyard", "new flooring", "Riverside"],
+    }),
+  },
+  {
+    id: "carwash",
+    name: "CAR WASH",
+    usefulTreatments: ["transformation", "fierce", "comedy", "NONE"],
+    input: makeInput({
+      prompt: "Make a car-wash client experience from the real before-and-after.",
+      subject: "the black SUV",
+      facts: ["came in filthy", "mud on the wheels", "cleaned inside and out", "left glossy"],
+      sourceMoments: ["came in filthy", "mud on the wheels", "cleaned inside and out", "left glossy"],
+    }),
+  },
+  {
+    id: "memory",
+    name: "LIVING MEMORY",
+    usefulTreatments: ["tender", "refrain", "quiet observation", "NONE"],
+    input: makeInput({
+      prompt: "Make a living-memory experience from these supplied details without turning it into a generic memorial.",
+      subject: "her",
+      facts: ["loved old records", "kept every birthday card", "played the same song on Sundays"],
+      sourceMoments: ["loved old records", "kept every birthday card", "same song on Sundays"],
+    }),
+  },
+  {
+    id: "retail",
+    name: "RETAIL CUSTOMER MOMENT",
+    usefulTreatments: ["comedy", "fierce", "game", "NONE"],
+    input: makeInput({
+      prompt: "Make a customer-facing retail experience from the supplied moment. Make it worth watching.",
+      subject: "the customer",
+      facts: ["tried the item before leaving", "came back for a different flavor", "liked the first one"],
+      sourceMoments: ["tried the item before leaving", "came back for a different flavor", "liked the first one"],
+    }),
+  },
+];
+
+function clean(value: unknown): string {
+  return String(value ?? "").replace(/\s+/g, " ").trim();
+}
+
+function selectCases(argv: string[]): CreativeCase[] {
+  const requested = argv.filter((arg) => !arg.startsWith("--"));
+  if (!requested.length || requested.includes("all")) return cases;
+  const selected = cases.filter((test) => requested.includes(test.id));
+  if (!selected.length) {
+    throw new Error(`Unknown case(s): ${requested.join(", ")}. Valid: ${cases.map((test) => test.id).join(", ")}`);
+  }
+  return selected;
+}
+
+const full = process.argv.includes("--full");
+
+process.env.QRE_AUTHOR_REALIZATION_MODE = full ? "full" : "single";
+process.env.QRE_AUTHOR_FAST_MODEL ??= "gemma3:12b";
+process.env.QRE_AUTHOR_FALLBACK_MODEL ??= "";
+process.env.QRE_AUTHOR_DEBUG_RAW = "false";
+
+const selected = selectCases(process.argv.slice(2));
+let failed = 0;
+
+console.log("=".repeat(82));
+console.log("QRE CREATIVE FIRST PROOF BENCH");
+console.log(`CANONICAL AUTHOR · ${full ? "FULL" : "SINGLE"} REALIZATION · GEMMA 3 12B · NO DATABASE`);
+console.log("LENS: AUTO → AUTHOR MAY CHOOSE A LENS OR NONE");
+console.log("=".repeat(82));
+console.log(`CASES: ${selected.map((test) => test.id).join(", ")}`);
+
+for (const test of selected) {
+  const started = Date.now();
+  console.log("\n" + "-".repeat(82));
+  console.log(`${test.name} [${test.id}]`);
+  console.log(`USEFUL TREATMENTS: ${test.usefulTreatments.join(" | ")}`);
+  console.log(`SUBJECT: ${test.input.subject}`);
+  console.log(`FACTS: ${test.input.facts.join(" | ")}`);
+
+  try {
+    const result = await authorBrainCanonical(test.input);
+    const scenes = result.scenes.map((scene) => clean(scene.text)).filter(Boolean);
+
+    console.log(`TIME: ${((Date.now() - started) / 1000).toFixed(2)}s`);
+    console.log(`MODEL: ${result.diagnostics.model}`);
+    console.log(`MODEL CALLS: ${result.diagnostics.modelCalls}`);
+    console.log(`RESOLVED LENS: ${result.brief.angle}`);
+    console.log(`STATUS: ${result.diagnostics.qualityStatus}`);
+    console.log(`RENDERABLE: ${result.diagnostics.renderable}`);
+    console.log(`COMPLETE: ${result.diagnostics.complete}`);
+    console.log("--- MOVING TEXT ---");
+    scenes.forEach((line, index) => console.log(`[${index + 1}] ${line}`));
+    console.log("--- END MOVING TEXT ---");
+    console.log("--- PROVENANCE ---");
+    result.sequence.cuts.forEach((cut) => console.log(`[${cut.order}] ${cut.sourceIds.join(", ") || "<none>"}`));
+    console.log("--- END PROVENANCE ---");
+
+    if (!result.diagnostics.complete || !result.diagnostics.renderable || scenes.length !== result.sequence.cuts.length) {
+      throw new Error("Canonical Author returned an invalid creative experience");
+    }
+  } catch (error) {
+    failed += 1;
+    console.error(`FAILED: ${error instanceof Error ? error.message : String(error)}`);
+  }
+}
+
+console.log("\n" + "=".repeat(82));
+console.log(`CREATIVE FIRST PROOF BENCH: ${failed ? "FAIL" : "PASS"}`);
+console.log(`RAN: ${selected.length} · FAILED: ${failed}`);
+console.log("=".repeat(82));
+
+if (failed) process.exitCode = 1;
