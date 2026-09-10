@@ -34,19 +34,34 @@ const STOP = new Set([
   "the", "a", "an", "and", "or", "but", "to", "of", "in", "on", "at", "for", "with", "from", "by", "through", "after", "before", "then", "now", "still", "again", "this", "that", "it", "is", "are", "was", "were", "be", "been", "being", "as", "into", "my", "your", "our", "their", "his", "her", "its", "he", "she", "they", "them", "you", "we", "me", "same", "just", "very", "really",
 ]);
 
-const ACTION = /\b(?:arrive|arrived|arrives|came|come|left|leave|went|go|met|meet|talk|talked|spoke|said|did|made|make|gave|give|get|got|found|find|lost|lose|clean|cleaned|finish|finished|started|start|opened|close|closed|walk|walked|ran|run|drove|drive|ate|eat|drank|drink|kissed|kiss|married|celebrated|played|play|worked|work|visited|visit|bought|buy|sold|sell|built|build|fixed|fix|painted|paint|wore|wear|used|use|stayed|stay|waited|wait|called|call|laughed|laugh|cried|cry|looked|look|felt|feel|became|become|changed|change|repaired|repair|tested|test|selected|select|cut|shaped|polished|delivered|welcomed|checked|booked|reserved|approved|groomed|dyed|tailored|installed|stole|stole|returned|return|rescued|adopted|remembered|remember|watched|watch|heard|hear|sang|sung|danced|dance)\b/i;
+const ACTION = /\b(?:arrive|arrived|arrives|came|come|left|leave|went|go|met|meet|talk|talked|spoke|said|did|made|make|gave|give|get|got|found|find|lost|lose|clean|cleaned|finish|finished|started|start|opened|close|closed|walk|walked|ran|run|drove|drive|ate|eat|drank|drink|kissed|kiss|married|celebrated|played|play|worked|work|visited|visit|bought|buy|sold|sell|built|build|fixed|fix|painted|paint|wore|wear|used|use|stayed|stay|waited|wait|called|call|laughed|laugh|cried|cry|looked|look|felt|feel|became|become|changed|change|repaired|repair|tested|test|selected|select|cut|shaped|polished|delivered|welcomed|checked|booked|reserved|approved|groomed|dyed|tailored|installed|stole|returned|return|rescued|adopted|remembered|remember|watched|watch|heard|hear|sang|sung|danced|dance)\b/i;
 const STATE = /\b(?:nervous|scared|happy|sad|angry|calm|excited|proud|confident|funny|wild|goofy|sweet|gentle|fierce|stubborn|tired|quiet|loud|beautiful|strange|weird|odd|dark|bright|new|old|young|late|early|ready|clean|dirty|broken|fixed|alive|gone|back|first|second|third|different|same|open|closed|restored|renewed|lost|found)\b/i;
 const TIME = /\b(?:today|yesterday|tomorrow|morning|afternoon|evening|night|later|earlier|first|again|second|third|last|next|until|before|after|weekly|daily|every|\d{1,2}:\d{2}|\d{4})\b/i;
 const RECURRENCE = /\b(?:again|returned|return|back|second|third|another|repeated|repeat|once more|weekly|daily|every|same|remembered|remember)\b/i;
+const PREFERENCE = /\b(?:love|loves|like|likes|enjoy|enjoys|hate|hates|prefer|prefers|adore|adores|favorite|favourite)\b/i;
+const PROGRESSIVE = /\b(?:am|is|are|was|were)\s+\w+ing\b/i;
+const OBSERVED_ANCHOR = /\b(?:today|yesterday|tomorrow|right now|currently|this morning|this afternoon|this evening|tonight|just now|for\s+\d+(?:\.\d+)?\s+(?:minute|minutes|hour|hours|second|seconds)|at\s+\d{1,2}(?::\d{2})?\s*(?:am|pm)?|on\s+(?:monday|tuesday|wednesday|thursday|friday|saturday|sunday))\b/i;
+const PAST_OCCURRENCE = /\b(?:arrived|came|left|went|met|talked|spoke|said|did|made|gave|got|found|lost|cleaned|finished|started|opened|closed|walked|ran|drove|ate|drank|kissed|married|celebrated|played|worked|visited|bought|sold|built|fixed|painted|wore|used|stayed|waited|called|laughed|cried|looked|felt|became|changed|repaired|tested|selected|cut|shaped|polished|delivered|welcomed|checked|booked|reserved|approved|groomed|dyed|tailored|installed|stole|returned|rescued|adopted|remembered|watched|heard|sang|danced)\b/i;
+const FIRST_OR_SECOND_PERSON_EVENT = /\b(?:I|we|you)\s+(?:walk|walked|go|went|take|took|meet|met|see|saw|visit|visited|clean|cleaned|work|worked|call|called|love|loved|eat|ate|drink|drank|play|played|stay|stayed|arrive|arrived)\b/i;
 const TRANSITIONS: Array<[string, string]> = [["nervous", "confident"], ["nervous", "calm"], ["broken", "working"], ["broken", "fixed"], ["dirty", "clean"], ["old", "new"], ["lost", "found"], ["closed", "open"], ["sad", "happy"], ["scared", "safe"]];
 
 const STANDALONE_TIME = /^(?:(?:at|@)\s*)?(?:\d{1,2}:\d{2}\s*(?:am|pm)?|\d{1,2}\s*(?:am|pm)|(?:today|yesterday|tomorrow|morning|afternoon|evening|night))$/i;
 const STANDALONE_DATE = /^(?:\d{4}-\d{1,2}-\d{1,2}|\d{1,2}[/-]\d{1,2}(?:[/-]\d{2,4})?|\d{4})$/i;
 const STANDALONE_GEO = /^(?:(?:gps|geo|location|coordinates?|lat(?:itude)?|lon(?:gitude)?)\s*[:=-]?\s*)?[+-]?\d{1,3}(?:\.\d+)?\s*[,/]\s*[+-]?\d{1,3}(?:\.\d+)?$/i;
 const STANDALONE_PRESENTATION = /^(?:photo|photograph|image|picture|video|attachment|media)(?:\s*#?\d+)?(?:\s+(?:attached|uploaded))?$/i;
+
 function isCompositionMetadata(value: string): boolean {
   const text = clean(value);
   return Boolean(text) && (STANDALONE_TIME.test(text) || STANDALONE_DATE.test(text) || STANDALONE_GEO.test(text) || STANDALONE_PRESENTATION.test(text));
+}
+
+function semanticRole(label: string): "observed-event" | "preference" | "habit" | "attribute" | "general-fact" {
+  const text = clean(label);
+  if (PROGRESSIVE.test(text) || OBSERVED_ANCHOR.test(text) || PAST_OCCURRENCE.test(text) || FIRST_OR_SECOND_PERSON_EVENT.test(text)) return "observed-event";
+  if (PREFERENCE.test(text)) return "preference";
+  if (/\b(?:is|are)\s+(?:a|an|the)?\s*(?:small|large|big|little|old|young|new|black|white|red|blue|green|brown|tall|short|quiet|loud|gentle|wild|sweet|funny|fierce|goofy|beautiful|strange|weird)\b/i.test(text)) return "attribute";
+  if (/\b(?:walks|runs|goes|visits|plays|works|lives|sleeps|eats|drinks|chases|wears|uses|keeps)\b/i.test(text) && !OBSERVED_ANCHOR.test(text)) return "habit";
+  return "general-fact";
 }
 
 function fragments(values: readonly string[]): string[] {
@@ -79,6 +94,7 @@ function eventStructure(label: string, eventId: string): RealityEventStructure {
   const states = unique([...label.matchAll(new RegExp(STATE.source, "gi"))].map((match) => match[0].toLowerCase())).slice(0, 8);
   const temporalMarkers = TIME.test(label) ? unique([...(label.toLowerCase().match(/today|yesterday|tomorrow|morning|afternoon|evening|night|later|earlier|first|again|second|third|last|next|until|before|after|weekly|daily|every|\d{1,2}:\d{2}|\d{4}/g) ?? [])]).slice(0, 8) : [];
   const words = tokens(label);
+  const role = semanticRole(label);
   return {
     eventId,
     subjects: [],
@@ -88,6 +104,8 @@ function eventStructure(label: string, eventId: string): RealityEventStructure {
     temporalMarkers,
     sensoryMarkers: [],
     semanticTags: unique([
+      `role:${role}`,
+      ...(role === "observed-event" ? ["event-authorized"] : ["non-event"]),
       ...(actions.length ? ["action"] : []),
       ...(states.length ? ["state"] : []),
       ...(RECURRENCE.test(label) ? ["recurrence"] : []),

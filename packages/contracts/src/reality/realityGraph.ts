@@ -1,10 +1,17 @@
 /**
  * Canonical internal representation of source reality for QRE Author cognition.
  *
- * Facts remain immutable evidence. Events are the units the Author can relate,
- * contrast, sequence, and revisit. Derived structure is explicitly marked as
- * interpretive so it can enrich creativity without becoming source truth.
+ * Every supplied fragment remains provenance-bearing reality. The semanticRole
+ * and eventAuthorized fields distinguish descriptive world material from an
+ * occurrence that QRE is allowed to treat as having happened.
  */
+
+export type RealitySemanticRole =
+  | "observed-event"
+  | "preference"
+  | "habit"
+  | "attribute"
+  | "general-fact";
 
 export type RealityEvidence = {
   id: string;
@@ -48,6 +55,10 @@ export type RealityEvent = {
   emotionalState?: string;
   salient: boolean;
   provenance: "explicit" | "memory" | "prompt";
+  /** Semantic role assigned to the supplied fragment. */
+  semanticRole?: RealitySemanticRole;
+  /** True only when the source clearly authorizes an occurrence. */
+  eventAuthorized?: boolean;
 };
 
 export type RealityRelation = {
@@ -85,5 +96,4 @@ export type RealityGraph = {
   unresolvedTensions: string[];
   recurringSignals: string[];
   sensorySignals: string[];
-  
 };
