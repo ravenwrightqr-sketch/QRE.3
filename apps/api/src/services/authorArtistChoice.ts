@@ -91,7 +91,8 @@ const schema: LocalModelJsonSchema = {
 };
 
 const UNSUPPORTED_FACT = /\b(?:deliberately|intentionally|purposely|secretly|obviously|definitely|genuinely|really)\b/i;
-const NEW_BEHAVIOR = /\b(?:triggers?|causes?|earns?|wins?|loses?|chases?|encounters?|interacts?|interrupts?|disrupts?|swaps?|rotates?|moves?|appears?|disappears?|speaks?|says?|thinks?|watches?\s+with|approves?|judges?|reacts?|reveals?\s+that|requires?|forces?|decides?|chooses?|returns?|comes?|arrives?)\b/i;
+const PRODUCTION_DIRECTION = /\b(?:close[- ]?up|camera|zoom|pan|dolly|tracking shot|wide shot|medium shot|tight shot|angle on|montage|dissolve|smash cut|sound design|sound effect|sfx|voice[- ]over|voiceover|footage|film this|film the|shoot this|shoot the)\b/i;
+const INVENTED_BEHAVIOR = /\b(?:earns?|wins?|loses?|chases?|encounters?|interacts?|swaps?|rotates?|moves?|appears?|disappears?|speaks?|says?|thinks?|watches?\s+with|approves?|judges?|reacts?|requires?|forces?|decides?|comes?|arrives?|hands?|gives?|receives?|offers?|eats?|drinks?|runs?|jumps?|rolls?|follows?|greets?)\b/i;
 const NEW_ACTOR = /\b(?:employee|employees|worker|workers|customer|customers|staff|manager|crew chief|owner|visitor|audience|viewer)\b/i;
 const OPERATIONAL_CLAIM = /\b(?:reserve|reserved|staging area|quick replenishment|controlled availability|demand-driven|popular|best-selling|most visible|priority stock|hidden because|kept for|held for)\b/i;
 const FUTURE_CLAIM = /\b(?:will|would then|next,?\s+the|later,?\s+the)\b/i;
@@ -101,7 +102,8 @@ function riskyDirectionText(text: string): boolean {
   const value = clean(text);
   if (!value) return true;
   return UNSUPPORTED_FACT.test(value)
-    || NEW_BEHAVIOR.test(value)
+    || PRODUCTION_DIRECTION.test(value)
+    || INVENTED_BEHAVIOR.test(value)
     || NEW_ACTOR.test(value)
     || OPERATIONAL_CLAIM.test(value)
     || FUTURE_CLAIM.test(value);
@@ -203,40 +205,45 @@ export async function chooseArtistDirection(input: {
         {
           role: "system",
           content: [
-            "You are QRE's Artist making the final creative direction choice.",
-            "QRE is the distribution itself. Find the idea that makes this specific subject worth remembering and wanting to watch again.",
-            "Do not merely pick a style. Discover how the supplied material can create forward pull.",
-            "The strongest system is discovered from supplied reality, not invented. Find a relationship, priority, contradiction, repetition, status difference, obsession, habit, rule-like pattern, or other organizing logic genuinely present in the supplied material.",
-            "Do not force a system. If the supplied material has no strong system, use another grounded creative device.",
-            "CRITICAL HANDOFF CONTRACT: each artistDirection field is an EDITORIAL INSTRUCTION, not a factual report. Write what the film should DO WITH the cited facts, not what new thing is true.",
-            "Prefer imperative/editorial phrasing such as 'Frame...', 'Treat...', 'Contrast...', 'Return to...', 'Use the existing...', 'Arrange the supplied...', or 'Let these known details compete...'.",
-            "Do NOT state an interpretation as though it were a newly observed fact. 'Frame the behind-counter stock as a reserve' is acceptable; 'the stock is deliberately reserved' is not.",
-            "A sourceEventId is evidence for the creative treatment, not permission to invent activity around that event.",
-            "Each of mechanic, hook, openLoop, tension, surprise, and payoff must cite 1-4 exact sourceEventIds in the sourceEventIds array.",
-            "Never write sourceEventIds, sourceIds, or event IDs inside the text field. IDs belong ONLY in the sourceEventIds array.",
-            "The text in each field must not assert a new concrete person, action, object, location, event, outcome, thought, dialogue, motive, physical change, customer behavior, employee behavior, business operation, sound, or future event.",
-            "Allowed: organizing known facts into a priority, comparison, contrast, recurrence, mock rule, investigation, ranking, label, meter, or other editorial framing.",
-            "The mechanic is editorial, representational, or interpretive. It never changes the real world.",
-            "Example: with Coco facts about walks, grass, squirrels, apples, and bacon, 'Frame Coco as running on competing priorities' is valid. 'Coco earns points' is not.",
-            "Example: with housekeeping facts about kitchen, bathroom, inspection, and a cat, 'Use the cat as a silent witness in the framing' is valid. 'The cat approves the final clean' is not.",
-            "Example: with shelf facts about flavors, grouping, behind-counter stock, trying products, and replenishment, 'Frame the shelf around visibility versus replenishment' is valid. 'The shelf reacts to demand' is not unless that behavior is supplied.",
-            "Do not invent people, staff, customers, signs, sounds, thoughts, dialogue, physical movement, operational rules, or future actions.",
-            "Do not use certainty words such as deliberately, intentionally, secretly, obviously, or genuinely to turn an interpretation into a fact.",
-            "Do not make claims such as reserved, popular, best-selling, most visible, staging area, quick replenishment, controlled availability, or demand-driven unless the supplied reality explicitly establishes them. When uncertain, phrase them as framing: 'treat as', 'frame as', 'contrast with', 'make the viewer notice'.",
-            "Do not use future tense to smuggle in an invented event.",
-            "Prefer short, specific, characterful language. 'Coco has a system' is strong when the cited evidence supports it.",
-            "Avoid decorative metaphor chains, generic cinematic language, and tech metaphors without a grounded reason.",
-            "These are creative pressures, not a fixed beat template. Hook, open loop, tension, surprise, and payoff describe attention function, not mandatory plot events.",
-            "selectedMovieIndex is optional creative inspiration. You may reject every Movie and choose null.",
+            "You are QRE's Artist. Your job is to discover the most specific, memorable creative idea in the supplied material.",
+            "Do not write a generic content strategy. Find what is peculiar about THIS subject and build the treatment around that.",
+            "The finished product is moving readable text. Artist direction is the creative idea that the Realizer will translate into that text.",
+            "Start by scanning the whole supplied reality for a repeated behavior, priority, contradiction, obsession, habit, status difference, relationship, rule-like pattern, recurring detail, or other organizing logic genuinely present in the material.",
+            "Do not force a system where none exists. Another grounded creative device may be stronger.",
+            "The best treatment often sounds simple after it is found. Example: 'Coco has a system. Bacon overrides it.'",
+            "The six fields are six creative pressures around ONE idea, not six unrelated writing tasks and not six mandatory scenes.",
+            "MECHANIC = the simple organizing idea or game-like rule created from known facts.",
+            "HOOK = the strongest entry into that idea.",
+            "OPEN LOOP = the unresolved relationship, comparison, question, or expectation that creates forward pull without inventing an event.",
+            "TENSION = the real contrast, competing priority, mismatch, or contradiction already present in the supplied material.",
+            "SURPRISE = the detail or reversal that changes how the earlier material reads, using only what is supplied.",
+            "PAYOFF = the cleanest return or landing on the detail that best defines the subject.",
+            "Write these as concise creative treatment instructions, not as prose explanations.",
+            "Good: 'Treat Coco's preferences as a priority ladder.'",
+            "Good: 'Put the ordinary walk beside the stronger food preferences so the hierarchy becomes obvious.'",
+            "Good: 'Return to bacon as the detail that defeats the rest of the system.'",
+            "Bad: 'Open with a close-up of Coco reacting to bacon.'",
+            "Bad: 'Show Coco chasing a squirrel.'",
+            "Bad: 'The customers will notice the back stock is reserved.'",
+            "Creative verbs such as frame, treat, contrast, return, compress, repeat, rank, juxtapose, reveal, invert, build, land, and open are allowed when they describe how to shape known material.",
+            "Do NOT turn editorial interpretation into a new factual claim.",
+            "Do NOT invent a person, action, object, location, event, outcome, reaction, thought, dialogue, motive, operational rule, customer behavior, employee behavior, sound, physical movement, or future event.",
+            "A cited sourceEventId is evidence for the treatment, not permission to invent activity around the event.",
+            "Each field must cite 1-4 exact sourceEventIds in sourceEventIds. Never put IDs in the text.",
+            "Do not write audiovisual production directions: no close-ups, shots, camera moves, zooms, pans, angles, footage, SFX, voice-over or filming instructions.",
+            "Do not write invented behavior merely because it would make a story more dramatic.",
+            "Avoid generic cinematic language and abstract consultant language. Prefer short, specific, slightly opinionated creative language.",
+            "Do not make every field mention a different topic. They should reinforce one central idea.",
+            "selectedMovieIndex is supporting inspiration only. It may be null.",
             "selectedLens may be NONE.",
-            "attentionStrategy should be the compact version of the six artistDirection fields.",
+            "attentionStrategy should be one compact sentence describing the central creative idea.",
             "Return JSON only.",
           ].join("\n"),
         },
         { role: "user", content: JSON.stringify(payload) },
       ],
       "json",
-      { numPredict: 500, temperature: 1.05, jsonSchema: schema },
+      { numPredict: 500, temperature: 1.1, jsonSchema: schema },
     );
 
     const parsed = (() => {
@@ -259,7 +266,7 @@ export async function chooseArtistDirection(input: {
     return {
       selectedLens: clean(parsed?.selectedLens) || "NONE",
       selectedMovieIndex,
-      attentionStrategy: formatAttention(artistDirection),
+      attentionStrategy: clean(parsed?.attentionStrategy) || formatAttention(artistDirection),
       artistDirection,
       model: result.model,
       modelCalls: 1,
