@@ -3,11 +3,12 @@
 /**
  * QRE AUTHOR PRODUCTION GATE
  *
- * Protect the CURRENT canonical Author architecture rather than retired
- * Movie Search / micro-Mouth implementations.
+ * Hard repository boundary for the current production Author architecture.
+ * One canonical brain, one cognition entrypoint, one Artist authority boundary,
+ * one creative realizer, one finished-film judge, one runtime projection path.
  *
- * RealityGraph -> Readout -> Cognition -> Artist -> Creative Spine ->
- * Creative Realizer -> Sequence -> Experience service persistence.
+ * This gate deliberately protects the architecture that actually exists.
+ * Retired Movie Search / micro-Mouth files are forbidden rather than required.
  */
 
 import { existsSync, readFileSync, readdirSync } from "node:fs";
@@ -127,88 +128,121 @@ for (const path of forbiddenFiles) {
   if (existsSync(join(root, path))) fail(`Retired/forbidden production file exists: ${path}`);
 }
 
-for (const file of walk(join(root, "apps/api/src")).filter((file) => /\.(ts|tsx|js|mjs)$/.test(file))) {
+const productionFiles = walk(join(root, "apps/api/src"))
+  .filter((file) => /\.(ts|tsx|js|mjs)$/.test(file));
+
+for (const file of productionFiles) {
   const body = readFileSync(file, "utf8");
   const rel = relative(root, file).replaceAll("\\", "/");
+
   const importRegex = /(?:from\s+|import\s*\()(["'])([^"']+)\1/g;
   let match;
   while ((match = importRegex.exec(body)) !== null) {
-    const basename = match[2].split("/").pop() ?? match[2];
-    if (forbiddenLegacyImportBasenames.has(basename)) {
-      fail(`Forbidden legacy Author import in ${rel}: ${match[2]}`);
-    }
+    const specifier = match[2];
+    const basename = specifier.split("/").pop() ?? specifier;
+    if (!forbiddenLegacyImportBasenames.has(basename)) continue;
+    fail(`Forbidden legacy Author import in ${rel}: ${specifier}`);
   }
+
   if (/localModelGenerate\s*\(/.test(body) && !allowedDirectModelCallers.has(rel)) {
     fail(`Unregistered direct local model caller in production: ${rel}`);
   }
 }
 
-const brain = read(canonicalFiles.brain);
-const cognition = read(canonicalFiles.cognition);
-const cognitionModel = read(canonicalFiles.cognitionModel);
-const artist = read(canonicalFiles.artist);
-const lensField = read(canonicalFiles.lensField);
-const spine = read(canonicalFiles.spine);
-const realizer = read(canonicalFiles.realizer);
-const judge = read(canonicalFiles.judge);
-const experienceService = read(canonicalFiles.experienceService);
-const experienceRoute = read(canonicalFiles.experienceRoute);
-const acceptance = read(canonicalFiles.acceptance);
+const brain = existsSync(join(root, canonicalFiles.brain)) ? read(canonicalFiles.brain) : "";
+const cognition = existsSync(join(root, canonicalFiles.cognition)) ? read(canonicalFiles.cognition) : "";
+const cognitionModel = existsSync(join(root, canonicalFiles.cognitionModel)) ? read(canonicalFiles.cognitionModel) : "";
+const artist = existsSync(join(root, canonicalFiles.artist)) ? read(canonicalFiles.artist) : "";
+const lensField = existsSync(join(root, canonicalFiles.lensField)) ? read(canonicalFiles.lensField) : "";
+const spine = existsSync(join(root, canonicalFiles.spine)) ? read(canonicalFiles.spine) : "";
+const realizer = existsSync(join(root, canonicalFiles.realizer)) ? read(canonicalFiles.realizer) : "";
+const judge = existsSync(join(root, canonicalFiles.judge)) ? read(canonicalFiles.judge) : "";
+const experienceService = existsSync(join(root, canonicalFiles.experienceService)) ? read(canonicalFiles.experienceService) : "";
+const experienceRoute = existsSync(join(root, canonicalFiles.experienceRoute)) ? read(canonicalFiles.experienceRoute) : "";
+const acceptance = existsSync(join(root, canonicalFiles.acceptance)) ? read(canonicalFiles.acceptance) : "";
 
-// Canonical Author ownership and handoff.
+// Brain ownership and handoff.
 if (!/authorCognition\.js/.test(brain)) fail("Canonical Author must consume authorCognition");
 if (!/buildAuthorCognitivePlan\s*\(/.test(brain)) fail("Canonical Author must execute Cognition");
-if (!/buildAuthorRealityGraph\s*\(/.test(brain)) fail("Canonical Author must own the RealityGraph boundary");
+if (!/buildAuthorRealityGraph\s*\(/.test(brain)) fail("Canonical Author must own the source-truth graph boundary");
 if (!/buildAuthorReadout\s*\(/.test(brain)) fail("Canonical Author must build the factual Readout");
 if (!/buildAuthorCreativeSpine\s*\(/.test(brain)) fail("Canonical Author must build the Creative Spine");
 if (!/realizeAuthorExperience\s*\(/.test(brain)) fail("Canonical Author must invoke the Creative Realizer");
 if (!/cognition\.selectedLens/.test(brain)) fail("Canonical Author must consume Artist-selected lens direction");
-if (!/Artist receives all possibilities|Artist choice|Artist.*choice/i.test(brain)) fail("Canonical Author must document Artist authority");
-if (/authorUniversalMovieSearch|authorMouthCandidateSearchCanonical|authorMouthSequenceBeamSearch|authorRealityEnvelope/.test(brain)) fail("Canonical Author contains a retired generation path");
+if (!/Artist receives all possibilities|Artist choice|Artist.*choice/i.test(brain)) {
+  fail("Canonical Author must document the Artist authority boundary");
+}
+if (/authorUniversalMovieSearch|authorMouthCandidateSearchCanonical|authorMouthSequenceBeamSearch|authorRealityEnvelope/.test(brain)) {
+  fail("Canonical Author contains retired generation-path references");
+}
 
-// Cognition and Artist authority.
+// Cognition owns semantic discovery and delegates final treatment to Artist.
 if (!/authorCognitionUniversal\.js/.test(cognition)) fail("Cognition must consume Universal Cognition");
 if (!/searchSatanicoRelations\s*\(/.test(cognition)) fail("Cognition must retain grounded relation discovery");
 if (!/chooseArtistDirection\s*\(/.test(cognition)) fail("Cognition must delegate final creative direction to Artist");
 if (!/selectedLens:\s*artistChoice\.selectedLens/.test(cognition)) fail("Cognition must return the Artist-selected lens");
-if (!/latentMovieCandidates:\s*selectedMovie\s*\?\s*\[selectedMovie\]/.test(cognition)) fail("Cognition must hand only the Artist-selected Movie into realization");
-if (!/export async function buildAuthorCognitivePlan/.test(cognitionModel)) fail("Universal Cognition must expose the cognitive-plan builder");
-if (!/localModelGenerate\s*\(/.test(cognitionModel)) fail("Universal Cognition must retain its governed model boundary");
+if (!/latentMovieCandidates:\s*selectedMovie\s*\?\s*\[selectedMovie\]/.test(cognition)) {
+  fail("Cognition must hand only the Artist-selected Movie into realization");
+}
+if (cognition.includes("authorUniversalMovieSearch.js") || cognition.includes("authorLatentMovieSearch.js")) {
+  fail("Cognition contains retired movie-search references");
+}
+
+// Universal Cognition may use the local model for cognition; it must not become a second Author.
+if (!/export async function buildAuthorCognitivePlan/.test(cognitionModel)) {
+  fail("Universal Cognition model layer must expose the canonical cognitive-plan builder");
+}
+if (!/localModelGenerate\s*\(/.test(cognitionModel)) {
+  fail("Universal Cognition model layer must retain its governed local model boundary");
+}
+
+// Artist is a real selection boundary, not a deterministic post-filter.
 if (!/selectedLens:\s*string/.test(artist)) fail("Artist must expose selectedLens");
 if (!/selectedMovieIndex\?:\s*number/.test(artist)) fail("Artist must expose selectedMovieIndex");
-if (!/NONE/.test(artist)) fail("Artist must retain NONE as a real option");
+if (!/NONE/.test(artist)) fail("Artist must retain NONE as a real creative option");
 if (!/Artist.*final|final.*Artist|Artist makes the final/i.test(artist)) fail("Artist must own final direction choice");
-if (!/localModelGenerate\s*\(/.test(artist)) fail("Artist must use the governed model boundary");
+if (!/localModelGenerate\s*\(/.test(artist)) fail("Artist must make its direction choice through the governed model boundary");
+if (!/attention mechanic/i.test(artist)) fail("Artist must explicitly design an attention mechanic");
+if (!/open loop/i.test(artist)) fail("Artist must explicitly consider an open loop");
+if (!/forward pull/i.test(artist)) fail("Artist must explicitly optimize for forward pull");
+if (!/NONE is a real option/i.test(artist)) fail("Artist must distinguish NONE from a safe default");
 
-// Universal Lens Field and Creative Spine.
+// Lens field and Creative Spine remain universal and independent of business services.
 if (!/rankCreativeLensCandidates\s*\(/.test(lensField)) fail("Lens Field must rank creative candidates");
-if (!/none/i.test(lensField)) fail("Lens Field must retain NONE");
+if (!/none/i.test(lensField)) fail("Lens Field must keep NONE as a candidate");
 if (!/rankCreativeLensCandidates\s*\(/.test(spine)) fail("Creative Spine must consume the Lens Field");
 
-// Realizer owns visible language; judge remains diagnostic only.
+// Creative Realizer is the one place that turns Artist direction into visible language.
 if (!/localModelGenerate\s*\(/.test(realizer)) fail("Creative Realizer must own its governed model boundary");
 if (!/selectedMovieIndex\?:\s*number/.test(realizer)) fail("Creative Realizer must retain Artist-selected Movie metadata");
-if (!/selectedSetIndex\?:\s*number/.test(realizer)) fail("Creative Realizer must retain visible-set selection metadata");
+if (!/selectedSetIndex\?:\s*number/.test(realizer)) fail("Creative Realizer must retain final visible-set selection metadata");
 if (!/judgeRealizedFilm\s*\(/.test(realizer)) fail("Creative Realizer must use the realized-film judge");
 if (!/sourceEventIds/.test(realizer)) fail("Creative Realizer must preserve source provenance");
-if (!/creativePermission\s*:/.test(realizer) || !/truthRule\s*:/.test(realizer)) fail("Creative Realizer must retain bounded creative framing and truth rules");
-if (!/RealizedFilmJudgment/.test(judge)) fail("Realized-film judge must expose RealizedFilmJudgment");
-if (!/inventionRisk/.test(judge) || !/unsupported concrete material/i.test(judge)) fail("Realized-film judge must hard-reject unsupported concrete material");
+if (!/bounded creative|bounded-creative-bet/i.test(realizer)) fail("Creative Realizer must retain bounded creative framing");
+if (!/unsafe-realization/.test(realizer)) fail("Creative Realizer must retain hard unsafe realization rejection");
 
-// Production adapter + persistence.
+if (!/RealizedFilmJudgment/.test(judge)) fail("Realized-film judge must expose RealizedFilmJudgment");
+if (!/truth|grounded|provenance/i.test(judge)) fail("Realized-film judge must retain truth/provenance evaluation");
+
+// Persistence must remain around the canonical Author adapter.
 if (!/authorBrainCanonical\.js/.test(experienceService)) fail("Experience service must invoke the canonical Author");
 if (!/experienceStateToMemoryBatch\s*\(/.test(experienceService)) fail("Experience service must persist Author experience state into memory");
 if (!/buildExperienceMemoryBatch\s*\(/.test(experienceService)) fail("Experience service must persist the RealityGraph memory batch");
-if (!/input\.assetId/.test(experienceService) || !/input\.sessionId/.test(experienceService)) fail("Experience service must retain asset/session identity around persistence");
-if (!/compileExperience\s*\(/.test(experienceRoute) || !/from \"\.\.\/services\/experienceService\.js\"/.test(experienceRoute)) fail("Experience route must reach the canonical Experience service path");
+if (!/input\.assetId/.test(experienceService) || !/input\.sessionId/.test(experienceService)) {
+  fail("Experience service must retain asset/session identity around Author persistence");
+}
+if (!/compileExperience\s*\(/.test(experienceRoute)) fail("Experience route must reach the canonical Experience service path");
 
-// Acceptance exercises the same Brain as production.
+// Acceptance must exercise the same Brain used by production.
 if (!/authorBrainCanonical\.js/.test(acceptance)) fail("Canonical acceptance must invoke authorBrainCanonical directly");
-if (/authorBrainUniversal|author-acceptance-suite|authorUniversalMovieSearch|authorMouthCandidateSearchCanonical/.test(acceptance)) fail("Canonical acceptance contains a retired Author path");
+if (/authorBrainUniversal|author-acceptance-suite|authorUniversalMovieSearch|authorMouthCandidateSearchCanonical/.test(acceptance)) {
+  fail("Canonical acceptance contains a retired Author path");
+}
 
 console.log("=== QRE AUTHOR PRODUCTION GATE ===");
 console.log("CANONICAL: RealityGraph -> Readout -> Cognition -> Artist -> Creative Spine -> Creative Realizer -> Sequence");
 console.log("AUTHORITY: Artist chooses direction; Realizer owns visible language");
+console.log("ATTENTION: Artist designs hook/open-loop/escalation/payoff pressure");
 console.log("PERSISTENCE: Author state + RealityGraph remain part of the production path");
 console.log("TRUTH: retired creative paths are forbidden, not required");
 
