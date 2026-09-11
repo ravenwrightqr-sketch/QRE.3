@@ -7,10 +7,12 @@
 import type { LatentMovieCandidate, LatentMovieTrajectoryStep, RealityGraph, RealityRelation } from "@qre/contracts";
 import { buildAuthorCognitivePlan as buildModelCognitivePlan } from "./authorCognitionUniversal.js";
 import { searchSatanicoRelations, type SatanicoMechanism } from "./authorSatanicoRelationSearch.js";
-import type { AuthorCognitionInput, AuthorCognitionPlan } from "./authorCognitionUniversal.js";
+import type { AuthorCognitionInput, AuthorCognitionPlan as BaseAuthorCognitionPlan } from "./authorCognitionUniversal.js";
+import type { AuthorArtistDirection } from "./authorArtistChoice.js";
 import { chooseArtistDirection } from "./authorArtistChoice.js";
 import { rankCreativeLensCandidates } from "./authorCreativeLens.js";
-export type { AuthorCognitionInput, AuthorCreativeInterpretation, AuthorAdaptiveQuestion, AuthorCognitionPlan } from "./authorCognitionUniversal.js";
+export type { AuthorCognitionInput, AuthorCreativeInterpretation, AuthorAdaptiveQuestion } from "./authorCognitionUniversal.js";
+export type AuthorCognitionPlan = BaseAuthorCognitionPlan & { artistDirection: AuthorArtistDirection };
 
 function clean(value: unknown): string { return String(value ?? "").replace(/\s+/g, " ").trim(); }
 function clamp(value: number): number { return Number(Math.max(0, Math.min(1, Number.isFinite(value) ? value : 0)).toFixed(3)); }
@@ -185,6 +187,11 @@ export async function buildAuthorCognitivePlan(input: AuthorCognitionInput): Pro
     domainContext: input.domainContext,
   });
 
+  const artistDirectionLine = `ARTIST_SELECTED_DIRECTION=${JSON.stringify(artistChoice.artistDirection)}`;
+  if (input.creativeLearningContext && !input.creativeLearningContext.some((item) => item.startsWith("ARTIST_SELECTED_DIRECTION="))) {
+    input.creativeLearningContext.push(artistDirectionLine);
+  }
+
   const requestedMovieId = clean((input as AuthorCognitionInput & { selectedMovieId?: string }).selectedMovieId);
   const modelSelectedId = modelPlan.selectedMovie?.id ?? requestedMovieId;
   const artistSelectedMovie = artistChoice.selectedMovieIndex !== undefined
@@ -204,11 +211,12 @@ export async function buildAuthorCognitivePlan(input: AuthorCognitionInput): Pro
     },
     selectedMovie,
     /*
-     * Artist choice is the hand-off boundary. The next stage receives only
-     * the chosen Movie, so realization cannot silently reopen semantic
-     * selection and replace the Artist's decision.
+     * Artist choice is the hand-off boundary. The next stage receives the
+     * chosen Movie plus the exact Artist direction selected from reality.
+     * Realization cannot silently replace the Artist's creative treatment.
      */
     latentMovieCandidates: selectedMovie ? [selectedMovie] : [],
+    artistDirection: artistChoice.artistDirection,
     model: modelPlan.model,
     modelCalls: modelPlan.modelCalls + artistChoice.modelCalls,
     interpretations: modelPlan.interpretations.length
