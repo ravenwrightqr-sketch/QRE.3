@@ -172,7 +172,7 @@ export function rankCreativeLensCandidates(input: {
   ]);
   const strongSignals = unique(input.strongSignals ?? []);
 
-  const scored = UNIVERSAL_CREATIVE_LENSES.map((definition) => {
+  const scored: CreativeLensCandidate[] = UNIVERSAL_CREATIVE_LENSES.map((definition) => {
     const result = definitionScore(definition, signals, strongSignals);
     const requested = normalize(input.requestedLens ?? "");
     const requestBoost = requested && requested === definition.id ? .32 : 0;
@@ -186,7 +186,7 @@ export function rankCreativeLensCandidates(input: {
         : `Potentially useful because it can change perception without changing reality.`,
       supportedSignals: result.hits.slice(0, 8),
       forbiddenRealityMoves: [...definition.forbiddenRealityMoves],
-    } satisfies CreativeLensCandidate;
+    };
   });
 
   const topDefinitions = [...UNIVERSAL_CREATIVE_LENSES]
