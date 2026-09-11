@@ -190,8 +190,8 @@ export async function buildAuthorCognitivePlan(input: AuthorCognitionInput): Pro
   const artistSelectedMovie = artistChoice.selectedMovieIndex !== undefined
     ? candidates[artistChoice.selectedMovieIndex]
     : undefined;
-  const selectedMovie = modelGrounded.find((candidate) => candidate.id === modelSelectedId)
-    ?? artistSelectedMovie
+  const selectedMovie = artistSelectedMovie
+    ?? modelGrounded.find((candidate) => candidate.id === modelSelectedId)
     ?? candidates[0];
 
   return {
@@ -202,8 +202,13 @@ export async function buildAuthorCognitivePlan(input: AuthorCognitionInput): Pro
       frame: artistChoice.selectedLens,
       mode: artistChoice.selectedLens.toUpperCase() === "NONE" ? "none" : "frame",
     },
-    latentMovieCandidates: candidates,
     selectedMovie,
+    /*
+     * Artist choice is the hand-off boundary. The next stage receives only
+     * the chosen Movie, so realization cannot silently reopen semantic
+     * selection and replace the Artist's decision.
+     */
+    latentMovieCandidates: selectedMovie ? [selectedMovie] : [],
     model: modelPlan.model,
     modelCalls: modelPlan.modelCalls + artistChoice.modelCalls,
     interpretations: modelPlan.interpretations.length
