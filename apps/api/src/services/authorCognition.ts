@@ -42,12 +42,34 @@ function discoveredScore(relationScore: number, evidenceCount: number, mechanism
   const structuralBonus = mechanism === "contrast" || mechanism === "recontextualization" || mechanism === "convergence" ? 0.06 : 0;
   return clamp(relationScore * 0.72 + evidence * 0.22 + structuralBonus);
 }
-function relationCandidates(graph: RealityGraph, subject: string, returning: boolean): LatentMovieCandidate[] {
+
+const PREFERENCE = /\b(?:love|loves|like|likes|enjoy|enjoys|prefer|prefers|favorite|favourite|hate|hates)\b/i;
+const IDENTITY = /\b(?:my name is|named|is a|is an|breed|type|kind|male|female|small|large|tall|short|young|old)\b/i;
+const ROUTINE = /\b(?:every day|every morning|every night|daily|weekly|usually|often|always|routine|habit|regularly)\b/i;
+const GOAL = /\b(?:want to|wants to|hope to|hopes to|trying to|plan to|plans to|goal|would like to)\b/i;
+const MEMORY = /\b(?:remember|remembered|memory|when we|years ago|used to)\b/i;
+const OCCURRENCE = /\b(?:today|yesterday|tomorrow|this morning|this afternoon|tonight|last night|earlier|later|then|after that|before that|first|finally|went|walked|ran|arrived|met|found|lost|bought|sold|opened|closed|returned|visited|called|watched|heard|saw|chased|caught|finished|started|happened)\b/i;
+const PAST = /\b(?:was|were|did|had|went|ran|came|met|found|lost|bought|sold|saw|heard|watched|returned|finished|started|[a-z]+ed\b)\b/i;
+
+function eligibleEventIds(input: AuthorCognitionInput): Set<string> {
+  const sourceMoments = new Set(input.sourceMoments.map((x) => clean(x).toLowerCase()).filter(Boolean));
+  const eligible = new Set<string>();
+  for (const event of input.realityGraph.events) {
+    const label = clean(event.label);
+    const directMoment = sourceMoments.has(label.toLowerCase());
+    const persistent = PREFERENCE.test(label) || IDENTITY.test(label) || ROUTINE.test(label) || GOAL.test(label) || MEMORY.test(label);
+    if (directMoment || OCCURRENCE.test(label) || (!persistent && PAST.test(label))) eligible.add(event.id);
+  }
+  return eligible;
+}
+
+function relationCandidates(graph: RealityGraph, subject: string, returning: boolean, eligible: Set<string>): LatentMovieCandidate[] {
   const discovered = searchSatanicoRelations({ graph, subject, limit: 10 });
   const out: LatentMovieCandidate[] = [];
   for (const relation of discovered) {
-    const kind = relationKindForMechanism(relation.mechanism);
     const [firstId, secondId] = relation.eventIds;
+    if (!firstId || !secondId || !eligible.has(firstId) || !eligible.has(secondId)) continue;
+    const kind = relationKindForMechanism(relation.mechanism);
     const first = graph.events.find((event) => event.id === firstId);
     const second = graph.events.find((event) => event.id === secondId);
     if (!first || !second) continue;
@@ -96,21 +118,15 @@ function relationCandidates(graph: RealityGraph, subject: string, returning: boo
       evidence: [first.label, second.label, ...relation.evidence],
       hypothesis: [relation.reason, `Interpretation grounded in the supplied relationship between ${first.label} and ${second.label}; no new event is asserted.`],
       truthRisk: 0,
-      novelty: clamp(0.45 + relation.score * 0.45),
-      specificity: clamp(0.7 + relation.score * 0.28),
-      informationValue: clamp(0.5 + relation.score * 0.4),
-      uncertainty: clamp(0.5 - relation.score * 0.25),
-      attentionPotential: clamp(0.55 + relation.score * 0.4),
-      consequencePotential: relation.mechanism === "transformation" || relation.mechanism === "contrast" ? 0.8 : 0.68,
-      callbackPotential: relation.mechanism === "recurrence" || returning ? 0.75 : 0.15,
-      compressionPotential: clamp(0.6 + relation.score * 0.35),
-      repetitionRisk: 0.05,
-      distinctiveness: clamp(0.55 + relation.score * 0.4),
-      score,
+      novelty: clamp(0.45 + relation.score * 0.45), specificity: clamp(0.7 + relation.score * 0.28), informationValue: clamp(0.5 + relation.score * 0.4), uncertainty: clamp(0.5 - relation.score * 0.25),
+      attentionPotential: clamp(0.55 + relation.score * 0.4), consequencePotential: relation.mechanism === "transformation" || relation.mechanism === "contrast" ? 0.8 : 0.68,
+      callbackPotential: relation.mechanism === "recurrence" || returning ? 0.75 : 0.15, compressionPotential: clamp(0.6 + relation.score * 0.35), repetitionRisk: 0.05,
+      distinctiveness: clamp(0.55 + relation.score * 0.4), score,
     } satisfies LatentMovieCandidate);
   }
   return out;
 }
+
 function groundedCandidate(graph: RealityGraph, candidate: LatentMovieCandidate): boolean {
   const validIds = new Set(graph.events.map((event) => event.id));
   return candidate.trajectory.every((step) => {
@@ -133,7 +149,6 @@ function dedupeCandidates(candidates: LatentMovieCandidate[], limit = 12): Laten
   }
   return out;
 }
-
 function lensSignals(graph: RealityGraph): string[] {
   return [...new Set(graph.events.flatMap((event) => [clean(event.label), ...(event.entities ?? [])]).filter(Boolean))].slice(0, 80);
 }
@@ -147,7 +162,8 @@ function strongLensSignals(graph: RealityGraph): string[] {
 
 export async function buildAuthorCognitivePlan(input: AuthorCognitionInput): Promise<AuthorCognitionPlan> {
   const returning = Boolean(input.returning || (input.visitNumber ?? 1) > 1);
-  const derived = relationCandidates(input.realityGraph, cleanSubject(input.subject), returning);
+  const eligible = eligibleEventIds(input);
+  const derived = relationCandidates(input.realityGraph, cleanSubject(input.subject), returning, eligible);
   const modelPlan = await buildModelCognitivePlan(input);
   const modelGrounded = modelPlan.latentMovieCandidates.filter((candidate) => groundedCandidate(input.realityGraph, candidate));
   const candidates = dedupeCandidates([...modelGrounded, ...derived], 12);
@@ -171,8 +187,11 @@ export async function buildAuthorCognitivePlan(input: AuthorCognitionInput): Pro
 
   const requestedMovieId = clean((input as AuthorCognitionInput & { selectedMovieId?: string }).selectedMovieId);
   const modelSelectedId = modelPlan.selectedMovie?.id ?? requestedMovieId;
+  const artistSelectedMovie = artistChoice.selectedMovieIndex !== undefined
+    ? candidates[artistChoice.selectedMovieIndex]
+    : undefined;
   const selectedMovie = modelGrounded.find((candidate) => candidate.id === modelSelectedId)
-    ?? candidates.find((candidate) => candidate.id === artistChoice.selectedMovieIndex?.toString())
+    ?? artistSelectedMovie
     ?? candidates[0];
 
   return {
