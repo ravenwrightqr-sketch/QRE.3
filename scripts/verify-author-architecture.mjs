@@ -130,12 +130,28 @@ if (!/RealizedFilmJudgment/.test(judge)) fail("Realized-film judgment contract m
 if (!/authorBrainCanonical\.js/.test(acceptance)) fail("Acceptance must invoke authorBrainCanonical directly");
 if (/authorBrainUniversal|author-acceptance-suite/.test(acceptance)) fail("Acceptance contains a legacy Author path");
 
-/* Business/catalog/knowledge remain outside the universal Author boundary. */
-const boundaryFiles = [brain, cognition, universal, artist, lens, spine, realizer];
-for (const body of boundaryFiles) {
-  if (/(?:catalogVision|knowledgeIntake|catalog[A-Z]|business[A-Z])/i.test(body)) {
-    fail("Universal Author boundary must not import or parse business/catalog/knowledge services");
-    break;
+/* Business/catalog/knowledge remain outside the universal Author boundary.
+ * Guard the dependency boundary itself, not arbitrary identifiers such as
+ * `businessSignals` that may legitimately be data supplied to a creative
+ * component. The canonical Author may accept structured context, but it must
+ * not import or invoke business/catalog/knowledge services.
+ */
+const boundaryFiles = [
+  ["apps/api/src/services/authorBrainCanonical.ts", brain],
+  ["apps/api/src/services/authorCognition.ts", cognition],
+  ["apps/api/src/services/authorCognitionUniversal.ts", universal],
+  ["apps/api/src/services/authorArtistChoice.ts", artist],
+  ["apps/api/src/services/authorCreativeLens.ts", lens],
+  ["apps/api/src/services/authorCreativeSpine.ts", spine],
+  ["apps/api/src/services/authorCreativeRealizer.ts", realizer],
+];
+
+const forbiddenDomainImports = /from\s+["'][^"']*\/(?:catalog|business|knowledge)[^"']*\.js["']/i;
+const forbiddenDomainCalls = /\b(?:catalogVision|knowledgeIntake|business[A-Z][A-Za-z0-9_]*)\s*\(/;
+
+for (const [path, body] of boundaryFiles) {
+  if (forbiddenDomainImports.test(body) || forbiddenDomainCalls.test(body)) {
+    fail(`Universal Author boundary must not import or invoke business/catalog/knowledge services: ${path}`);
   }
 }
 
