@@ -80,6 +80,10 @@ for (const testCase of cases) {
   console.log(`\\n=== ${testCase.name.toUpperCase()} ===`);
   console.log(`LENS: ${choice.selectedLens}`);
   console.log(`ATTENTION: ${choice.attentionStrategy}`);
+  for (const [name, part] of Object.entries(choice.artistDirection)) {
+    console.log(`${name.toUpperCase()}: ${part.text}`);
+    console.log(`  EVIDENCE: ${part.sourceEventIds.join(", ") || "NONE"}`);
+  }
 }
 
 console.log("\\nAUTHOR SYSTEM DISCOVERY ACCEPTANCE: COMPLETE");
