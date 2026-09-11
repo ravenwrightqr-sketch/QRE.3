@@ -2,12 +2,14 @@
  *
  * One universal cognition path. Model cognition may propose hypotheses while
  * grounded relation discovery supplies evidence-backed alternatives.
- * Lenses never manufacture semantic meaning.
+ * Lenses are a creative field. Artist choice is final.
  */
 import type { LatentMovieCandidate, LatentMovieTrajectoryStep, RealityGraph, RealityRelation } from "@qre/contracts";
 import { buildAuthorCognitivePlan as buildModelCognitivePlan } from "./authorCognitionUniversal.js";
 import { searchSatanicoRelations, type SatanicoMechanism } from "./authorSatanicoRelationSearch.js";
 import type { AuthorCognitionInput, AuthorCognitionPlan } from "./authorCognitionUniversal.js";
+import { chooseArtistDirection } from "./authorArtistChoice.js";
+import { rankCreativeLensCandidates } from "./authorCreativeLens.js";
 export type { AuthorCognitionInput, AuthorCreativeInterpretation, AuthorAdaptiveQuestion, AuthorCognitionPlan } from "./authorCognitionUniversal.js";
 
 function clean(value: unknown): string { return String(value ?? "").replace(/\s+/g, " ").trim(); }
@@ -20,6 +22,7 @@ function operationForRelation(kind: RealityRelation["kind"]): LatentMovieTraject
     case "recontextualizes": return "reframe";
     case "repeats": return "recur";
     case "involves": return "reframe";
+    case "causes": return "consequence";
     default: return undefined;
   }
 }
@@ -131,23 +134,59 @@ function dedupeCandidates(candidates: LatentMovieCandidate[], limit = 12): Laten
   return out;
 }
 
+function lensSignals(graph: RealityGraph): string[] {
+  return [...new Set(graph.events.flatMap((event) => [clean(event.label), ...(event.entities ?? [])]).filter(Boolean))].slice(0, 80);
+}
+function strongLensSignals(graph: RealityGraph): string[] {
+  return [...new Set([
+    ...graph.relations.slice(0, 12).map((relation) => clean(relation.kind)),
+    ...graph.patterns?.slice(0, 8).map((pattern) => clean(pattern.label)) ?? [],
+    ...graph.events.filter((event) => event.salient).slice(0, 12).map((event) => clean(event.label)),
+  ].filter(Boolean))].slice(0, 40);
+}
+
 export async function buildAuthorCognitivePlan(input: AuthorCognitionInput): Promise<AuthorCognitionPlan> {
   const returning = Boolean(input.returning || (input.visitNumber ?? 1) > 1);
-  // Relation discovery happens before model cognition so the model can actually
-  // see the grounded semantic structure it is being asked to compete on.
   const derived = relationCandidates(input.realityGraph, cleanSubject(input.subject), returning);
   const modelPlan = await buildModelCognitivePlan(input);
   const modelGrounded = modelPlan.latentMovieCandidates.filter((candidate) => groundedCandidate(input.realityGraph, candidate));
   const candidates = dedupeCandidates([...modelGrounded, ...derived], 12);
+
+  const lensCandidates = rankCreativeLensCandidates({
+    signals: lensSignals(input.realityGraph),
+    strongSignals: strongLensSignals(input.realityGraph),
+    requestedLens: clean(input.lens),
+    maxCandidates: 8,
+  });
+
+  const artistChoice = await chooseArtistDirection({
+    prompt: input.prompt,
+    subject: cleanSubject(input.subject),
+    graph: input.realityGraph,
+    subjectMaterial: modelPlan.subjectMaterial,
+    movies: candidates,
+    lensCandidates,
+    domainContext: input.domainContext,
+  });
+
   const requestedMovieId = clean((input as AuthorCognitionInput & { selectedMovieId?: string }).selectedMovieId);
   const modelSelectedId = modelPlan.selectedMovie?.id ?? requestedMovieId;
   const selectedMovie = modelGrounded.find((candidate) => candidate.id === modelSelectedId)
-    ?? modelGrounded[0]
+    ?? candidates.find((candidate) => candidate.id === artistChoice.selectedMovieIndex?.toString())
     ?? candidates[0];
+
   return {
     ...modelPlan,
+    selectedLens: artistChoice.selectedLens,
+    frame: {
+      ...modelPlan.frame,
+      frame: artistChoice.selectedLens,
+      mode: artistChoice.selectedLens.toUpperCase() === "NONE" ? "none" : "frame",
+    },
     latentMovieCandidates: candidates,
     selectedMovie,
+    model: modelPlan.model,
+    modelCalls: modelPlan.modelCalls + artistChoice.modelCalls,
     interpretations: modelPlan.interpretations.length
       ? modelPlan.interpretations
       : selectedMovie
