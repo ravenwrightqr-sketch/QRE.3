@@ -95,6 +95,7 @@ const NEW_BEHAVIOR = /\b(?:triggers?|causes?|earns?|wins?|loses?|chases?|encount
 const NEW_ACTOR = /\b(?:employee|employees|worker|workers|customer|customers|staff|manager|crew chief|owner|visitor|audience|viewer)\b/i;
 const OPERATIONAL_CLAIM = /\b(?:reserve|reserved|staging area|quick replenishment|controlled availability|demand-driven|popular|best-selling|most visible|priority stock|hidden because|kept for|held for)\b/i;
 const FUTURE_CLAIM = /\b(?:will|would then|next,?\s+the|later,?\s+the)\b/i;
+const EMBEDDED_IDS = /\s*(?:source(?:Event)?Ids?)\s*[:=]\s*\[[^\]]*\]\s*$/i;
 
 function riskyDirectionText(text: string): boolean {
   const value = clean(text);
@@ -106,13 +107,29 @@ function riskyDirectionText(text: string): boolean {
     || FUTURE_CLAIM.test(value);
 }
 
+function normalizedSourceEventIds(raw: unknown, validIds: Set<string>): string[] {
+  const values = Array.isArray(raw)
+    ? raw.flatMap((value) => typeof value === "string" ? value.split(/[;,]/g) : [])
+    : typeof raw === "string"
+      ? raw.split(/[;,]/g)
+      : [];
+  return unique(values)
+    .filter((id) => validIds.has(id))
+    .slice(0, 4);
+}
+
+function cleanDirectionText(raw: unknown): string {
+  return clean(raw)
+    .replace(EMBEDDED_IDS, "")
+    .replace(/\s*source(?:Event)?Ids?\s*[:=]\s*\[[^\]]*\]\s*$/i, "")
+    .trim();
+}
+
 function directionPart(raw: unknown, validIds: Set<string>, fallback: string): ArtistDirectionPart {
   if (!raw || typeof raw !== "object") return { text: fallback, sourceEventIds: [] };
   const row = raw as Record<string, unknown>;
-  const text = clean(row.text) || fallback;
-  const sourceEventIds = Array.isArray(row.sourceEventIds)
-    ? unique(row.sourceEventIds.filter((id): id is string => typeof id === "string")).filter((id) => validIds.has(id)).slice(0, 4)
-    : [];
+  const text = cleanDirectionText(row.text) || fallback;
+  const sourceEventIds = normalizedSourceEventIds(row.sourceEventIds, validIds);
 
   if (riskyDirectionText(text) || sourceEventIds.length === 0) {
     return { text: fallback, sourceEventIds };
@@ -195,7 +212,8 @@ export async function chooseArtistDirection(input: {
             "Prefer imperative/editorial phrasing such as 'Frame...', 'Treat...', 'Contrast...', 'Return to...', 'Use the existing...', 'Arrange the supplied...', or 'Let these known details compete...'.",
             "Do NOT state an interpretation as though it were a newly observed fact. 'Frame the behind-counter stock as a reserve' is acceptable; 'the stock is deliberately reserved' is not.",
             "A sourceEventId is evidence for the creative treatment, not permission to invent activity around that event.",
-            "Each of mechanic, hook, openLoop, tension, surprise, and payoff must cite 1-4 exact sourceEventIds.",
+            "Each of mechanic, hook, openLoop, tension, surprise, and payoff must cite 1-4 exact sourceEventIds in the sourceEventIds array.",
+            "Never write sourceEventIds, sourceIds, or event IDs inside the text field. IDs belong ONLY in the sourceEventIds array.",
             "The text in each field must not assert a new concrete person, action, object, location, event, outcome, thought, dialogue, motive, physical change, customer behavior, employee behavior, business operation, sound, or future event.",
             "Allowed: organizing known facts into a priority, comparison, contrast, recurrence, mock rule, investigation, ranking, label, meter, or other editorial framing.",
             "The mechanic is editorial, representational, or interpretive. It never changes the real world.",
