@@ -9,6 +9,7 @@ import type {
 } from "@qre/contracts";
 import { localModelGenerate } from "./localModelRuntime.js";
 import { buildAuthorCognitionIntelligence } from "./authorCognitionIntelligence.js";
+import type { AuthorArtistDirection } from "./authorArtistChoice.js";
 
 export type AuthorCognitionInput = {
   prompt: string;
@@ -64,6 +65,7 @@ export type AuthorCognitionPlan = {
   reasoningSummary: string[];
   subjectTruth: SubjectTruth;
   subjectMaterial: AuthorSubjectMaterial;
+  artistDirection: AuthorArtistDirection;
   model: string;
   modelCalls: number;
 };
@@ -439,6 +441,14 @@ export async function buildAuthorCognitivePlan(input: AuthorCognitionInput): Pro
     reasoningSummary: Array.isArray(parsed?.reasoningSummary) ? parsed.reasoningSummary.filter((x): x is string => typeof x === "string").map(clean).filter(Boolean).slice(0, 8) : intelligence.semanticSignals.slice(0, 3),
     subjectTruth,
     subjectMaterial: material,
+    artistDirection: {
+      mechanic: { text: "Use the chosen Artist treatment from the canonical Artist stage.", sourceEventIds: selectedMovie?.anchorEventIds?.slice(0, 4) ?? [] },
+      hook: { text: "Use the strongest supplied detail as the opening attention beat.", sourceEventIds: selectedMovie?.anchorEventIds?.slice(0, 4) ?? [] },
+      openLoop: { text: selectedMovie?.unresolvedQuestion || "Create an open question from supplied reality.", sourceEventIds: selectedMovie?.anchorEventIds?.slice(0, 4) ?? [] },
+      tension: { text: selectedMovie?.hypothesis?.[0] || "Create tension from supplied reality.", sourceEventIds: selectedMovie?.anchorEventIds?.slice(0, 4) ?? [] },
+      surprise: { text: "Find an earned surprise in the supplied material.", sourceEventIds: selectedMovie?.anchorEventIds?.slice(0, 4) ?? [] },
+      payoff: { text: selectedMovie?.payoff || "Land on a supplied detail.", sourceEventIds: selectedMovie?.anchorEventIds?.slice(0, 4) ?? [] },
+    },
     model,
     modelCalls,
   };
