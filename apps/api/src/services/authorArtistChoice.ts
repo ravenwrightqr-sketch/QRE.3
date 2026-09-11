@@ -56,7 +56,14 @@ export async function chooseArtistDirection(input: {
 }): Promise<AuthorArtistChoice> {
   const lenses = input.lensCandidates.slice(0, 8).map(compactLens);
   if (!lenses.some((item) => item.lens.toUpperCase() === "NONE")) {
-    lenses.push({ index: lenses.length, lens: "NONE", family: "none", score: .5, reason: "Keep the supplied material unframed when that is stronger.", supportedSignals: [] });
+    lenses.push({
+      index: lenses.length,
+      lens: "NONE",
+      family: "none",
+      score: .5,
+      reason: "Keep the supplied material unframed when that is genuinely stronger.",
+      supportedSignals: [],
+    });
   }
 
   const events = input.graph.events.slice(0, 18).map((event) => ({
@@ -90,21 +97,26 @@ export async function chooseArtistDirection(input: {
           role: "system",
           content: [
             "You are QRE's Artist making the final creative direction choice.",
-            "Choose the lens yourself from the supplied lens field, including NONE.",
-            "You may choose a compound lens such as 'spy + deadpan' only when both supplied lenses genuinely fit.",
-            "You may also write a concise new framing when none of the supplied lenses is right.",
-            "Choose the strongest Movie possibility only as creative material; you may reject every Movie.",
-            "Do not invent concrete reality. A lens changes perception, not facts.",
+            "Your job is not merely to pick a style. Design the attention mechanic that will make the final experience fun to keep watching.",
+            "Silently decide: what is the hook, what question or open loop pulls the next screen, what escalates or changes the read, and what kind of payoff could land.",
+            "Then encode the strongest treatment as selectedLens.",
+            "selectedLens may be a supplied lens, a compound such as 'deadpan + mission', or a concise new framing such as 'deadpan mission briefing' or 'playful rulebook'.",
+            "When useful, make the selectedLens string carry the mechanic too, for example 'deadpan mission; escalating priority joke'. Keep it concise.",
+            "Search actively for earned mechanisms: mission, secret, rule, challenge, rivalry, countdown, investigation, reveal, recurring joke, status game, mock authority, absurd bureaucracy, quest, game, speedrun, or callback.",
+            "Use a mechanism only when the supplied reality can support it. A mechanism changes perception; it never creates a literal fact.",
+            "Do not invent concrete reality. Do not turn a metaphorical mechanic into a factual event.",
             "Persistent identity, traits, preferences, routines, goals, relationships, and memories are not chronological events.",
-            "Prefer the smallest creative decision that gives the supplied reality a distinctive voice.",
-            "For sparse identity-only material, it is valid to choose NONE and make a character introduction rather than forcing plot.",
+            "NONE is a real option, but do not choose NONE merely because it is safe. Choose NONE only when adding a creative mechanic would make the supplied material weaker or less distinctive.",
+            "A good direction should create forward pull: the opening makes me want the next screen, the middle changes or escalates the read, and the ending pays something off.",
+            "Prefer a memorable mechanism and a specific voice over vague poetry, generic cinematic adjectives, or pretty description.",
+            "Choose the strongest Movie possibility only as creative material; you may reject every Movie.",
             "Return JSON only with selectedLens and selectedMovieIndex.",
           ].join("\n"),
         },
         { role: "user", content: JSON.stringify(payload) },
       ],
       "json",
-      { numPredict: 256, temperature: 1.0, jsonSchema: schema },
+      { numPredict: 256, temperature: 1.05, jsonSchema: schema },
     );
 
     const parsed = (() => {
