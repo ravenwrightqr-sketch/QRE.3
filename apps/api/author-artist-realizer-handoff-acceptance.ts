@@ -38,6 +38,20 @@ if (!result.diagnostics.renderable || !result.diagnostics.complete) {
   throw new Error("Canonical Artist → Realizer acceptance returned a non-renderable result.");
 }
 
+const finalText = result.scenes.map((scene) => scene.text).join("\n");
+const forbiddenProductionLanguage = /\b(?:close[- ]?up|camera|zoom|pan|dolly|tracking shot|wide shot|medium shot|tight shot|montage|dissolve|smash cut|sound design|sound effect|sfx|voice[- ]over|voiceover|footage|screenplay)\b/i;
+if (forbiddenProductionLanguage.test(finalText)) {
+  throw new Error(`Final moving text leaked production language: ${finalText}`);
+}
+
+if (result.scenes.length < 2) {
+  throw new Error("Final moving-text experience must contain at least two screens.");
+}
+
+if (!finalText.toLowerCase().includes("coco")) {
+  throw new Error(`Final moving text lost the subject identity: ${finalText}`);
+}
+
 console.log("\n=== ARTIST → REALIZER HANDOFF ===");
 console.log(`LENS: ${result.brief.angle}`);
 console.log(`MODEL: ${result.diagnostics.model}`);
