@@ -5,6 +5,7 @@ import { localModelGenerate, type LocalModelJsonSchema } from "./localModelRunti
 export type AuthorArtistChoice = {
   selectedLens: string;
   selectedMovieIndex?: number;
+  attentionStrategy: string;
   model: string;
   modelCalls: number;
 };
@@ -38,10 +39,11 @@ function compactLens(candidate: CreativeLensCandidate, index: number) {
 const schema: LocalModelJsonSchema = {
   type: "object",
   additionalProperties: false,
-  required: ["selectedLens", "selectedMovieIndex"],
+  required: ["selectedLens", "selectedMovieIndex", "attentionStrategy"],
   properties: {
     selectedLens: { type: "string", minLength: 1, maxLength: 80 },
     selectedMovieIndex: { anyOf: [{ type: "integer", minimum: 0 }, { type: "null" }] },
+    attentionStrategy: { type: "string", minLength: 1, maxLength: 600 },
   },
 };
 
@@ -97,26 +99,29 @@ export async function chooseArtistDirection(input: {
           role: "system",
           content: [
             "You are QRE's Artist making the final creative direction choice.",
-            "Your job is not merely to pick a style. Design the attention mechanic that will make the final experience fun to keep watching.",
-            "Silently decide: what is the hook, what question or open loop pulls the next screen, what escalates or changes the read, and what kind of payoff could land.",
-            "Then encode the strongest treatment as selectedLens.",
-            "selectedLens may be a supplied lens, a compound such as 'deadpan + mission', or a concise new framing such as 'deadpan mission briefing' or 'playful rulebook'.",
-            "When useful, make the selectedLens string carry the mechanic too, for example 'deadpan mission; escalating priority joke'. Keep it concise.",
-            "Search actively for earned mechanisms: mission, secret, rule, challenge, rivalry, countdown, investigation, reveal, recurring joke, status game, mock authority, absurd bureaucracy, quest, game, speedrun, or callback.",
-            "Use a mechanism only when the supplied reality can support it. A mechanism changes perception; it never creates a literal fact.",
-            "Do not invent concrete reality. Do not turn a metaphorical mechanic into a factual event.",
+            "QRE is the distribution itself: the sequence must be worth remembering, talking about, and wanting for yourself.",
+            "Your job is not merely to pick a style. Design the attention mechanic that makes a person want the next screen and remember the whole sequence.",
+            "Silently decide four things before you return: the character or identity hook, the game/mechanic that gives the sequence behavior, the tension/change that moves attention, and the surprise/payoff that makes the ending land.",
+            "These are creative pressures, not a fixed four-beat template. The finished sequence may use more, fewer, or different beats.",
+            "Prefer character + game + tension + surprise + payoff over noun + metaphor + noun + metaphor.",
+            "Look for a subject-specific system, rule, habit, priority, obsession, contradiction, status ladder, secret, mission, challenge, rivalry, countdown, investigation, reveal, recurring joke, or mock authority when the supplied reality supports it.",
+            "A useful mechanic should make the supplied facts interact. It should help a watcher connect the dots rather than merely receive facts one at a time.",
+            "Choose mechanisms that create forward pull: one screen creates curiosity about the next, later material changes the read of earlier material, and the ending pays something back.",
+            "Prefer playful, mischievous, specific, characterful treatments. A line such as 'Coco has a system.' is stronger than generic poetic atmosphere when the reality supports it.",
+            "Use metaphor, personification, irony, absurdity, and poetic compression only when they sharpen the character or mechanic. Do not substitute decorative metaphor for creative structure.",
+            "Avoid abstract metaphor chains, generic cinematic language, unexplained surreal substitutions, and tech cosplay such as turning ordinary facts into code, debug, checksum, protocol, or similar imagery without a strong reason.",
+            "Do not invent concrete reality. A rule, mission, rivalry, secret, or game is framing unless the supplied reality literally establishes it.",
             "Persistent identity, traits, preferences, routines, goals, relationships, and memories are not chronological events.",
-            "NONE is a real option, but do not choose NONE merely because it is safe. Choose NONE only when adding a creative mechanic would make the supplied material weaker or less distinctive.",
-            "A good direction should create forward pull: the opening makes me want the next screen, the middle changes or escalates the read, and the ending pays something off.",
-            "Prefer a memorable mechanism and a specific voice over vague poetry, generic cinematic adjectives, or pretty description.",
+            "NONE is a real option, but do not choose NONE merely because it is safe. Choose it only when no added framing improves the supplied reality.",
             "Choose the strongest Movie possibility only as creative material; you may reject every Movie.",
-            "Return JSON only with selectedLens and selectedMovieIndex.",
+            "attentionStrategy must be a compact creative brief, not analysis. Format it as: MECHANIC=... | HOOK=... | OPEN_LOOP=... | TENSION=... | SURPRISE=... | PAYOFF=...",
+            "Return JSON only with selectedLens, selectedMovieIndex, and attentionStrategy.",
           ].join("\n"),
         },
         { role: "user", content: JSON.stringify(payload) },
       ],
       "json",
-      { numPredict: 256, temperature: 1.05, jsonSchema: schema },
+      { numPredict: 420, temperature: 1.08, jsonSchema: schema },
     );
 
     const parsed = (() => {
@@ -132,9 +137,17 @@ export async function chooseArtistDirection(input: {
     const selectedMovieIndex = typeof rawMovie === "number" && Number.isInteger(rawMovie) && rawMovie >= 0 && rawMovie < input.movies.length
       ? rawMovie
       : undefined;
+    const attentionStrategy = clean(parsed?.attentionStrategy) ||
+      "MECHANIC=character system | HOOK=specific identity | OPEN_LOOP=discover the subject's rule | TENSION=raise the priority | SURPRISE=change the read | PAYOFF=land the subject's defining priority";
 
-    return { selectedLens, selectedMovieIndex, model: result.model, modelCalls: 1 };
+    return { selectedLens, selectedMovieIndex, attentionStrategy, model: result.model, modelCalls: 1 };
   } catch {
-    return { selectedLens: "NONE", selectedMovieIndex: undefined, model: "fallback", modelCalls: 1 };
+    return {
+      selectedLens: "NONE",
+      selectedMovieIndex: undefined,
+      attentionStrategy: "MECHANIC=character system | HOOK=specific identity | OPEN_LOOP=discover the subject's rule | TENSION=raise the priority | SURPRISE=change the read | PAYOFF=land the subject's defining priority",
+      model: "fallback",
+      modelCalls: 1,
+    };
   }
 }
