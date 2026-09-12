@@ -207,26 +207,37 @@ export async function buildAuthorCognitivePlan(input: AuthorCognitionInput): Pro
             "RealityGraph is authoritative. Never invent concrete facts, people, actions, outcomes, chronology, motives, emotions, capabilities, locations, or events.",
             "Creative Spine contains grounded semantic relationships discovered from the supplied reality. Treat those relationships as evidence, not fiction.",
             "A lens is selective pressure. It may change language, emphasis, rhythm, attitude, framing, humor, or intensity, but never the underlying facts.",
-            "Find a small number of strong grounded interpretations of the supplied reality.",
-            "Prefer contrast, recurrence, convergence, state change, recontextualization, consequence, recognition, accumulation, interruption, continuation, and return when actually supported.",
-            "Do not create story obstacles, opponents, deadlines, victories, failures, motives, emotions, or outcomes that are not supplied.",
+            "Your primary job is to search the supplied reality for high-value relationships before settling on a theme.",
+            "Ask what persists, what changes, what returns, what is opposed, what is acquired or retained, what is lost, what interrupts, what completes, what remains after completion, what observes what, what appears to have authority, and what becomes more meaningful because of something that happens later.",
+            "Search across non-adjacent events. Do not assume the best interpretation is the first-to-last sequence.",
+            "Look for behavioral constellations: resistance → acquisition, effort → reward, arrival → transformation, observation → judgment, interruption → continuation, departure → residue, repetition → ownership, or other structures that are actually supported by the evidence.",
+            "Look for object relationships and material roles. A supplied object may function as a symbol, witness, trophy, relic, wildcard, target, threshold, status marker, or other figurative role when the constellation supports it.",
+            "Look for personification opportunities. An animal, object, room, tool, machine, vehicle, building, dish, sign, or other supplied thing may receive figurative agency or status in interpretation without becoming a literal actor in RealityGraph.",
+            "Look for recontextualization: what later fact could make an earlier fact land differently for an observer? Prefer that over merely restating both facts.",
+            "Look for unresolved prediction: what can the observer reasonably expect, wonder, or infer after the supplied evidence is arranged? Do not answer that prediction prematurely.",
+            "Interpretive frames may use courtroom, spy, game, heist, horror, comedy, noir, military, romance, absurd, or other pressure when earned. A frame is not a genre template and must not manufacture plot.",
+            "When several readings are plausible, generate genuinely competing interpretations using different mechanisms, not synonyms of the same idea.",
+            "Prefer surprising semantic leverage over generic atmosphere, provided the evidence can carry it.",
+            "Do not optimize for maximum event coverage. Optimize for meaningful attention movement and observer inference.",
+            "Do not force intensity. If none of the evidence supports a strong interpretive move, return a precise observation instead of inventing drama.",
             "Return JSON only with selectedLens, frame, interpretations, adaptiveQuestions, attentionStrategy, reasoningSummary.",
             "Each interpretation must contain evidenceEventIds using only supplied event IDs.",
-            "Keep it compact. Interpretations are semantic guidance to the Artist, not scene directions.",
-            "Do not use Movie or film terminology.",
+            "Each interpretation should name the mechanism of interest in plain language through thesis, opportunity, and rationale: relationship, contrast, recontextualization, consequence, role, pattern, continuation, or other grounded structure.",
+            "Keep it compact. Interpretations are semantic guidance to the Artist, not visible prose or production directions.",
+            "Never leak internal architecture language to customer-facing output.",
           ].join("\n"),
         },
         { role: "user", content: JSON.stringify({ reality: compact, intelligence: {
-          signals: intelligence.semanticSignals.slice(0, 8),
-          moves: intelligence.candidateMoves.slice(0, 8),
-          rules: intelligence.decisionRules.slice(0, 8),
-          competition: intelligence.competitionProtocol.slice(0, 6),
-          attention: intelligence.attention.slice(0, 6),
-          antiFailure: intelligence.antiFailureChecks.slice(0, 6),
+          signals: intelligence.semanticSignals.slice(0, 12),
+          moves: intelligence.candidateMoves.slice(0, 12),
+          rules: intelligence.decisionRules.slice(0, 12),
+          competition: intelligence.competitionProtocol.slice(0, 10),
+          attention: intelligence.attention.slice(0, 10),
+          antiFailure: intelligence.antiFailureChecks.slice(0, 10),
         } }) },
       ],
       "json",
-      { numPredict: 1100, temperature: 0.88 },
+      { numPredict: 1500, temperature: 0.95 },
     );
     parsed = parse(result.text);
     model = result.model;
@@ -238,7 +249,7 @@ export async function buildAuthorCognitivePlan(input: AuthorCognitionInput): Pro
   const frame = chooseFrame(parsed, explicitLens, input.realityGraph);
   const selectedLens = frame.frame;
   const interpretations = Array.isArray(parsed?.interpretations)
-    ? parsed.interpretations.slice(0, 8).flatMap((value, index) => {
+    ? parsed.interpretations.slice(0, 10).flatMap((value, index) => {
         if (!value || typeof value !== "object") return [];
         const row = value as Record<string, unknown>;
         const thesis = clean(row.thesis);
