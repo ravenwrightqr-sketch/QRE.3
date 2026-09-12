@@ -2,15 +2,14 @@
  * QRE CANONICAL ARTIST
  *
  * The artifact is a sequence-text film: text moving as a sequence of
- * attention-changing screens. `LatentMovieCandidate` is only a historical
- * compatibility name for a grounded sequence possibility. Artist never picks
- * a conventional movie, genre, shot, soundtrack, camera treatment, or
- * production plan.
+ * attention-changing screens. `SequenceCandidate` is a grounded semantic
+ * sequence possibility. Artist never picks a conventional movie, genre, shot,
+ * soundtrack, camera treatment, or production plan.
  *
  * Cognition discovers relationships. Artist chooses one proposition.
  * Creative Realizer / Mouth makes that proposition visible.
  */
-import type { AuthorCreativeProposition, AuthorDomainContext, LatentMovieCandidate, RealityGraph } from "@qre/contracts";
+import type { AuthorCreativeProposition, AuthorDomainContext, RealityGraph, SequenceCandidate } from "@qre/contracts";
 import type { CreativeLensCandidate } from "./authorCreativeLens.js";
 import { localModelGenerate, type LocalModelJsonSchema } from "./localModelRuntime.js";
 
@@ -99,14 +98,14 @@ export async function chooseArtistDirection(input: {
   subject: string;
   graph: RealityGraph;
   subjectMaterial?: Record<string, string[]>;
-  movies: readonly LatentMovieCandidate[];
+  sequences: readonly SequenceCandidate[];
   lensCandidates: readonly CreativeLensCandidate[];
   domainContext?: AuthorDomainContext;
 }): Promise<AuthorArtistChoice> {
   const valid = new Set(input.graph.events.map((event) => event.id));
   const fallback = fallbackDirection(input.subject, input.graph.events);
   const lenses = input.lensCandidates.slice(0, 8).map((candidate, index) => ({ index, lens: clean(candidate.lens), family: candidate.family, reason: clean(candidate.reason), score: candidate.score }));
-  const sequences = input.movies.slice(0, 10).map((candidate, index) => ({ index, id: candidate.id, hypothesis: clean(candidate.hypothesis[0]), relations: unique(candidate.supportingRelationKinds), anchors: unique(candidate.anchorEventIds), unresolvedQuestion: clean(candidate.unresolvedQuestion), payoff: clean(candidate.payoff) }));
+  const sequenceOptions = input.sequences.slice(0, 10).map((candidate, index) => ({ index, id: candidate.id, hypothesis: clean(candidate.hypothesis[0]), relations: unique(candidate.supportingRelationKinds), anchors: unique(candidate.anchorEventIds), unresolvedQuestion: clean(candidate.unresolvedQuestion), payoff: clean(candidate.payoff) }));
 
   try {
     const response = await localModelGenerate(
@@ -136,7 +135,7 @@ export async function chooseArtistDirection(input: {
             relations: input.graph.relations.slice(0, 40),
             patterns: input.graph.patterns?.slice(0, 20) ?? [],
             memories: input.graph.events.filter((event) => event.provenance === "memory").slice(0, 20).map((event) => ({ id: event.id, label: event.label })),
-            existingSequencePossibilities: sequences,
+            existingSequencePossibilities: sequenceOptions,
             lensCandidates: lenses,
           }),
         },
@@ -151,7 +150,7 @@ export async function chooseArtistDirection(input: {
     const selectedLens = clean(parsed.selectedLens) || "NONE";
     const propositionText = clean(rawProp.text) || fallback.creativeProposition.text;
     const propositionIds = normalizeIds(rawProp.sourceEventIds, valid, 8);
-    const mechanic = normalizePart(mechanicRaw.mechanic, valid, propositionText);
+    normalizePart(mechanicRaw.mechanic, valid, propositionText);
     const proposition: AuthorCreativeProposition = {
       text: propositionIds.length && !risky(propositionText) ? propositionText : fallback.creativeProposition.text,
       pattern: clean(rawProp.pattern) || fallback.creativeProposition.pattern,
