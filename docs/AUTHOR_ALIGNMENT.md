@@ -2,9 +2,9 @@
 
 ## Canonical artifact
 
-**Author produces a sequence-text film:** text moving as a sequence of attention-changing screens. The implementation may retain the historical name `LatentMovieCandidate` for compatibility, but it is **not** a conventional movie abstraction.
+**Author produces a sequence-text film:** text moving as a sequence of attention-changing screens.
 
-A sequence-text film has no required camera, shot, soundtrack, transition, production, screenplay, genre, or audiovisual plan. Those belong to later presentation/media layers, never to Author cognition or creative authority.
+The sequence is semantic and language-first. It is not a production plan. Camera, shot, soundtrack, transition, screenplay, genre-production, and other presentation concerns belong downstream of Author.
 
 ## Canonical chain
 
@@ -23,7 +23,7 @@ Discovers semantic possibilities in the supplied world:
 - unresolved tension
 - meaningful absence or return
 
-Cognition does **not** invent films, genres, shots, scenes, soundtracks, camera language, or production plans.
+Cognition does not choose presentation. It discovers what the supplied reality may mean when its details are read together.
 
 ### Artist
 Chooses **one central creative proposition** from the discovered reality. Everything else is pressure around that proposition: hook, open loop, tension, surprise, payoff.
@@ -36,17 +36,15 @@ Examples of the form, not templates:
 - `The job turns problems into tests.`
 - `The small detail everybody remembers.`
 
-The proposition must be earned from supplied evidence and may be very different for every subject, business, service, object, memory, place, or collection.
+The proposition must be earned from supplied evidence and may be completely different for every subject, business, service, object, memory, place, or collection.
 
 ### Creative Realizer / Mouth
 Turns the Artist proposition into visible moving text. It changes the read from cut to cut rather than serializing facts.
 
-The Realizer may use compression, juxtaposition, omission, repetition-with-mutation, reversal, implication, personification, understatement, rhythm, and other language-level devices when grounded in the proposition and reality.
-
-It must not invent concrete facts or turn creative treatment into production direction.
+Useful language-level devices include compression, juxtaposition, omission, repetition-with-mutation, reversal, implication, personification, understatement, rhythm, and recontextualization when grounded in the proposition and reality.
 
 ### Judge
-Diagnostic only. It evaluates whether the visible sequence is grounded, progresses, lands, transforms source material, avoids invention, avoids explanation, avoids caption-reel collapse, and faithfully realizes the Artist proposition. It never chooses the artwork.
+Diagnostic only. It evaluates grounding, relationship, attention movement, landing, transformation, provenance, invention risk, explanation risk, caption-reel collapse, and fidelity to the Artist proposition. It never chooses the artwork.
 
 ## Universal attention law
 
@@ -54,15 +52,15 @@ Every cut should earn the next cut.
 
 `known → changed read → unresolved pull → next discovery`
 
-The important movement is not simply “new information.” The important movement is **a changed interpretation of already-supplied reality**.
+The important movement is not simply new information. The important movement is **a changed interpretation of already-supplied reality**.
 
-A sequence may begin from one strong detail when reality is sparse. With richer reality, it should discover a relationship and make that relationship visible. The same architecture must work for a pet, memorial, property, boring service, business inventory, receipt, product, person, event, or ordinary memory.
+A sequence may begin from one strong detail when reality is sparse. With richer reality, Cognition should discover relationships and Artist should compress the strongest one into a proposition. The same architecture must work for a pet, memorial, property, boring service, business inventory, receipt, product, person, event, or ordinary memory.
 
 ## Memory
 
 Memory is additional reality context, not a separate author.
 
-Returning viewers may receive a different realization because QRE has more supplied history, recurrence, prior scenes, preferences, or observed outcomes. Memory can create callbacks, changed charge, recognition, continuity, or a new proposition. Memory never licenses invented facts.
+Returning viewers may receive a different realization because QRE has more supplied history, recurrence, prior sequence text, preferences, or observed outcomes. Memory can create callbacks, changed charge, recognition, continuity, or a new proposition. Memory never licenses invented facts.
 
 ## Boring services
 
@@ -72,6 +70,6 @@ Author should inspect the actual supplied reality and discover the service's hid
 
 The goal is to make the **real thing** interesting, not to dress a generic thing in a creative style.
 
-## Non-negotiable boundary
+## Permanent rule
 
-`LatentMovieCandidate` is a historical compatibility name for a possible **sequence-text film**. Any code that treats it as a conventional movie, production plan, genre object, camera plan, soundtrack container, or competing screenplay is architectural drift and should be removed.
+The current Author artifact is a sequence of moving text. Do not reintroduce a competing artifact model or presentation-production abstraction. Keep semantic sequence generation in Author; keep rendering and media concerns downstream.
