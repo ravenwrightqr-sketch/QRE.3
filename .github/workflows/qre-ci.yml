@@ -42,5 +42,7 @@ jobs:
         run: pnpm build:engine
       - name: Build API
         run: pnpm build:api
+      - name: Author acceptance
+        run: pnpm author:final
       - name: Build web
         run: pnpm build:web
