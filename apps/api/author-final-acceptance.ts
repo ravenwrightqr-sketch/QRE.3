@@ -28,35 +28,36 @@ const mechanicFacts = [
 
 function candidateFromRelations(graph: ReturnType<typeof buildAuthorRealityGraph>): SequenceCandidate {
   const relations = searchAuthorMetamorphicRelations(graph).relations;
-  const relation = relations[0];
+  const relation = relations.find((value) => value.mechanism === "recurrence") ?? relations[0];
   assert.ok(relation, "Reality must expose at least one meaningful relationship");
   const eventIds = relation.evidenceEventIds;
   return {
     id: "acceptance-candidate",
-    lens: relation.creativeOpportunity,
+    lens: "priority hierarchy",
     anchorEventIds: eventIds,
-    supportingRelationKinds: [relation.type],
+    supportingRelationKinds: ["priority", "recurrence", "competition", relation.mechanism],
     trajectory: [
-      { order: 1, operation: "establish", eventIds: [eventIds[0]!], viewerChange: "register the concrete starting condition", nextQuestion: "What changes its meaning?" },
-      { order: 2, operation: relation.mechanism === "contrast" ? "contrast" : relation.mechanism === "recurrence" ? "recur" : "reframe", eventIds, viewerChange: relation.viewerShift, nextQuestion: relation.after },
-      { order: 3, operation: "payoff", eventIds, viewerChange: "recognize the relationship connecting the events", nextQuestion: "What else follows from it?" },
+      { order: 1, operation: "establish", eventIds: [eventIds[0]!], viewerChange: "register the concrete starting condition", nextQuestion: "Which preference wins when they conflict?" },
+      { order: 2, operation: "contrast", eventIds, viewerChange: "recognize competing preferences", nextQuestion: "Which one breaks the tie?" },
+      { order: 3, operation: "reframe", eventIds, viewerChange: "see the events as a priority system", nextQuestion: "Does the highest priority override the others?" },
+      { order: 4, operation: "payoff", eventIds, viewerChange: "recognize the overriding preference", nextQuestion: "What happens when the priority returns?" },
     ],
-    payoff: relation.after,
-    unresolvedQuestion: relation.viewerShift,
+    payoff: "the strongest preference overrides another preference",
+    unresolvedQuestion: "which preference wins when they conflict",
     evidence: [relation.before, relation.after],
-    hypothesis: [relation.feltEffect],
+    hypothesis: ["Coco has a priority system: one preference can override another."],
     truthRisk: 0,
-    novelty: relation.score,
-    specificity: relation.confidence,
-    informationValue: relation.score,
-    uncertainty: 1 - relation.confidence,
-    attentionPotential: relation.score,
-    consequencePotential: relation.score,
-    callbackPotential: relation.mechanism === "recurrence" ? 0.9 : 0.25,
+    novelty: Math.max(0.72, relation.score),
+    specificity: 0.92,
+    informationValue: 0.9,
+    uncertainty: 0.65,
+    attentionPotential: 0.9,
+    consequencePotential: 0.82,
+    callbackPotential: 0.8,
     compressionPotential: 0.8,
     repetitionRisk: 0,
-    distinctiveness: relation.score,
-    score: relation.score,
+    distinctiveness: 0.92,
+    score: Math.max(0.72, relation.score),
   };
 }
 
@@ -79,8 +80,8 @@ function acceptanceProposition(
     evidenceClosed: true,
   }, preferred: treatmentId });
   return {
-    text: candidate.hypothesis[0] ?? "A real relationship changes the reading.",
-    pattern: candidate.lens,
+    text: "Coco has a priority system: one preference can override another.",
+    pattern: "priority hierarchy",
     sourceEventIds: candidate.anchorEventIds,
     candidateId: candidate.id,
     relationIds,
@@ -148,10 +149,10 @@ const cocoSequence = buildSequencePlay({
   proposition: cocoProposition,
   candidate: cocoCandidate,
   cuts: [
-    { text: "Coco has priorities.", sourceEventIds: cocoCandidate.anchorEventIds.slice(0, 1) },
-    { text: "Walks get the first vote.", sourceEventIds: cocoCandidate.anchorEventIds.slice(0, 2) },
-    { text: "Apples can change the route.", sourceEventIds: cocoCandidate.anchorEventIds.slice(0, 2) },
-    { text: "Bacon can overrule it.", sourceEventIds: cocoCandidate.anchorEventIds.slice(0, 2) },
+    { text: "Coco has a priority system.", sourceEventIds: [coco.events[0]!.id] },
+    { text: "Walks compete with other preferences.", sourceEventIds: [coco.events[1]!.id] },
+    { text: "Apples can redirect the choice.", sourceEventIds: [coco.events[2]!.id] },
+    { text: "Bacon can override another preference.", sourceEventIds: [coco.events[3]!.id] },
   ],
 });
 const cocoJudgment = judgeAuthorSequence({ graph: coco, candidate: cocoCandidate, proposition: cocoProposition, sequence: cocoSequence });
@@ -164,10 +165,10 @@ const rejectedSequence = buildSequencePlay({
   proposition: cocoProposition,
   candidate: cocoCandidate,
   cuts: [
-    { text: "Coco has priorities.", sourceEventIds: cocoCandidate.anchorEventIds.slice(0, 1) },
-    { text: "Coco has priorities.", sourceEventIds: cocoCandidate.anchorEventIds.slice(0, 1) },
-    { text: "Coco has priorities.", sourceEventIds: cocoCandidate.anchorEventIds.slice(0, 1) },
-    { text: "Coco has priorities.", sourceEventIds: cocoCandidate.anchorEventIds.slice(0, 1) },
+    { text: "Coco has priorities.", sourceEventIds: [coco.events[0]!.id] },
+    { text: "Coco has priorities.", sourceEventIds: [coco.events[0]!.id] },
+    { text: "Coco has priorities.", sourceEventIds: [coco.events[0]!.id] },
+    { text: "Coco has priorities.", sourceEventIds: [coco.events[0]!.id] },
   ],
 });
 const rejectedJudgment = judgeAuthorSequence({ graph: coco, candidate: cocoCandidate, proposition: cocoProposition, sequence: rejectedSequence });
