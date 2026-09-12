@@ -1,8 +1,15 @@
 /**
- * Sequence Play is the semantic contract for how an experience plays in time.
+ * CANONICAL QRE SEQUENCE-TEXT FILM CONTRACT
+ *
+ * This is the current artifact: text moving as a sequence of attention-changing
+ * screens. It is NOT a conventional movie, screenplay, shot list, camera plan,
+ * soundtrack, transition plan, or cinematic production model.
  *
  * Reality answers: what exists / happened.
  * SequencePlay answers: what changes in the viewer's experience from cut to cut.
+ *
+ * Do not introduce Movie abstractions into this contract. Keep visual/media
+ * presentation concerns downstream of the semantic sequence.
  *
  * Important: identity and established facts belong to baseline world state. They
  * are not attention gains by themselves and should not consume sequence cuts
