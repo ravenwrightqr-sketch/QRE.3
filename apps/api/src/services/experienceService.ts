@@ -8,7 +8,7 @@ import type {
 import type { MemoryRepository } from "../repositories/memoryRepository.js";
 import { authorBrainCanonical } from "./authorBrainCanonical.js";
 import { buildExperienceMemoryBatch, memoryContextToCognitiveSummary } from "./memoryProjection.js";
-import { extractExperienceStates } from "./experienceMemory.js";
+import { experienceStateToMemoryBatch, extractExperienceStates } from "./experienceMemory.js";
 import { buildExperienceState } from "./experienceState.js";
 import { getCreativeLearningContext, learningContextLines } from "./creativeLearning.js";
 import { buildPresenceContext } from "@qre/engine";
@@ -207,7 +207,7 @@ export async function compileExperience(input: {
 
   if (input.assetId && input.memoryRepository) {
     try {
-      const batch = buildExperienceMemoryBatch({
+      const graphBatch = buildExperienceMemoryBatch({
         operationId: input.operationId ?? input.sessionId ?? `author:${input.assetId}:${prompt}`,
         assetId: input.assetId,
         userId: input.userId,
@@ -215,13 +215,7 @@ export async function compileExperience(input: {
         sessionId: input.sessionId,
         source: "prompt",
       });
-      await input.memoryRepository.writeBatch(batch);
-      memoryCounts = {
-        entities: batch.entities.length,
-        facts: batch.facts.length,
-        relations: batch.relations.length,
-        events: batch.events.length,
-      };
+      await input.memoryRepository.writeBatch(graphBatch);
 
       const previous = memoryContext ? extractExperienceStates(memoryContext) : [];
       state = buildExperienceState({
@@ -231,10 +225,29 @@ export async function compileExperience(input: {
         memoryContext: [
           ...learningLines,
           ...authored.memoryDelta.carryThreads,
+          ...authored.memoryDelta.relationIds.map((id) => `relation:${id}`),
+          ...authored.memoryDelta.unresolvedQuestions.map((question) => `unresolved:${question}`),
+          ...authored.learningDelta.signals,
         ],
         priorExperienceStates: previous,
         round: presence?.visitNumber ?? 1,
       });
+
+      const stateBatch = experienceStateToMemoryBatch({
+        operationId: `${input.operationId ?? input.sessionId ?? `author:${input.assetId}:${prompt}`}:state`,
+        assetId: input.assetId,
+        userId: input.userId,
+        state,
+        sourceRef: `qre-author:${authored.selectedCandidateId}`,
+      });
+      await input.memoryRepository.writeBatch(stateBatch);
+
+      memoryCounts = {
+        entities: graphBatch.entities.length + stateBatch.entities.length,
+        facts: graphBatch.facts.length + stateBatch.facts.length,
+        relations: graphBatch.relations.length + stateBatch.relations.length,
+        events: graphBatch.events.length + stateBatch.events.length,
+      };
     } catch {
       warnings.push("memory_persistence_failed");
     }
