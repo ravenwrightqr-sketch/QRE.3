@@ -82,6 +82,7 @@ function acceptanceProposition(
   return {
     text: "Coco has a priority system: one preference can override another.",
     pattern: "priority hierarchy",
+    orderingRule: "Reveal the priority through a real conflict, then show the preference that wins and what that changes.",
     sourceEventIds: candidate.anchorEventIds,
     candidateId: candidate.id,
     relationIds,
