@@ -57,6 +57,15 @@ function treatmentCoverage(proposition: AuthorCreativeProposition, text: string)
   return overlap(text, signals[proposition.treatment.id] ?? `${proposition.treatment.primary} ${proposition.treatment.secondary}`);
 }
 
+function topSignalCoverage(values: readonly number[]): number {
+  if (!values.length) return 0;
+  const ranked = [...values].sort((a, b) => b - a);
+  const strongest = ranked[0] ?? 0;
+  const support = ranked.slice(0, Math.min(3, ranked.length));
+  const supportingAverage = support.reduce((sum, value) => sum + value, 0) / support.length;
+  return strongest * 0.55 + supportingAverage * 0.45;
+}
+
 function meaningfulMovement(sequence: SequencePlay): number {
   if (sequence.cuts.length <= 1) return 0;
   let moving = 0;
@@ -118,12 +127,10 @@ export function judgeAuthorSequence(input: {
   const sourceSpecificity = sequence.cuts.length
     ? sequence.cuts.reduce((sum, cut) => sum + sourceCoverage(graph, cut.informationGain), 0) / sequence.cuts.length
     : 0;
-  const relationFidelity = sequence.cuts.length
-    ? sequence.cuts.reduce((sum, cut) => sum + relationCoverage(graph, proposition, candidate, cut.informationGain), 0) / sequence.cuts.length
-    : 0;
-  const treatmentFidelity = sequence.cuts.length
-    ? sequence.cuts.reduce((sum, cut) => sum + treatmentCoverage(proposition, cut.informationGain), 0) / sequence.cuts.length
-    : 0;
+  const relationValues = sequence.cuts.map((cut) => relationCoverage(graph, proposition, candidate, cut.informationGain));
+  const treatmentValues = sequence.cuts.map((cut) => treatmentCoverage(proposition, cut.informationGain));
+  const relationFidelity = topSignalCoverage(relationValues);
+  const treatmentFidelity = topSignalCoverage(treatmentValues);
   const information = informationPerCut(graph, proposition, candidate, sequence);
   const necessity = necessityScore(sequence);
   const propositionTerms = `${proposition.text} ${proposition.pattern} ${candidate.hypothesis.join(" ")}`;
