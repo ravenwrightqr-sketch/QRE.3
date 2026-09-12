@@ -1,6 +1,12 @@
 import type { AuthorMetamorphicRelationSet, AuthorTreatment, AuthorTreatmentId } from "@qre/contracts";
 
 const DESCRIPTORS: Record<AuthorTreatmentId, { primary: string; secondary: string; rule: string; signals: string[] }> = {
+  "none": {
+    primary: "none",
+    secondary: "",
+    rule: "do not impose an additional perceptual framing; let the discovered relationship carry the experience",
+    signals: [],
+  },
   "horror-romance": {
     primary: "horror",
     secondary: "romance",
@@ -52,6 +58,12 @@ function scoreTreatment(id: AuthorTreatmentId, relations: AuthorMetamorphicRelat
   const text = relationText(relations).join(" ").toLowerCase();
   const matches = descriptor.signals.reduce((score, signal) => score + (text.includes(signal.replace("_", " ")) ? 1 : 0), 0);
   const strongest = relations.relations[0]?.score ?? 0;
+  if (id === "none") {
+    const hasStrongSpecializedSignal = Object.entries(DESCRIPTORS)
+      .filter(([key]) => key !== "none")
+      .some(([, value]) => value.signals.some((signal) => text.includes(signal.replace("_", " "))));
+    return clamp(hasStrongSpecializedSignal ? 0.18 + strongest * 0.08 : 0.42 + strongest * 0.12);
+  }
   const recurrenceBonus = returning && id === "game-fierce" ? 0.08 : 0;
   const reentryBonus = returning && id === "noir-tenderness" ? 0.05 : 0;
   return clamp(0.22 + matches / Math.max(1, descriptor.signals.length) * 0.55 + strongest * 0.15 + recurrenceBonus + reentryBonus);
@@ -75,7 +87,9 @@ export function chooseFallbackTreatment(input: {
     primary: descriptor.primary,
     secondary: descriptor.secondary,
     rule: descriptor.rule,
-    reason: `Selected from grounded relationship signals: ${descriptor.signals.join(", ")}.`,
+    reason: selected.id === "none"
+      ? "No additional perceptual treatment is needed; the grounded relationship carries the experience."
+      : `Selected from grounded relationship signals: ${descriptor.signals.join(", ")}.`,
     score: selected.score,
   };
 }
