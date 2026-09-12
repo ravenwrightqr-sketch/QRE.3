@@ -159,7 +159,7 @@ if (!/groundedCandidate\s*\(/.test(cognition)) fail("Canonical Cognition must pr
 if (!/dedupeCandidates\s*\(/.test(cognition)) fail("Canonical Cognition must preserve candidate differentiation/deduplication");
 
 if (!/buildAuthorCreativeSpine\s*\(/.test(spine)) fail("Creative Spine must remain a first-class semantic discovery boundary");
-if (!/RealityGraph/.test(spine)) fail("Creative Spine must consume RealityGraph");
+if (!/searchAuthorMetamorphicRelations\s*\(/.test(spine) || !/graph:\s*input\.graph/.test(spine)) fail("Creative Spine must consume RealityGraph");
 
 if (!/localModelGenerate\s*\(/.test(realizer)) fail("Creative Realizer must own model realization");
 if (!/sourceEventIds/.test(realizer)) fail("Creative Realizer must retain source provenance on realized scenes");
