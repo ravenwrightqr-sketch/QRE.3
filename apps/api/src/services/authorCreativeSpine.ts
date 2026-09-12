@@ -1,21 +1,17 @@
+/**
+ * QRE CREATIVE SPINE — SEQUENCE-TEXT ONLY
+ *
+ * Current artifact: text moving as a sequence of attention-changing screens.
+ * The spine discovers semantic opportunities and optional perceptual pressure.
+ * It does not define genres, productions, shots, cameras, sound, transitions,
+ * or any separate artistic artifact.
+ *
+ * Relations are discovered before optional lens pressure is applied.
+ * A lens changes emphasis, never facts or source authority.
+ */
 import type { AuthorMetamorphicRelation, AuthorMetamorphicRelationSet } from "@qre/contracts";
 import { searchAuthorMetamorphicRelations } from "./authorMetamorphicSearch.js";
-import {
-  rankCreativeLensCandidates,
-  type CreativeLensCandidate,
-} from "./authorCreativeLens.js";
-
-/**
- * UNIVERSAL CREATIVE SPINE
- *
- * One universal path from supplied reality to a realizable creative treatment.
- *
- * Reality is not rewritten.
- * Relations are discovered before lenses are applied.
- * A lens changes pressure, not facts and not Movie selection authority.
- *
- * Lens candidates are proposals only. NONE is always a real competitor.
- */
+import { rankCreativeLensCandidates, type CreativeLensCandidate } from "./authorCreativeLens.js";
 
 export type CreativeOpportunity = {
   relationId: string;
@@ -24,7 +20,6 @@ export type CreativeOpportunity = {
   whyItWorks: string;
   evidenceEventIds: string[];
 };
-
 export type LensTreatment = {
   primary: string;
   secondary?: string;
@@ -34,7 +29,6 @@ export type LensTreatment = {
   languageAim: string;
   guardrails: string[];
 };
-
 export type AuthorCreativeSpine = {
   version: 1;
   relationSet: AuthorMetamorphicRelationSet;
@@ -43,146 +37,37 @@ export type AuthorCreativeSpine = {
   selectedRelationId?: string;
   lensTreatment: LensTreatment;
 };
-
 const clean = (value: unknown): string => String(value ?? "").replace(/\s+/g, " ").trim();
 const unique = <T>(values: readonly T[]): T[] => [...new Set(values)];
-
 const PRESSURE: Record<string, string[]> = {
-  comedy: ["contrast", "deadpan", "understatement", "timing"],
-  noir: ["implication", "omission", "unease", "status"],
-  romance: ["intimacy", "irrelevance_of_surroundings", "recognition", "tender_contrast"],
-  horror: ["dread", "anomaly", "implication", "withhold_explanation"],
-  heist: ["mission_pressure", "objective_language", "escalation", "payoff"],
-  game: ["progression", "status", "levels", "reward_pressure"],
-  fierce: ["attitude", "status", "confidence", "compression"],
-  courtroom: ["evidence", "verdict", "contrast", "status"],
-  military: ["discipline", "objective", "deployment", "status"],
-  documentary: ["observation", "specificity", "distance", "accumulation"],
-  deadpan: ["understatement", "contrast", "dry_timing", "implication"],
-  tender: ["intimacy", "specificity", "recognition", "quiet_payoff"],
-  tenderness: ["intimacy", "specificity", "recognition", "quiet_payoff"],
-  nostalgia: ["recurrence", "memory_echo", "changed_meaning", "distance"],
-  chaos: ["juxtaposition", "speed", "status_reversal", "volatility"],
-  absurd: ["mismatch", "deadpan", "double_meaning", "incongruity"],
-  dramatic: ["stakes", "consequence", "reversal", "earned_payoff"],
-  quiet: ["restraint", "specificity", "implication", "afterimage"],
-  mission: ["objective", "stages", "progress", "completion"],
-  operation: ["procedure", "deployment", "territory", "completion"],
-  spy: ["observation", "suspicion", "secrecy", "reveal"],
-  extraction: ["target", "route", "pressure", "retrieval"],
-  investigation: ["clue", "uncertainty", "question", "reveal"],
-  speedrun: ["time", "optimization", "compression", "completion"],
-  "boss-fight": ["pressure", "attempt", "rounds", "victory"],
-  countdown: ["deadline", "compression", "anticipation", "payoff"],
-  race: ["pace", "progress", "comparison", "finish"],
-  restoration: ["before", "repair", "after", "payoff"],
-  transformation: ["before", "shift", "contrast", "new_status"],
-  negotiation: ["positions", "pressure", "tradeoff", "resolution"],
+  NONE: [], contrast: ["contrast", "specificity"], implication: ["implication", "omission"], intimacy: ["specificity", "recognition"],
+  consequence: ["consequence", "escalation"], recurrence: ["recurrence", "changed_meaning"], precision: ["precision", "compression"],
+  absurdity: ["mismatch", "contrast", "understatement"], humor: ["contrast", "understatement", "timing"], tenderness: ["intimacy", "specificity", "recognition"],
+  menace: ["implication", "anomaly", "restraint"], irony: ["contrast", "double_meaning", "reversal"], play: ["contrast", "curiosity", "surprise"],
 };
-
-function lensParts(lens: string): { primary: string; secondary?: string } {
-  const parts = clean(lens)
-    .split(/\s*(?:\+|>|\/|,|\band\b)\s*/i)
-    .map((part) => clean(part).toLowerCase())
-    .filter(Boolean);
-  return { primary: parts[0] || "none", secondary: parts[1] };
-}
-
+function lensParts(lens: string) { const parts = clean(lens).split(/\s*(?:\+|>|\/|,|\band\b)\s*/i).map((part) => clean(part).toLowerCase()).filter(Boolean); return { primary: parts[0] || "none", secondary: parts[1] }; }
 function treatmentFor(lens: string, relation?: AuthorMetamorphicRelation): LensTreatment {
   const { primary, secondary } = lensParts(lens);
-  const pressures = unique([
-    ...(PRESSURE[primary] ?? ["contrast", "specificity", "implication"]),
-    ...(secondary ? (PRESSURE[secondary] ?? ["contrast", "specificity"]) : []),
-  ]).slice(0, 8);
-
   return {
-    primary,
-    secondary,
-    pressure: pressures,
+    primary, secondary,
+    pressure: unique([...(PRESSURE[primary] ?? ["specificity", "contrast", "implication"]), ...(secondary ? PRESSURE[secondary] ?? ["specificity"] : [])]).slice(0, 8),
     relationId: relation?.id,
     feltEffect: relation?.feltEffect ?? "Make the supplied reality newly noticeable.",
     languageAim: relation?.languageAim ?? "Express the selected meaning without explanation.",
-    guardrails: [
-      "do not add facts",
-      "do not add actors",
-      "do not add places",
-      "do not change chronology",
-      "do not turn identity traits into invented events",
-      "do not turn the lens into a domain-specific author",
-      "do not force a frame when NONE is stronger",
-    ],
+    guardrails: ["do not add facts", "do not add actors", "do not add places", "do not change chronology", "do not turn identity traits into invented events", "do not force a lens when NONE is stronger"],
   };
 }
-
 function rankOpportunities(relationSet: AuthorMetamorphicRelationSet, returning: boolean): CreativeOpportunity[] {
-  return relationSet.relations
-    .map((relation) => ({
-      relationId: relation.id,
-      opportunity: relation.creativeOpportunity,
-      strength: Math.min(1, relation.score + (returning && relation.type.includes("callback") ? 0.08 : 0)),
-      whyItWorks: `${relation.feltEffect}; ${relation.viewerShift}.`,
-      evidenceEventIds: relation.evidenceEventIds,
-    }))
-    .sort((a, b) => b.strength - a.strength)
-    .slice(0, 8);
+  return relationSet.relations.map((relation) => ({ relationId: relation.id, opportunity: relation.creativeOpportunity, strength: Math.min(1, relation.score + (returning && relation.type.includes("callback") ? .08 : 0)), whyItWorks: `${relation.feltEffect}; ${relation.viewerShift}.`, evidenceEventIds: relation.evidenceEventIds })).sort((a, b) => b.strength - a.strength).slice(0, 8);
 }
-
-function graphSignals(graph: Parameters<typeof searchAuthorMetamorphicRelations>[0]["graph"]): string[] {
-  return unique([
-    ...graph.events.flatMap((event) => [
-      clean(event.label),
-      ...(event.entities ?? []),
-    ]),
-    ...graph.relations.flatMap((relation) => [clean(relation.kind)]),
-  ]).slice(0, 80);
-}
-
-function strongGraphSignals(
-  graph: Parameters<typeof searchAuthorMetamorphicRelations>[0]["graph"],
-  relationSet: AuthorMetamorphicRelationSet,
-): string[] {
-  return unique([
-    ...relationSet.relations.slice(0, 8).flatMap((relation) => [
-      clean(relation.type),
-      clean(relation.creativeOpportunity),
-      clean(relation.feltEffect),
-    ]),
-    ...graph.events
-      .filter((event) => (event.entities?.length ?? 0) >= 2)
-      .map((event) => clean(event.label)),
-  ]).slice(0, 40);
-}
-
-export function buildAuthorCreativeSpine(input: {
-  graph: Parameters<typeof searchAuthorMetamorphicRelations>[0]["graph"];
-  subject?: string;
-  lens?: string;
-  returning?: boolean;
-  businessSignals?: string[];
-}): AuthorCreativeSpine {
-  const relationSet = searchAuthorMetamorphicRelations({
-    graph: input.graph,
-    subject: input.subject,
-    limit: 16,
-  });
+function graphSignals(graph: Parameters<typeof searchAuthorMetamorphicRelations>[0]["graph"]): string[] { return unique([...graph.events.flatMap((event) => [clean(event.label), ...(event.entities ?? [])]), ...graph.relations.map((relation) => clean(relation.kind))]).slice(0, 80); }
+function strongGraphSignals(graph: Parameters<typeof searchAuthorMetamorphicRelations>[0]["graph"], relationSet: AuthorMetamorphicRelationSet): string[] { return unique([...relationSet.relations.slice(0, 8).flatMap((relation) => [clean(relation.type), clean(relation.creativeOpportunity), clean(relation.feltEffect)]), ...graph.events.filter((event) => (event.entities?.length ?? 0) >= 2).map((event) => clean(event.label))]).slice(0, 40); }
+export function buildAuthorCreativeSpine(input: { graph: Parameters<typeof searchAuthorMetamorphicRelations>[0]["graph"]; subject?: string; lens?: string; returning?: boolean; businessSignals?: string[] }): AuthorCreativeSpine {
+  const relationSet = searchAuthorMetamorphicRelations({ graph: input.graph, subject: input.subject, limit: 16 });
   const opportunities = rankOpportunities(relationSet, Boolean(input.returning));
-  const lensCandidates = rankCreativeLensCandidates({
-    signals: graphSignals(input.graph),
-    strongSignals: strongGraphSignals(input.graph, relationSet),
-    businessSignals: input.businessSignals,
-    requestedLens: input.lens,
-    maxCandidates: 10,
-  });
+  const lensCandidates = rankCreativeLensCandidates({ signals: graphSignals(input.graph), strongSignals: strongGraphSignals(input.graph, relationSet), businessSignals: input.businessSignals, requestedLens: input.lens, maxCandidates: 10 });
   const selectedRelationId = opportunities[0]?.relationId ?? relationSet.strongestRelationId;
   const selectedRelation = relationSet.relations.find((relation) => relation.id === selectedRelationId);
   const selectedLens = clean(input.lens) || lensCandidates[0]?.lens || "NONE";
-
-  return {
-    version: 1,
-    relationSet,
-    opportunities,
-    lensCandidates,
-    selectedRelationId,
-    lensTreatment: treatmentFor(selectedLens, selectedRelation),
-  };
+  return { version: 1, relationSet, opportunities, lensCandidates, selectedRelationId, lensTreatment: treatmentFor(selectedLens, selectedRelation) };
 }
