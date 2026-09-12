@@ -1,5 +1,8 @@
 import type {
   AuthorBrainTruth,
+  AuthorContinuationState,
+  AuthorLearningDelta,
+  AuthorMemoryDelta,
   CanonicalAuthorResult,
   SequenceCandidate,
 } from "@qre/contracts";
@@ -11,6 +14,91 @@ import { judgeAuthorSequence } from "./authorJudge.js";
 import { buildAuthorReadout } from "./authorReadout.js";
 
 const MAX_CANDIDATE_ATTEMPTS = 3;
+
+function buildMemoryDelta(
+  candidate: SequenceCandidate,
+  proposition: CanonicalAuthorResult["proposition"],
+  sequence: CanonicalAuthorResult["sequence"],
+): AuthorMemoryDelta {
+  const changedEventIds = [
+    ...new Set(
+      candidate.trajectory
+        .filter((step) => step.operation !== "establish")
+        .flatMap((step) => step.eventIds),
+    ),
+  ];
+  const callbackEventIds = [
+    ...new Set(
+      candidate.trajectory
+        .filter((step) => step.operation === "recur" || step.operation === "reframe")
+        .flatMap((step) => step.eventIds),
+    ),
+  ];
+  return {
+    establishedEventIds: [...new Set(candidate.trajectory[0]?.eventIds ?? [])],
+    changedEventIds,
+    callbackEventIds,
+    relationIds: [...new Set(proposition.relationIds)],
+    unresolvedQuestions: candidate.unresolvedQuestion ? [candidate.unresolvedQuestion] : [],
+    semanticTurns: sequence.cuts.map((cut) => cut.viewerAfter.recentChange).filter(Boolean),
+    carryThreads: [...new Set([candidate.lens, proposition.pattern, candidate.payoff].filter(Boolean))],
+  };
+}
+
+function buildLearningDelta(
+  candidate: SequenceCandidate,
+  proposition: CanonicalAuthorResult["proposition"],
+  judgment: CanonicalAuthorResult["judgment"],
+): AuthorLearningDelta {
+  const status = judgment.status === "ACCEPT" ? "accepted" : "rejected";
+  return {
+    status,
+    candidateId: candidate.id,
+    treatmentId: proposition.treatment.id,
+    relationIds: [...new Set(proposition.relationIds)],
+    propositionPattern: proposition.pattern,
+    signals: [
+      `${status}_candidate:${candidate.id}`,
+      `${status}_treatment:${proposition.treatment.id}`,
+      `movement:${judgment.movement.toFixed(3)}`,
+      `information_per_cut:${judgment.informationPerCut.toFixed(3)}`,
+      `continuation:${judgment.continuationPressure.toFixed(3)}`,
+    ],
+    metrics: {
+      movement: judgment.movement,
+      specificity: judgment.specificity,
+      transformation: judgment.transformation,
+      informationPerCut: judgment.informationPerCut,
+      continuationPressure: judgment.continuationPressure,
+      necessity: judgment.necessity,
+      inventionRisk: judgment.inventionRisk,
+      genericity: judgment.genericity,
+    },
+  };
+}
+
+function buildContinuationState(
+  candidate: SequenceCandidate,
+  cognition: Awaited<ReturnType<typeof authorCognition>>,
+  graph: CanonicalAuthorResult["reality"],
+  sequence: CanonicalAuthorResult["sequence"],
+  returning: boolean | undefined,
+): AuthorContinuationState {
+  const used = new Set(candidate.trajectory.flatMap((step) => step.eventIds));
+  return {
+    unresolvedQuestion: candidate.unresolvedQuestion || undefined,
+    nextPromise: sequence.continuation || sequence.cuts.at(-1)?.nextPromise,
+    payoff: candidate.payoff || undefined,
+    futureEventIds: graph.events.map((event) => event.id).filter((id) => !used.has(id)).slice(0, 24),
+    alternateCandidateIds: cognition.candidates
+      .map((value) => value.id)
+      .filter((id) => id !== candidate.id)
+      .slice(0, 5),
+    returnCue: returning
+      ? "The visitor returned; prefer an evolution or callback over a reset."
+      : "A future visit should build from the stored semantic delta.",
+  };
+}
 
 export async function authorBrainCanonical(
   input: AuthorBrainTruth,
@@ -77,6 +165,9 @@ export async function authorBrainCanonical(
         sequence,
         judgment,
         selectedCandidateId: selectedCandidate.id,
+        memoryDelta: buildMemoryDelta(selectedCandidate, proposition, sequence),
+        learningDelta: buildLearningDelta(selectedCandidate, proposition, judgment),
+        continuationState: buildContinuationState(selectedCandidate, cognition, reality, sequence, input.returning),
       };
     }
 
