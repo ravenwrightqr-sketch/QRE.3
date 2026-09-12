@@ -36,13 +36,16 @@ function buildMemoryDelta(
         .flatMap((step) => step.eventIds),
     ),
   ];
+  const semanticTurns: string[] = sequence.cuts.flatMap((cut) =>
+    cut.viewerAfter.recentChange ? [cut.viewerAfter.recentChange] : [],
+  );
   return {
     establishedEventIds: [...new Set(candidate.trajectory[0]?.eventIds ?? [])],
     changedEventIds,
     callbackEventIds,
     relationIds: [...new Set(proposition.relationIds)],
     unresolvedQuestions: candidate.unresolvedQuestion ? [candidate.unresolvedQuestion] : [],
-    semanticTurns: sequence.cuts.map((cut) => cut.viewerAfter.recentChange).filter(Boolean),
+    semanticTurns,
     carryThreads: [...new Set([candidate.lens, proposition.pattern, candidate.payoff].filter(Boolean))],
   };
 }
