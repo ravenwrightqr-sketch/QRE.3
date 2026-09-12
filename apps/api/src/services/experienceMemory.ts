@@ -74,7 +74,7 @@ export function experienceStateToMemoryBatch(input: {
     `Changed: ${input.state.changedEventIds.join(", ") || "none"}.`,
     `Future: ${input.state.futureThreadKeys.slice(0, 4).join(", ") || "none"}.`,
     `Retired future: ${input.state.retiredFutureThreadKeys.slice(0, 4).join(", ") || "none"}.`,
-    `Reality anchors: ${input.state.realityAnchors?.slice(0, 6).join(" | ") || "none"}.`,
+    `Reality anchors: ${(input.state.realityAnchors ?? []).slice(0, 6).join(" | ") || "none"}.`,
     `Relationships: ${input.state.relationKinds.slice(0, 6).join(", ") || "none"}.`,
     `Memory hooks: ${input.state.memoryHooks.slice(0, 4).join(" | ") || "none"}.`,
   ].join(" ");
@@ -128,7 +128,7 @@ export function experienceMemoryContext(context: MemoryContext): string[] {
     `prior tempo: ${state.tempo.mode}`,
     `prior proposition pattern: ${state.selectedLens}`,
     ...state.relationKinds.slice(0, 8).map((value) => `prior relationship: ${value}`),
-    ...state.realityAnchors.slice(-12).map((value) => `prior anchor: ${value}`),
+    ...(state.realityAnchors ?? []).slice(-12).map((value) => `prior anchor: ${value}`),
     ...state.carryThreads.slice(-8).map((value) => `carry: ${value}`),
     ...state.futureThreadKeys.slice(-8).map((value) => `future: ${value}`),
     ...state.revisitedEventIds.slice(-8).map((value) => `revisited: ${value}`),
@@ -143,13 +143,9 @@ export function experienceMemoryContext(context: MemoryContext): string[] {
     clean(`${relation.fromEntityId} ${relation.relation} ${relation.toEntityId}`),
   );
   const events = context.events
-    .filter((event) => event.type !== "experience_state")
-    .slice(0, 32)
+    .filter((event: MemoryEvent) => event.type !== "experience_state")
+    .slice(0, 48)
     .map((event) => clean(event.summary));
 
-  return unique([...stateLines, ...facts, ...relations, ...events], 128);
-}
-
-export function isExperienceStateMemoryEvent(event: MemoryEvent): boolean {
-  return event.type === "experience_state" && validState(event.metadata?.experienceState);
+  return unique([...stateLines, ...facts, ...relations, ...events], 160);
 }
