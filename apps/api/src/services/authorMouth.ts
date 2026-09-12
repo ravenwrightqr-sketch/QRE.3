@@ -61,7 +61,10 @@ function fallback(input: {
 
   const candidates: AuthorCutDraft[] = [
     ...(proposition ? [{ text: proposition, sourceEventIds: [anchors[0].id] }] : []),
-    ...anchors.map((event) => ({ text: clean(event.label), sourceEventIds: [event.id] })),
+    ...anchorLabels.map((text, index) => ({
+      text,
+      sourceEventIds: [anchors[index]!.id],
+    })),
     ...(payoff ? [{ text: payoff, sourceEventIds: [anchors.at(-1)!.id] }] : []),
   ];
 
@@ -72,7 +75,7 @@ function fallback(input: {
     if (result.some((existing) => existing.text.toLowerCase() === text.toLowerCase())) continue;
     result.push({ text, sourceEventIds: unique(cut.sourceEventIds) });
   }
-  return result.slice(0, Math.max(4, Math.min(anchors.length + 2, 12)));
+  return result;
 }
 
 function semanticTransition(
@@ -161,15 +164,16 @@ export async function realizeAuthorSequence(input: {
           "Prefer fragments, concrete words, implication, contrast, consequence, callback, escalation, and recontextualization.",
           "A line can be one word, a fragment, or a complete sentence when the moment earns it.",
           "Do not impose a fixed length, fixed number of lines, or fixed rhythm. Use only as much language as the discovered relationship needs.",
+          "The usual target is a small complete experience that lands; it may be shorter or longer when the reality earns it.",
           "Do not explain what the sequence means. Make the viewer feel it and realize it.",
           "Do not open with generic setup or narrator exposition unless that exact supplied reality demands it.",
           "Do not write lines such as 'the important part is', 'this shows', 'the pattern is', 'she arrives', 'the viewer now understands', or similar explanation unless those facts are explicitly supplied.",
           "Do not turn every fact into a sentence. Combine facts when their relationship creates a stronger turn.",
           "Later lines should make earlier lines more interesting, more specific, or newly meaningful.",
-          "The final turn should land, but do not summarize the whole experience.",
-          "The sequence may be very short or substantially longer when the reality earns it; density and pull matter more than word count.",
+          "The final turn should land without summarizing the experience.",
           "Every cut must be grounded in supplied event IDs.",
-          "The selected perceptual treatment can intensify how the grounded relationship feels, but it cannot change reality.",
+          "The selected perceptual treatment is pressure on the reading, not a source of facts. It can alter emphasis, timing, implication, rhythm, contrast, or emotional pressure, but it cannot change reality.",
+          "NONE is valid when the discovered relationship is stronger without additional framing.",
           "Do not invent events, attributes, people, locations, outcomes, or motivations.",
           "Do not describe production or presentation mechanics.",
           "Return JSON only.",
@@ -204,8 +208,6 @@ export async function realizeAuthorSequence(input: {
         properties: {
           cuts: {
             type: "array",
-            minItems: 4,
-            maxItems: 8,
             items: {
               type: "object",
               additionalProperties: false,
@@ -235,9 +237,8 @@ export async function realizeAuthorSequence(input: {
           .filter((value): value is AuthorCutDraft => Boolean(value))
           .filter((cut, index, values) =>
             values.findIndex((other) => other.text.toLowerCase() === cut.text.toLowerCase()) === index,
-          )
-          .slice(0, 8);
-        if (cuts.length >= 4) return cuts;
+          );
+        if (cuts.length > 0) return cuts;
       }
     }
   } catch {
