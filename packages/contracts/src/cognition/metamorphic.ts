@@ -1,8 +1,34 @@
-import type {
-  LatentSemanticCreativeOpportunity,
-  LatentSemanticMechanism,
-  LatentSemanticRealizationMove,
-} from "../movie/latentMovie.js";
+/**
+ * Universal semantic metamorphic relations.
+ * These describe relationships and perceptual changes in supplied reality.
+ * They do not describe a presentation artifact.
+ */
+
+export type SemanticMechanism =
+  | "expectation_shift"
+  | "continuation"
+  | "state_change"
+  | "recurrence"
+  | "convergence"
+  | "contrast"
+  | "consequence";
+
+export type SemanticRealizationMove =
+  | "feel_state_transition"
+  | "recognize_callback"
+  | "recontextualize_callback"
+  | "hold_contrast"
+  | "return_with_new_status"
+  | "land_consequence"
+  | "recognize";
+
+export type SemanticCreativeOpportunity =
+  | "status_turn"
+  | "contrast_reframe"
+  | "state_to_callback"
+  | "consequence"
+  | "callback_recontextualization"
+  | "recognition";
 
 export type AuthorMetamorphicRelationType =
   | "presentation_behavior_collision"
@@ -21,7 +47,7 @@ export type AuthorMetamorphicRelationType =
 export type AuthorMetamorphicRelation = {
   id: string;
   type: AuthorMetamorphicRelationType;
-  mechanism: LatentSemanticMechanism;
+  mechanism: SemanticMechanism;
   evidenceEventIds: string[];
   beforeEventIds: string[];
   afterEventIds: string[];
@@ -32,8 +58,8 @@ export type AuthorMetamorphicRelation = {
     fromEventId: string;
     toEventId: string;
   };
-  realizationMove: LatentSemanticRealizationMove;
-  creativeOpportunity: LatentSemanticCreativeOpportunity;
+  realizationMove: SemanticRealizationMove;
+  creativeOpportunity: SemanticCreativeOpportunity;
   feltEffect: string;
   viewerShift: string;
   languageAim: string;
