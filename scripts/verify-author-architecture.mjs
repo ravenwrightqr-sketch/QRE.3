@@ -3,14 +3,23 @@
 /**
  * QRE CANONICAL AUTHOR LAW
  *
- * This guard validates the architecture that actually exists.
- * It protects ownership boundaries instead of freezing historical filenames.
+ * Author currently produces one thing: a sequence-text film — text moving as
+ * a sequence of attention-changing screens. This guard prevents future work
+ * from reintroducing a conventional movie abstraction, production language,
+ * or cinematic decision layer into Author.
+ *
+ * `LatentMovieCandidate` is a historical compatibility name only. It means
+ * grounded sequence possibility. Never turn it into a movie/film-production
+ * model, camera plan, soundtrack plan, transition system, or genre engine.
  */
 import { existsSync, readFileSync, readdirSync } from "node:fs";
 import { join, relative, resolve } from "node:path";
 
 const root = resolve(process.cwd());
 const failures = [];
+const canonicalSequenceHeader = /sequence-text film[\s\S]{0,900}not (?:a )?(?:conventional )?movie|sequence-text film[\s\S]{0,900}historical.*compatibility/i;
+const forbiddenMovieArchitecture = /\b(?:camera(?:\s+plan)?|shot\s+list|soundtrack|music\s+cue|sound\s+design|transition\s+(?:plan|system)|screenplay|film(?:maker|making)|cinematic\s+(?:production|brief|plan)|movie\s+genre|genre\s+engine|production\s+(?:plan|brief)|audiovisual\s+(?:plan|production)|fade\s+(?:in|out)|zoom(?:\s+in|\s+out)?|pan(?:ning)?|dolly|tracking\s+shot|montage)\b/i;
+const forbiddenMovieSelection = /\b(?:select(?:ed)?\s+movie|choose\s+(?:a|the)\s+movie|movie\s+selection|movie\s+index|movie\s+ranking|competing\s+movies|movie\s+hypotheses)\b/i;
 
 const required = [
   "apps/api/src/services/authorBrainCanonical.ts",
@@ -37,11 +46,8 @@ const forbiddenFiles = [
   "apps/api/src/services/authorBrainMomentum.ts",
   "apps/api/src/services/authorBrainMomentumV2.ts",
   "apps/api/src/services/authorBrainMomentumV3.ts",
-  "apps/api/src/services/authorLatentStoryThesis.ts",
-  "apps/api/src/services/authorCreativeInterpretation.ts",
   "apps/api/src/services/authorFastCore.ts",
   "apps/api/src/services/creativeRelationOps.ts",
-  "apps/api/author-acceptance-suite.ts",
 ];
 
 const forbiddenImports = [
@@ -69,7 +75,6 @@ function walk(dir, out = []) {
 for (const path of required) {
   if (!existsSync(join(root, path))) fail(`Missing canonical file: ${path}`);
 }
-
 for (const path of forbiddenFiles) {
   if (existsSync(join(root, path))) fail(`Forbidden legacy Author file exists: ${path}`);
 }
@@ -79,9 +84,7 @@ for (const file of sourceFiles) {
   const body = readFileSync(file, "utf8");
   const rel = relative(root, file).replaceAll("\\", "/");
   for (const forbidden of forbiddenImports) {
-    if (new RegExp(`from\\s+["'][^"']*${forbidden}\\.js["']`).test(body)) {
-      fail(`Forbidden Author dependency import in ${rel}: ${forbidden}`);
-    }
+    if (new RegExp(`from\\s+["'][^"']*${forbidden}\\.js["']`).test(body)) fail(`Forbidden Author dependency import in ${rel}: ${forbidden}`);
   }
 }
 
@@ -93,7 +96,25 @@ const lens = read(required[4]);
 const spine = read(required[5]);
 const realizer = read(required[6]);
 const judge = read(required[7]);
+const realityGraph = read(required[8]);
+const readout = read(required[9]);
 const acceptance = read(required[10]);
+
+for (const [path, body] of [
+  [required[0], brain], [required[1], cognition], [required[2], universal], [required[3], artist],
+  [required[4], lens], [required[5], spine], [required[6], realizer], [required[7], judge],
+  [required[8], realityGraph], [required[9], readout],
+]) {
+  if (!canonicalSequenceHeader.test(body)) fail(`Author file missing canonical sequence-text warning header: ${path}`);
+}
+
+for (const [path, body] of [
+  [required[0], brain], [required[1], cognition], [required[2], universal], [required[3], artist],
+  [required[6], realizer], [required[7], judge],
+]) {
+  if (forbiddenMovieArchitecture.test(body)) fail(`Author file contains movie/cinematic production architecture: ${path}`);
+  if (forbiddenMovieSelection.test(body)) fail(`Author file contains movie-selection semantics: ${path}`);
+}
 
 for (const pattern of [
   /buildAuthorRealityGraph\s*\(/,
@@ -105,61 +126,33 @@ for (const pattern of [
   if (!pattern.test(brain)) fail(`Canonical Author missing required stage: ${pattern}`);
 }
 
-if (!/cognition\.selectedLens/.test(brain)) fail("Canonical Author must consume Artist-selected lens");
-if (!/cognition\.selectedMovie/.test(brain) && !/latentMovieCandidates/.test(cognition)) {
-  fail("Canonical Author must preserve the Artist-selected Movie across the handoff");
-}
-if (!/selectedMovie\s*\?\s*\[selectedMovie\]/.test(cognition)) {
-  fail("Cognition must hand downstream only the Artist-selected Movie");
-}
-if (!/chooseArtistDirection\s*\(/.test(cognition)) fail("Cognition must execute Artist direction choice");
-if (!/selectedLens:\s*artistChoice\.selectedLens/.test(cognition)) fail("Cognition must return Artist-selected lens");
-if (!/selectedMovieIndex/.test(artist)) fail("Artist choice must expose selectedMovieIndex");
-if (!/selectedLens/.test(artist)) fail("Artist choice must expose selectedLens");
-if (!/NONE/.test(artist)) fail("Artist choice must treat NONE as a real lens competitor");
+if (!/cognition\.selectedLens/.test(brain) && !/selectedLens/.test(cognition)) fail("Author must preserve the Artist-selected perceptual frame when one exists");
+if (!/artistDirection/.test(cognition)) fail("Cognition must expose Artist direction");
+if (!/creativeProposition/.test(artist)) fail("Artist must expose the central creative proposition");
+if (/selectedMovieIndex/.test(artist)) fail("Artist must not choose a Movie; proposition is the creative authority");
+if (!/selectedLens/.test(artist)) fail("Artist choice must expose perceptual frame selection");
+if (!/NONE/.test(artist)) fail("Artist choice must treat NONE as a real perceptual option");
 if (!/rankCreativeLensCandidates\s*\(/.test(lens)) fail("Lens field must rank creative lens candidates");
 if (!/NONE/.test(lens)) fail("Lens field must retain NONE");
 if (!/rankCreativeLensCandidates\s*\(/.test(spine)) fail("Creative Spine must consume the lens field");
 if (!/lensCandidates/.test(spine)) fail("Creative Spine must expose lens candidates");
 if (!/localModelGenerate\s*\(/.test(realizer)) fail("Creative Realizer must own model realization");
-if (!/selectedMovieIndex/.test(realizer)) fail("Creative Realizer must preserve selected Movie metadata");
-if (!/selectedSetIndex/.test(realizer)) fail("Creative Realizer must preserve Artist film selection");
-if (!/judgeRealizedFilm\s*\(/.test(realizer)) fail("Creative Realizer must use the realized-film judge as diagnostic evaluation");
 if (!/sourceEventIds/.test(realizer)) fail("Creative Realizer must preserve source provenance");
-if (!/RealizedFilmJudgment/.test(judge)) fail("Realized-film judgment contract must remain canonical");
+if (!/centralProposition/.test(realizer)) fail("Creative Realizer must consume the Artist central proposition");
+if (/selectedMovieIndex/.test(realizer)) fail("Creative Realizer must not select a Movie");
+if (!/judgeRealizedFilm\s*\(/.test(realizer)) fail("Creative Realizer must use Judge only for diagnostic evaluation");
+if (!/RealizedFilmJudgment/.test(judge)) fail("Realized sequence judgment contract must remain canonical");
 if (!/authorBrainCanonical\.js/.test(acceptance)) fail("Acceptance must invoke authorBrainCanonical directly");
-if (/authorBrainUniversal|author-acceptance-suite/.test(acceptance)) fail("Acceptance contains a legacy Author path");
-
-/* Business/catalog/knowledge remain outside the universal Author boundary.
- * Guard the dependency boundary itself, not arbitrary identifiers such as
- * `businessSignals` that may legitimately be data supplied to a creative
- * component. The canonical Author may accept structured context, but it must
- * not import or invoke business/catalog/knowledge services.
- */
-const boundaryFiles = [
-  ["apps/api/src/services/authorBrainCanonical.ts", brain],
-  ["apps/api/src/services/authorCognition.ts", cognition],
-  ["apps/api/src/services/authorCognitionUniversal.ts", universal],
-  ["apps/api/src/services/authorArtistChoice.ts", artist],
-  ["apps/api/src/services/authorCreativeLens.ts", lens],
-  ["apps/api/src/services/authorCreativeSpine.ts", spine],
-  ["apps/api/src/services/authorCreativeRealizer.ts", realizer],
-];
 
 const forbiddenDomainImports = /from\s+["'][^"']*\/(?:catalog|business|knowledge)[^"']*\.js["']/i;
 const forbiddenDomainCalls = /\b(?:catalogVision|knowledgeIntake|business[A-Z][A-Za-z0-9_]*)\s*\(/;
-
-for (const [path, body] of boundaryFiles) {
-  if (forbiddenDomainImports.test(body) || forbiddenDomainCalls.test(body)) {
-    fail(`Universal Author boundary must not import or invoke business/catalog/knowledge services: ${path}`);
-  }
+for (const [path, body] of [[required[0], brain], [required[1], cognition], [required[2], universal], [required[3], artist], [required[4], lens], [required[5], spine], [required[6], realizer]]) {
+  if (forbiddenDomainImports.test(body) || forbiddenDomainCalls.test(body)) fail(`Universal Author boundary must not import or invoke business/catalog/knowledge services: ${path}`);
 }
 
 if (existsSync(join(root, "apps/api/package.json"))) {
   const packageJson = JSON.parse(read("apps/api/package.json"));
-  if (packageJson.scripts?.["author:fast"] !== "tsx ./author-acceptance.ts") {
-    fail("apps/api author:fast must execute author-acceptance.ts only");
-  }
+  if (packageJson.scripts?.["author:fast"] !== "tsx ./author-acceptance.ts") fail("apps/api author:fast must execute author-acceptance.ts only");
 }
 
 const experienceRoutePath = "apps/api/src/routes/experience.ts";
@@ -176,19 +169,16 @@ if (existsSync(join(root, experienceServicePath))) {
 }
 
 console.log("=== QRE AUTHOR ARCHITECTURE GUARD ===");
-console.log("CANONICAL AUTHOR: apps/api/src/services/authorBrainCanonical.ts");
-console.log("COGNITION: apps/api/src/services/authorCognition.ts");
-console.log("ARTIST: apps/api/src/services/authorArtistChoice.ts");
-console.log("LENS FIELD: apps/api/src/services/authorCreativeLens.ts");
-console.log("CREATIVE SPINE: apps/api/src/services/authorCreativeSpine.ts");
-console.log("CREATIVE REALIZER: apps/api/src/services/authorCreativeRealizer.ts");
-console.log("REALIZED-FILM JUDGE: apps/api/src/services/authorRealizedFilmJudge.ts");
+console.log("CANONICAL ARTIFACT: SEQUENCE-TEXT FILM");
+console.log("COGNITION: GROUNDED RELATIONSHIPS + PATTERNS");
+console.log("ARTIST: ONE CREATIVE PROPOSITION");
+console.log("MOUTH: VISIBLE MOVING TEXT");
+console.log("JUDGE: DIAGNOSTIC ONLY");
+console.log("NO MOVIE-PRODUCTION ABSTRACTION");
 
 for (const message of failures) console.error(`FAIL: ${message}`);
-
 if (failures.length) {
   console.error(`AUTHOR ARCHITECTURE GUARD FAILED · ${failures.length} violation(s)`);
   process.exit(1);
 }
-
-console.log("AUTHOR ARCHITECTURE GUARD GREEN · ONE CANONICAL AUTHOR · ARTIST AUTHORITY · SOURCE TRUTH · NO LEGACY CREATIVE PATHS");
+console.log("AUTHOR ARCHITECTURE GUARD GREEN · SEQUENCE-TEXT FILM · ARTIST PROPOSITION AUTHORITY · NO MOVIE PRODUCTION MODEL");
