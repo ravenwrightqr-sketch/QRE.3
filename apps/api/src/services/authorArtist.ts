@@ -112,15 +112,18 @@ export async function chooseAuthorProposition(input: {
         role: "system",
         content: [
           "You are QRE Artist.",
-          "Choose exactly one grounded cognitive candidate and turn it into one central creative proposition.",
-          "Also define one ordering rule for the realization: a concise instruction describing how the selected grounded relationship should be progressively revealed.",
-          "The ordering rule is specific to this evidence. It is not a fixed template or category.",
-          "Choose one bounded perceptual treatment from: horror-romance, heist-comedy, game-fierce, noir-tenderness, documentary-chaos.",
-          "A treatment changes perception of the selected relationship; it never changes reality and never invents an event.",
-          "The proposition should expose a rule, tension, dependency, contradiction, priority, recurrence, transformation, or consequence that belongs to this supplied reality.",
-          "Prefer a proposition with character, stakes, movement, surprise, and payoff over a list of nouns.",
+          "Choose exactly one grounded interpretation from the competing cognitive candidates and turn it into one central creative proposition.",
+          "Do not invent a new interpretation when a supplied candidate already supports the reality.",
+          "Also define one ordering rule for the realization: a concise instruction describing how this specific relationship should be revealed to a human over time.",
+          "The ordering rule is evidence-specific. It is not a fixed template, category, or length commandment.",
+          "Choose optional perceptual pressure from: none, horror-romance, heist-comedy, game-fierce, noir-tenderness, documentary-chaos.",
+          "NONE is often correct. Use a specialized pressure only when it makes the grounded relationship more felt, more distinctive, or more memorable.",
+          "A treatment changes perception, emphasis, timing, implication, rhythm, contrast, or emotional pressure. It never changes the event graph.",
+          "The proposition should expose a supported rule, tension, dependency, contradiction, priority, recurrence, transformation, consequence, absence, or relationship.",
+          "Prefer a proposition that makes the subject more recognizable rather than one that merely explains what happened.",
+          "The result must remain useful for a small experience now and expandable through future reality and memory.",
           "The candidate ID, source event IDs, and relationship IDs must come from the supplied data.",
-          "Do not write the final sequence. Do not write slogans. Return JSON only.",
+          "Do not write the final sequence. Do not write explanatory prose or slogans. Return JSON only.",
         ].join(" "),
       },
       {
@@ -192,10 +195,8 @@ export async function chooseAuthorProposition(input: {
             .slice(0, 8)
         : [];
       const treatment = row.treatment && typeof row.treatment === "object" && !Array.isArray(row.treatment)
-        ? row.treatment as Record<string, unknown>
-        : {};
-      const treatmentId = clean(treatment.id);
-      const reason = clean(treatment.reason);
+        ? treatmentFromModel(row.treatment as Record<string, unknown>, input.relations, input.truth.returning)
+        : undefined;
 
       if (
         candidate &&
@@ -204,23 +205,8 @@ export async function chooseAuthorProposition(input: {
         orderingRule.length >= 12 &&
         sourceEventIds.length &&
         !BLOCKED_WORDS.test(text) &&
-        isAuthorTreatmentId(treatmentId)
+        treatment
       ) {
-        const fallbackTreatment = chooseFallbackTreatment({
-          relations: input.relations,
-          returning: input.truth.returning,
-        });
-        const selectedTreatment = treatmentId === fallbackTreatment.id
-          ? fallbackTreatment
-          : {
-              ...fallbackTreatment,
-              id: treatmentId,
-              primary: treatmentId.split("-")[0],
-              secondary: treatmentId.split("-")[1] ?? fallbackTreatment.secondary,
-              rule: treatmentDescriptor(treatmentId),
-              reason: reason || `Selected ${treatmentId} to alter perception of the grounded relationship.`,
-            };
-
         return {
           text,
           pattern,
@@ -230,7 +216,7 @@ export async function chooseAuthorProposition(input: {
           relationIds: relationIds.length
             ? relationIds
             : relationIdsForCandidate(candidate, input.relations),
-          treatment: selectedTreatment,
+          treatment,
         };
       }
     }
@@ -239,4 +225,35 @@ export async function chooseAuthorProposition(input: {
   }
 
   return fallbackValue;
+}
+
+function treatmentFromModel(
+  raw: Record<string, unknown>,
+  relations: AuthorMetamorphicRelationSet,
+  returning?: boolean,
+) {
+  const treatmentId = clean(raw.id);
+  const reason = clean(raw.reason);
+  if (!isAuthorTreatmentId(treatmentId)) return undefined;
+
+  const fallbackTreatment = chooseFallbackTreatment({ relations, returning });
+  if (treatmentId === "none") {
+    return {
+      ...fallbackTreatment,
+      id: "none" as const,
+      primary: "none",
+      secondary: "",
+      rule: treatmentDescriptor("none"),
+      reason: reason || "The grounded relationship is stronger without additional perceptual pressure.",
+    };
+  }
+
+  return {
+    ...fallbackTreatment,
+    id: treatmentId,
+    primary: treatmentId.split("-")[0],
+    secondary: treatmentId.split("-")[1] ?? fallbackTreatment.secondary,
+    rule: treatmentDescriptor(treatmentId),
+    reason: reason || `Selected ${treatmentId} to increase the felt impact of the grounded relationship.`,
+  };
 }
