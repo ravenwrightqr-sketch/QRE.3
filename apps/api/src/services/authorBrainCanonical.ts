@@ -43,14 +43,16 @@ import type { RealizedFilmJudgment } from "./authorRealizedFilmJudge.js";
 
 const ARTIST_DNA = [
   "CREATIVE TASTE ONLY — never treat this as source reality.",
-  "Create something people would actually want to watch, not a polished receipt.",
-  "Search for kinetic energy, sensory impact, comedy, absurdity, drama, tenderness, menace, surprise, and visual/music language before defaulting to safe explanation.",
-  "Look for hidden mechanics: battles, races, missions, campaigns, rounds, boss rooms, speedruns, hunts, rescues, showdowns, transformations, interruptions, reversals, accumulations, countdowns, and status flips when the supplied reality can carry them.",
-  "Let ordinary things become extraordinary artistic subjects: food can feel alive, a car can feel like a contender, a house can feel like a level, a room can feel like an arena, a machine can feel like an opponent, a tool can feel like a weapon, and a sign can feel like a sentinel — all as clearly figurative or cinematic framing, never fabricated literal events.",
-  "Strong sensory language is valuable. When the source supplies sound, music, bass, silence, darkness, light, heat, cold, speed, texture, motion, taste, smell, or impact, make the viewer feel the supplied material rather than merely naming it.",
-  "An interruption followed by return can become impact → absence → return → release. A repeated action can become rhythm, attack, round, combo, ritual, or escalation. A final completion can become a landing or victory image without inventing a literal contest.",
-  "Prefer a memorable creative move over a generic cinematic adjective. Do not default to ghosts, dust, breath, melancholy, ritual, lonely songs, or vague atmosphere when a more alive form is available.",
-  "Do not force this taste onto every world. The Artist chooses. These are permission and creative pressure, not a template.",
+  "Create something people would actually want to watch, not a polished receipt or fact list.",
+  "Start with the complete supplied reality. Do not choose the category, medium or template first.",
+  "Search for the strongest organizing principle already present in the world: priority, hierarchy, contradiction, repetition, cycle, transformation, accumulation, precision, chaos/order, dependency, obsession, status, scarcity, excess, identity, hidden complexity, unexpected specificity, recurring failure, recurring success, or tension between supplied truths.",
+  "Ask what makes THIS subject particular. Find the one idea that explains why these details belong together.",
+  "The creative idea must be discovered from supplied reality, not imported from an industry template.",
+  "A boring service is allowed to become surprising when its actual details contain a strong pattern, rule, contrast, process, personality, absurdity, precision, dependency or transformation.",
+  "A person, pet, product, service, business, place, object, transaction, memorial, property or collection may each produce a completely different creative idea through the same discovery process.",
+  "Use comedy, absurdity, drama, tenderness, menace, irony, play, attitude, compression, personification and metaphor when they are earned by the supplied material.",
+  "Do not force a creative lens onto the world. NONE is valid when a prebuilt lens is weaker than the discovered idea.",
+  "The Artist finds the idea. The Realizer makes that idea visible as moving text. Media can later be layered into the experience without changing the creative authority.",
 ].join("\n");
 
 const clean = (value: unknown): string =>
@@ -98,7 +100,12 @@ function gainFor(
   }
 }
 
-function sequenceFor(subject: string, movie: LatentMovieCandidate, scenes: RealizedScene[]): SequencePlay {
+function sequenceFor(
+  subject: string,
+  movie: LatentMovieCandidate,
+  scenes: RealizedScene[],
+  creativeIdea: string,
+): SequencePlay {
   const cuts: SequenceCut[] = scenes.map((scene, index) => {
     const prior = scenes.slice(0, index).map((item) => item.text);
     const role = roleFor(scene.kind, index, scenes.length);
@@ -123,10 +130,10 @@ function sequenceFor(subject: string, movie: LatentMovieCandidate, scenes: Reali
       gainKind: gainFor(role),
       sourceIds: unique(scene.sourceEventIds),
       informationGain: scene.text,
-      attentionDelta: clean(trajectory?.viewerChange) || clean(movie.hypothesis[index % Math.max(1, movie.hypothesis.length)]),
+      attentionDelta: clean(trajectory?.viewerChange) || creativeIdea || clean(movie.hypothesis[index % Math.max(1, movie.hypothesis.length)]),
       viewerBefore,
       viewerAfter,
-      necessity: { necessary: true, reason: clean(trajectory?.viewerChange) || "advances the artist-selected experience" },
+      necessity: { necessary: true, reason: creativeIdea || clean(trajectory?.viewerChange) || "advances the artist-selected experience" },
       nextPromise: clean(trajectory?.nextQuestion),
       payoffConnection: role === "payoff" ? clean(movie.payoff) : undefined,
       noveltyScore: metric(movie.novelty + scene.score * 0.35),
@@ -136,28 +143,50 @@ function sequenceFor(subject: string, movie: LatentMovieCandidate, scenes: Reali
 
   return {
     subject,
-    premise: clean(movie.hypothesis[0]) || clean(movie.payoff),
+    premise: creativeIdea || clean(movie.hypothesis[0]) || clean(movie.payoff),
     openingState: cuts[0]?.viewerBefore ?? { known: [] },
     baselineFacts: [],
     cuts,
     closingState: cuts.at(-1)?.viewerAfter,
     continuity: movie.callbackPotential > 0.55 ? ["selected creative material offers continuity"] : [],
-    antiCrutch: ["no fixed beat count", "no repeated subject openings", "no mechanical one-fact-per-beat rule", "no requirement to preserve Movie trajectory", "no source-order serialization"],
+    antiCrutch: [
+      "no fixed beat count",
+      "no repeated subject openings",
+      "no mechanical one-fact-per-beat rule",
+      "no requirement to preserve Movie trajectory",
+      "no source-order serialization",
+      "every screen must serve the chosen creative idea",
+    ],
     continuation: clean(movie.unresolvedQuestion) || "The world can receive another supplied event.",
   };
 }
 
-function briefFor(movie: LatentMovieCandidate, cognition: Awaited<ReturnType<typeof buildAuthorCognitivePlan>>, lens: string): AuthorCreativeBrief {
+function briefFor(
+  movie: LatentMovieCandidate,
+  cognition: Awaited<ReturnType<typeof buildAuthorCognitivePlan>>,
+  lens: string,
+): AuthorCreativeBrief {
+  const direction = cognition.artistDirection;
+  const creativeIdea = clean(direction.mechanic.text) || clean(direction.hook.text);
   return {
     angle: lens,
     engine: "Reality → World → Cognition → Possibilities → Artist → Creative Realizer → Sequence → Experience",
-    question: clean(movie.unresolvedQuestion),
-    strongestImage: clean(movie.evidence[0]) || clean(movie.payoff),
-    tension: clean(movie.storyThesis?.semanticTurn) || clean(movie.hypothesis[0]),
-    payoff: clean(movie.payoff),
-    callback: clean(movie.callbackPotential > 0.55 ? "continuity available" : "none"),
+    question: clean(direction.openLoop.text) || clean(movie.unresolvedQuestion),
+    strongestImage: clean(direction.hook.text) || clean(movie.evidence[0]) || clean(movie.payoff),
+    tension: clean(direction.tension.text) || clean(movie.storyThesis?.semanticTurn) || clean(movie.hypothesis[0]),
+    payoff: clean(direction.payoff.text) || clean(movie.payoff),
+    callback: clean(direction.surprise.text) || clean(movie.callbackPotential > 0.55 ? "continuity available" : "none"),
     rhythm: cognition.latentMovieCandidates.length > 5 ? ["short", "standard", "long", "hit"] : ["short", "standard", "hit"],
-    avoid: ["invented reality", "compiler language", "fixed story template", "repeated subject openings", "caption reel", "fact-by-fact transcription", "Movie trajectory serialization"],
+    avoid: [
+      "invented reality",
+      "compiler language",
+      "fixed story template",
+      "repeated subject openings",
+      "caption reel",
+      "fact-by-fact transcription",
+      "Movie trajectory serialization",
+      creativeIdea ? "abandoning the Artist's central idea" : "generic abstraction",
+    ],
   };
 }
 
@@ -243,7 +272,8 @@ export async function authorBrainCanonical(input: AuthorBrainTruth): Promise<Can
   const lensSpine = buildAuthorCreativeSpine({ graph: world, subject, lens: cognition.selectedLens, returning });
   const lensStack = [lensSpine.lensTreatment.primary, lensSpine.lensTreatment.secondary].filter((value) => value && value !== "none").join(" + ") || cognition.selectedLens;
 
-  const realization = await realizeAuthorExperience({
+  const qualityRuns = Math.min(2, Math.max(1, Number(process.env.QRE_AUTHOR_QUALITY_RUNS || 2)));
+  let realization = await realizeAuthorExperience({
     prompt,
     subject,
     lens: lensStack,
@@ -256,26 +286,60 @@ export async function authorBrainCanonical(input: AuthorBrainTruth): Promise<Can
     creativeLearningContext: cognitionLearningContext,
   });
 
+  for (let retry = 1; retry < qualityRuns; retry += 1) {
+    const judgment = realization.judgment;
+    if (judgment?.accepted) break;
+    const feedback = judgment?.reasons?.join(" | ") || realization.reason || "previous realization did not meet the quality bar";
+    realization = await realizeAuthorExperience({
+      prompt,
+      subject,
+      lens: lensStack,
+      graph: world,
+      movies,
+      artistDirection: cognition.artistDirection,
+      domainContext: input.domainContext,
+      memoryContext: input.memoryContext,
+      priorScenes: input.trajectory,
+      creativeLearningContext: unique([
+        ...cognitionLearningContext,
+        `QUALITY REPAIR: The previous visible realization was rejected. Preserve the same Artist idea but fix: ${feedback}`,
+      ]),
+    });
+  }
+
   const artistSelectedMovieIndex = realization.selectedMovieIndex;
   const artistMovie = artistSelectedMovieIndex !== undefined && artistSelectedMovieIndex >= 0 && artistSelectedMovieIndex < movies.length
     ? movies[artistSelectedMovieIndex]!
     : movies[0]!;
 
-  if (!artistMovie) {
+  if (!artistMovie || !realization.judgment?.accepted) {
     return {
       readout,
       scenes: [],
       sequence: { subject, premise: "", openingState: { known: [] }, cuts: [] },
       realizationMode: "collection",
-      brief: { angle: cognition.selectedLens, engine: "Reality → World → Cognition → Possibilities → Artist → Creative Realizer → Sequence → Experience", question: "", strongestImage: "", tension: "", payoff: "", callback: "none", rhythm: ["short"], avoid: ["invented reality"] },
-      diagnostics: { model: cognition.model === "fallback" ? realization.model : cognition.model, modelCalls: cognition.modelCalls + realization.modelCalls, candidateSequences: movies.length, acceptedCandidates: 0, qualityStatus: "REJECTED", renderable: false, complete: false, selectedScore: 0, rejectedCandidates: [{ reason: "Artist returned no usable creative possibility" }], artistSelectedMovieIndex, realizedFilmJudge: realization.judgment },
+      brief: { angle: cognition.selectedLens, engine: "Reality → World → Cognition → Possibilities → Artist → Creative Realizer → Sequence → Experience", question: "", strongestImage: "", tension: "", payoff: "", callback: "none", rhythm: ["short"], avoid: ["weak or caption-reel realization"] },
+      diagnostics: {
+        model: cognition.model === "fallback" ? realization.model : cognition.model,
+        modelCalls: cognition.modelCalls + realization.modelCalls,
+        candidateSequences: movies.length,
+        acceptedCandidates: 0,
+        qualityStatus: "REJECTED",
+        renderable: false,
+        complete: false,
+        selectedScore: metric(realization.judgment?.score ?? 0),
+        rejectedCandidates: [{ reason: "Artist realization failed the visible creative quality gate", judgeReasons: realization.judgment?.reasons ?? [], realizationReason: realization.reason }],
+        artistSelectedMovieIndex,
+        realizedFilmJudge: realization.judgment,
+      },
       adaptiveQuestions: cognition.adaptiveQuestions,
       world,
     };
   }
 
   const scenes = realization.scenes.map((scene) => ({ text: scene.text, kind: scene.kind }) satisfies AuthorScene);
-  const sequence = sequenceFor(subject, artistMovie, realization.scenes);
+  const creativeIdea = clean(cognition.artistDirection.mechanic.text) || clean(cognition.artistDirection.hook.text);
+  const sequence = sequenceFor(subject, artistMovie, realization.scenes, creativeIdea);
   const complete = scenes.length > 0 && scenes.length === sequence.cuts.length;
   const realizedFilmJudge = realization.judgment;
 
@@ -290,9 +354,9 @@ export async function authorBrainCanonical(input: AuthorBrainTruth): Promise<Can
       model: cognition.model === "fallback" ? realization.model : cognition.model,
       modelCalls: cognition.modelCalls + realization.modelCalls,
       candidateSequences: movies.length,
-      acceptedCandidates: movies.length,
-      qualityStatus: complete ? "ACCEPTED" : "REJECTED",
-      renderable: complete,
+      acceptedCandidates: realizedFilmJudge?.accepted ? 1 : 0,
+      qualityStatus: complete && Boolean(realizedFilmJudge?.accepted) ? "ACCEPTED" : "REJECTED",
+      renderable: complete && Boolean(realizedFilmJudge?.accepted),
       complete,
       selectedScore: metric(realizedFilmJudge?.score ?? 0),
       rejectedCandidates: realization.reason ? [{ reason: realization.reason, rejectedSets: realization.rejectedSets }] : [],
