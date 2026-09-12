@@ -55,28 +55,14 @@ function fallback(input: {
     .filter((event): event is NonNullable<typeof event> => Boolean(event));
   if (!anchors.length) return [];
 
-  const first = clean(anchors[0].label);
-  const last = clean(anchors.at(-1)?.label);
-  const hypothesis = clean(input.candidate.hypothesis[0]);
+  const proposition = clean(input.proposition.text);
+  const anchorLabels = anchors.map((event) => clean(event.label)).filter(Boolean);
   const payoff = clean(input.candidate.payoff);
-  const relationship = clean(input.candidate.supportingRelationKinds[0]) || "relationship";
 
   const candidates: AuthorCutDraft[] = [
-    { text: input.proposition.text, sourceEventIds: [anchors[0].id] },
-    { text: first, sourceEventIds: [anchors[0].id] },
-    {
-      text: hypothesis && hypothesis !== first
-        ? hypothesis
-        : `The important part is how ${relationship} changes the reading.`,
-      sourceEventIds: anchors.slice(0, 2).map((event) => event.id),
-    },
-    ...(anchors.length > 2
-      ? [{
-          text: `Then ${last || first} stops looking like a separate detail.`,
-          sourceEventIds: anchors.slice(-2).map((event) => event.id),
-        }]
-      : []),
-    { text: payoff || `That is the pattern.`, sourceEventIds: [anchors.at(-1)!.id] },
+    ...(proposition ? [{ text: proposition, sourceEventIds: [anchors[0].id] }] : []),
+    ...anchors.map((event) => ({ text: clean(event.label), sourceEventIds: [event.id] })),
+    ...(payoff ? [{ text: payoff, sourceEventIds: [anchors.at(-1)!.id] }] : []),
   ];
 
   const result: AuthorCutDraft[] = [];
@@ -86,7 +72,7 @@ function fallback(input: {
     if (result.some((existing) => existing.text.toLowerCase() === text.toLowerCase())) continue;
     result.push({ text, sourceEventIds: unique(cut.sourceEventIds) });
   }
-  return result.slice(0, 8);
+  return result.slice(0, Math.max(4, Math.min(anchors.length + 2, 12)));
 }
 
 function semanticTransition(
@@ -169,13 +155,22 @@ export async function realizeAuthorSequence(input: {
         role: "system",
         content: [
           "You are QRE Mouth.",
-          "Realize one approved Artist proposition as 4-8 terse language cuts.",
+          "Realize the approved proposition as a sequence the visitor wants to keep entering.",
+          "Use the supplied reality to create progressive semantic turns, not a narrated report of what happened.",
+          "Language should feel immediate, compressed, specific, and alive.",
+          "Prefer fragments, concrete words, implication, contrast, consequence, callback, escalation, and recontextualization.",
+          "A line can be one word, a fragment, or a complete sentence when the moment earns it.",
+          "Do not impose a fixed length, fixed number of lines, or fixed rhythm. Use only as much language as the discovered relationship needs.",
+          "Do not explain what the sequence means. Make the viewer feel it and realize it.",
+          "Do not open with generic setup or narrator exposition unless that exact supplied reality demands it.",
+          "Do not write lines such as 'the important part is', 'this shows', 'the pattern is', 'she arrives', 'the viewer now understands', or similar explanation unless those facts are explicitly supplied.",
+          "Do not turn every fact into a sentence. Combine facts when their relationship creates a stronger turn.",
+          "Later lines should make earlier lines more interesting, more specific, or newly meaningful.",
+          "The final turn should land, but do not summarize the whole experience.",
+          "The sequence may be very short or substantially longer when the reality earns it; density and pull matter more than word count.",
           "Every cut must be grounded in supplied event IDs.",
-          "Every cut must change the viewer's interpretation, expectation, question, or emotional meaning of what came before.",
-          "The selected perceptual treatment changes how the real relationship is felt; it never changes the underlying facts.",
-          "Use implication, compression, contrast, recontextualization, escalation, consequence, or callback.",
-          "Do not serialize the source facts. Do not restate the same idea in different words.",
-          "Do not add events, attributes, people, locations, outcomes, or motivations that are not supplied.",
+          "The selected perceptual treatment can intensify how the grounded relationship feels, but it cannot change reality.",
+          "Do not invent events, attributes, people, locations, outcomes, or motivations.",
           "Do not describe production or presentation mechanics.",
           "Return JSON only.",
         ].join(" "),
