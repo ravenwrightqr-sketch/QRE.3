@@ -271,12 +271,14 @@ export async function authorBrainCanonical(input: AuthorBrainTruth): Promise<Can
 
   const lensSpine = buildAuthorCreativeSpine({ graph: world, subject, lens: cognition.selectedLens, returning });
   const lensStack = [lensSpine.lensTreatment.primary, lensSpine.lensTreatment.secondary].filter((value) => value && value !== "none").join(" + ") || cognition.selectedLens;
+  const artistIdea = clean(cognition.artistDirection.mechanic.text);
+  const realizationFrame = artistIdea || lensStack || cognition.selectedLens;
 
   const qualityRuns = Math.min(2, Math.max(1, Number(process.env.QRE_AUTHOR_QUALITY_RUNS || 2)));
   let realization = await realizeAuthorExperience({
     prompt,
     subject,
-    lens: lensStack,
+    lens: realizationFrame,
     graph: world,
     movies,
     artistDirection: cognition.artistDirection,
@@ -293,7 +295,7 @@ export async function authorBrainCanonical(input: AuthorBrainTruth): Promise<Can
     realization = await realizeAuthorExperience({
       prompt,
       subject,
-      lens: lensStack,
+      lens: realizationFrame,
       graph: world,
       movies,
       artistDirection: cognition.artistDirection,
