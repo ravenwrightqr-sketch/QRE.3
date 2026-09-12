@@ -1,9 +1,13 @@
 /**
- * QRE AUTHOR CONTRACT
+ * QRE AUTHOR CONTRACT — SEQUENCE-TEXT FILM ONLY
  *
- * Author produces a grounded sequence-text film: text moving as a sequence.
- * It is not a conventional movie, screenplay, shot list, or audiovisual plan.
- * Author contracts contain semantic meaning and sequence structure only.
+ * Author produces one kind of artifact for now: text moving as a grounded
+ * sequence of attention-changing screens. It is NOT a conventional movie,
+ * screenplay, shot list, camera plan, soundtrack, transition system, or
+ * audiovisual production model.
+ *
+ * Do not introduce Movie abstractions here. Semantic Author contracts contain
+ * reality-grounded meaning, creative proposition, and sequence structure only.
  */
 import type { CognitiveExperiencePlan } from "../cognition/cognition.js";
 import type { RealityGraph } from "../reality/realityGraph.js";
