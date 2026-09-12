@@ -1,41 +1,185 @@
-import type { AuthorBrainTruth, AuthorCreativeProposition, AuthorDomainContext, RealityGraph, SequenceCandidate } from "@qre/contracts";
+import type {
+  AuthorBrainTruth,
+  AuthorCreativeProposition,
+  AuthorDomainContext,
+  AuthorMetamorphicRelationSet,
+  RealityGraph,
+  SequenceCandidate,
+} from "@qre/contracts";
+import { isAuthorTreatmentId, chooseFallbackTreatment, treatmentDescriptor } from "./authorTreatment.js";
 import { localModelGenerate } from "./localModelRuntime.js";
 
-export type AuthorTreatment = { primary: string; secondary?: string; reason: string };
-const clean=(value:unknown):string=>typeof value==="string"?value.replace(/\s+/g," ").trim():"";
-const unique=(values:readonly string[]):string[]=>[...new Set(values.map(clean).filter(Boolean))];
-const risky=(value:string):boolean=>/\b(?:camera|shot|montage|soundtrack|screenplay|transition|voice[- ]?over|slogan|caption|genre|movie)\b/i.test(value);
+const clean = (value: unknown): string => typeof value === "string" ? value.replace(/\s+/g, " ").trim() : "";
+const unique = (values: readonly string[]): string[] => [...new Set(values.map(clean).filter(Boolean))];
+const BLOCKED_WORDS = /\b(?:camera|shot|montage|soundtrack|screenplay|voice[- ]?over|slogan|caption|genre|movie|cinematic)\b/i;
 
-function fallback(input:{candidate:SequenceCandidate;graph:RealityGraph;truth:AuthorBrainTruth}) {
-  const ids=input.candidate.anchorEventIds.filter(id=>input.graph.events.some(event=>event.id===id)).slice(0,6);
-  const subject=clean(input.truth.subject)||"this reality";
-  const base=input.candidate.hypothesis[0]||input.candidate.payoff||input.candidate.lens;
-  return { proposition:{text:base?`${subject} has a pattern: ${base}`:`${subject} makes one rule visible.`,pattern:input.candidate.lens||input.candidate.supportingRelationKinds[0]||"relationship",sourceEventIds:ids.length?ids:(input.graph.events[0]?[input.graph.events[0].id]:[])}, treatment:{primary:"comedy",reason:"fallback treatment; the supplied relationship remains the creative center"} as AuthorTreatment };
+function relationIdsForCandidate(candidate: SequenceCandidate, relations: AuthorMetamorphicRelationSet): string[] {
+  const anchorIds = new Set(candidate.anchorEventIds);
+  return relations.relations
+    .filter((relation) =>
+      relation.evidenceEventIds.some((id) => anchorIds.has(id)) ||
+      relation.beforeEventIds.some((id) => anchorIds.has(id)) ||
+      relation.afterEventIds.some((id) => anchorIds.has(id)) ||
+      candidate.supportingRelationKinds.includes(relation.type),
+    )
+    .map((relation) => relation.id)
+    .slice(0, 8);
 }
 
-export async function chooseAuthorProposition(input:{truth:AuthorBrainTruth;candidate:SequenceCandidate;alternatives:SequenceCandidate[];graph:RealityGraph;domainContext?:AuthorDomainContext}):Promise<AuthorCreativeProposition&{treatment:AuthorTreatment}> {
-  const fallbackValue=fallback(input);
-  const field=unique(input.alternatives.map(c=>`${c.lens}: ${c.hypothesis.join("; ")} | ${c.payoff}`)).slice(0,6);
+function fallback(input: {
+  truth: AuthorBrainTruth;
+  candidate: SequenceCandidate;
+  alternatives: SequenceCandidate[];
+  graph: RealityGraph;
+  relations: AuthorMetamorphicRelationSet;
+}): AuthorCreativeProposition {
+  const pool = input.alternatives.length ? input.alternatives : [input.candidate];
+  const selected = [...pool].sort((a, b) => b.score - a.score)[0] ?? input.candidate;
+  const sourceEventIds = selected.anchorEventIds.filter((id) => input.graph.events.some((event) => event.id === id)).slice(0, 8);
+  const relationIds = relationIdsForCandidate(selected, input.relations);
+  const hypothesis = clean(selected.hypothesis[0]);
+  const payoff = clean(selected.payoff);
+  const text = hypothesis || payoff || clean(selected.lens) || "A distinctive relationship is already present here.";
+  const treatment = chooseFallbackTreatment({ relations: input.relations, returning: input.truth.returning });
+  return {
+    text: BLOCKED_WORDS.test(text) ? "A distinctive relationship is already present here." : text,
+    pattern: clean(selected.lens) || selected.supportingRelationKinds[0] || "relationship",
+    sourceEventIds,
+    candidateId: selected.id,
+    relationIds,
+    treatment,
+  };
+}
+
+export async function chooseAuthorProposition(input: {
+  truth: AuthorBrainTruth;
+  candidate: SequenceCandidate;
+  alternatives: SequenceCandidate[];
+  graph: RealityGraph;
+  relations: AuthorMetamorphicRelationSet;
+  domainContext?: AuthorDomainContext;
+}): Promise<AuthorCreativeProposition> {
+  const fallbackValue = fallback(input);
+  const candidates = (input.alternatives.length ? input.alternatives : [input.candidate]).slice(0, 6);
+  const candidateField = candidates.map((candidate) => ({
+    id: candidate.id,
+    lens: candidate.lens,
+    anchors: candidate.anchorEventIds,
+    relationships: candidate.supportingRelationKinds,
+    trajectory: candidate.trajectory,
+    payoff: candidate.payoff,
+    unresolvedQuestion: candidate.unresolvedQuestion,
+    evidence: candidate.evidence,
+    hypothesis: candidate.hypothesis,
+    score: candidate.score,
+  }));
+
   try {
-    const response=await localModelGenerate([
-      {role:"system",content:[
-        "You are QRE Artist.",
-        "Choose ONE central creative proposition from the strongest semantic possibilities discovered by Cognition.",
-        "Do not build a genre library. Choose a perceptual treatment from this tiny vocabulary: horror, romance, comedy, heist, game, fierce, noir, tenderness, documentary, chaos.",
-        "You may combine two treatments: horror+romance, heist+comedy, game+fierce, noir+tenderness, documentary+chaos.",
-        "Treatment changes perception of real relationships; it never invents the underlying reality.",
-        "The proposition must expose a memorable rule or interpretation already supported by supplied reality.",
-        "Prefer character + game + tension + surprise + payoff over noun lists.",
-        "Return JSON only."].join(" ")},
-      {role:"user",content:JSON.stringify({subject:input.truth.subject,prompt:input.truth.prompt,domain:input.truth.domainContext??input.domainContext??null,returning:input.truth.returning??false,visitNumber:input.truth.visitNumber??null,memory:input.truth.memoryContext?.slice(0,100)??[],learning:input.truth.creativeLearningContext?.slice(0,80)??[],reality:input.graph.events.slice(0,100).map(e=>({id:e.id,label:e.label,entities:e.entities,place:e.place,time:e.time,salient:e.salient})),relations:input.graph.relations.slice(0,100),candidates:field})},
-    ],"json",{numPredict:900,numCtx:12288,temperature:0.84,jsonSchema:{type:"object",additionalProperties:false,required:["text","pattern","sourceEventIds","treatment"],properties:{text:{type:"string"},pattern:{type:"string"},sourceEventIds:{type:"array",minItems:1,maxItems:8,items:{type:"string"}},treatment:{type:"object",additionalProperties:false,required:["primary","reason"],properties:{primary:{type:"string"},secondary:{type:"string"},reason:{type:"string"}}}}}});
-    const parsed:unknown=JSON.parse(response.text);
-    if(parsed&&typeof parsed==="object"&&!Array.isArray(parsed)){
-      const row=parsed as Record<string,unknown>;const text=clean(row.text);const pattern=clean(row.pattern);const ids=Array.isArray(row.sourceEventIds)?row.sourceEventIds.filter((v):v is string=>typeof v==="string"&&input.graph.events.some(e=>e.id===v)).slice(0,8):[];
-      const t=row.treatment&&typeof row.treatment==="object"&&!Array.isArray(row.treatment)?row.treatment as Record<string,unknown>:{};const primary=clean(t.primary).toLowerCase();const secondary=clean(t.secondary).toLowerCase();const reason=clean(t.reason);
-      const allowed=new Set(["horror","romance","comedy","heist","game","fierce","noir","tenderness","documentary","chaos"]);
-      if(text&&pattern&&ids.length&&!risky(text)&&allowed.has(primary)&&(!secondary||allowed.has(secondary))){return {text,pattern,sourceEventIds:ids,treatment:{primary,secondary:secondary||undefined,reason:reason||"Treatment selected to change perception of the supplied relationship."}};}
+    const response = await localModelGenerate([
+      {
+        role: "system",
+        content: [
+          "You are QRE Artist.",
+          "Choose exactly one grounded cognitive candidate and turn it into one central creative proposition.",
+          "Choose one bounded perceptual treatment from: horror-romance, heist-comedy, game-fierce, noir-tenderness, documentary-chaos.",
+          "A treatment changes perception of the selected relationship; it never changes reality and never invents an event.",
+          "The proposition should be memorable because it exposes a rule, tension, dependency, contradiction, priority, recurrence, transformation, or consequence that belongs to this supplied reality.",
+          "Prefer a proposition with character, stakes, movement, surprise, and payoff over a list of nouns.",
+          "The candidate ID, source event IDs, and relationship IDs must come from the supplied data.",
+          "Do not describe production. Return JSON only.",
+        ].join(" "),
+      },
+      {
+        role: "user",
+        content: JSON.stringify({
+          prompt: input.truth.prompt,
+          subject: input.truth.subject,
+          place: input.truth.place,
+          returning: input.truth.returning ?? false,
+          visitNumber: input.truth.visitNumber ?? null,
+          memory: input.truth.memoryContext?.slice(0, 100) ?? [],
+          learning: input.truth.creativeLearningContext?.slice(0, 80) ?? [],
+          domain: input.truth.domainContext ?? input.domainContext ?? null,
+          reality: input.graph.events.slice(0, 100),
+          relationships: input.relations.relations.slice(0, 24),
+          candidates: candidateField,
+        }),
+      },
+    ], "json", {
+      numPredict: 950,
+      numCtx: 12288,
+      temperature: 0.84,
+      jsonSchema: {
+        type: "object",
+        additionalProperties: false,
+        required: ["candidateId", "text", "pattern", "sourceEventIds", "relationIds", "treatment"],
+        properties: {
+          candidateId: { type: "string" },
+          text: { type: "string" },
+          pattern: { type: "string" },
+          sourceEventIds: { type: "array", minItems: 1, maxItems: 8, items: { type: "string" } },
+          relationIds: { type: "array", maxItems: 8, items: { type: "string" } },
+          treatment: {
+            type: "object",
+            additionalProperties: false,
+            required: ["id", "reason"],
+            properties: { id: { type: "string" }, reason: { type: "string" } },
+          },
+        },
+      },
+    });
+
+    const parsed: unknown = JSON.parse(response.text);
+    if (parsed && typeof parsed === "object" && !Array.isArray(parsed)) {
+      const row = parsed as Record<string, unknown>;
+      const candidateId = clean(row.candidateId);
+      const candidate = candidates.find((value) => value.id === candidateId);
+      const text = clean(row.text);
+      const pattern = clean(row.pattern);
+      const sourceEventIds = Array.isArray(row.sourceEventIds)
+        ? row.sourceEventIds.filter((value): value is string => typeof value === "string" && input.graph.events.some((event) => event.id === value)).slice(0, 8)
+        : [];
+      const relationIds = Array.isArray(row.relationIds)
+        ? row.relationIds.filter((value): value is string => typeof value === "string" && input.relations.relations.some((relation) => relation.id === value)).slice(0, 8)
+        : [];
+      const treatment = row.treatment && typeof row.treatment === "object" && !Array.isArray(row.treatment)
+        ? row.treatment as Record<string, unknown>
+        : {};
+      const treatmentId = clean(treatment.id);
+      const reason = clean(treatment.reason);
+
+      if (
+        candidate &&
+        text &&
+        pattern &&
+        sourceEventIds.length &&
+        !BLOCKED_WORDS.test(text) &&
+        isAuthorTreatmentId(treatmentId)
+      ) {
+        const fallbackTreatment = chooseFallbackTreatment({ relations: input.relations, returning: input.truth.returning });
+        const selectedTreatment = treatmentId === fallbackTreatment.id
+          ? fallbackTreatment
+          : {
+              ...fallbackTreatment,
+              id: treatmentId,
+              primary: treatmentId.split("-")[0],
+              secondary: treatmentId.split("-")[1] ?? fallbackTreatment.secondary,
+              rule: treatmentDescriptor(treatmentId),
+              reason: reason || `Selected ${treatmentId} to alter perception of the grounded relationship.`,
+            };
+        return {
+          text,
+          pattern,
+          sourceEventIds,
+          candidateId: candidate.id,
+          relationIds: relationIds.length ? relationIds : relationIdsForCandidate(candidate, input.relations),
+          treatment: selectedTreatment,
+        };
+      }
     }
-  }catch{}
-  return {...fallbackValue.proposition,treatment:fallbackValue.treatment};
+  } catch {
+    // Deterministic fallback preserves a valid Author result when the local model fails.
+  }
+
+  return fallbackValue;
 }
