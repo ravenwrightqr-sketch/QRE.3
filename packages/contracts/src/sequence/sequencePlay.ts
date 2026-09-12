@@ -1,19 +1,9 @@
 /**
- * CANONICAL QRE SEQUENCE-TEXT FILM CONTRACT
+ * Canonical QRE semantic sequence contract.
  *
- * This is the current artifact: text moving as a sequence of attention-changing
- * screens. It is NOT a conventional movie, screenplay, shot list, camera plan,
- * soundtrack, transition plan, or cinematic production model.
- *
- * Reality answers: what exists / happened.
- * SequencePlay answers: what changes in the viewer's experience from cut to cut.
- *
- * Do not introduce Movie abstractions into this contract. Keep visual/media
- * presentation concerns downstream of the semantic sequence.
- *
- * Important: identity and established facts belong to baseline world state. They
- * are not attention gains by themselves and should not consume sequence cuts
- * unless revealing them materially changes the viewer's question or expectation.
+ * Reality answers what exists or happened. SequencePlay answers what changes
+ * in the visitor's understanding from one cut to the next. Presentation is
+ * downstream; this contract contains only semantic experience state.
  */
 
 export type ViewerAttentionRole =
@@ -59,16 +49,13 @@ export type SequenceCut = {
   id: string;
   order: number;
   role: ViewerAttentionRole;
-  /** Explicit classification. Optional only during migration of legacy producers. */
   gainKind?: SequenceGainKind;
   sourceIds: string[];
   informationGain: string;
   attentionDelta: string;
   viewerBefore: ViewerState;
   viewerAfter: ViewerState;
-  /** Cognitive transition that makes this cut earn its place. */
   momentum?: SequenceTransition;
-  /** Whether removing this cut damages curiosity, coherence, surprise, escalation, or payoff. */
   necessity?: CutNecessity;
   nextPromise?: string;
   payoffConnection?: string;
@@ -80,12 +67,9 @@ export type SequencePlay = {
   subject: string;
   premise: string;
   openingState: ViewerState;
-  /** Facts/identity established before the actual attention sequence begins. */
   baselineFacts?: string[];
-  /** Current viewer momentum at the sequence entrance. */
   openingMomentum?: ViewerMomentum;
   cuts: SequenceCut[];
-  /** Final viewer momentum after the payoff/release. */
   closingMomentum?: ViewerMomentum;
   closingState?: ViewerState;
   continuity?: string[];

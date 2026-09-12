@@ -1,43 +1,371 @@
-import type { AuthorCreativeProposition, RealityGraph, SequenceCandidate, SequencePlay, SequenceCut, SequenceGainKind, ViewerAttentionRole, ViewerState } from "@qre/contracts";
+import type {
+  AuthorCreativeProposition,
+  RealityGraph,
+  SequenceCandidate,
+  SequencePlay,
+  SequenceCut,
+  SequenceGainKind,
+  ViewerAttentionRole,
+  ViewerMomentum,
+  ViewerState,
+  SequenceTransition,
+} from "@qre/contracts";
 import { localModelGenerate } from "./localModelRuntime.js";
 
-type CutDraft={text:string;sourceEventIds:string[]};
-const clean=(v:unknown)=>typeof v==="string"?v.replace(/\s+/g," ").trim():"";
-const validIds=(value:unknown,graph:RealityGraph)=>Array.isArray(value)?value.filter((v):v is string=>typeof v==="string"&&graph.events.some(e=>e.id===v)):[];
-function fallback(input:{graph:RealityGraph;candidate:SequenceCandidate;proposition:AuthorCreativeProposition}):CutDraft[]{
-  const ev=input.candidate.anchorEventIds.map(id=>input.graph.events.find(e=>e.id===id)).filter((e):e is NonNullable<typeof e>=>Boolean(e));
-  if(!ev.length) return [];
-  const out:CutDraft[]=[{text:input.proposition.text,sourceEventIds:[ev[0].id]}];
-  for(const e of ev.slice(0,4)) out.push({text:e.label,sourceEventIds:[e.id]});
-  out.push({text:input.candidate.payoff||ev.at(-1)!.label,sourceEventIds:[ev.at(-1)!.id]});
-  return out;
+export type AuthorCutDraft = {
+  text: string;
+  sourceEventIds: string[];
+};
+
+const clean = (value: unknown): string =>
+  typeof value === "string" ? value.replace(/\s+/g, " ").trim() : "";
+
+const unique = (values: readonly string[]): string[] =>
+  [...new Set(values.map(clean).filter(Boolean))];
+
+const words = (value: string): Set<string> =>
+  new Set(value.toLowerCase().split(/[^a-z0-9]+/).filter((word) => word.length > 2));
+
+const validIds = (value: unknown, graph: RealityGraph): string[] =>
+  Array.isArray(value)
+    ? value.filter((item): item is string =>
+        typeof item === "string" && graph.events.some((event) => event.id === item),
+      )
+    : [];
+
+function lexicalNovelty(previous: string, current: string): number {
+  if (!previous) return 1;
+  const first = words(previous);
+  const second = words(current);
+  if (!first.size || !second.size) return current === previous ? 0 : 1;
+  let shared = 0;
+  first.forEach((word) => {
+    if (second.has(word)) shared += 1;
+  });
+  return 1 - shared / Math.max(first.size, second.size);
 }
-export async function realizeAuthorSequence(input:{graph:RealityGraph;candidate:SequenceCandidate;proposition:AuthorCreativeProposition}):Promise<CutDraft[]> {
-  const fallbackCuts=fallback(input);
+
+function fallback(input: {
+  graph: RealityGraph;
+  candidate: SequenceCandidate;
+  proposition: AuthorCreativeProposition;
+}): AuthorCutDraft[] {
+  const anchors = input.candidate.anchorEventIds
+    .map((id) => input.graph.events.find((event) => event.id === id))
+    .filter((event): event is NonNullable<typeof event> => Boolean(event));
+  if (!anchors.length) return [];
+
+  const proposition = clean(input.proposition.text);
+  const anchorLabels = anchors.map((event) => clean(event.label)).filter(Boolean);
+  const payoff = clean(input.candidate.payoff);
+
+  const candidates: AuthorCutDraft[] = [
+    ...(proposition ? [{ text: proposition, sourceEventIds: [anchors[0].id] }] : []),
+    ...anchorLabels.map((text, index) => ({
+      text,
+      sourceEventIds: [anchors[index]!.id],
+    })),
+    ...(payoff ? [{ text: payoff, sourceEventIds: [anchors.at(-1)!.id] }] : []),
+  ];
+
+  const result: AuthorCutDraft[] = [];
+  for (const cut of candidates) {
+    const text = clean(cut.text);
+    if (!text) continue;
+    if (result.some((existing) => existing.text.toLowerCase() === text.toLowerCase())) continue;
+    result.push({ text, sourceEventIds: unique(cut.sourceEventIds) });
+  }
+  return result;
+}
+
+function semanticTransition(
+  before: ViewerMomentum,
+  currentText: string,
+  candidate: SequenceCandidate,
+  index: number,
+  total: number,
+): SequenceTransition {
+  const novelty = lexicalNovelty(before.known.at(-1) ?? "", currentText);
+  const isFinal = index === total - 1;
+  const unresolved = isFinal ? undefined : candidate.unresolvedQuestion;
+  const nextNeed = isFinal ? undefined : "see what this relationship changes next";
+  const tension = isFinal ? 0.2 : Math.min(1, 0.35 + novelty * 0.55);
+  const informationValue = Math.min(1, 0.45 + novelty * 0.45 + candidate.informationValue * 0.2);
+  const forwardPull = isFinal ? undefined : candidate.unresolvedQuestion;
+  const magnetStrength = Math.min(1, novelty * 0.35 + informationValue * 0.3 + tension * 0.25 + 0.1);
+
+  const after: ViewerMomentum = {
+    known: [...before.known, currentText].slice(-12),
+    expected: isFinal ? undefined : candidate.unresolvedQuestion,
+    activeQuestion: isFinal ? undefined : candidate.unresolvedQuestion,
+    curiosityGap: isFinal ? undefined : candidate.unresolvedQuestion,
+    predictionShift: novelty > 0.45 ? `The reading changes around: ${currentText}` : undefined,
+    currentWant: isFinal ? undefined : "understand the consequence of the relationship",
+    unresolved,
+    forwardPull,
+    payoffDebt: isFinal ? undefined : candidate.payoff,
+    magnet: {
+      novelty,
+      uncertainty: Math.min(1, 0.3 + novelty * 0.6),
+      informationValue,
+      attention: Math.min(1, 0.4 + novelty * 0.5),
+      tension,
+      informationSeeking: isFinal ? 0.1 : Math.min(1, 0.42 + novelty * 0.45),
+      narrativeEngagement: Math.min(1, 0.4 + candidate.attentionPotential * 0.35 + novelty * 0.25),
+      magnetStrength,
+      unresolved,
+      nextNeed,
+    },
+    informationFrontier: {
+      known: before.known.slice(-8),
+      frontier: currentText,
+      novelty,
+      uncertainty: Math.min(1, 0.3 + novelty * 0.6),
+      informationValue,
+      tension,
+      nextNeed,
+    },
+  };
+
+  return {
+    before,
+    change: novelty > 0.45 ? "reinterpret" : "advance",
+    after,
+    nextPressure: nextNeed,
+    necessity: {
+      necessary: index === 0 || novelty >= 0.35 || Boolean(isFinal),
+      reason: index === 0
+        ? "opens the selected proposition"
+        : isFinal
+          ? "lands the selected proposition"
+          : novelty >= 0.35
+            ? "changes the viewer's current reading"
+            : "weak semantic change",
+      removalDamage: novelty >= 0.35 ? "removing the cut would erase a distinct semantic change" : "little semantic damage",
+    },
+  };
+}
+
+export async function realizeAuthorSequence(input: {
+  graph: RealityGraph;
+  candidate: SequenceCandidate;
+  proposition: AuthorCreativeProposition;
+}): Promise<AuthorCutDraft[]> {
+  const fallbackCuts = fallback(input);
   try {
-    const result=await localModelGenerate([
-      {role:"system",content:"You are QRE Mouth. Turn one Artist proposition into 4-8 terse text cuts. Every cut must be grounded in the supplied event IDs. Each cut must change the read of what came before. Use implication, compression, contrast, callback, escalation, or consequence. Do not add facts. Do not mention how it was produced. Return JSON only."},
-      {role:"user",content:JSON.stringify({proposition:input.proposition,candidate:input.candidate,evidence:input.graph.events.map(e=>({id:e.id,label:e.label}))})},
-    ],"json",{numPredict:1100,numCtx:8192,temperature:0.9,jsonSchema:{type:"object",properties:{cuts:{type:"array",items:{type:"object",properties:{text:{type:"string"},sourceEventIds:{type:"array",items:{type:"string"}}},required:["text","sourceEventIds"],additionalProperties:false}}},required:["cuts"],additionalProperties:false}});
-    const parsed:unknown=JSON.parse(result.text);
-    if(parsed&&typeof parsed==="object"&&!Array.isArray(parsed)){
-      const raw=(parsed as {cuts?:unknown}).cuts;
-      if(Array.isArray(raw)){
-        const cuts:CutDraft[]=raw.map((item):CutDraft|null=>{if(!item||typeof item!=="object"||Array.isArray(item))return null;const o=item as {text?:unknown;sourceEventIds?:unknown};const text=clean(o.text);const ids=validIds(o.sourceEventIds,input.graph);return text&&ids.length?{text,sourceEventIds:ids}:null;}).filter((v):v is CutDraft=>Boolean(v)).slice(0,8);
-        if(cuts.length>=3)return cuts;
+    const response = await localModelGenerate([
+      {
+        role: "system",
+        content: [
+          "You are QRE Mouth.",
+          "Realize the approved proposition as a sequence the visitor wants to keep entering.",
+          "Use the supplied reality to create progressive semantic turns, not a narrated report of what happened.",
+          "Language should feel immediate, compressed, specific, and alive.",
+          "Prefer fragments, concrete words, implication, contrast, consequence, callback, escalation, and recontextualization.",
+          "A line can be one word, a fragment, or a complete sentence when the moment earns it.",
+          "Do not impose a fixed length, fixed number of lines, or fixed rhythm. Use only as much language as the discovered relationship needs.",
+          "The usual target is a small complete experience that lands; it may be shorter or longer when the reality earns it.",
+          "Do not explain what the sequence means. Make the viewer feel it and realize it.",
+          "Do not open with generic setup or narrator exposition unless that exact supplied reality demands it.",
+          "Do not write lines such as 'the important part is', 'this shows', 'the pattern is', 'she arrives', 'the viewer now understands', or similar explanation unless those facts are explicitly supplied.",
+          "Do not turn every fact into a sentence. Combine facts when their relationship creates a stronger turn.",
+          "Later lines should make earlier lines more interesting, more specific, or newly meaningful.",
+          "The final turn should land without summarizing the experience.",
+          "Every cut must be grounded in supplied event IDs.",
+          "The selected perceptual treatment is pressure on the reading, not a source of facts. It can alter emphasis, timing, implication, rhythm, contrast, or emotional pressure, but it cannot change reality.",
+          "NONE is valid when the discovered relationship is stronger without additional framing.",
+          "Do not invent events, attributes, people, locations, outcomes, or motivations.",
+          "Do not describe production or presentation mechanics.",
+          "Return JSON only.",
+        ].join(" "),
+      },
+      {
+        role: "user",
+        content: JSON.stringify({
+          proposition: input.proposition,
+          candidate: input.candidate,
+          treatment: input.proposition.treatment,
+          evidence: input.graph.events.map((event) => ({
+            id: event.id,
+            label: event.label,
+            entities: event.entities,
+            place: event.place,
+            time: event.time,
+            provenance: event.provenance,
+          })),
+          relationships: input.graph.relations,
+          patterns: input.graph.patterns ?? [],
+        }),
+      },
+    ], "json", {
+      numPredict: 1300,
+      numCtx: 12288,
+      temperature: 0.92,
+      jsonSchema: {
+        type: "object",
+        additionalProperties: false,
+        required: ["cuts"],
+        properties: {
+          cuts: {
+            type: "array",
+            items: {
+              type: "object",
+              additionalProperties: false,
+              required: ["text", "sourceEventIds"],
+              properties: {
+                text: { type: "string" },
+                sourceEventIds: { type: "array", minItems: 1, maxItems: 6, items: { type: "string" } },
+              },
+            },
+          },
+        },
+      },
+    });
+
+    const parsed: unknown = JSON.parse(response.text);
+    if (parsed && typeof parsed === "object" && !Array.isArray(parsed)) {
+      const raw = (parsed as { cuts?: unknown }).cuts;
+      if (Array.isArray(raw)) {
+        const cuts = raw
+          .map((item): AuthorCutDraft | null => {
+            if (!item || typeof item !== "object" || Array.isArray(item)) return null;
+            const row = item as { text?: unknown; sourceEventIds?: unknown };
+            const text = clean(row.text);
+            const sourceEventIds = validIds(row.sourceEventIds, input.graph);
+            return text && sourceEventIds.length ? { text, sourceEventIds } : null;
+          })
+          .filter((value): value is AuthorCutDraft => Boolean(value))
+          .filter((cut, index, values) =>
+            values.findIndex((other) => other.text.toLowerCase() === cut.text.toLowerCase()) === index,
+          );
+        if (cuts.length > 0) return cuts;
       }
     }
-  } catch {}
+  } catch {
+    // Fall through to deterministic realization.
+  }
   return fallbackCuts;
 }
-export function buildSequencePlay(input:{subject:string;proposition:AuthorCreativeProposition;candidate:SequenceCandidate;cuts:CutDraft[]}):SequencePlay {
-  const cuts:SequenceCut[]=input.cuts.map((cut,index)=>{
-    const prior=input.cuts.slice(0,index).map(item=>item.text);
-    const role:ViewerAttentionRole=index===0?"hook":index===input.cuts.length-1?"payoff":index===1?"question":"reframe";
-    const gainKind:SequenceGainKind=index===0?"surprise":index===input.cuts.length-1?"payoff":index===1?"question":"reframe";
-    const before:ViewerState={known:prior,expected:index===0?input.proposition.text:input.cuts[index-1]?.text,unresolved:index===0?input.candidate.unresolvedQuestion:undefined,currentWant:"understand the relationship",recentChange:prior.at(-1)};
-    const after:ViewerState={known:[...prior,cut.text],expected:cut.text,unresolved:index===input.cuts.length-1?undefined:input.candidate.unresolvedQuestion,currentWant:index===input.cuts.length-1?undefined:"see what changes next",recentChange:cut.text};
-    return {id:`cut-${index+1}`,order:index+1,role,gainKind,sourceIds:[...cut.sourceEventIds],informationGain:cut.text,attentionDelta:index===0?input.proposition.text:`${input.cuts[index-1]?.text??input.proposition.text} → ${cut.text}`,viewerBefore:before,viewerAfter:after,nextPromise:index<input.cuts.length-1?input.cuts[index+1]?.text:undefined,payoffConnection:index===input.cuts.length-1?input.proposition.text:undefined,noveltyScore:1-input.candidate.repetitionRisk,confidence:1-input.candidate.truthRisk};
-  });
-  return {subject:input.subject,premise:input.proposition.text,openingState:cuts[0]?.viewerBefore??{known:[]},baselineFacts:[],cuts,closingState:cuts.at(-1)?.viewerAfter,continuity:[input.proposition.pattern],antiCrutch:["No baseline fact is used as a cut unless it changes expectation."],continuation:input.candidate.unresolvedQuestion||"look for the next change"};
+
+function roleFor(index: number, total: number, hasRelationship: boolean): ViewerAttentionRole {
+  if (index === 0) return "hook";
+  if (index === total - 1) return "payoff";
+  if (index === 1) return "question";
+  if (index === 2 && hasRelationship) return "discovery";
+  return index === total - 2 ? "consequence" : "reframe";
+}
+
+function gainFor(index: number, total: number, novelty: number): SequenceGainKind {
+  if (index === 0) return "surprise";
+  if (index === total - 1) return "payoff";
+  if (novelty >= 0.6) return index === 2 ? "discovery" : "reframe";
+  return index === total - 2 ? "consequence" : "question";
+}
+
+export function buildSequencePlay(input: {
+  subject: string;
+  proposition: AuthorCreativeProposition;
+  candidate: SequenceCandidate;
+  cuts: AuthorCutDraft[];
+}): SequencePlay {
+  const total = input.cuts.length;
+  const openingMomentum: ViewerMomentum = {
+    known: [],
+    expected: input.proposition.text,
+    activeQuestion: input.candidate.unresolvedQuestion,
+    curiosityGap: input.candidate.unresolvedQuestion,
+    currentWant: "discover what is distinctive about this reality",
+    unresolved: input.candidate.unresolvedQuestion,
+    forwardPull: input.candidate.unresolvedQuestion,
+    payoffDebt: input.candidate.payoff,
+    magnet: {
+      novelty: input.candidate.novelty,
+      uncertainty: input.candidate.uncertainty,
+      informationValue: input.candidate.informationValue,
+      attention: input.candidate.attentionPotential,
+      tension: input.candidate.consequencePotential,
+      informationSeeking: input.candidate.informationValue,
+      narrativeEngagement: input.candidate.attentionPotential,
+      magnetStrength: Math.min(1, (input.candidate.novelty + input.candidate.attentionPotential) / 2),
+      unresolved: input.candidate.unresolvedQuestion,
+      nextNeed: input.candidate.unresolvedQuestion,
+    },
+    informationFrontier: {
+      known: [],
+      frontier: input.proposition.text,
+      novelty: input.candidate.novelty,
+      uncertainty: input.candidate.uncertainty,
+      informationValue: input.candidate.informationValue,
+      tension: input.candidate.consequencePotential,
+      nextNeed: input.candidate.unresolvedQuestion,
+    },
+  };
+
+  let previousMomentum = openingMomentum;
+  const sequenceCuts: SequenceCut[] = [];
+  for (let index = 0; index < total; index += 1) {
+    const draft = input.cuts[index];
+    const novelty = lexicalNovelty(index ? input.cuts[index - 1].text : "", draft.text);
+    const transition = semanticTransition(previousMomentum, draft.text, input.candidate, index, total);
+    const role = roleFor(index, total, input.candidate.supportingRelationKinds.length > 0);
+    const gainKind = gainFor(index, total, novelty);
+    const viewerBefore: ViewerState = {
+      known: previousMomentum.known.slice(-8),
+      expected: previousMomentum.expected,
+      unresolved: previousMomentum.unresolved,
+      currentWant: previousMomentum.currentWant,
+      recentChange: previousMomentum.known.at(-1),
+    };
+    const viewerAfter: ViewerState = {
+      known: transition.after.known.slice(-8),
+      expected: transition.after.expected,
+      unresolved: transition.after.unresolved,
+      currentWant: transition.after.currentWant,
+      recentChange: draft.text,
+    };
+
+    sequenceCuts.push({
+      id: `cut-${index + 1}`,
+      order: index + 1,
+      role,
+      gainKind,
+      sourceIds: [...draft.sourceEventIds],
+      informationGain: draft.text,
+      attentionDelta: index === 0
+        ? `The viewer enters through: ${draft.text}`
+        : transition.change === "reinterpret"
+          ? `The previous reading changes because: ${draft.text}`
+          : `The viewer now understands: ${draft.text}`,
+      viewerBefore,
+      viewerAfter,
+      momentum: transition,
+      necessity: transition.necessity,
+      nextPromise: index < total - 1 ? input.cuts[index + 1]?.text : undefined,
+      payoffConnection: index === total - 1 ? input.proposition.text : undefined,
+      noveltyScore: novelty,
+      confidence: Math.min(0.98, 1 - input.candidate.truthRisk),
+    });
+    previousMomentum = transition.after;
+  }
+
+  return {
+    subject: input.subject,
+    premise: input.proposition.text,
+    openingState: sequenceCuts[0]?.viewerBefore ?? { known: [] },
+    baselineFacts: [],
+    openingMomentum,
+    cuts: sequenceCuts,
+    closingMomentum: previousMomentum,
+    closingState: sequenceCuts.at(-1)?.viewerAfter,
+    continuity: [
+      input.proposition.pattern,
+      input.proposition.treatment.id,
+      ...(input.proposition.relationIds.length ? input.proposition.relationIds : []),
+    ],
+    antiCrutch: [
+      "Reality facts remain grounding; they do not become attention gains merely by being stated.",
+      "Each cut must earn its place through a semantic change.",
+    ],
+    continuation: input.candidate.unresolvedQuestion || previousMomentum.forwardPull,
+  };
 }
