@@ -17,10 +17,11 @@ const warnings = [];
 
 const canonical = "apps/api/src/services/authorBrainCanonical.ts";
 const cognition = "apps/api/src/services/authorCognition.ts";
+const creativeSpine = "apps/api/src/services/authorCreativeSpine.ts";
+const realizer = "apps/api/src/services/authorCreativeRealizer.ts";
+const readout = "apps/api/src/services/authorReadout.ts";
+const realityGraph = "apps/api/src/services/authorRealityGraph.ts";
 const acceptance = "apps/api/author-acceptance.ts";
-const mouth = "apps/api/src/services/authorMouthCandidateSearchCanonical.ts";
-const beam = "apps/api/src/services/authorMouthSequenceBeamSearch.ts";
-const interpretation = "apps/api/src/services/authorMouthInterpretation.ts";
 const experienceRoute = "apps/api/src/routes/experience.ts";
 const experienceService = "apps/api/src/services/experienceService.ts";
 const packageJsonPath = "apps/api/package.json";
@@ -83,10 +84,11 @@ function walk(dir, out = []) {
 for (const path of [
   canonical,
   cognition,
+  creativeSpine,
+  realizer,
+  readout,
+  realityGraph,
   acceptance,
-  mouth,
-  beam,
-  interpretation,
   experienceRoute,
   experienceService,
   packageJsonPath,
@@ -138,46 +140,47 @@ const canonicalSource = existsSync(join(root, canonical))
   ? read(canonical)
   : "";
 
-if (
-  !/from\s+["'][^"']*authorCognition\.js["']/.test(
-    canonicalSource,
-  )
-) {
-  fail("Canonical Author must import authorCognition");
-}
-
-if (!/buildAuthorCognitivePlan\s*\(/.test(canonicalSource)) {
-  fail("Canonical Author must execute Cognition");
-}
-
-if (!/buildAuthorRealityGraph\s*\(/.test(canonicalSource)) {
-  fail(
+const canonicalRequirements = [
+  [
+    /from\s+["'][^"']*authorCognition\.js["']/, 
+    "Canonical Author must import authorCognition",
+  ],
+  [
+    /from\s+["'][^"']*authorCreativeSpine\.js["']/, 
+    "Canonical Author must import authorCreativeSpine",
+  ],
+  [
+    /from\s+["'][^"']*authorReadout\.js["']/, 
+    "Canonical Author must import authorReadout",
+  ],
+  [
+    /from\s+["'][^"']*authorCreativeRealizer\.js["']/, 
+    "Canonical Author must import authorCreativeRealizer",
+  ],
+  [
+    /buildAuthorRealityGraph\s*\(/,
     "Canonical Author must compile source truth into RealityGraph",
-  );
-}
+  ],
+  [
+    /buildAuthorReadout\s*\(/,
+    "Canonical Author must project factual Readout from RealityGraph",
+  ],
+  [
+    /buildAuthorCreativeSpine\s*\(/,
+    "Canonical Author must derive the creative spine from supplied reality",
+  ],
+  [
+    /buildAuthorCognitivePlan\s*\(/,
+    "Canonical Author must execute Cognition",
+  ],
+  [
+    /realizeAuthorExperience\s*\(/,
+    "Canonical Author must route visible realization through the Creative Realizer",
+  ],
+];
 
-if (!/buildAuthorRealityEnvelope\s*\(/.test(canonicalSource)) {
-  fail("Canonical Author must build the RealityEnvelope");
-}
-
-if (!/buildMouthCandidateMessages\s*\(/.test(canonicalSource)) {
-  fail("Canonical Author must build Mouth candidates");
-}
-
-if (!/selectBestMouthSequence\s*\(/.test(canonicalSource)) {
-  fail("Canonical Author must select the final sequence");
-}
-
-if (!/editAttentionSequence\s*\(/.test(canonicalSource)) {
-  fail("Canonical Author must run attention editing");
-}
-
-if (!/evaluateSequenceArc\s*\(/.test(canonicalSource)) {
-  fail("Canonical Author must run sequence arc evaluation");
-}
-
-if (!/localModelGenerate\s*\(/.test(canonicalSource)) {
-  fail("Canonical Author must own model realization");
+for (const [pattern, message] of canonicalRequirements) {
+  if (!pattern.test(canonicalSource)) fail(message);
 }
 
 if (/compileCognitiveExperience/.test(canonicalSource)) {
@@ -200,125 +203,24 @@ if (/authorBrainUniversal|author-acceptance-suite/.test(acceptanceSource)) {
   fail("Acceptance contains a legacy Author path");
 }
 
-const mouthSource = existsSync(join(root, mouth))
-  ? read(mouth)
-  : "";
-
-const sourceLabelsMatch = mouthSource.match(
-  /function\s+sourceLabels\s*\([\s\S]*?\n\}/,
-);
-
-if (!sourceLabelsMatch) {
-  fail("Canonical Mouth must define sourceLabels");
-} else {
-  const sourceLabelsSource = sourceLabelsMatch[0];
-
-  if (!/beat\.eventIds/.test(sourceLabelsSource)) {
-    fail("Canonical Mouth source provenance must read only beat.eventIds");
-  }
-
-  if (!/envelope\.events\.find\s*\(/.test(sourceLabelsSource)) {
-    fail(
-      "sourceLabels must resolve against envelope.events",
-    );
-  }
-
-  if (!/event\.id\s*===\s*id/.test(sourceLabelsSource)) {
-    fail(
-      "sourceLabels must match events by event ID",
-    );
-  }
-
-  if (!/\.label/.test(sourceLabelsSource)) {
-    fail(
-      "sourceLabels must return the matched event label",
-    );
-  }
-}
-
-if (!/Prefer attitude, status, implication, contrast, recognition, interruption, consequence, callback, and compressed payoff\./i.test(mouthSource)) {
-  fail(
-    "Canonical Mouth must preserve consequence-aware experiential realization guidance",
-  );
-}
-
-if (!/function\s+payoffScore\s*\(/.test(mouthSource) || !/payoffScore\s*\(/.test(mouthSource)) {
-  fail(
-    "Canonical Mouth must evaluate consequence/payoff quality before candidate acceptance",
-  );
-}
-
-if (!/viewerState\?\.stateShift/.test(mouthSource)) {
-  fail(
-    "Canonical Mouth must evaluate the supplied viewer-state transition",
-  );
-}
-
-const interpretationSource = existsSync(join(root, interpretation))
-  ? read(interpretation)
-  : "";
-
-if (!/wholeSourceAnchor/.test(interpretationSource)) {
-  fail(
-    "Mouth interpretation must evaluate whole-source grounding",
-  );
-}
-
-if (!/creativeFraming/.test(interpretationSource)) {
-  fail(
-    "Mouth interpretation must expose creative framing",
-  );
-}
-
-if (!/unsupportedConcreteRisk/.test(interpretationSource)) {
-  fail(
-    "Mouth interpretation must measure concrete invention risk",
-  );
-}
-
-const beamSource = existsSync(join(root, beam))
-  ? read(beam)
-  : "";
-
-if (!/candidate\.inventionRisk/.test(beamSource)) {
-  fail("Sequence beam must account for invention risk");
-}
-
-if (!/function\s+expressionQuality\s*\(/.test(beamSource)) {
-  fail("Sequence beam must expose its semantic/expression quality scorer");
-}
-
-if (!/candidate\.meaningScore/.test(beamSource)) {
-  fail("Sequence beam semantic quality must consume candidate meaningScore");
-}
-
-if (!/function\s+sequenceTransition\s*\(/.test(beamSource)) {
-  fail("Sequence beam must rank sequence fit via sequenceTransition");
-}
-
-if (!/function\s+viewerStateFit\s*\(/.test(beamSource)) {
-  fail("Sequence beam must rank sequence effect via viewerStateFit");
-}
-
-if (!/function\s+pathTransitionProfile\s*\(/.test(beamSource)) {
-  fail("Sequence beam must aggregate sequence effect across the path");
-}
-
-if (!/function\s+relativeGoldPotential\s*\(/.test(beamSource)) {
-  fail("Sequence beam must preserve emergent relative gold ranking");
-}
-
 const experienceRouteSource = existsSync(join(root, experienceRoute))
   ? read(experienceRoute)
   : "";
 
-if (!/const\s+sessionId\s*=\s*randomUUID\s*\(\)/.test(experienceRouteSource)) {
+if (
+  !/const\s+sessionId\s*=\s*randomUUID\s*\(\)/.test(
+    experienceRouteSource,
+  )
+) {
   fail(
     "Experience compile route must create one sessionId for the compile request",
   );
 }
 
-if (!/sessionId\s*,/.test(experienceRouteSource) && !/sessionId\s*[:,]/.test(experienceRouteSource)) {
+if (
+  !/sessionId\s*,/.test(experienceRouteSource) &&
+  !/sessionId\s*[:,]/.test(experienceRouteSource)
+) {
   fail(
     "Experience compile route must pass sessionId into compileExperience",
   );
@@ -355,9 +257,10 @@ if (!/input\.sessionId\s*\)/.test(experienceServiceSource)) {
 console.log("=== QRE AUTHOR ARCHITECTURE GUARD ===");
 console.log(`CANONICAL AUTHOR: ${canonical}`);
 console.log(`COGNITION: ${cognition}`);
-console.log(`MOUTH: ${mouth}`);
-console.log(`BEAM: ${beam}`);
-console.log(`INTERPRETATION: ${interpretation}`);
+console.log(`CREATIVE SPINE: ${creativeSpine}`);
+console.log(`REALIZER: ${realizer}`);
+console.log(`READOUT: ${readout}`);
+console.log(`REALITY GRAPH: ${realityGraph}`);
 console.log(`EXPERIENCE ROUTE: ${experienceRoute}`);
 console.log(`EXPERIENCE SERVICE: ${experienceService}`);
 
@@ -377,5 +280,5 @@ if (failures.length) {
 }
 
 console.log(
-  "AUTHOR ARCHITECTURE GUARD GREEN · ONE CANONICAL AUTHOR · SOURCE TRUTH · COGNITION · EXPERIENCE · MEMORY/SESSION · MOUTH · COLLISION · GATING · NO LEGACY CREATIVE PATHS",
+  "AUTHOR ARCHITECTURE GUARD GREEN · ONE CANONICAL AUTHOR · REALITY GRAPH · READOUT · COGNITION · CREATIVE SPINE · CREATIVE REALIZER · SESSION-AWARE EXPERIENCE · NO LEGACY CREATIVE PATHS",
 );
