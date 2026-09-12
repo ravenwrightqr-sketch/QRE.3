@@ -18,6 +18,14 @@ const cocoFacts = [
   "Grass gets inspected before Coco moves on.",
 ];
 
+const cocoSparseFacts = [
+  "Coco.",
+  "Small dog.",
+  "Apples.",
+  "Park.",
+  "Squirrels.",
+];
+
 const mechanicFacts = [
   "A truck arrived with an intermittent starting problem.",
   "The diagnosis found the battery connection was unstable.",
@@ -134,9 +142,12 @@ function syntheticTreatmentSet(signals: string[]): AuthorMetamorphicRelationSet 
 }
 
 const coco = assertReality("Coco", cocoFacts);
+const cocoSparse = assertReality("Coco", cocoSparseFacts);
 const cocoRelations = searchAuthorMetamorphicRelations(coco);
 assert.ok(cocoRelations.relations.length >= 1, "Coco: no metamorphic opportunities");
 assert.ok(cocoRelations.relations.every((relation) => relation.evidenceEventIds.every((id) => coco.events.some((event) => event.id === id))));
+assert.ok(cocoSparse.events.length >= 4, "Coco sparse: reality was over-collapsed");
+assert.ok(cocoSparse.relations.length > 0, "Coco sparse: no relationship from minimal supplied reality");
 
 const syntheticHorror = chooseFallbackTreatment({ relations: syntheticTreatmentSet(["danger", "relationship", "normalization"]) });
 assert.equal(syntheticHorror.id, "horror-romance", "danger + relationship should resolve to horror-romance");
@@ -228,6 +239,7 @@ assert.ok(
 
 console.log("AUTHOR FINAL ACCEPTANCE");
 console.log(`PASS reality: Coco events=${coco.events.length} relations=${cocoRelations.relations.length}`);
+console.log(`PASS sparse reality: Coco events=${cocoSparse.events.length} relations=${cocoSparse.relations.length}`);
 console.log(`PASS treatments: horror=${syntheticHorror.id} game=${syntheticGame.id}`);
 console.log(`PASS Coco sequence: judgment=${cocoJudgment.status} information=${cocoJudgment.informationPerCut.toFixed(3)}`);
 console.log(`PASS Judge rejection: reasons=${rejectedJudgment.reasons.join(",")}`);
@@ -237,13 +249,22 @@ console.log(`PASS mechanic semantic discovery: relations=${mechanicRelations.rel
 if (process.env.QRE_AUTHOR_ACCEPTANCE_LIVE === "true") {
   const { authorBrainCanonical } = await import("./src/services/authorBrainCanonical.js");
   const liveVisitOne = await authorBrainCanonical({
-    prompt: "Create a surprising short experience about Coco from the supplied reality.",
+    prompt: "Create a small memorable experience about Coco from the supplied reality.",
     subject: "Coco",
     facts: cocoFacts,
     sourceMoments: [],
     memoryContext: [],
     trajectory: [],
-    creativeLearningContext: [],
+    creativeLearningContext: ["Prefer immediate language, implication, and a clear payoff over explanation."],
+    domainContext: {
+      businessType: "dog groomer",
+      businessName: "Elm St Groomers",
+      serviceType: "grooming",
+      subjectKind: "dog",
+      knownCapabilities: ["grooming", "baths", "bows"],
+      contextualSignals: ["playful", "shareable", "before-and-after"],
+      audience: ["pet owner"],
+    },
     returning: false,
     visitNumber: 1,
   });
@@ -259,18 +280,33 @@ if (process.env.QRE_AUTHOR_ACCEPTANCE_LIVE === "true") {
     ],
     trajectory: liveVisitOne.sequence.cuts.map((cut) => cut.informationGain),
     creativeLearningContext: liveVisitOne.learningDelta.signals,
+    domainContext: {
+      businessType: "dog groomer",
+      businessName: "Elm St Groomers",
+      serviceType: "grooming",
+      subjectKind: "dog",
+      knownCapabilities: ["grooming", "baths", "bows"],
+      contextualSignals: ["playful", "shareable", "before-and-after"],
+      audience: ["pet owner"],
+    },
     returning: true,
     visitNumber: 2,
   });
   assert.ok(liveVisitOne.selectedCandidateId);
+  assert.ok(liveVisitOne.cognition.candidates.length >= 3, "live Cognition must produce competing interpretations");
   assert.equal(liveVisitOne.judgment.status, "ACCEPT");
   assert.ok(liveVisitOne.memoryDelta.relationIds.length > 0);
+  assert.ok(liveVisitOne.memoryDelta.carryThreads.some((line) => line === liveVisitOne.proposition.orderingRule));
+  assert.ok(liveVisitOne.learningDelta.signals.some((line) => line.startsWith("ordering_rule:")));
   assert.equal(liveVisitOne.learningDelta.status, "accepted");
   assert.ok(liveVisitOne.continuationState.returnCue);
   assert.equal(liveVisitTwo.judgment.status, "ACCEPT");
   assert.ok(liveVisitTwo.continuationState.returnCue?.includes("returned"));
+  assert.ok(liveVisitTwo.memoryDelta.relationIds.length > 0);
   console.log(`PASS live Author visit 1: candidate=${liveVisitOne.selectedCandidateId} treatment=${liveVisitOne.proposition.treatment.id} cuts=${liveVisitOne.sequence.cuts.length}`);
+  console.log(`LIVE VISIT 1 LANGUAGE:\n${liveVisitOne.sequence.cuts.map((cut) => cut.informationGain).join("\n")}`);
   console.log(`PASS live Author visit 2: candidate=${liveVisitTwo.selectedCandidateId} treatment=${liveVisitTwo.proposition.treatment.id} cuts=${liveVisitTwo.sequence.cuts.length}`);
+  console.log(`LIVE VISIT 2 LANGUAGE:\n${liveVisitTwo.sequence.cuts.map((cut) => cut.informationGain).join("\n")}`);
 }
 
 console.log("AUTHOR FINAL ACCEPTANCE: PASS");
