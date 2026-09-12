@@ -1,9 +1,9 @@
 /**
  * Canonical Author contract.
  *
- * The Author works from grounded reality plus authorized memory, learning,
- * presence, and business context. Cognition discovers relationships; Artist
- * selects one proposition and perceptual treatment; Mouth realizes it as a
+ * Author works from grounded reality plus authorized memory, learning, presence,
+ * and business context. Cognition discovers relationships; Artist selects one
+ * proposition and perceptual treatment; Mouth realizes it as a semantic
  * SequencePlay; Judge validates the result.
  */
 import type { RealityGraph } from "../reality/realityGraph.js";
@@ -79,6 +79,38 @@ export type AuthorJudgeResult = {
   reasons: string[];
 };
 
+export type AuthorMemoryDelta = {
+  establishedEventIds: string[];
+  changedEventIds: string[];
+  callbackEventIds: string[];
+  relationIds: string[];
+  unresolvedQuestions: string[];
+  semanticTurns: string[];
+  carryThreads: string[];
+};
+
+export type AuthorLearningDelta = {
+  status: "accepted" | "rejected";
+  candidateId: string;
+  treatmentId: string;
+  relationIds: string[];
+  propositionPattern: string;
+  signals: string[];
+  metrics: Pick<
+    AuthorJudgeResult,
+    "movement" | "specificity" | "transformation" | "informationPerCut" | "continuationPressure" | "necessity" | "inventionRisk" | "genericity"
+  >;
+};
+
+export type AuthorContinuationState = {
+  unresolvedQuestion?: string;
+  nextPromise?: string;
+  payoff?: string;
+  futureEventIds: string[];
+  alternateCandidateIds: string[];
+  returnCue?: string;
+};
+
 export type CanonicalAuthorResult = {
   readout: { subject?: string; lines: string[]; text: string; eventIds: string[] };
   reality: RealityGraph;
@@ -88,6 +120,9 @@ export type CanonicalAuthorResult = {
   sequence: SequencePlay;
   judgment: AuthorJudgeResult;
   selectedCandidateId: string;
+  memoryDelta: AuthorMemoryDelta;
+  learningDelta: AuthorLearningDelta;
+  continuationState: AuthorContinuationState;
 };
 
 export type AuthorScene = {
