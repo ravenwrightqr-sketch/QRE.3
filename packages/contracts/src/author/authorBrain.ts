@@ -1,3 +1,10 @@
+/**
+ * QRE AUTHOR CONTRACT
+ *
+ * Author produces a grounded sequence-text film: text moving as a sequence.
+ * It is not a conventional movie, screenplay, shot list, or audiovisual plan.
+ * Author contracts contain semantic meaning and sequence structure only.
+ */
 import type { CognitiveExperiencePlan } from "../cognition/cognition.js";
 import type { RealityGraph } from "../reality/realityGraph.js";
 import type { SubjectTruth } from "../reality/subjectTruth.js";
@@ -52,7 +59,6 @@ export type AuthorBrainTruth = {
   cognitivePlan?: CognitiveExperiencePlan;
   realityGraph?: RealityGraph;
   domainContext?: AuthorDomainContext;
-  movieMode?: boolean;
   returning?: boolean;
   visitNumber?: number;
   presenceSummary?: string[];
