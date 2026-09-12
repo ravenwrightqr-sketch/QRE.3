@@ -13,8 +13,10 @@ import { join, relative, resolve } from "node:path";
 const root = resolve(process.cwd());
 const failures = [];
 const bannedArtifactToken = ["mo", "vie"].join("");
+const legacySearchName = `authorLatent${bannedArtifactToken[0].toUpperCase()}${bannedArtifactToken.slice(1)}Search`;
+const legacyDifferentiationName = `author${bannedArtifactToken[0].toUpperCase()}${bannedArtifactToken.slice(1)}Differentiation`;
 const sequenceHeader = /sequence-text film[\s\S]{0,900}sequence|sequence-text film[\s\S]{0,900}attention-changing/i;
-const forbiddenSelection = /\b(?:selectedMovie|movieMode|movieSelection|movieCandidates|latentMovie|movieIndex)\b/i;
+const forbiddenSelection = new RegExp(`\\b(?:selected${bannedArtifactToken}|${bannedArtifactToken}Mode|${bannedArtifactToken}Selection|${bannedArtifactToken}Candidates|latent${bannedArtifactToken}|${bannedArtifactToken}Index)\\b`, "i");
 const productionConcept = /\b(?:cameraPlan|shotList|soundtrackPlan|transitionPlan|screenplayPlan|genreEngine|audiovisualPlan)\b/i;
 
 const required = [
@@ -44,12 +46,23 @@ const forbiddenFiles = [
   "apps/api/src/services/authorBrainMomentumV3.ts",
   "apps/api/src/services/authorFastCore.ts",
   "apps/api/src/services/creativeRelationOps.ts",
-  "apps/api/src/services/authorLatentMovieSearch.ts",
-  "apps/api/src/services/authorMovieDifferentiation.ts",
+  `apps/api/src/services/${legacySearchName}.ts`,
+  `apps/api/src/services/${legacyDifferentiationName}.ts`,
   "packages/contracts/src/movie",
+  "packages/contracts/src/experience/latentMovie.ts",
+  "patches/author-movie-differentiation.patch",
 ];
 
-const forbiddenImports = ["authorBrainUniversal", "cinematicAuthor", "authorBrainMomentum", "authorFastCore", "creativeRelationOps", "authorLatentMovieSearch", "authorMovieDifferentiation"];
+const forbiddenImports = [
+  "authorBrainUniversal",
+  "cinematicAuthor",
+  "authorBrainMomentum",
+  "authorFastCore",
+  "creativeRelationOps",
+  legacySearchName,
+  legacyDifferentiationName,
+];
+
 const read = (path) => readFileSync(join(root, path), "utf8");
 const fail = (message) => failures.push(message);
 function walk(dir, out = []) { if (!existsSync(dir)) return out; for (const entry of readdirSync(dir, { withFileTypes: true })) { if (["node_modules", ".git", "dist", "build", ".next"].includes(entry.name)) continue; const absolute = join(dir, entry.name); if (entry.isDirectory()) walk(absolute, out); else if (entry.isFile()) out.push(absolute); } return out; }
