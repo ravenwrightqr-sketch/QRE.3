@@ -3,6 +3,16 @@ import type { RealityGraph } from "../reality/realityGraph.js";
 import type { SubjectTruth } from "../reality/subjectTruth.js";
 
 export type AuthorRhythm = "hit" | "short" | "standard" | "long";
+
+export type AuthorCreativeProposition = {
+  /** The central creative idea discovered from supplied reality. */
+  text: string;
+  /** The semantic relationship or organizing pattern behind the proposition. */
+  pattern: string;
+  /** Exact supplied reality events that support the proposition. */
+  sourceEventIds: string[];
+};
+
 export type AuthorDomainContext = {
   category?: string;
   businessType?: string;
