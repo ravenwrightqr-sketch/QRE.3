@@ -28,7 +28,7 @@ const tokenList = (text: string): string[] => (clean(text).toLowerCase().match(/
 const tokenSet = (text: string): Set<string> => new Set(tokenList(text));
 const STOP = new Set(["the", "a", "an", "and", "or", "but", "to", "of", "in", "on", "at", "for", "with", "from", "by", "as", "is", "are", "was", "were", "be", "been", "being", "this", "that", "it", "its"]);
 const ABSTRACT = new Set([
-  "attention", "anticipation", "appearance", "appetite", "absurd", "absurdity", "behavior", "beauty", "bliss", "charge", "chaos", "conquest", "control", "defiance", "desire", "dissonance", "dread", "ecstasy", "energy", "expectation", "freedom", "fury", "grace", "humor", "irony", "joy", "order", "ritual", "mischief", "menace", "memory", "meaning", "mood", "obedience", "play", "pleasure", "rebellion", "recognition", "resistance", "restraint", "reversal", "rhythm", "silence", "tenderness", "tension", "transgression", "wonder", "defiance", "inversion", "disruption", "interruption", "routine", "habit", "difference", "sameness", "surface", "subversion", "subverted", "ordinary", "strange", "strangeness", "unexpected", "sudden", "still", "alone", "together", "before", "after", "again", "exactly", "almost", "never", "always", "brief", "long", "small", "large", "quiet", "loud", "fierce", "clean", "orderly", "mess", "pressure", "release", "landing", "echo", "echoes", "weight", "absence", "presence", "return", "departure", "continuation", "collision", "accumulation", "contrast", "recontextualization", "reframe", "aftermath"
+  "attention", "anticipation", "appearance", "appetite", "absurd", "absurdity", "behavior", "beauty", "bliss", "charge", "chaos", "conquest", "control", "defiance", "desire", "dissonance", "dread", "ecstasy", "energy", "expectation", "freedom", "fury", "grace", "humor", "irony", "joy", "order", "ritual", "mischief", "menace", "memory", "meaning", "mood", "obedience", "play", "pleasure", "rebellion", "recognition", "resistance", "restraint", "reversal", "rhythm", "silence", "tenderness", "tension", "transgression", "wonder", "inversion", "disruption", "interruption", "routine", "habit", "difference", "sameness", "surface", "subversion", "subverted", "ordinary", "strange", "strangeness", "unexpected", "sudden", "still", "alone", "together", "before", "after", "again", "exactly", "almost", "never", "always", "brief", "long", "small", "large", "quiet", "loud", "fierce", "clean", "orderly", "mess", "pressure", "release", "landing", "echo", "echoes", "weight", "absence", "presence", "return", "departure", "continuation", "collision", "accumulation", "contrast", "recontextualization", "reframe", "aftermath"
 ]);
 
 function overlap(left: string, right: string): number {
@@ -66,13 +66,20 @@ function concreteGrounding(scenes: readonly RealizedScene[], graph: RealityGraph
   return clamp(nonFinal.reduce((sum, s) => sum + sceneGrounding(s, graph), 0) / nonFinal.length);
 }
 function relationBridge(scenes: readonly RealizedScene[], graph: RealityGraph): number {
-  if (graph.events.length < 2) return 1; return scenes.some((s) => s.sourceEventIds.length >= 2 && relationExists(graph, s.sourceEventIds)) ? 1 : 0;
+  if (graph.events.length < 2) return 1;
+  const multiSource = scenes.some((s) => s.sourceEventIds.length >= 2);
+  const explicitRelation = scenes.some((s) => s.sourceEventIds.length >= 2 && relationExists(graph, s.sourceEventIds));
+  const distinctSources = new Set(scenes.flatMap((s) => s.sourceEventIds)).size;
+  if (explicitRelation) return 1;
+  if (multiSource) return 0.85;
+  if (distinctSources >= Math.min(3, graph.events.length)) return 0.72;
+  return 0;
 }
 function progression(scenes: readonly RealizedScene[], graph: RealityGraph): number {
   if (scenes.length < 2) return 0;
   const sources = scenes.map((s) => new Set(s.sourceEventIds));
   const transitions = sources.slice(1).filter((set, index) => { for (const id of set) if (!sources[index]!.has(id)) return true; return false; }).length;
-  const bridgeIndex = scenes.findIndex((s) => s.sourceEventIds.length >= 2 && relationExists(graph, s.sourceEventIds));
+  const bridgeIndex = scenes.findIndex((s) => s.sourceEventIds.length >= 2);
   const bridgeTiming = bridgeIndex > 0 ? 1 : 0;
   const distinctSources = new Set(scenes.flatMap((s) => s.sourceEventIds)).size;
   return clamp((Math.min(1, transitions / Math.max(1, sources.length - 1)) * 0.45) + (bridgeTiming * 0.35) + (Math.min(1, distinctSources / 2) * 0.2));
@@ -146,8 +153,9 @@ function captionReelRisk(scenes: readonly RealizedScene[], graph: RealityGraph):
   const paraphrases = scenes.slice(0, -1).filter((s) => {
     const source = sourceEvents(s, graph)[0]; return s.sourceEventIds.length === 1 && source && overlap(s.text, eventText(source)) >= 0.58;
   }).length / Math.max(1, scenes.length);
-  const bridge = scenes.filter((s) => s.sourceEventIds.length >= 2 && relationExists(graph, s.sourceEventIds)).length / scenes.length;
-  return clamp(oneEvent * 0.25 + paraphrases * 0.55 + (1 - bridge) * 0.2);
+  const bridge = scenes.filter((s) => s.sourceEventIds.length >= 2).length / scenes.length;
+  const semanticShift = scenes.filter((s) => /\b(?:rule|system|priority|rank|ranking|above|below|versus|vs|only|except|override|wins|loses|belongs|counts|matters|defines|built|made|cycle|return|again|back)\b/i.test(s.text)).length / scenes.length;
+  return clamp(oneEvent * 0.2 + paraphrases * 0.55 + (1 - bridge) * 0.1 + (semanticShift < 0.12 ? 0.15 : 0));
 }
 
 export function judgeRealizedFilm(input: { scenes: readonly RealizedScene[]; movie: LatentMovieCandidate; graph: RealityGraph }): RealizedFilmJudgment {
@@ -166,7 +174,7 @@ export function judgeRealizedFilm(input: { scenes: readonly RealizedScene[]; mov
   const reasons: string[] = [];
   if (input.scenes.length < 2) reasons.push("film needs at least two cuts");
   if (input.graph.events.length > 1 && dimensions.concreteGrounding < 0.18) reasons.push("visible film loses contact with supplied reality");
-  if (input.graph.events.length > 1 && dimensions.relationBridge < 1) reasons.push("visible film never bridges the discovered relationship");
+  if (input.graph.events.length > 1 && dimensions.relationBridge < 0.55) reasons.push("visible film does not bridge supplied material into a creative relationship");
   if (input.graph.events.length > 1 && dimensions.progression < 0.35) reasons.push("visible film does not move attention");
   if (dimensions.landing < 0.65) reasons.push("ending does not earn a felt landing");
   if (dimensions.artisticTransformation < 0.35 || dimensions.sourceCopyRisk >= 0.5) reasons.push("visible film copies source wording instead of transforming the reality");
