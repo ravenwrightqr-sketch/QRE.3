@@ -1,6 +1,17 @@
-/* QRE UNIVERSAL COGNITION · one domain-neutral search brain */
+/**
+ * QRE UNIVERSAL COGNITION
+ *
+ * Author cognition discovers grounded semantic relationships and prepares a
+ * sequence-text film possibility. "LatentMovie" is only a compatibility name
+ * for that sequence structure: text moving as a sequence, never a conventional
+ * movie, screenplay, shot list, audiovisual plan, or cinematic production brief.
+ *
+ * RealityGraph is source truth. Cognition may interpret supplied relationships;
+ * it must never invent events, people, actions, chronology, or production form.
+ */
 import type {
   AuthorDomainContext,
+  AuthorCreativeProposition,
   CreativeFrameSelection,
   LatentMovieCandidate,
   LatentMovieTrajectoryStep,
@@ -8,7 +19,6 @@ import type {
   SubjectTruth,
 } from "@qre/contracts";
 import { localModelGenerate } from "./localModelRuntime.js";
-import { buildAuthorCognitionIntelligence } from "./authorCognitionIntelligence.js";
 import type { AuthorArtistDirection } from "./authorArtistChoice.js";
 
 export type AuthorCognitionInput = {
@@ -25,7 +35,6 @@ export type AuthorCognitionInput = {
   creativeLearningContext?: string[];
   returning?: boolean;
   visitNumber?: number;
-  movieMode?: boolean;
 };
 
 export type AuthorCreativeInterpretation = {
@@ -70,43 +79,45 @@ export type AuthorCognitionPlan = {
   modelCalls: number;
 };
 
-const clean = (v: unknown): string => String(v ?? "").replace(/\s+/g, " ").trim();
-const clamp = (v: unknown, d = 0): number => {
-  const n = Number(v);
-  return Number.isFinite(n) ? Math.max(0, Math.min(1, Number(n.toFixed(3)))) : d;
+const clean = (value: unknown): string => String(value ?? "").replace(/\s+/g, " ").trim();
+const clamp = (value: unknown, fallback = 0): number => {
+  const number = Number(value);
+  return Number.isFinite(number) ? Math.max(0, Math.min(1, Number(number.toFixed(3)))) : fallback;
 };
-const unique = <T>(xs: readonly T[]): T[] => [...new Set(xs)];
-const OPS = new Set<LatentMovieTrajectoryStep["operation"]>([
-  "establish", "contrast", "recur", "reframe", "escalate", "converge", "reveal", "consequence", "payoff",
-]);
-const FRAMES = new Set([
-  "comedy", "funny", "noir", "romance", "romantic", "horror", "heist", "game", "fierce", "courtroom", "military",
-  "documentary", "deadpan", "tender", "surreal", "wild", "spy", "mission", "speedrun", "tournament", "investigation",
-  "backstage", "transformation", "race", "restoration", "expedition", "quest", "countdown", "archive", "operation", "negotiation",
-]);
-const GENERIC = /\b(?:a day|the journey|something special|special moment|good times|beautiful moment|it all started|the experience)\b/i;
-const INTERNAL = /\b(?:cognition|planner|trajectory|candidate|viewer state|semantic turn|compiler|realizer|provenance|evidence id)\b/i;
-const PSYCH = /\b(?:happy|happiness|sad|sadness|anxious|anxiety|contentment|motive|motivation|personality|felt)\b/i;
-const PREFERENCE = /\b(?:love|loves|like|likes|enjoy|enjoys|prefer|prefers|favorite|favourite|hate|hates|favorite)\b/i;
-const IDENTITY = /\b(?:my name is|named|is a|is an|breed|type|kind|male|female|poodle|pomeranian|small|large|tall|short|young|old)\b/i;
+const unique = <T>(values: readonly T[]): T[] => [...new Set(values)];
+
+const PREFERENCE = /\b(?:love|loves|like|likes|enjoy|enjoys|prefer|prefers|favorite|favourite|hate|hates)\b/i;
+const IDENTITY = /\b(?:my name is|named|is a|is an|breed|type|kind|male|female|small|large|tall|short|young|old)\b/i;
 const ROUTINE = /\b(?:every day|every morning|every night|daily|weekly|usually|often|always|routine|habit|regularly)\b/i;
 const GOAL = /\b(?:want to|wants to|hope to|hopes to|trying to|plan to|plans to|goal|would like to)\b/i;
 const MEMORY = /\b(?:remember|remembered|memory|when we|years ago|used to)\b/i;
-const RELATIONSHIP = /\b(?:my wife|my husband|my mom|my dad|my sister|my brother|my friend|my partner|belongs to|owned by|with me)\b/i;
-const OCCURRENCE = /\b(?:today|yesterday|tomorrow|this morning|this afternoon|tonight|last night|earlier|later|then|after that|before that|first|finally|went|walked|ran|arrived|met|found|lost|bought|sold|opened|closed|returned|visited|called|watched|heard|saw|saw|chased|caught|finished|started|happened)\b/i;
-const PAST = /\b(?:ed\b|was|were|did|had|went|ran|came|met|found|lost|bought|sold|saw|heard|watched|returned|finished|started)\b/i;
+const OCCURRENCE = /\b(?:today|yesterday|tomorrow|this morning|this afternoon|tonight|last night|earlier|later|then|after that|before that|first|finally|went|walked|ran|arrived|met|found|lost|bought|sold|opened|closed|returned|visited|called|watched|heard|saw|chased|caught|finished|started|happened)\b/i;
+const PAST = /\b(?:was|were|did|had|went|ran|came|met|found|lost|bought|sold|saw|heard|watched|returned|finished|started|[a-z]+ed\b)\b/i;
 
-function parse(text: string): Record<string, unknown> | undefined {
-  const t = clean(text).replace(/^```(?:json)?/i, "").replace(/```$/i, "").trim();
+const OPS = new Set<LatentMovieTrajectoryStep["operation"]>([
+  "establish",
+  "contrast",
+  "recur",
+  "reframe",
+  "escalate",
+  "converge",
+  "reveal",
+  "consequence",
+  "payoff",
+]);
+
+function parseModel(text: string): Record<string, unknown> | undefined {
+  const normalized = clean(text).replace(/^```(?:json)?/i, "").replace(/```$/i, "").trim();
   try {
-    const x = JSON.parse(t);
-    return x && typeof x === "object" ? x as Record<string, unknown> : undefined;
+    const parsed = JSON.parse(normalized);
+    return parsed && typeof parsed === "object" ? parsed as Record<string, unknown> : undefined;
   } catch {
-    const a = t.indexOf("{"), b = t.lastIndexOf("}");
-    if (a < 0 || b <= a) return undefined;
+    const start = normalized.indexOf("{");
+    const end = normalized.lastIndexOf("}");
+    if (start < 0 || end <= start) return undefined;
     try {
-      const x = JSON.parse(t.slice(a, b + 1));
-      return x && typeof x === "object" ? x as Record<string, unknown> : undefined;
+      const parsed = JSON.parse(normalized.slice(start, end + 1));
+      return parsed && typeof parsed === "object" ? parsed as Record<string, unknown> : undefined;
     } catch {
       return undefined;
     }
@@ -114,350 +125,351 @@ function parse(text: string): Record<string, unknown> | undefined {
 }
 
 function classifyMaterial(facts: readonly string[]): AuthorSubjectMaterial {
-  const out: AuthorSubjectMaterial = { identity: [], traits: [], preferences: [], routines: [], goals: [], relationships: [], memories: [], other: [] };
+  const material: AuthorSubjectMaterial = {
+    identity: [],
+    traits: [],
+    preferences: [],
+    routines: [],
+    goals: [],
+    relationships: [],
+    memories: [],
+    other: [],
+  };
   for (const raw of facts) {
     const value = clean(raw);
     if (!value) continue;
-    if (MEMORY.test(value)) out.memories.push(value);
-    else if (RELATIONSHIP.test(value)) out.relationships.push(value);
-    else if (GOAL.test(value)) out.goals.push(value);
-    else if (PREFERENCE.test(value)) out.preferences.push(value);
-    else if (ROUTINE.test(value)) out.routines.push(value);
-    else if (IDENTITY.test(value)) out.identity.push(value);
-    else out.other.push(value);
+    if (MEMORY.test(value)) material.memories.push(value);
+    else if (/\b(?:wife|husband|mom|dad|sister|brother|friend|partner|belongs to|owned by|with me)\b/i.test(value)) material.relationships.push(value);
+    else if (GOAL.test(value)) material.goals.push(value);
+    else if (PREFERENCE.test(value)) material.preferences.push(value);
+    else if (ROUTINE.test(value)) material.routines.push(value);
+    else if (IDENTITY.test(value)) material.identity.push(value);
+    else material.other.push(value);
   }
-  return out;
+  return material;
 }
 
 function subjectTruthFrom(input: AuthorCognitionInput, material: AuthorSubjectMaterial): SubjectTruth {
-  const name = clean(input.subject) || undefined;
-  const sexFact = [...material.identity, ...material.other].find((x) => /\bfemale\b/i.test(x))
+  const allIdentity = [...material.identity, ...material.other];
+  const sex = allIdentity.some((value) => /\bfemale\b/i.test(value))
     ? "female"
-    : [...material.identity, ...material.other].find((x) => /\bmale\b/i.test(x)) ? "male" : "unknown";
+    : allIdentity.some((value) => /\bmale\b/i.test(value))
+      ? "male"
+      : "unknown";
   return {
-    name,
+    name: clean(input.subject) || undefined,
     kind: clean(input.domainContext?.subjectKind).toLowerCase() as SubjectTruth["kind"] || "unknown",
-    sex: sexFact,
+    sex,
     identityFacts: unique([...material.identity, ...material.traits, ...material.other]).slice(0, 32),
     provenance: "explicit",
   };
 }
 
-function eventLabels(g: RealityGraph): Map<string, string> {
-  return new Map(g.events.map((e) => [e.id, clean(e.label)]));
-}
-
-function isChronologicalEvent(label: string, sourceMoments: readonly string[]): boolean {
-  const value = clean(label);
-  if (!value) return false;
-  if (sourceMoments.some((moment) => clean(moment).toLowerCase() === value.toLowerCase())) return true;
-  if (PREFERENCE.test(value) || IDENTITY.test(value) || ROUTINE.test(value) || GOAL.test(value)) return OCCURRENCE.test(value) && PAST.test(value);
-  return OCCURRENCE.test(value) || PAST.test(value);
-}
-
 function eligibleEventIds(input: AuthorCognitionInput): Set<string> {
-  const eligible = new Set<string>();
+  const sourceMoments = new Set(input.sourceMoments.map((value) => clean(value).toLowerCase()).filter(Boolean));
+  const ids = new Set<string>();
   for (const event of input.realityGraph.events) {
-    if (isChronologicalEvent(event.label, input.sourceMoments)) eligible.add(event.id);
+    const label = clean(event.label);
+    const directMoment = sourceMoments.has(label.toLowerCase());
+    const persistent = PREFERENCE.test(label) || IDENTITY.test(label) || ROUTINE.test(label) || GOAL.test(label) || MEMORY.test(label);
+    if (directMoment || OCCURRENCE.test(label) || (!persistent && PAST.test(label))) ids.add(event.id);
   }
-  return eligible;
+  return ids;
 }
 
-function validIds(v: unknown, g: RealityGraph, eligible: Set<string>): string[] {
-  const known = new Set(g.events.map((e) => e.id));
-  const raw = Array.isArray(v)
-    ? v.filter((x): x is string => typeof x === "string")
-    : typeof v === "string" ? [v] : [];
-  return unique(raw.map(clean).filter((x) => known.has(x) && eligible.has(x)));
+function relationOperation(kind: RealityGraph["relations"][number]["kind"]): LatentMovieTrajectoryStep["operation"] | undefined {
+  switch (kind) {
+    case "contrasts": return "contrast";
+    case "changes": return "consequence";
+    case "converges": return "converge";
+    case "recontextualizes": return "reframe";
+    case "repeats": return "recur";
+    case "causes": return "consequence";
+    case "involves": return "reveal";
+    default: return undefined;
+  }
 }
 
-function labels(g: RealityGraph, ids: readonly string[]): string[] {
-  const m = eventLabels(g);
-  return unique(ids.map((id) => m.get(id)).filter((x): x is string => Boolean(x)));
-}
+function buildSequenceCandidate(
+  graph: RealityGraph,
+  subject: string,
+  fromId: string,
+  toId: string,
+  relation: RealityGraph["relations"][number],
+  returning: boolean,
+  index: number,
+): LatentMovieCandidate | undefined {
+  const from = graph.events.find((event) => event.id === fromId);
+  const to = graph.events.find((event) => event.id === toId);
+  if (!from || !to) return undefined;
+  const operation = relationOperation(relation.kind);
+  if (!operation || !OPS.has(operation)) return undefined;
 
-function frame(parsed: Record<string, unknown> | undefined, explicit: string, g: RealityGraph, eligible: Set<string>): CreativeFrameSelection {
-  const f = parsed?.frame && typeof parsed.frame === "object" ? parsed.frame as Record<string, unknown> : {};
-  const requested = clean(parsed?.selectedLens ?? f.frame ?? explicit).toLowerCase();
-  const normalized = requested.replace(/[^a-z0-9_-]/g, "");
-  const chosen = explicit && explicit.toLowerCase() !== "let qre decide"
-    ? requested
-    : (FRAMES.has(normalized) ? normalized : "");
-  const ids = validIds(f.evidenceEventIds ?? parsed?.frameEvidenceEventIds, g, eligible);
+  const trajectory: LatentMovieTrajectoryStep[] = [
+    {
+      order: 1,
+      operation: "establish",
+      eventIds: [fromId],
+      viewerChange: "the supplied detail becomes present",
+      nextQuestion: "What does its relationship to the next detail change?",
+    },
+    {
+      order: 2,
+      operation,
+      eventIds: [fromId, toId],
+      viewerChange: `the supplied ${relation.kind} relationship changes the reading`,
+      nextQuestion: "What becomes newly meaningful?",
+    },
+    {
+      order: 3,
+      operation: "payoff",
+      eventIds: [toId],
+      viewerChange: returning ? "the changed reading returns with context" : "the changed reading lands",
+      nextQuestion: "What remains after the relationship is noticed?",
+    },
+  ];
+
+  const score = clamp(
+    relation.strength * 0.55 +
+    Math.min(1, relation.evidence?.length ? relation.evidence.length / 3 : 0) * 0.2 +
+    (operation === "contrast" || operation === "reframe" || operation === "converge" ? 0.15 : 0.06) +
+    (returning ? 0.08 : 0),
+  );
+
   return {
-    mode: chosen && (explicit || ids.length) ? "frame" : "none",
-    frame: chosen || "NONE",
-    confidence: clamp(f.confidence ?? parsed?.frameConfidence, explicit ? 1 : .4),
-    coreTension: clean(f.coreTension ?? parsed?.coreTension),
-    creativeGain: clean(f.creativeGain ?? parsed?.creativeGain),
-    templateRisk: clean(f.templateRisk ?? parsed?.templateRisk),
-    evidenceEventIds: ids,
+    id: `sequence-${fromId}-${toId}-${relation.kind}-${index}`,
+    lens: "NONE",
+    anchorEventIds: [fromId, toId],
+    supportingRelationKinds: [relation.kind],
+    trajectory,
+    payoff: to.label,
+    unresolvedQuestion: "What becomes newly meaningful when these supplied details are read together?",
+    evidence: unique([from.label, to.label, ...(relation.evidence ?? [])]).slice(0, 8),
+    hypothesis: [
+      `${subject}: the supplied ${relation.kind} relationship changes the meaning of both details when held in sequence.`,
+      "Interpretation only; no new event is asserted.",
+    ],
+    truthRisk: 0,
+    novelty: clamp(0.45 + score * 0.4),
+    specificity: clamp(0.75 + score * 0.2),
+    informationValue: clamp(0.52 + score * 0.4),
+    uncertainty: clamp(0.36 - score * 0.15),
+    attentionPotential: clamp(0.58 + score * 0.35),
+    consequencePotential: clamp(operation === "consequence" ? 0.78 : 0.55),
+    callbackPotential: returning ? 0.8 : operation === "recur" ? 0.68 : 0.18,
+    compressionPotential: clamp(0.7 + score * 0.22),
+    repetitionRisk: 0.04,
+    distinctiveness: clamp(0.72 + score * 0.2),
+    score,
   };
 }
 
-function score(c: LatentMovieCandidate, returning: boolean): number {
-  const semanticSteps = c.trajectory.filter((s) => s.eventIds.length >= 2).length;
-  const eventSpan = new Set(c.trajectory.flatMap((s) => s.eventIds)).size;
-  const movement = Math.min(1, semanticSteps / 4);
-  const span = Math.min(1, eventSpan / 8);
-  const depth = Math.min(1, c.trajectory.length / 6);
-  const continuity = returning ? c.callbackPotential : c.novelty;
-  return clamp(
-    c.attentionPotential * .15 + c.novelty * .10 + c.specificity * .11 + c.distinctiveness * .12 +
-    c.informationValue * .09 + c.consequencePotential * .10 + continuity * .07 + movement * .09 +
-    span * .10 + depth * .04 + (1 - c.truthRisk) * .07 - c.repetitionRisk * .10,
-  );
-}
-
-function observationCandidates(input: AuthorCognitionInput, returning: boolean, eligible: Set<string>): LatentMovieCandidate[] {
-  const g = input.realityGraph;
-  const candidates: LatentMovieCandidate[] = [];
-  for (const relation of g.relations.slice(0, 100)) {
+function sequenceCandidates(input: AuthorCognitionInput, eligible: Set<string>): LatentMovieCandidate[] {
+  const graph = input.realityGraph;
+  const returning = Boolean(input.returning || (input.visitNumber ?? 1) > 1);
+  const out: LatentMovieCandidate[] = [];
+  let index = 0;
+  for (const relation of graph.relations.slice(0, 80)) {
     if (!eligible.has(relation.from) || !eligible.has(relation.to)) continue;
-    const from = g.events.find((e) => e.id === relation.from), to = g.events.find((e) => e.id === relation.to);
-    if (!from || !to) continue;
-    const c: LatentMovieCandidate = {
-      id: `universal-observation-${relation.from}-${relation.to}-${relation.kind}`,
-      lens: "NONE",
-      anchorEventIds: [relation.from, relation.to],
-      supportingRelationKinds: [relation.kind],
-      trajectory: [
-        { order: 1, operation: "establish", eventIds: [relation.from], viewerChange: "establish the supplied opening detail", nextQuestion: "What changes when the related detail enters?" },
-        { order: 2, operation: relation.kind === "repeats" ? "recur" : relation.kind === "changes" ? "consequence" : relation.kind === "contrasts" ? "contrast" : relation.kind === "converges" ? "converge" : "reframe", eventIds: [relation.from, relation.to], viewerChange: `the supplied ${relation.kind} relationship changes the reading`, nextQuestion: "What lingers after that change?" },
-        { order: 3, operation: "payoff", eventIds: [relation.to], viewerChange: "land without inventing a new event", nextQuestion: "What remains in the world?" },
-      ],
-      payoff: to.label,
-      unresolvedQuestion: "What deserves another look?",
-      evidence: [from.label, to.label],
-      hypothesis: [`${input.subject || "The subject"}: two supplied events become more interesting when their existing relationship is made visible.`],
-      truthRisk: 0, novelty: .62, specificity: .95, informationValue: .72, uncertainty: .18, attentionPotential: .8,
-      consequencePotential: relation.kind === "changes" || relation.kind === "causes" ? .75 : .45,
-      callbackPotential: returning ? .78 : .18, compressionPotential: .88, repetitionRisk: .04, distinctiveness: .88, score: 0,
-    };
-    c.score = score(c, returning); candidates.push(c);
+    const candidate = buildSequenceCandidate(graph, clean(input.subject) || "the subject", relation.from, relation.to, relation, returning, index++);
+    if (candidate) out.push(candidate);
   }
-  const eventCandidates = [...eligible]
-    .map((id) => g.events.find((e) => e.id === id))
-    .filter((e): e is RealityGraph["events"][number] => Boolean(e))
-    .sort((a, b) => Number(Boolean(b.salient)) - Number(Boolean(a.salient)))
-    .slice(0, 6);
-  for (const [i, e] of eventCandidates.entries()) {
-    const c: LatentMovieCandidate = {
-      id: `universal-event-${e.id}`,
-      lens: "NONE",
-      anchorEventIds: [e.id],
-      supportingRelationKinds: [],
-      trajectory: [{ order: 1, operation: returning ? "recur" : "establish", eventIds: [e.id], viewerChange: "hold the supplied occurrence in focus", nextQuestion: "What does another supplied occurrence change?" }],
-      payoff: e.label, unresolvedQuestion: "What deserves another look?", evidence: [e.label],
-      hypothesis: [`${input.subject || "The subject"}: this supplied occurrence can carry meaning without adding plot.`],
-      truthRisk: 0, novelty: .55 + i * .05, specificity: .95, informationValue: .7, uncertainty: .2, attentionPotential: .74,
-      consequencePotential: .3, callbackPotential: returning ? .8 : .12, compressionPotential: .9, repetitionRisk: .08, distinctiveness: .86, score: 0,
-    };
-    c.score = score(c, returning); candidates.push(c);
-  }
-  if (!candidates.length) {
-    const materialEvent = g.events.find((e) => !eligible.has(e.id));
-    if (materialEvent) {
-      candidates.push({
-        id: `subject-material-${materialEvent.id}`,
+
+  if (!out.length) {
+    const events = graph.events.filter((event) => eligible.has(event.id)).slice(0, 6);
+    for (const [i, event] of events.entries()) {
+      out.push({
+        id: `sequence-event-${event.id}`,
         lens: "NONE",
-        anchorEventIds: [materialEvent.id],
+        anchorEventIds: [event.id],
         supportingRelationKinds: [],
-        trajectory: [{ order: 1, operation: "establish", eventIds: [materialEvent.id], viewerChange: "establish persistent subject material", nextQuestion: "What detail gives this subject character?" }],
-        payoff: materialEvent.label,
-        unresolvedQuestion: "What detail makes the subject unmistakable?",
-        evidence: [materialEvent.label],
-        hypothesis: ["Persistent identity, trait, preference, or routine can become characterization without becoming a chronological event."],
-        truthRisk: 0, novelty: .7, specificity: .98, informationValue: .78, uncertainty: .15, attentionPotential: .86,
-        consequencePotential: .2, callbackPotential: returning ? .9 : .18, compressionPotential: .95, repetitionRisk: .02, distinctiveness: .92, score: .72,
+        trajectory: [{ order: 1, operation: returning ? "recur" : "establish", eventIds: [event.id], viewerChange: "the supplied occurrence becomes present", nextQuestion: "What supplied detail changes its meaning?" }],
+        payoff: event.label,
+        unresolvedQuestion: "What supplied detail changes the reading?",
+        evidence: [event.label],
+        hypothesis: [`${clean(input.subject) || "The subject"}: this supplied occurrence can carry meaning without adding plot.`],
+        truthRisk: 0,
+        novelty: clamp(0.55 + i * 0.04),
+        specificity: 0.95,
+        informationValue: 0.72,
+        uncertainty: 0.2,
+        attentionPotential: 0.74,
+        consequencePotential: 0.3,
+        callbackPotential: returning ? 0.82 : 0.12,
+        compressionPotential: 0.9,
+        repetitionRisk: 0.08,
+        distinctiveness: 0.86,
+        score: clamp(0.64 + i * 0.03),
       });
     }
   }
-  return candidates;
+
+  const seen = new Set<string>();
+  return out
+    .sort((a, b) => b.score - a.score)
+    .filter((candidate) => {
+      const signature = `${candidate.supportingRelationKinds.join(",")}|${candidate.anchorEventIds.slice().sort().join("+")}|${candidate.trajectory.map((step) => step.operation).join(">")}`;
+      if (seen.has(signature)) return false;
+      seen.add(signature);
+      return true;
+    })
+    .slice(0, 10);
 }
 
-function normalizeModel(raw: unknown, input: AuthorCognitionInput, returning: boolean, eligible: Set<string>): LatentMovieCandidate[] {
-  const rows = Array.isArray((raw as Record<string, unknown> | undefined)?.movies)
-    ? (raw as Record<string, unknown>).movies as unknown[] : [];
-  return rows.slice(0, 8).flatMap((x, i) => {
-    if (!x || typeof x !== "object") return [];
-    const r = x as Record<string, unknown>;
-    const ids = validIds(r.evidenceEventIds ?? r.evidenceIds ?? r.anchorEventIds ?? r.eventIds, input.realityGraph, eligible);
-    const thesis = clean(r.thesis ?? (Array.isArray(r.hypothesis) ? r.hypothesis[0] : undefined));
-    const rawTrajectory = Array.isArray(r.trajectory) ? r.trajectory : [];
-    const trajectory: LatentMovieTrajectoryStep[] = rawTrajectory.flatMap((s, k) => {
-      if (!s || typeof s !== "object") return [];
-      const z = s as Record<string, unknown>;
-      const op = clean(z.operation).toLowerCase() as LatentMovieTrajectoryStep["operation"];
-      const eventIds = validIds(z.eventIds ?? z.eventId, input.realityGraph, eligible);
-      return OPS.has(op) && eventIds.length ? [{ order: k + 1, operation: op, eventIds, viewerChange: clean(z.viewerChange ?? z.attentionMove) || "the reading changes", nextQuestion: clean(z.nextQuestion ?? z.nextPromise) || "What becomes meaningful next?" }] : [];
-    });
-    const allIds = unique([...ids, ...trajectory.flatMap((s) => s.eventIds)]);
-    const persistentOnly = !allIds.length && (GENERIC.test(thesis) || INTERNAL.test(thesis));
-    if (persistentOnly) return [];
-    if (allIds.length && trajectory.length === 0) return [];
-    const c: LatentMovieCandidate = {
-      id: clean(r.id ?? r.movieId) || `model-movie-${i + 1}`,
-      lens: clean(r.lens ?? r.frame) || "NONE",
-      anchorEventIds: ids.slice(0, 4),
-      supportingRelationKinds: Array.isArray(r.supportingRelationKinds) ? unique(r.supportingRelationKinds.filter((x): x is string => typeof x === "string").map(clean)) : [],
-      trajectory,
-      payoff: clean(r.payoff ?? r.finalMeaning) || labels(input.realityGraph, [allIds.at(-1) ?? ""]).at(-1) || "supplied reality",
-      unresolvedQuestion: clean(r.unresolvedQuestion ?? r.nextQuestion) || "What changes this reading?",
-      evidence: Array.isArray(r.evidence) ? r.evidence.filter((x): x is string => typeof x === "string").map(clean).filter(Boolean).slice(0, 16) : labels(input.realityGraph, allIds),
-      hypothesis: Array.isArray(r.hypothesis) ? r.hypothesis.filter((x): x is string => typeof x === "string").map(clean).filter(Boolean).slice(0, 6) : [thesis || "Grounded structural reading of supplied material."],
-      truthRisk: clamp(r.truthRisk), novelty: clamp(r.novelty, .68), specificity: clamp(r.specificity, .84), informationValue: clamp(r.informationValue, .74),
-      uncertainty: clamp(r.uncertainty, .3), attentionPotential: clamp(r.attentionPotential, .64), consequencePotential: clamp(r.consequencePotential, .5),
-      callbackPotential: clamp(r.callbackPotential, returning ? .78 : .18), compressionPotential: clamp(r.compressionPotential, .76), repetitionRisk: clamp(r.repetitionRisk, .08),
-      distinctiveness: clamp(r.distinctiveness, .72), score: 0,
-    };
-    c.score = score(c, returning);
-    return [c];
-  });
+function fallbackQuestions(input: AuthorCognitionInput): AuthorAdaptiveQuestion[] {
+  const questions: AuthorAdaptiveQuestion[] = [];
+  if (!clean(input.subject)) questions.push({ kind: "who", question: "Who or what is this about?", reason: "The focal subject is missing." });
+  if (!clean(input.place) && !input.realityGraph.events.some((event) => event.place)) questions.push({ kind: "where", question: "Where did this happen?", reason: "Place may add meaningful context." });
+  if (!input.realityGraph.events.some((event) => event.time) && !/(today|yesterday|tomorrow|morning|afternoon|evening|night|\d{4})/i.test(input.prompt)) {
+    questions.push({ kind: "when", question: "When did this happen?", reason: "Time may establish useful continuity." });
+  }
+  return questions.slice(0, 3);
 }
 
-function signature(c: LatentMovieCandidate): string {
-  return `${c.trajectory.map((s) => s.operation).join(">")}|${c.trajectory.map((s) => s.eventIds.slice().sort().join("+")).join("|")}`;
-}
-function dedupe(cs: LatentMovieCandidate[], limit = 10): LatentMovieCandidate[] {
-  const out: LatentMovieCandidate[] = [], seen = new Set<string>();
-  for (const c of cs.slice().sort((a, b) => b.score - a.score)) {
-    const s = signature(c); if (seen.has(s)) continue; seen.add(s); out.push(c); if (out.length >= limit) break;
-  }
-  return out;
-}
-function questions(input: AuthorCognitionInput): AuthorAdaptiveQuestion[] {
-  const out: AuthorAdaptiveQuestion[] = [];
-  if (!input.subject) out.push({ kind: "who", question: "Who or what is this about?", reason: "The focal subject is missing." });
-  if (!input.place && !input.realityGraph.events.some((e) => e.place)) out.push({ kind: "where", question: "Where did this happen?", reason: "Place may add meaningful context." });
-  if (!input.realityGraph.events.some((e) => e.time) && !/(today|yesterday|tomorrow|morning|afternoon|evening|night|\d{1,2}:\d{2}|\d{4})/i.test(input.prompt)) {
-    out.push({ kind: "when", question: "When did this happen?", reason: "Time may establish useful continuity." });
-  }
-  return out.slice(0, 3);
+function fallbackDirection(anchorIds: string[], candidate?: LatentMovieCandidate): AuthorArtistDirection {
+  const proposition: AuthorCreativeProposition = {
+    text: "Use the chosen Artist treatment from the canonical Artist stage.",
+    pattern: "await Artist selection",
+    sourceEventIds: anchorIds,
+  };
+  return {
+    creativeProposition: proposition,
+    mechanic: { text: proposition.text, sourceEventIds: anchorIds },
+    hook: { text: "Begin with the strongest supplied detail.", sourceEventIds: anchorIds },
+    openLoop: { text: candidate?.unresolvedQuestion || "What becomes newly meaningful?", sourceEventIds: anchorIds },
+    tension: { text: candidate?.hypothesis?.[0] || "Find tension inside supplied reality.", sourceEventIds: anchorIds },
+    surprise: { text: "Let the supplied relationship change the read.", sourceEventIds: anchorIds },
+    payoff: { text: candidate?.payoff || "Land on a supplied detail.", sourceEventIds: anchorIds },
+  };
 }
 
 export async function buildAuthorCognitivePlan(input: AuthorCognitionInput): Promise<AuthorCognitionPlan> {
-  const returning = Boolean(input.returning || (input.visitNumber ?? 1) > 1);
-  const explicit = clean(input.lens);
+  const eligible = eligibleEventIds(input);
   const material = classifyMaterial(input.facts);
   const subjectTruth = subjectTruthFrom(input, material);
-  const eligible = eligibleEventIds(input);
-  const intelligence = buildAuthorCognitionIntelligence(input.realityGraph, returning, input.creativeLearningContext ?? []);
-
-  const compact = {
-    subject: clean(input.subject) || "unknown",
-    place: clean(input.place) || "unknown",
-    prompt: clean(input.prompt),
-    subjectTruth,
-    subjectMaterial: material,
-    creatorContext: input.domainContext ?? null,
-    returning,
-    memory: (input.memoryContext ?? []).slice(0, 12),
-    learning: (input.creativeLearningContext ?? []).slice(0, 12),
-    events: input.realityGraph.events.filter((e) => eligible.has(e.id)).map((e) => ({ id: e.id, label: e.label, salient: Boolean(e.salient), place: e.place, time: e.time, entities: e.entities })),
-    relations: input.realityGraph.relations.filter((r) => eligible.has(r.from) && eligible.has(r.to)).slice(0, 24).map((r) => ({ from: r.from, to: r.to, kind: r.kind, strength: r.strength })),
-    patterns: input.realityGraph.patterns ?? [],
-    tensions: input.realityGraph.unresolvedTensions ?? [],
-    sensory: input.realityGraph.sensorySignals ?? [],
-  };
-
-  let parsed: Record<string, unknown> | undefined;
+  const candidates = sequenceCandidates(input, eligible);
+  const selectedMovie = candidates[0];
   let model = "deterministic";
   let modelCalls = 0;
+  let interpretations: AuthorCreativeInterpretation[] = [];
+  let modelQuestions: AuthorAdaptiveQuestion[] = [];
+  let attentionStrategy = selectedMovie?.hypothesis?.[0] || "Find the strongest grounded relationship in the supplied reality.";
+  let reasoningSummary = selectedMovie?.hypothesis ?? [];
 
-  if (input.movieMode !== false) {
-    try {
-      const r = await localModelGenerate(
-        [
-          {
-            role: "system",
-            content: [
-              "You are QRE universal cognition.",
-              "Separate persistent subject truth from chronological events.",
-              "A name, breed, trait, preference, routine, goal, relationship, or memory is subject material, not a current event.",
-              "Only chronological occurrences may form event trajectories.",
-              "Never convert a preference or trait into an occurrence. Example: 'loves apples' is not 'ate an apple'.",
-              "RealityGraph and explicit subject material are authoritative. Never invent concrete facts, people, actions, outcomes, chronology, motives, emotions, capabilities, locations, or events.",
-              "Find grounded relationships, structures, contrasts, recurrence, convergence, recontextualization, accumulation, progression, interruption, transformation, return, absence, and consequence only where supplied evidence supports them.",
-              "A Movie is a grounded creative possibility, not a screenplay and not a factual restatement.",
-              "Do not create one Movie per preference or identity fact. Persistent subject material may inspire characterization but does not create chronology.",
-              "Every event-based Movie must cite eligible event IDs. Identity-only material may remain a character possibility with at most one supporting source.",
-              "Use only these trajectory operations: establish, contrast, recur, reframe, escalate, converge, reveal, consequence, payoff.",
-              "Lens is selective pressure, not semantic authority. NONE is valid.",
-              "Return compact JSON with selectedLens, frame, interpretations, movies, selectedMovieId, adaptiveQuestions, attentionStrategy, reasoningSummary.",
-            ].join("\n"),
-          },
-          { role: "user", content: JSON.stringify({ reality: compact, intelligence: { signals: intelligence.semanticSignals.slice(0, 6), moves: intelligence.candidateMoves.slice(0, 6), competition: intelligence.competitionProtocol.slice(0, 5), attention: intelligence.attention.slice(0, 5), antiFailure: intelligence.antiFailureChecks.slice(0, 5) } }) },
-        ],
-        "json",
-        { numPredict: 1100, temperature: .88 },
-      );
-      parsed = parse(r.text);
-      model = r.model;
-      modelCalls = 1;
-    } catch {}
+  try {
+    const reality = {
+      subject: clean(input.subject) || "unknown",
+      place: clean(input.place) || "unknown",
+      prompt: clean(input.prompt),
+      subjectTruth,
+      subjectMaterial: material,
+      events: input.realityGraph.events.filter((event) => eligible.has(event.id)).slice(0, 24).map((event) => ({ id: event.id, label: event.label, salient: Boolean(event.salient), place: event.place, time: event.time, entities: event.entities })),
+      relations: input.realityGraph.relations.filter((relation) => eligible.has(relation.from) && eligible.has(relation.to)).slice(0, 32).map((relation) => ({ from: relation.from, to: relation.to, kind: relation.kind, strength: relation.strength, evidence: relation.evidence })),
+      patterns: input.realityGraph.patterns ?? [],
+      tensions: input.realityGraph.unresolvedTensions ?? [],
+    };
+
+    const response = await localModelGenerate(
+      [
+        {
+          role: "system",
+          content: [
+            "You are QRE semantic cognition, not a filmmaker.",
+            "Discover relationships, organizing patterns, contrasts, recurrence, transformation, convergence, recontextualization, dependency, tension, or unexpected specificity inside supplied reality.",
+            "Do not invent facts, events, motives, emotions, chronology, people, actions, locations, capabilities, or outcomes.",
+            "Do not propose movies, stories, scenes, shots, camera work, lenses, montage, soundtrack, music, sound design, visual effects, transitions, or production techniques.",
+            "Do not choose a genre or cinematic frame.",
+            "A sequence-text film means grounded text moving through a sequence. Your job is to discover the semantic relationship that could make that sequence meaningful.",
+            "Return JSON with interpretations only. Each interpretation must name the relationship, explain why the supplied evidence supports it, and cite exact event IDs.",
+          ].join("\n"),
+        },
+        {
+          role: "user",
+          content: JSON.stringify({ reality }),
+        },
+      ],
+      "json",
+      { numPredict: 900, temperature: 0.55 },
+    );
+    const parsed = parseModel(response.text);
+    model = response.model;
+    modelCalls = 1;
+
+    if (Array.isArray(parsed?.interpretations)) {
+      interpretations = parsed.interpretations.flatMap((value, index) => {
+        if (!value || typeof value !== "object") return [];
+        const row = value as Record<string, unknown>;
+        const ids = Array.isArray(row.evidenceEventIds)
+          ? unique(row.evidenceEventIds.filter((id): id is string => typeof id === "string").map(clean).filter((id) => eligible.has(id)))
+          : [];
+        const thesis = clean(row.thesis);
+        const opportunity = clean(row.creativeOpportunity);
+        const rationale = clean(row.rationale);
+        if (!thesis || !ids.length) return [];
+        return [{
+          id: clean(row.id) || `interpretation-${index + 1}`,
+          thesis,
+          creativeOpportunity: opportunity || "supplied relationship",
+          rationale: rationale || "grounded in supplied evidence",
+          evidenceEventIds: ids.slice(0, 6),
+          confidence: clamp(row.confidence, 0.65),
+        } satisfies AuthorCreativeInterpretation];
+      }).slice(0, 6);
+    }
+
+    const maybeQuestions = Array.isArray(parsed?.adaptiveQuestions) ? parsed.adaptiveQuestions : [];
+    modelQuestions = maybeQuestions.flatMap((value) => {
+      if (!value || typeof value !== "object") return [];
+      const row = value as Record<string, unknown>;
+      const kind = clean(row.kind) as AuthorAdaptiveQuestion["kind"];
+      const question = clean(row.question);
+      return question && ["who", "where", "when", "event", "detail"].includes(kind)
+        ? [{ kind, question, reason: clean(row.reason) || "Additional supplied context may sharpen the reading." }]
+        : [];
+    }).slice(0, 3);
+
+    attentionStrategy = clean(parsed?.attentionStrategy) || attentionStrategy;
+    reasoningSummary = Array.isArray(parsed?.reasoningSummary)
+      ? parsed.reasoningSummary.filter((value): value is string => typeof value === "string").map(clean).filter(Boolean).slice(0, 8)
+      : reasoningSummary;
+  } catch {
+    // Deterministic sequence candidates remain authoritative when the semantic model is unavailable.
   }
 
-  const fr = frame(parsed, explicit, input.realityGraph, eligible);
-  const modelCs = normalizeModel(parsed, input, returning, eligible);
-  const observations = observationCandidates(input, returning, eligible);
-  const candidates = dedupe([...modelCs, ...observations], 10);
-  const chosenId = clean(parsed?.selectedMovieId);
-  const numericChosen = Number(chosenId);
-  const selectedMovie = candidates.find((c) => c.id === chosenId)
-    || (Number.isInteger(numericChosen) && numericChosen >= 0 ? candidates[numericChosen] : undefined)
-    || candidates[0];
-
-  const ints = Array.isArray(parsed?.interpretations) ? parsed.interpretations.slice(0, 6).flatMap((x, i) => {
-    if (!x || typeof x !== "object") return [];
-    const r = x as Record<string, unknown>;
-    return [{
-      id: clean(r.id) || `interpretation-${i + 1}`,
-      thesis: clean(r.thesis) || selectedMovie?.hypothesis[0] || "Find the strongest grounded reading.",
-      creativeOpportunity: clean(r.creativeOpportunity) || "semantic progression",
-      rationale: clean(r.rationale) || "grounded in supplied evidence",
-      evidenceEventIds: validIds(r.evidenceEventIds, input.realityGraph, eligible),
-      confidence: clamp(r.confidence, .6),
-    } satisfies AuthorCreativeInterpretation];
-  }) : [];
-
-  const qs = Array.isArray(parsed?.adaptiveQuestions) ? parsed.adaptiveQuestions.flatMap((x) => {
-    if (!x || typeof x !== "object") return [];
-    const r = x as Record<string, unknown>;
-    const kind = clean(r.kind) as AuthorAdaptiveQuestion["kind"];
-    const question = clean(r.question);
-    return question && ["who", "where", "when", "event", "detail"].includes(kind) && !PSYCH.test(question)
-      ? [{ kind, question, reason: clean(r.reason) }] : [];
-  }).slice(0, 3) : [];
-
   const selectedAnchorIds = selectedMovie?.anchorEventIds?.slice(0, 4) ?? [];
-  const cognitionFallbackProposition = {
-    text: "Use the chosen Artist treatment from the canonical Artist stage.",
-    pattern: "await Artist selection",
-    sourceEventIds: selectedAnchorIds,
-  };
-  const cognitionFallbackDirection = {
-    creativeProposition: cognitionFallbackProposition,
-    mechanic: { text: cognitionFallbackProposition.text, sourceEventIds: selectedAnchorIds },
-    hook: { text: "Use the strongest supplied detail as the opening attention beat.", sourceEventIds: selectedAnchorIds },
-    openLoop: { text: selectedMovie?.unresolvedQuestion || "Create an open question from supplied reality.", sourceEventIds: selectedAnchorIds },
-    tension: { text: selectedMovie?.hypothesis?.[0] || "Create tension from supplied reality.", sourceEventIds: selectedAnchorIds },
-    surprise: { text: "Find an earned surprise in the supplied material.", sourceEventIds: selectedAnchorIds },
-    payoff: { text: selectedMovie?.payoff || "Land on a supplied detail.", sourceEventIds: selectedAnchorIds },
-  } satisfies AuthorArtistDirection;
-
   return {
-    selectedLens: fr.mode === "frame" ? fr.frame : "NONE",
-    frame: fr,
-    interpretations: ints.length ? ints : selectedMovie ? [{ id: "interpretation-grounded", thesis: selectedMovie.hypothesis[0] ?? "", creativeOpportunity: selectedMovie.anchorEventIds.length > 1 ? "supplied relationship" : "character material", rationale: "derived from supplied reality", evidenceEventIds: selectedMovie.anchorEventIds, confidence: selectedMovie.score }] : [],
+    selectedLens: clean(input.lens) || "NONE",
+    frame: {
+      mode: "none",
+      frame: "NONE",
+      confidence: 0,
+      coreTension: "",
+      creativeGain: "",
+      templateRisk: "",
+      evidenceEventIds: selectedAnchorIds,
+    },
+    interpretations: interpretations.length
+      ? interpretations
+      : selectedMovie
+        ? [{
+            id: "interpretation-grounded",
+            thesis: selectedMovie.hypothesis[0] ?? "",
+            creativeOpportunity: selectedMovie.anchorEventIds.length > 1 ? "supplied relationship" : "character material",
+            rationale: "derived from supplied reality",
+            evidenceEventIds: selectedMovie.anchorEventIds,
+            confidence: selectedMovie.score,
+          }]
+        : [],
     latentMovieCandidates: candidates,
     selectedMovie,
-    adaptiveQuestions: unique([...qs, ...questions(input)].map((x) => JSON.stringify(x))).map((x) => JSON.parse(x) as AuthorAdaptiveQuestion).slice(0, 4),
-    attentionStrategy: clean(parsed?.attentionStrategy) || cognitionFallbackProposition.text,
-    reasoningSummary: Array.isArray(parsed?.reasoningSummary) ? parsed.reasoningSummary.filter((x): x is string => typeof x === "string").map(clean).filter(Boolean).slice(0, 8) : intelligence.semanticSignals.slice(0, 3),
+    adaptiveQuestions: unique([...modelQuestions, ...fallbackQuestions(input)].map((value) => JSON.stringify(value)))
+      .map((value) => JSON.parse(value) as AuthorAdaptiveQuestion)
+      .slice(0, 4),
+    attentionStrategy,
+    reasoningSummary,
     subjectTruth,
     subjectMaterial: material,
-    artistDirection: cognitionFallbackDirection,
+    artistDirection: fallbackDirection(selectedAnchorIds, selectedMovie),
     model,
     modelCalls,
   };
