@@ -17,7 +17,7 @@ const uniqueStrings = (values: readonly string[]): string[] =>
   [...new Set(values.map(clean).filter(Boolean))];
 
 const ACTION_PATTERNS = [
-  /\b(?:loves?|likes?|hates?|needs?|wants?|prefers?|uses?|owns?|keeps?|visits?|chooses?|gets?|takes?|makes?|does?|works?|moves?|returns?|buys?|tries?|checks?|tests?|replaces?|repairs?|cleans?|delivers?)\b[^.?!]*/i,
+  /\b(?:loves?|likes?|hates?|needs?|wants?|prefers?|uses?|owns?|keeps?|visits?|chooses?|gets?|takes?|makes?|does?|works?|moves?|returns?|buys?|tries?|checks?|tests?|replaces?|repairs?|cleans?|delivers?)\b[^.?!]*/ig,
 ];
 
 const TEMPORAL_MARKERS = [
@@ -211,7 +211,7 @@ function makeRelations(events: RealityEvent[], structures: RealityEventStructure
     if (list.length < 3) continue;
     const selected = list.slice(0, 6);
     for (let index = 1; index < selected.length; index += 1) {
-      relations.push({ from: selected[index - 1].id, to: selected[index].id, kind: "converges", strength: 0.62, });
+      relations.push({ from: selected[index - 1].id, to: selected[index].id, kind: "converges", strength: 0.62 });
     }
     void entity;
   }
