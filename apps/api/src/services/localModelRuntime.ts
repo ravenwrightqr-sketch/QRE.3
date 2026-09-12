@@ -43,8 +43,8 @@ process.env.QRE_LOCAL_MODEL ||
 
 function fallbackModelName(primaryModel: string): string | undefined {
 const raw = process.env.QRE_AUTHOR_FALLBACK_MODEL;
-const configured = (raw === undefined ? "qwen2.5vl:7b" : String(raw)).trim();
-
+if (raw === undefined) return "qwen2.5vl:7b" === primaryModel ? undefined : "qwen2.5vl:7b";
+const configured = String(raw).trim();
 if (!configured || configured === primaryModel) return undefined;
 return configured;
 }
