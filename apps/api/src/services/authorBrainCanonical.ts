@@ -1,4 +1,4 @@
-import type { AuthorBrainTruth, CanonicalAuthorResult } from "@qre/contracts";
+import type { AuthorBrainTruth, CanonicalAuthorResult, SequenceCandidate } from "@qre/contracts";
 import { buildAuthorRealityGraph } from "./authorRealityGraph.js";
 import { authorCognition } from "./authorCognition.js";
 import { chooseAuthorProposition } from "./authorArtist.js";
@@ -8,10 +8,11 @@ import { buildAuthorReadout } from "./authorReadout.js";
 
 export async function authorBrainCanonical(input:AuthorBrainTruth):Promise<CanonicalAuthorResult>{
   const reality=buildAuthorRealityGraph(input);
-  const cognition=authorCognition({truth:input,reality});
-  const candidate=cognition.candidates[0];
+  const cognition=await authorCognition({truth:input,reality});
+  const candidates:SequenceCandidate[]=cognition.candidates.slice(0,6);
+  const candidate=candidates[0];
   if(!candidate) throw new Error("Author could not find a grounded semantic candidate");
-  const proposition=await chooseAuthorProposition({truth:input,candidate,graph:reality});
+  const proposition=await chooseAuthorProposition({truth:input,candidate,alternatives:candidates,graph:reality,domainContext:input.domainContext});
   let drafts=await realizeAuthorSequence({graph:reality,candidate,proposition});
   let sequence=buildSequencePlay({subject:input.subject||candidate.lens,proposition,candidate,cuts:drafts});
   let judgment=judgeAuthorSequence({graph:reality,proposition,sequence});
