@@ -59,14 +59,30 @@ export function mergeExperienceStates(states: readonly ExperienceState[]): Exper
   };
 }
 
+function validState(value: unknown): value is ExperienceState {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return false;
+  const state = value as Partial<ExperienceState>;
+  return (
+    state.version === 1 &&
+    Boolean(state.tempo) &&
+    Array.isArray(state.chapter?.operations) &&
+    Array.isArray(state.realityAnchors ?? []) &&
+    Array.isArray(state.relationKinds)
+  );
+}
+
 export function experienceStateToMemoryBatch(input: {
   operationId?: string;
   assetId: string;
   userId?: string;
-  state: ExperienceState;
+  state: unknown;
   occurredAt?: string;
   sourceRef?: string;
 }): MemoryWriteBatch {
+  if (!validState(input.state)) {
+    throw new Error("Cannot persist invalid experience state");
+  }
+
   const occurredAt = input.occurredAt ?? new Date().toISOString();
   const summary = [
     `Experience chapter: ${input.state.chapter.operations.join(" → ") || "empty"}.`,
@@ -101,18 +117,6 @@ export function experienceStateToMemoryBatch(input: {
       },
     ],
   };
-}
-
-function validState(value: unknown): value is ExperienceState {
-  if (!value || typeof value !== "object" || Array.isArray(value)) return false;
-  const state = value as Partial<ExperienceState>;
-  return (
-    state.version === 1 &&
-    Boolean(state.tempo) &&
-    Array.isArray(state.chapter?.operations) &&
-    Array.isArray(state.realityAnchors ?? []) &&
-    Array.isArray(state.relationKinds)
-  );
 }
 
 export function extractExperienceStates(context: MemoryContext): ExperienceState[] {
