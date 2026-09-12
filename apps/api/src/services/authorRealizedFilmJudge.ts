@@ -1,23 +1,22 @@
-import type { LatentMovieCandidate, RealityGraph } from "@qre/contracts";
+/**
+ * QRE SEQUENCE JUDGE — DIAGNOSTIC ONLY
+ *
+ * The artifact is a sequence-text film: visible text changing the read from
+ * cut to cut. This file judges the visible sequence; it never chooses art.
+ *
+ * Do not introduce audiovisual production concerns here. The Judge measures
+ * grounding, semantic relationship, attention movement, landing, transformation,
+ * provenance, invention, explanation, caption-reel collapse, and proposition fidelity.
+ */
+import type { AuthorCreativeProposition, RealityGraph, SequenceCandidate, AuthorScene } from "@qre/contracts";
 
-type RealizedScene = import("@qre/contracts").AuthorScene & { sourceEventIds: string[]; score?: number };
-
-/** Independent judge for the VISIBLE film. It judges the artifact, not latent metadata. */
-export type RealizedFilmJudgment = {
-  accepted: boolean;
-  score: number;
-  reasons: string[];
+type RealizedScene = AuthorScene & { sourceEventIds: string[]; score?: number };
+export type RealizedSequenceJudgment = {
+  accepted: boolean; score: number; reasons: string[];
   dimensions: {
-    concreteGrounding: number;
-    relationBridge: number;
-    progression: number;
-    landing: number;
-    formDiversity: number;
-    artisticTransformation: number;
-    sourceCopyRisk: number;
-    inventionRisk: number;
-    explanationRisk: number;
-    captionReelRisk: number;
+    concreteGrounding: number; relationBridge: number; progression: number; landing: number;
+    formDiversity: number; artisticTransformation: number; sourceCopyRisk: number; inventionRisk: number;
+    explanationRisk: number; captionReelRisk: number; propositionFidelity: number;
   };
 };
 
@@ -27,163 +26,48 @@ const unique = (values: readonly string[]): string[] => [...new Set(values.map(c
 const tokenList = (text: string): string[] => (clean(text).toLowerCase().match(/\b[\w’'-]+\b/g) ?? []).filter((token) => token.length > 2);
 const tokenSet = (text: string): Set<string> => new Set(tokenList(text));
 const STOP = new Set(["the", "a", "an", "and", "or", "but", "to", "of", "in", "on", "at", "for", "with", "from", "by", "as", "is", "are", "was", "were", "be", "been", "being", "this", "that", "it", "its"]);
-const ABSTRACT = new Set([
-  "attention", "anticipation", "appearance", "appetite", "absurd", "absurdity", "behavior", "beauty", "bliss", "charge", "chaos", "conquest", "control", "defiance", "desire", "dissonance", "dread", "ecstasy", "energy", "expectation", "freedom", "fury", "grace", "humor", "irony", "joy", "order", "ritual", "mischief", "menace", "memory", "meaning", "mood", "obedience", "play", "pleasure", "rebellion", "recognition", "resistance", "restraint", "reversal", "rhythm", "silence", "tenderness", "tension", "transgression", "wonder", "defiance", "inversion", "disruption", "interruption", "routine", "habit", "difference", "sameness", "surface", "subversion", "subverted", "ordinary", "strange", "strangeness", "unexpected", "sudden", "still", "alone", "together", "before", "after", "again", "exactly", "almost", "never", "always", "brief", "long", "small", "large", "quiet", "loud", "fierce", "clean", "orderly", "mess", "pressure", "release", "landing", "echo", "echoes", "weight", "absence", "presence", "return", "departure", "continuation", "collision", "accumulation", "contrast", "recontextualization", "reframe", "aftermath"
-]);
+const RELATION_WORDS = /\b(?:because|therefore|so|except|only|instead|until|while|again|back|always|never|first|then|before|after|more|less|same|different|priority|system|rule|rank|matters|counts|belongs|depends|changes|becomes|turns|returns|overrides)\b/i;
+const EXPLANATION = /\b(?:this means|which means|this shows|the point is|the meaning is|in other words|the relationship|the viewer|the audience|changes what is worth noticing|because this)\b/i;
 
-function overlap(left: string, right: string): number {
-  const a = tokenSet(left); const b = tokenSet(right); if (!a.size || !b.size) return 0;
-  let hits = 0; for (const token of a) if (b.has(token)) hits += 1; return hits / Math.max(1, a.size);
-}
-function sequenceMatch(left: string, right: string): number {
-  const a = tokenList(left); const b = tokenList(right); if (!a.length || !b.length) return 0;
-  const row = new Array<number>(b.length + 1).fill(0);
-  for (let i = 1; i <= a.length; i += 1) {
-    let diagonal = 0;
-    for (let j = 1; j <= b.length; j += 1) {
-      const prior = row[j]!;
-      if (a[i - 1] === b[j - 1]) row[j] = diagonal + 1;
-      else row[j] = Math.max(row[j]!, row[j - 1]!);
-      diagonal = prior;
-    }
-  }
-  return clamp(row[b.length]! / Math.max(a.length, b.length));
-}
-function relationExists(graph: RealityGraph, ids: readonly string[]): boolean { const set = new Set(ids); return graph.relations.some((r) => set.has(r.from) && set.has(r.to)); }
-function eventCorpus(graph: RealityGraph): string { return graph.events.flatMap((e) => [e.label, ...e.entities, e.place, e.time]).filter(Boolean).join(" "); }
-function eventText(event: RealityGraph["events"][number]): string { return [event.label, ...event.entities, event.place, event.time].filter(Boolean).join(" "); }
-function sourceEvents(scene: RealizedScene, graph: RealityGraph): RealityGraph["events"][number][] {
-  return scene.sourceEventIds.map((id) => graph.events.find((e) => e.id === id)).filter((e): e is RealityGraph["events"][number] => Boolean(e));
-}
-function sceneGrounding(scene: RealizedScene, graph: RealityGraph): number {
-  const source = sourceEvents(scene, graph); if (!source.length) return 0;
-  const lexical = Math.max(...source.map((event) => overlap(scene.text, eventText(event))));
-  const provenance = source.length >= 2 ? 0.62 : 0.48;
-  return clamp(Math.max(lexical, provenance));
-}
-function concreteGrounding(scenes: readonly RealizedScene[], graph: RealityGraph): number {
-  const nonFinal = scenes.slice(0, -1); if (!graph.events.length) return 1; if (!nonFinal.length) return 0;
-  return clamp(nonFinal.reduce((sum, s) => sum + sceneGrounding(s, graph), 0) / nonFinal.length);
-}
-function relationBridge(scenes: readonly RealizedScene[], graph: RealityGraph): number {
-  if (graph.events.length < 2) return 1; return scenes.some((s) => s.sourceEventIds.length >= 2 && relationExists(graph, s.sourceEventIds)) ? 1 : 0;
-}
-function progression(scenes: readonly RealizedScene[], graph: RealityGraph): number {
-  if (scenes.length < 2) return 0;
-  const sources = scenes.map((s) => new Set(s.sourceEventIds));
-  const transitions = sources.slice(1).filter((set, index) => { for (const id of set) if (!sources[index]!.has(id)) return true; return false; }).length;
-  const bridgeIndex = scenes.findIndex((s) => s.sourceEventIds.length >= 2 && relationExists(graph, s.sourceEventIds));
-  const bridgeTiming = bridgeIndex > 0 ? 1 : 0;
-  const distinctSources = new Set(scenes.flatMap((s) => s.sourceEventIds)).size;
-  return clamp((Math.min(1, transitions / Math.max(1, sources.length - 1)) * 0.45) + (bridgeTiming * 0.35) + (Math.min(1, distinctSources / 2) * 0.2));
-}
-function landing(scenes: readonly RealizedScene[], graph: RealityGraph): number {
-  const last = scenes.at(-1); if (!last || scenes.length < 2) return 0;
-  const wordCount = tokenList(last.text).length;
-  const compact = wordCount <= 4 ? 1 : wordCount <= 7 ? 0.8 : wordCount <= 11 ? 0.55 : 0.2;
-  const overlapRatio = overlap(last.text, eventCorpus(graph));
-  const interpretive = !/\b(?:this means|which means|this shows|the point is|the meaning is|because|therefore|in other words)\b/i.test(last.text) ? 1 : 0;
-  const sourceIndependent = overlapRatio < 0.7 ? 1 : 0;
-  return clamp(compact * 0.35 + interpretive * 0.25 + sourceIndependent * 0.4);
-}
-function formDiversity(scenes: readonly RealizedScene[]): number {
-  if (scenes.length < 3) return 0.55;
-  const lengths = new Set(scenes.map((s) => tokenList(s.text).length)).size;
-  const kinds = unique(scenes.map((s) => s.kind ?? "")).length;
-  return clamp(Math.min(1, lengths / Math.min(4, scenes.length)) * 0.5 + Math.min(1, kinds / 3) * 0.5);
-}
-function sourceCopyRisk(scenes: readonly RealizedScene[], graph: RealityGraph): number {
-  const checked = scenes.slice(0, -1); if (!checked.length) return 0;
-  const risks = checked.map((scene) => {
-    const sources = sourceEvents(scene, graph); if (!sources.length) return 1;
-    const best = Math.max(...sources.map((event) => sequenceMatch(scene.text, eventText(event))));
-    return best >= 0.8 ? best : 0;
-  });
-  return clamp(risks.reduce((sum, risk) => sum + risk, 0) / risks.length);
-}
-function artisticTransformation(scenes: readonly RealizedScene[], graph: RealityGraph): number {
-  if (scenes.length < 2) return 0;
-  const copyRisk = sourceCopyRisk(scenes, graph);
-  const nonFinal = scenes.slice(0, -1);
-  const structuralShift = nonFinal.reduce((sum, scene) => {
-    const sources = sourceEvents(scene, graph); if (!sources.length) return sum;
-    const sourceLength = Math.max(...sources.map((event) => tokenList(eventText(event)).length));
-    const sceneLength = tokenList(scene.text).length;
-    if (!sourceLength || !sceneLength) return sum;
-    return sum + (sceneLength < sourceLength ? Math.min(1, 1 - sceneLength / sourceLength) : 0);
-  }, 0) / Math.max(1, nonFinal.length);
-  const provenanceTransform = nonFinal.length ? nonFinal.filter((scene) => scene.sourceEventIds.length >= 1).length / nonFinal.length : 0;
-  return clamp((1 - copyRisk) * 0.55 + structuralShift * 0.25 + provenanceTransform * 0.2);
-}
-function novelConcreteSignals(text: string, graph: RealityGraph): number {
-  const sourceVocabulary = tokenSet(eventCorpus(graph));
-  const tokens = tokenList(text).filter((token) => !STOP.has(token));
-  if (!tokens.length) return 0;
-  const colors = /\b(?:red|blue|green|yellow|orange|purple|pink|crimson|scarlet|golden|gold|silver|black|white|brown)\b/i;
-  const sensory = /\b(?:taste|tasted|smell|smelled|scent|perfume|perfumed|sound|sounded|glow|gleam|gleaming|texture|warm|cold|hot|soft|hard|bright|dim|sharp|sweet|bitter|loud|quiet)\b/i;
-  const physicalAction = /\b(?:brushed|brushes|perfumed|washed|cut|cuts|grabbed|grabs|opened|closed|lifted|dropped|ran|runs|walked|walks|held|holds|touched|touches|spilled|spills|poised)\b/i;
-  const quoted = /["“”]/.test(text);
-  let signals = 0;
-  if (colors.test(text)) signals += 1;
-  if (sensory.test(text)) signals += 1;
-  if (physicalAction.test(text)) signals += 1;
-  if (quoted) signals += 1;
-  const unknownNonAbstract = tokens.filter((token) => !sourceVocabulary.has(token) && !ABSTRACT.has(token));
-  if (unknownNonAbstract.length >= 3) signals += 1;
-  return clamp(signals / 4);
-}
-function inventionRisk(scenes: readonly RealizedScene[], graph: RealityGraph): number {
-  const checked = scenes.slice(0, -1); if (!checked.length) return 0;
-  return clamp(checked.reduce((sum, scene) => sum + novelConcreteSignals(scene.text, graph), 0) / checked.length);
-}
-function explanationRisk(scenes: readonly RealizedScene[]): number {
-  const explanation = /\b(?:this means|which means|this shows|which shows|the point is|the meaning is|in other words|the relationship|the viewer|the audience|changes what is worth noticing|because this)\b/i;
-  return clamp(scenes.filter((s) => explanation.test(s.text)).length / Math.max(1, scenes.length));
-}
-function captionReelRisk(scenes: readonly RealizedScene[], graph: RealityGraph): number {
-  if (scenes.length < 3) return 0;
-  const oneEvent = scenes.filter((s) => s.sourceEventIds.length === 1).length / scenes.length;
-  const paraphrases = scenes.slice(0, -1).filter((s) => {
-    const source = sourceEvents(s, graph)[0]; return s.sourceEventIds.length === 1 && source && overlap(s.text, eventText(source)) >= 0.58;
-  }).length / Math.max(1, scenes.length);
-  const bridge = scenes.filter((s) => s.sourceEventIds.length >= 2 && relationExists(graph, s.sourceEventIds)).length / scenes.length;
-  return clamp(oneEvent * 0.25 + paraphrases * 0.55 + (1 - bridge) * 0.2);
-}
+function overlap(left: string, right: string): number { const a = tokenSet(left); const b = tokenSet(right); if (!a.size || !b.size) return 0; let hits = 0; for (const token of a) if (b.has(token)) hits += 1; return hits / Math.max(1, a.size); }
+function sequenceMatch(left: string, right: string): number { const a = tokenList(left), b = tokenList(right); if (!a.length || !b.length) return 0; const row = new Array<number>(b.length + 1).fill(0); for (let i = 1; i <= a.length; i += 1) { let diagonal = 0; for (let j = 1; j <= b.length; j += 1) { const prior = row[j]!; row[j] = a[i - 1] === b[j - 1] ? diagonal + 1 : Math.max(row[j]!, row[j - 1]!); diagonal = prior; } } return clamp(row[b.length]! / Math.max(a.length, b.length)); }
+function sourceEvents(scene: RealizedScene, graph: RealityGraph) { return scene.sourceEventIds.map((id) => graph.events.find((event) => event.id === id)).filter((event): event is RealityGraph["events"][number] => Boolean(event)); }
+function eventText(event: RealityGraph["events"][number]) { return [event.label, ...event.entities, event.place, event.time].filter(Boolean).join(" "); }
+function eventCorpus(graph: RealityGraph) { return graph.events.map(eventText).join(" "); }
+function concreteGrounding(scenes: readonly RealizedScene[], graph: RealityGraph): number { const checked = scenes.slice(0, -1); if (!checked.length) return 0; return clamp(checked.reduce((sum, scene) => { const source = sourceEvents(scene, graph); if (!source.length) return sum; return sum + Math.max(0.48, ...source.map((event) => overlap(scene.text, eventText(event)))); }, 0) / checked.length); }
+function relationBridge(scenes: readonly RealizedScene[], graph: RealityGraph): number { if (graph.events.length < 2) return 1; const explicit = scenes.some((scene) => scene.sourceEventIds.length >= 2 && graph.relations.some((relation) => scene.sourceEventIds.includes(relation.from) && scene.sourceEventIds.includes(relation.to))); if (explicit) return 1; if (scenes.some((scene) => scene.sourceEventIds.length >= 2)) return .85; return new Set(scenes.flatMap((scene) => scene.sourceEventIds)).size >= 3 ? .65 : .2; }
+function progression(scenes: readonly RealizedScene[]): number { if (scenes.length < 2) return 0; const states = scenes.map((scene) => new Set(scene.sourceEventIds)); let changes = 0; for (let i = 1; i < states.length; i += 1) { for (const id of states[i]!) if (!states[i - 1]!.has(id)) { changes += 1; break; } } const textChanges = scenes.slice(1).filter((scene, index) => clean(scene.text) !== clean(scenes[index]!.text)).length; return clamp(changes / Math.max(1, states.length - 1) * .55 + textChanges / Math.max(1, scenes.length - 1) * .25 + (scenes.some((scene) => RELATION_WORDS.test(scene.text)) ? .2 : 0)); }
+function landing(scenes: readonly RealizedScene[], proposition: AuthorCreativeProposition): number { const last = scenes.at(-1); if (!last) return 0; const words = tokenList(last.text).length; const compact = words <= 4 ? 1 : words <= 8 ? .8 : words <= 12 ? .5 : .2; const prop = overlap(last.text, proposition.text); return clamp(compact * .45 + prop * .35 + (EXPLANATION.test(last.text) ? 0 : .2)); }
+function formDiversity(scenes: readonly RealizedScene[]): number { if (scenes.length < 3) return .55; const lengths = new Set(scenes.map((scene) => tokenList(scene.text).length)).size; const kinds = unique(scenes.map((scene) => scene.kind ?? "line")).length; return clamp(Math.min(1, lengths / 4) * .5 + Math.min(1, kinds / 3) * .5); }
+function sourceCopyRisk(scenes: readonly RealizedScene[], graph: RealityGraph): number { const checked = scenes.slice(0, -1); if (!checked.length) return 0; return clamp(checked.reduce((sum, scene) => { const source = sourceEvents(scene, graph); if (!source.length) return sum + 1; return sum + Math.max(...source.map((event) => sequenceMatch(scene.text, eventText(event)))); }, 0) / checked.length); }
+function artisticTransformation(scenes: readonly RealizedScene[], graph: RealityGraph): number { return clamp((1 - sourceCopyRisk(scenes, graph)) * .6 + formDiversity(scenes) * .2 + progression(scenes) * .2); }
+function inventionRisk(scenes: readonly RealizedScene[], graph: RealityGraph): number { const corpus = tokenSet(eventCorpus(graph)); const checked = scenes.slice(0, -1); if (!checked.length) return 0; const risks = checked.map((scene) => { const unknown = tokenList(scene.text).filter((token) => !STOP.has(token) && !corpus.has(token)); return clamp(unknown.length / Math.max(3, tokenList(scene.text).length)); }); return clamp(risks.reduce((a, b) => a + b, 0) / risks.length); }
+function explanationRisk(scenes: readonly RealizedScene[]): number { return clamp(scenes.filter((scene) => EXPLANATION.test(scene.text)).length / Math.max(1, scenes.length)); }
+function captionReelRisk(scenes: readonly RealizedScene[], graph: RealityGraph): number { if (scenes.length < 3) return 0; const oneSource = scenes.filter((scene) => scene.sourceEventIds.length === 1).length / scenes.length; const paraphrase = scenes.slice(0, -1).filter((scene) => { const source = sourceEvents(scene, graph)[0]; return Boolean(source && overlap(scene.text, eventText(source)) >= .58); }).length / Math.max(1, scenes.length); const bridge = scenes.filter((scene) => scene.sourceEventIds.length >= 2).length / scenes.length; const shift = scenes.filter((scene) => RELATION_WORDS.test(scene.text)).length / scenes.length; return clamp(oneSource * .2 + paraphrase * .55 + (1 - bridge) * .1 + (shift < .12 ? .15 : 0)); }
+function propositionFidelity(scenes: readonly RealizedScene[], proposition: AuthorCreativeProposition, graph: RealityGraph): number { if (!proposition.text) return 0; const direct = Math.max(...scenes.map((scene) => overlap(scene.text, proposition.text)), 0); const propositionSources = new Set(proposition.sourceEventIds); const used = new Set(scenes.flatMap((scene) => scene.sourceEventIds)); const evidenceUse = propositionSources.size ? [...propositionSources].filter((id) => used.has(id)).length / propositionSources.size : 0; const final = scenes.at(-1); const landingSupport = final ? overlap(final.text, proposition.text) : 0; return clamp(direct * .35 + evidenceUse * .3 + landingSupport * .35); }
 
-export function judgeRealizedFilm(input: { scenes: readonly RealizedScene[]; movie: LatentMovieCandidate; graph: RealityGraph }): RealizedFilmJudgment {
+export function judgeRealizedSequence(input: { scenes: readonly RealizedScene[]; sequence?: SequenceCandidate; graph: RealityGraph; creativeProposition: AuthorCreativeProposition }): RealizedSequenceJudgment {
   const dimensions = {
-    concreteGrounding: concreteGrounding(input.scenes, input.graph),
-    relationBridge: relationBridge(input.scenes, input.graph),
-    progression: progression(input.scenes, input.graph),
-    landing: landing(input.scenes, input.graph),
-    formDiversity: formDiversity(input.scenes),
-    artisticTransformation: artisticTransformation(input.scenes, input.graph),
-    sourceCopyRisk: sourceCopyRisk(input.scenes, input.graph),
-    inventionRisk: inventionRisk(input.scenes, input.graph),
-    explanationRisk: explanationRisk(input.scenes),
-    captionReelRisk: captionReelRisk(input.scenes, input.graph),
+    concreteGrounding: concreteGrounding(input.scenes, input.graph), relationBridge: relationBridge(input.scenes, input.graph), progression: progression(input.scenes),
+    landing: landing(input.scenes, input.creativeProposition), formDiversity: formDiversity(input.scenes), artisticTransformation: artisticTransformation(input.scenes, input.graph),
+    sourceCopyRisk: sourceCopyRisk(input.scenes, input.graph), inventionRisk: inventionRisk(input.scenes, input.graph), explanationRisk: explanationRisk(input.scenes),
+    captionReelRisk: captionReelRisk(input.scenes, input.graph), propositionFidelity: propositionFidelity(input.scenes, input.creativeProposition, input.graph),
   };
   const reasons: string[] = [];
-  if (input.scenes.length < 2) reasons.push("film needs at least two cuts");
-  if (input.graph.events.length > 1 && dimensions.concreteGrounding < 0.18) reasons.push("visible film loses contact with supplied reality");
-  if (input.graph.events.length > 1 && dimensions.relationBridge < 1) reasons.push("visible film never bridges the discovered relationship");
-  if (input.graph.events.length > 1 && dimensions.progression < 0.35) reasons.push("visible film does not move attention");
-  if (dimensions.landing < 0.65) reasons.push("ending does not earn a felt landing");
-  if (dimensions.artisticTransformation < 0.35 || dimensions.sourceCopyRisk >= 0.5) reasons.push("visible film copies source wording instead of transforming the reality");
-  if (dimensions.inventionRisk > 0.5) reasons.push("visible film introduces unsupported concrete material");
-  if (dimensions.explanationRisk > 0) reasons.push("visible film explains instead of letting the art speak");
-  if (dimensions.captionReelRisk >= 0.65) reasons.push("visible film collapses toward a caption reel");
+  if (input.scenes.length < 2) reasons.push("sequence needs at least two cuts");
+  if (input.graph.events.length > 1 && dimensions.concreteGrounding < .3) reasons.push("visible sequence loses contact with supplied reality");
+  if (input.graph.events.length > 1 && dimensions.relationBridge < .5) reasons.push("visible sequence does not connect supplied material into a relationship");
+  if (dimensions.progression < .35) reasons.push("visible sequence does not move attention");
+  if (dimensions.landing < .6) reasons.push("ending does not land the chosen idea");
+  if (dimensions.artisticTransformation < .35 || dimensions.sourceCopyRisk >= .6) reasons.push("visible sequence copies source wording instead of transforming it");
+  if (dimensions.inventionRisk > .5) reasons.push("visible sequence introduces unsupported concrete material");
+  if (dimensions.explanationRisk > 0) reasons.push("visible sequence explains instead of letting the text carry the idea");
+  if (dimensions.captionReelRisk >= .65) reasons.push("visible sequence collapses toward a caption reel");
+  if (dimensions.propositionFidelity < .45) reasons.push("visible sequence loses the Artist creative proposition");
   const score = clamp(
-    dimensions.concreteGrounding * 0.12 +
-    dimensions.relationBridge * 0.16 +
-    dimensions.progression * 0.16 +
-    dimensions.landing * 0.22 +
-    dimensions.formDiversity * 0.08 +
-    dimensions.artisticTransformation * 0.14 +
-    (1 - dimensions.sourceCopyRisk) * 0.04 +
-    (1 - dimensions.inventionRisk) * 0.05 +
-    (1 - dimensions.explanationRisk) * 0.01 +
-    (1 - dimensions.captionReelRisk) * 0.02,
+    dimensions.concreteGrounding * .12 + dimensions.relationBridge * .14 + dimensions.progression * .14 + dimensions.landing * .18 +
+    dimensions.formDiversity * .07 + dimensions.artisticTransformation * .12 + dimensions.propositionFidelity * .15 +
+    (1 - dimensions.sourceCopyRisk) * .03 + (1 - dimensions.inventionRisk) * .025 + (1 - dimensions.explanationRisk) * .015 + (1 - dimensions.captionReelRisk) * .015,
   );
-  return { accepted: reasons.length === 0 && score >= 0.68, score, reasons, dimensions };
+  return { accepted: reasons.length === 0 && score >= .68, score, reasons, dimensions };
 }

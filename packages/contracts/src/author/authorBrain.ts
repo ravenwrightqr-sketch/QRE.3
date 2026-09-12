@@ -1,8 +1,29 @@
+/**
+ * QRE AUTHOR CONTRACT — SEQUENCE-TEXT FILM ONLY
+ *
+ * Author produces one kind of artifact for now: text moving as a grounded
+ * sequence of attention-changing screens. It is NOT a conventional movie,
+ * screenplay, shot list, camera plan, soundtrack, transition system, or
+ * audiovisual production model.
+ *
+ * Do not introduce Movie abstractions here. Semantic Author contracts contain
+ * reality-grounded meaning, creative proposition, and sequence structure only.
+ */
 import type { CognitiveExperiencePlan } from "../cognition/cognition.js";
 import type { RealityGraph } from "../reality/realityGraph.js";
 import type { SubjectTruth } from "../reality/subjectTruth.js";
 
 export type AuthorRhythm = "hit" | "short" | "standard" | "long";
+
+export type AuthorCreativeProposition = {
+  /** The central creative idea discovered from supplied reality. */
+  text: string;
+  /** The semantic relationship or organizing pattern behind the proposition. */
+  pattern: string;
+  /** Exact supplied reality events that support the proposition. */
+  sourceEventIds: string[];
+};
+
 export type AuthorDomainContext = {
   category?: string;
   businessType?: string;
@@ -42,7 +63,6 @@ export type AuthorBrainTruth = {
   cognitivePlan?: CognitiveExperiencePlan;
   realityGraph?: RealityGraph;
   domainContext?: AuthorDomainContext;
-  movieMode?: boolean;
   returning?: boolean;
   visitNumber?: number;
   presenceSummary?: string[];
@@ -56,11 +76,4 @@ export type AuthorBrainTruth = {
 export type AuthorScene = {
   text: string;
   kind?: "line" | "hook" | "movement" | "discovery" | "turn" | "payoff" | "afterglow";
-};
-
-export type AuthorRenderedScene = AuthorScene & {
-  durationHintMs?: number;
-  transitionHint?: "none" | "fade" | "slide" | "zoom" | "cinematic" | "flash";
-  audioMood?: string;
-  visualHint?: string;
 };
