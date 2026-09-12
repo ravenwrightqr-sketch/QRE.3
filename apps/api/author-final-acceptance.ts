@@ -156,6 +156,7 @@ const cocoSequence = buildSequencePlay({
   ],
 });
 const cocoJudgment = judgeAuthorSequence({ graph: coco, candidate: cocoCandidate, proposition: cocoProposition, sequence: cocoSequence });
+console.log(`DEBUG Coco Judge: relation=${cocoJudgment.relationFidelity.toFixed(3)} treatment=${cocoJudgment.treatmentFidelity.toFixed(3)} genericity=${cocoJudgment.genericity.toFixed(3)} movement=${cocoJudgment.movement.toFixed(3)} info=${cocoJudgment.informationPerCut.toFixed(3)} necessity=${cocoJudgment.necessity.toFixed(3)}`);
 assert.equal(cocoJudgment.status, "ACCEPT", `Coco sequence acceptance failed: ${cocoJudgment.reasons.join(", ")}`);
 assert.ok(cocoJudgment.informationPerCut >= 0.55);
 assert.ok(cocoSequence.cuts.every((cut) => cut.sourceIds.length > 0 && cut.sourceIds.every((id) => coco.events.some((event) => event.id === id))));
