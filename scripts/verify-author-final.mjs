@@ -78,9 +78,15 @@ const contractsToCheck = [
   resolve(contracts, "reality/realityGraph.ts"),
 ];
 
+// Documentation may explain what the contract deliberately does not contain.
+// The guard should reject forbidden production concepts in executable contract
+// declarations, not in explanatory comments.
+const stripComments = (text) => text
+  .replace(/\/\*[\s\S]*?\*\//g, "")
+  .replace(/(^|\n)\s*\/\/.*(?=\n|$)/g, "$1");
 const banned = /\b(movie|film|cinematic|screenplay|shot\s+list|soundtrack|camera)\b/i;
 for (const file of contractsToCheck) {
-  const text = readFileSync(file, "utf8");
+  const text = stripComments(readFileSync(file, "utf8"));
   if (banned.test(text)) throw new Error(`Forbidden presentation terminology remains in ${file}`);
 }
 
