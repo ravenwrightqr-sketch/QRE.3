@@ -1,9 +1,8 @@
 /**
  * Bounded perceptual treatments for Author.
  *
- * These are not a genre system. A treatment changes what the viewer notices
- * about an already grounded relationship. The catalog is intentionally small
- * so the Author learns a language of perception rather than a taxonomy.
+ * A treatment changes what the visitor notices about a grounded relationship.
+ * It is not a taxonomy and it never licenses invented reality.
  */
 export type AuthorTreatmentId =
   | "horror-romance"
