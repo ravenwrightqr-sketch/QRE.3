@@ -1,158 +1,111 @@
 /*
 STATUS: CANONICAL
-ROLE: Sole Universal Author orchestrator. Wires reality, cognition, artist realization, and runtime projection.
-INPUT: AuthorBrainTruth assembled from user reality, persistent world memory, geo/presence, and governed creative learning.
-OUTPUT: One artist-selected creative realization projected into SequencePlay and AuthorScene objects with provenance, alongside a factual Readout.
+ROLE: Sole Universal Author orchestrator.
 AUTHORITY:
 - RealityGraph owns source evidence.
 - Readout projects facts.
-- Cognition discovers semantic possibilities.
-- Creative Realizer / Artist owns visible language and final artistic choice.
-- Artifact observation is diagnostic only.
+- Cognition discovers grounded semantic possibilities.
+- Creative Spine organizes grounded opportunities and lens pressure.
+- Artist owns visible language, rhythm, ordering and final treatment.
+- SequencePlay records viewer-facing progression after the Artist creates it.
 
 MUST NOT:
-- Select a second semantic truth after Artist selection.
-- Persist memory.
-- Route scans.
-- Own payments.
-- Parse business domains.
-- Expose compiler vocabulary.
-- Let a deterministic taste judge choose the art.
+- invent concrete reality;
+- select a second semantic truth after Artist selection;
+- persist memory, route scans, or own payments;
+- expose compiler vocabulary to customers;
+- let a deterministic taste judge choose the art;
+- depend on Movie or film candidates as an Author intermediate.
 */
 
 import type {
   AuthorBrainTruth,
   AuthorCreativeBrief,
   AuthorScene,
-  LatentMovieCandidate,
   SequenceCut,
   SequencePlay,
   ViewerAttentionRole,
   ViewerState,
 } from "@qre/contracts";
-
 import { buildAuthorRealityGraph } from "./authorRealityGraph.js";
 import { buildAuthorCreativeSpine } from "./authorCreativeSpine.js";
 import { buildAuthorCognitivePlan } from "./authorCognition.js";
 import { buildAuthorReadout, type AuthorReadout } from "./authorReadout.js";
-import {
-  realizeAuthorExperience,
-  type RealizedScene,
-} from "./authorCreativeRealizer.js";
-import type { RealizedFilmJudgment } from "./authorRealizedFilmJudge.js";
+import { realizeAuthorExperience, type RealizedScene } from "./authorCreativeRealizer.js";
+import type { AuthorCreativeInterpretation } from "./authorCognitionUniversal.js";
 
 const ARTIST_DNA = [
   "CREATIVE TASTE ONLY — never treat this as source reality.",
-  "Create something people would actually want to watch, not a polished receipt.",
-  "Search for kinetic energy, sensory impact, comedy, absurdity, drama, tenderness, menace, surprise, and visual/music language before defaulting to safe explanation.",
-  "Look for hidden mechanics: battles, races, missions, campaigns, rounds, boss rooms, speedruns, hunts, rescues, showdowns, transformations, interruptions, reversals, accumulations, countdowns, and status flips when the supplied reality can carry them.",
-  "Let ordinary things become extraordinary artistic subjects: food can feel alive, a car can feel like a contender, a house can feel like a level, a room can feel like an arena, a machine can feel like an opponent, a tool can feel like a weapon, and a sign can feel like a sentinel — all as clearly figurative or cinematic framing, never fabricated literal events.",
-  "Strong sensory language is valuable. When the source supplies sound, music, bass, silence, darkness, light, heat, cold, speed, texture, motion, taste, smell, or impact, make the viewer feel the supplied material rather than merely naming it.",
-  "An interruption followed by return can become impact → absence → return → release. A repeated action can become rhythm, attack, round, combo, ritual, or escalation. A final completion can become a landing or victory image without inventing a literal contest.",
-  "Prefer a memorable creative move over a generic cinematic adjective. Do not default to ghosts, dust, breath, melancholy, ritual, lonely songs, or vague atmosphere when a more alive form is available.",
-  "Do not force this taste onto every world. The Artist chooses. These are permission and creative pressure, not a template.",
+  "Make something people would actually want to watch, not a polished receipt.",
+  "Search for kinetic energy, sensory impact, comedy, absurdity, drama, tenderness, menace, surprise, contrast, recurrence, return, consequence and transformation when the supplied reality can carry them.",
+  "Ordinary subjects may receive bold figurative framing: a house can feel like a level, a room like an arena, a machine like an opponent, a tool like a weapon, a sign like a sentinel — never as fabricated literal events.",
+  "Use supplied sound, light, heat, cold, speed, texture, motion, taste, smell, impact and repetition as creative material.",
+  "Prefer a memorable creative move over a generic adjective or generic summary.",
+  "Do not force this taste onto every world. It is permission and pressure, not a template.",
 ].join("\n");
 
-const clean = (value: unknown): string =>
-  String(value ?? "").replace(/\s+/g, " ").trim();
+const clean = (value: unknown): string => String(value ?? "").replace(/\s+/g, " ").trim();
+const unique = (values: readonly string[]): string[] => [...new Set(values.map(clean).filter(Boolean))];
+const metric = (value: number): number => Number(Math.max(0, Math.min(1, Number.isFinite(value) ? value : 0)).toFixed(3));
 
-const unique = (values: readonly string[]): string[] =>
-  [...new Set(values.map(clean).filter(Boolean))];
-
-const metric = (value: number): number =>
-  Number(
-    Math.max(
-      0,
-      Math.min(1, Number.isFinite(value) ? value : 0),
-    ).toFixed(3),
-  );
-
-function roleFor(
-  kind: AuthorScene["kind"],
-  index: number,
-  total: number,
-): ViewerAttentionRole {
+function roleFor(kind: AuthorScene["kind"], index: number, total: number): ViewerAttentionRole {
   if (kind === "hook" || index === 0) return "hook";
   if (kind === "payoff" || index === total - 1) return "payoff";
   if (kind === "turn") return "reframe";
-  if (kind === "afterglow") return "release";
   if (kind === "movement") return "escalation";
+  if (kind === "afterglow") return "release";
   return "discovery";
 }
 
-function gainFor(
-  role: ViewerAttentionRole,
-): SequenceCut["gainKind"] {
+function gainFor(role: ViewerAttentionRole): SequenceCut["gainKind"] {
   switch (role) {
-    case "hook":
-      return "surprise";
-    case "question":
-      return "question";
+    case "hook": return "surprise";
     case "pressure":
-    case "escalation":
-      return "escalation";
-    case "reframe":
-      return "reframe";
-    case "consequence":
-      return "consequence";
-    case "callback":
-      return "callback";
+    case "escalation": return "escalation";
+    case "reframe": return "reframe";
+    case "consequence": return "consequence";
+    case "callback": return "callback";
     case "payoff":
-    case "release":
-      return "payoff";
-    case "continuation":
-      return "new_fact";
-    default:
-      return "discovery";
+    case "release": return "payoff";
+    case "question": return "question";
+    case "continuation": return "new_fact";
+    default: return "discovery";
   }
+}
+
+function interpretationForSubject(
+  subject: string,
+  spine: ReturnType<typeof buildAuthorCreativeSpine>,
+  interpretations: readonly AuthorCreativeInterpretation[],
+): string {
+  return clean(interpretations[0]?.thesis)
+    || clean(spine.lensTreatment.languageAim)
+    || `${subject}: make a supplied relationship newly noticeable.`;
 }
 
 function sequenceFor(
   subject: string,
-  movie: LatentMovieCandidate,
-  scenes: RealizedScene[],
+  scenes: readonly RealizedScene[],
+  spine: ReturnType<typeof buildAuthorCreativeSpine>,
+  interpretations: readonly AuthorCreativeInterpretation[],
 ): SequencePlay {
   const cuts: SequenceCut[] = scenes.map((scene, index) => {
-    const prior = scenes
-      .slice(0, index)
-      .map((item) => item.text);
-
-    const role = roleFor(
-      scene.kind,
-      index,
-      scenes.length,
-    );
-
-    const trajectory =
-      movie.trajectory[
-        Math.min(
-          index,
-          Math.max(0, movie.trajectory.length - 1),
-        )
-      ];
-
-    const priorTrajectory =
-      movie.trajectory[Math.max(0, index - 1)];
-
+    const role = roleFor(scene.kind, index, scenes.length);
+    const previous = scenes.slice(0, index).map((item) => item.text);
+    const opportunity = spine.opportunities[index % Math.max(1, spine.opportunities.length)];
+    const interpretation = interpretations[index % Math.max(1, interpretations.length)];
     const viewerBefore: ViewerState = {
-      known: prior,
-      expected:
-        clean(priorTrajectory?.nextQuestion) ||
-        clean(movie.unresolvedQuestion),
-      unresolved: clean(movie.unresolvedQuestion),
-      recentChange: prior.at(-1),
+      known: previous,
+      unresolved: clean(opportunity?.whyItWorks),
+      currentWant: index === 0 ? clean(spine.lensTreatment.languageAim) : clean(opportunity?.whyItWorks),
+      recentChange: previous.at(-1),
     };
-
     const viewerAfter: ViewerState = {
-      known: [...prior, scene.text],
-      expected: clean(trajectory?.nextQuestion),
-      unresolved:
-        index === scenes.length - 1
-          ? undefined
-          : clean(movie.unresolvedQuestion),
+      known: [...previous, scene.text],
+      unresolved: index === scenes.length - 1 ? undefined : clean(opportunity?.whyItWorks),
+      currentWant: index === scenes.length - 1 ? undefined : clean(interpretation?.creativeOpportunity),
       recentChange: scene.text,
     };
-
     return {
       id: `sequence-cut-${index + 1}`,
       order: index + 1,
@@ -160,97 +113,44 @@ function sequenceFor(
       gainKind: gainFor(role),
       sourceIds: unique(scene.sourceEventIds),
       informationGain: scene.text,
-      attentionDelta:
-        clean(trajectory?.viewerChange) ||
-        clean(
-          movie.hypothesis[
-            index % Math.max(1, movie.hypothesis.length)
-          ],
-        ),
+      attentionDelta: clean(interpretation?.rationale) || clean(opportunity?.whyItWorks) || "the supplied reality advances",
       viewerBefore,
       viewerAfter,
-      necessity: {
-        necessary: true,
-        reason:
-          clean(trajectory?.viewerChange) ||
-          "advances the artist-selected experience",
-      },
-      nextPromise: clean(trajectory?.nextQuestion),
-      payoffConnection:
-        role === "payoff"
-          ? clean(movie.payoff)
-          : undefined,
-      noveltyScore: metric(
-        movie.novelty + scene.score * 0.35,
-      ),
+      nextPromise: clean(opportunity?.whyItWorks),
       confidence: metric(scene.score),
     } satisfies SequenceCut;
   });
 
   return {
     subject,
-    premise:
-      clean(movie.hypothesis[0]) ||
-      clean(movie.payoff),
-    openingState:
-      cuts[0]?.viewerBefore ?? { known: [] },
-    baselineFacts: [],
+    premise: interpretationForSubject(subject, spine, interpretations),
+    openingState: cuts[0]?.viewerBefore ?? { known: [] },
     cuts,
     closingState: cuts.at(-1)?.viewerAfter,
-    continuity:
-      movie.callbackPotential > 0.55
-        ? ["selected creative material offers continuity"]
-        : [],
-    antiCrutch: [
-      "no fixed beat count",
-      "no repeated subject openings",
-      "no mechanical one-fact-per-beat rule",
-      "no requirement to preserve Movie trajectory",
-      "no source-order serialization",
-    ],
-    continuation:
-      clean(movie.unresolvedQuestion) ||
-      "The world can receive another supplied event.",
+    continuity: spine.selectedRelationId ? [spine.selectedRelationId] : [],
+    antiCrutch: ["no fixed beat count", "no one-fact-per-screen rule", "no source-order requirement"],
+    continuation: clean(spine.lensTreatment.languageAim),
   };
 }
 
 function briefFor(
-  movie: LatentMovieCandidate,
-  cognition: Awaited<
-    ReturnType<typeof buildAuthorCognitivePlan>
-  >,
-  lens: string,
+  subject: string,
+  cognition: Awaited<ReturnType<typeof buildAuthorCognitivePlan>>,
+  spine: ReturnType<typeof buildAuthorCreativeSpine>,
 ): AuthorCreativeBrief {
+  const primary = cognition.interpretations[0];
   return {
-    angle: lens,
-    engine:
-      "Reality → World → Cognition → Possibilities → Artist → Creative Realizer → Sequence → Experience",
-    question: clean(movie.unresolvedQuestion),
-    strongestImage:
-      clean(movie.evidence[0]) ||
-      clean(movie.payoff),
-    tension:
-      clean(movie.storyThesis?.semanticTurn) ||
-      clean(movie.hypothesis[0]),
-    payoff: clean(movie.payoff),
-    callback: clean(
-      movie.callbackPotential > 0.55
-        ? "continuity available"
-        : "none",
-    ),
-    rhythm:
-      cognition.latentMovieCandidates.length > 5
-        ? ["short", "standard", "long", "hit"]
-        : ["short", "standard", "hit"],
-    avoid: [
-      "invented reality",
-      "compiler language",
-      "fixed story template",
-      "repeated subject openings",
-      "caption reel",
-      "fact-by-fact transcription",
-      "Movie trajectory serialization",
-    ],
+    angle: spine.lensTreatment.secondary
+      ? `${spine.lensTreatment.primary} + ${spine.lensTreatment.secondary}`
+      : spine.lensTreatment.primary,
+    engine: "Reality → Creative Spine → Cognition → Artist → Sequence",
+    question: clean(primary?.creativeOpportunity) || clean(spine.lensTreatment.languageAim),
+    strongestImage: clean(primary?.thesis) || subject,
+    tension: clean(spine.lensTreatment.feltEffect) || clean(primary?.rationale),
+    payoff: clean(spine.lensTreatment.languageAim),
+    callback: spine.opportunities.some((item) => item.opportunity.includes("callback")) ? "continuity available" : "none",
+    rhythm: ["short", "standard", "hit"],
+    avoid: ["invented reality", "fixed story template", "fact-by-fact transcription", "production directions"],
   };
 }
 
@@ -258,370 +158,96 @@ export type CanonicalAuthorResult = {
   readout: AuthorReadout;
   scenes: AuthorScene[];
   sequence: SequencePlay;
-  movie?: LatentMovieCandidate;
-  realizationMode:
-    | "collection"
-    | "state"
-    | "sequence-film";
+  realizationMode: "collection" | "state" | "sequence";
   brief: AuthorCreativeBrief;
-
   diagnostics: {
     model: string;
     modelCalls: number;
     candidateSequences: number;
     acceptedCandidates: number;
-    qualityStatus:
-      | "ACCEPTED"
-      | "REJECTED";
+    qualityStatus: "ACCEPTED" | "REJECTED";
     renderable: boolean;
     complete: boolean;
     selectedScore: number;
     rejectedCandidates: unknown[];
-    semanticGate?: undefined;
-    experienceJudge?: undefined;
-    realizedFilmJudge?: RealizedFilmJudgment;
-    artistSelectedMovieIndex?: number;
   };
-
-  adaptiveQuestions: Array<{
-    kind: string;
-    question: string;
-    reason: string;
-  }>;
-
+  adaptiveQuestions: Array<{ kind: string; question: string; reason: string }>;
   world: ReturnType<typeof buildAuthorRealityGraph>;
 };
 
-export async function authorBrainCanonical(
-  input: AuthorBrainTruth,
-): Promise<CanonicalAuthorResult> {
-  const subject =
-    clean(input.subject) || "the subject";
-
+export async function authorBrainCanonical(input: AuthorBrainTruth): Promise<CanonicalAuthorResult> {
+  const subject = clean(input.subject) || "the subject";
   const prompt = clean(input.prompt);
-
   const facts = unique(input.facts);
   const sourceMoments = unique(input.sourceMoments);
+  const returning = Boolean(input.returning || (input.visitNumber ?? 1) > 1);
 
-  const returning = Boolean(
-    input.returning ||
-      (input.visitNumber ?? 1) > 1,
-  );
-
-  const world =
-    input.realityGraph ??
-    buildAuthorRealityGraph({
-      prompt,
-      subject,
-      place: clean(input.place),
-      facts,
-      sourceMoments,
-      memoryContext: input.memoryContext ?? [],
-      trajectory: input.trajectory ?? [],
-    });
-
-  const readout = buildAuthorReadout({
-    graph: world,
+  const world = input.realityGraph ?? buildAuthorRealityGraph({
+    prompt,
     subject,
+    place: clean(input.place),
+    facts,
+    sourceMoments,
+    memoryContext: input.memoryContext ?? [],
+    trajectory: input.trajectory ?? [],
   });
 
-  const creativeSpine =
-    buildAuthorCreativeSpine({
-      graph: world,
-      subject,
-      returning,
-    });
-
-  const metamorphicContext =
-    creativeSpine.opportunities
-      .slice(0, 12)
-      .map(
-        (opportunity) =>
-          `DERIVED CREATIVE OPPORTUNITY: ${opportunity.opportunity}; evidence=${opportunity.evidenceEventIds.join(",")}; strength=${opportunity.strength}`,
-      );
-
-  /*
-   * Artist DNA is preference pressure only.
-   * It is never treated as reality.
-   */
-  const cognitionLearningContext = unique([
-    ARTIST_DNA,
-    ...(input.creativeLearningContext ?? []),
-    ...metamorphicContext,
-  ]);
-
-  const cognition =
-    await buildAuthorCognitivePlan({
-      prompt,
-      subject,
-      place: clean(input.place),
-      lens: clean(input.lens),
-      facts,
-      sourceMoments,
-      realityGraph: world,
-      domainContext: input.domainContext,
-      memoryContext:
-        input.memoryContext ?? [],
-      trajectory:
-        input.trajectory ?? [],
-      creativeLearningContext:
-        cognitionLearningContext,
-      returning,
-      visitNumber: input.visitNumber,
-      movieMode: input.movieMode,
-    });
-
-  const movies =
-    cognition.latentMovieCandidates;
-
-  if (!movies.length) {
-    return {
-      readout,
-      scenes: [],
-      sequence: {
-        subject,
-        premise: "",
-        openingState: { known: [] },
-        cuts: [],
-      },
-      realizationMode: "collection",
-      brief: {
-        angle: cognition.selectedLens,
-        engine:
-          "Reality → World → Cognition → Possibilities → Artist → Creative Realizer → Sequence → Experience",
-        question: "",
-        strongestImage: "",
-        tension: "",
-        payoff: "",
-        callback: "none",
-        rhythm: ["short"],
-        avoid: ["invented reality"],
-      },
-      diagnostics: {
-        model: cognition.model,
-        modelCalls: cognition.modelCalls,
-        candidateSequences: 0,
-        acceptedCandidates: 0,
-        qualityStatus: "REJECTED",
-        renderable: false,
-        complete: false,
-        selectedScore: 0,
-        rejectedCandidates: [
-          { reason: "no Movie possibilities discovered" },
-        ],
-      },
-      adaptiveQuestions:
-        cognition.adaptiveQuestions,
-      world,
-    };
-  }
-
-  const lensSpine =
-    buildAuthorCreativeSpine({
-      graph: world,
-      subject,
-      lens: cognition.selectedLens,
-      returning,
-    });
-
-  const lensStack =
-    [
-      lensSpine.lensTreatment.primary,
-      lensSpine.lensTreatment.secondary,
-    ]
-      .filter(
-        (value) =>
-          value && value !== "none",
-      )
-      .join(" + ") ||
-    cognition.selectedLens;
-
-  /*
-   * CRITICAL AUTHORITY BOUNDARY:
-   *
-   * Cognition discovers possibilities.
-   * Artist receives all possibilities.
-   * Artist chooses the creative treatment.
-   * No deterministic judge selects the artwork.
-   */
-  const realization =
-    await realizeAuthorExperience({
-      prompt,
-      subject,
-      lens: lensStack,
-      graph: world,
-      movies,
-      domainContext: input.domainContext,
-      memoryContext:
-        input.memoryContext,
-      priorScenes:
-        input.trajectory,
-      creativeLearningContext:
-        cognitionLearningContext,
-    });
-
-  /*
-   * The Realizer returns which cognitive possibility the Artist
-   * selected, when available. This value is only used to provide
-   * the selected semantic reference to downstream sequence metadata.
-   *
-   * The visible scenes themselves remain authoritative.
-   */
-  const artistSelectedMovieIndex =
-    realization.selectedMovieIndex;
-
-  const artistMovie =
-    artistSelectedMovieIndex !== undefined &&
-    artistSelectedMovieIndex >= 0 &&
-    artistSelectedMovieIndex < movies.length
-      ? movies[artistSelectedMovieIndex]!
-      : movies[0]!;
-
-  if (!artistMovie) {
-    return {
-      readout,
-      scenes: [],
-      sequence: {
-        subject,
-        premise: "",
-        openingState: { known: [] },
-        cuts: [],
-      },
-      realizationMode: "collection",
-      brief: {
-        angle: cognition.selectedLens,
-        engine:
-          "Reality → World → Cognition → Possibilities → Artist → Creative Realizer → Sequence → Experience",
-        question: "",
-        strongestImage: "",
-        tension: "",
-        payoff: "",
-        callback: "none",
-        rhythm: ["short"],
-        avoid: ["invented reality"],
-      },
-      diagnostics: {
-        model:
-          cognition.model === "fallback"
-            ? realization.model
-            : cognition.model,
-        modelCalls:
-          cognition.modelCalls +
-          realization.modelCalls,
-        candidateSequences: movies.length,
-        acceptedCandidates: 0,
-        qualityStatus: "REJECTED",
-        renderable: false,
-        complete: false,
-        selectedScore: 0,
-        rejectedCandidates: [
-          {
-            reason:
-              "Artist returned no usable creative possibility",
-          },
-        ],
-        artistSelectedMovieIndex,
-        realizedFilmJudge:
-          realization.judgment,
-      },
-      adaptiveQuestions:
-        cognition.adaptiveQuestions,
-      world,
-    };
-  }
-
-  const scenes = realization.scenes.map(
-    (scene) =>
-      ({
-        text: scene.text,
-        kind: scene.kind,
-      }) satisfies AuthorScene,
-  );
-
-  /*
-   * Sequence is a projection of the finished Artist artifact.
-   * It must never manufacture beats from the Movie.
-   */
-  const sequence = sequenceFor(
+  const readout = buildAuthorReadout({ graph: world, subject });
+  const creativeSpine = buildAuthorCreativeSpine({ graph: world, subject, lens: clean(input.lens), returning });
+  const cognitionLearningContext = unique([ARTIST_DNA, ...(input.creativeLearningContext ?? [])]);
+  const cognition = await buildAuthorCognitivePlan({
+    prompt,
     subject,
-    artistMovie,
-    realization.scenes,
-  );
+    place: clean(input.place),
+    lens: clean(input.lens),
+    facts,
+    sourceMoments,
+    realityGraph: world,
+    creativeSpine,
+    domainContext: input.domainContext,
+    memoryContext: input.memoryContext ?? [],
+    trajectory: input.trajectory ?? [],
+    creativeLearningContext: cognitionLearningContext,
+    returning,
+    visitNumber: input.visitNumber,
+  });
 
-  const complete =
-    scenes.length > 0 &&
-    scenes.length === sequence.cuts.length;
+  const realization = await realizeAuthorExperience({
+    prompt,
+    subject,
+    lens: cognition.selectedLens || creativeSpine.lensTreatment.primary,
+    graph: world,
+    creativeSpine,
+    interpretations: cognition.interpretations,
+    domainContext: input.domainContext,
+    memoryContext: input.memoryContext ?? [],
+    priorScenes: input.trajectory,
+    creativeLearningContext: cognitionLearningContext,
+  });
 
-  const realizedFilmJudge =
-    realization.judgment;
+  const scenes: AuthorScene[] = realization.scenes.map((scene) => ({ text: scene.text, kind: scene.kind }));
+  const sequence = sequenceFor(subject, realization.scenes, creativeSpine, cognition.interpretations);
+  const complete = scenes.length === sequence.cuts.length && scenes.length > 0;
+  const model = cognition.model === "deterministic" ? realization.model : cognition.model;
 
   return {
     readout,
     scenes,
     sequence,
-    movie: artistMovie,
-
-    realizationMode:
-      scenes.length === 1
-        ? "state"
-        : scenes.length > 1
-          ? "sequence-film"
-          : "collection",
-
-    brief: briefFor(
-      artistMovie,
-      cognition,
-      lensStack,
-    ),
-
+    realizationMode: scenes.length === 1 ? "state" : scenes.length > 1 ? "sequence" : "collection",
+    brief: briefFor(subject, cognition, creativeSpine),
     diagnostics: {
-      model:
-        cognition.model === "fallback"
-          ? realization.model
-          : cognition.model,
-
-      modelCalls:
-        cognition.modelCalls +
-        realization.modelCalls,
-
-      candidateSequences:
-        movies.length,
-
-      acceptedCandidates: movies.length,
-
-      qualityStatus:
-        complete
-          ? "ACCEPTED"
-          : "REJECTED",
-
+      model,
+      modelCalls: cognition.modelCalls + realization.modelCalls,
+      candidateSequences: Math.max(1, creativeSpine.opportunities.length),
+      acceptedCandidates: complete ? 1 : 0,
+      qualityStatus: complete ? "ACCEPTED" : "REJECTED",
       renderable: complete,
-
       complete,
-
-      selectedScore: metric(
-        realizedFilmJudge?.score ?? 0,
-      ),
-
-      rejectedCandidates:
-        realization.reason
-          ? [
-              {
-                reason:
-                  realization.reason,
-                rejectedSets:
-                  realization.rejectedSets,
-              },
-            ]
-          : [],
-
-      artistSelectedMovieIndex,
-
-      realizedFilmJudge,
+      selectedScore: metric(realization.score),
+      rejectedCandidates: realization.reason ? [{ reason: realization.reason }] : [],
     },
-
-    adaptiveQuestions:
-      cognition.adaptiveQuestions,
-
+    adaptiveQuestions: cognition.adaptiveQuestions,
     world,
   };
 }
