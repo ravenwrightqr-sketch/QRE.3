@@ -430,6 +430,22 @@ export async function buildAuthorCognitivePlan(input: AuthorCognitionInput): Pro
       ? [{ kind, question, reason: clean(r.reason) }] : [];
   }).slice(0, 3) : [];
 
+  const selectedAnchorIds = selectedMovie?.anchorEventIds?.slice(0, 4) ?? [];
+  const cognitionFallbackProposition = {
+    text: "Use the chosen Artist treatment from the canonical Artist stage.",
+    pattern: "await Artist selection",
+    sourceEventIds: selectedAnchorIds,
+  };
+  const cognitionFallbackDirection = {
+    creativeProposition: cognitionFallbackProposition,
+    mechanic: { text: cognitionFallbackProposition.text, sourceEventIds: selectedAnchorIds },
+    hook: { text: "Use the strongest supplied detail as the opening attention beat.", sourceEventIds: selectedAnchorIds },
+    openLoop: { text: selectedMovie?.unresolvedQuestion || "Create an open question from supplied reality.", sourceEventIds: selectedAnchorIds },
+    tension: { text: selectedMovie?.hypothesis?.[0] || "Create tension from supplied reality.", sourceEventIds: selectedAnchorIds },
+    surprise: { text: "Find an earned surprise in the supplied material.", sourceEventIds: selectedAnchorIds },
+    payoff: { text: selectedMovie?.payoff || "Land on a supplied detail.", sourceEventIds: selectedAnchorIds },
+  } satisfies AuthorArtistDirection;
+
   return {
     selectedLens: fr.mode === "frame" ? fr.frame : "NONE",
     frame: fr,
@@ -437,18 +453,11 @@ export async function buildAuthorCognitivePlan(input: AuthorCognitionInput): Pro
     latentMovieCandidates: candidates,
     selectedMovie,
     adaptiveQuestions: unique([...qs, ...questions(input)].map((x) => JSON.stringify(x))).map((x) => JSON.parse(x) as AuthorAdaptiveQuestion).slice(0, 4),
-    attentionStrategy: clean(parsed?.attentionStrategy) || "notice what changes the meaning of another supplied detail",
+    attentionStrategy: clean(parsed?.attentionStrategy) || cognitionFallbackProposition.text,
     reasoningSummary: Array.isArray(parsed?.reasoningSummary) ? parsed.reasoningSummary.filter((x): x is string => typeof x === "string").map(clean).filter(Boolean).slice(0, 8) : intelligence.semanticSignals.slice(0, 3),
     subjectTruth,
     subjectMaterial: material,
-    artistDirection: {
-      mechanic: { text: "Use the chosen Artist treatment from the canonical Artist stage.", sourceEventIds: selectedMovie?.anchorEventIds?.slice(0, 4) ?? [] },
-      hook: { text: "Use the strongest supplied detail as the opening attention beat.", sourceEventIds: selectedMovie?.anchorEventIds?.slice(0, 4) ?? [] },
-      openLoop: { text: selectedMovie?.unresolvedQuestion || "Create an open question from supplied reality.", sourceEventIds: selectedMovie?.anchorEventIds?.slice(0, 4) ?? [] },
-      tension: { text: selectedMovie?.hypothesis?.[0] || "Create tension from supplied reality.", sourceEventIds: selectedMovie?.anchorEventIds?.slice(0, 4) ?? [] },
-      surprise: { text: "Find an earned surprise in the supplied material.", sourceEventIds: selectedMovie?.anchorEventIds?.slice(0, 4) ?? [] },
-      payoff: { text: selectedMovie?.payoff || "Land on a supplied detail.", sourceEventIds: selectedMovie?.anchorEventIds?.slice(0, 4) ?? [] },
-    },
+    artistDirection: cognitionFallbackDirection,
     model,
     modelCalls,
   };
