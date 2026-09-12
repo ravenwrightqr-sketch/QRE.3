@@ -17,6 +17,7 @@
   },
 
   "scripts": {
+    "test:registry": "tsx registry-check.ts",
     "build": "tsc -p tsconfig.json"
   }
 }
