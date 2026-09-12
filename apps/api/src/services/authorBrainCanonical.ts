@@ -13,8 +13,6 @@ import { buildSequencePlay, realizeAuthorSequence } from "./authorMouth.js";
 import { judgeAuthorSequence } from "./authorJudge.js";
 import { buildAuthorReadout } from "./authorReadout.js";
 
-// One cognition pass can yield many hypotheses, but only two expensive
-// Artist -> Mouth realizations are allowed before the operation fails.
 const MAX_CANDIDATE_ATTEMPTS = 2;
 
 function buildMemoryDelta(
@@ -46,7 +44,13 @@ function buildMemoryDelta(
     relationIds: [...new Set(proposition.relationIds)],
     unresolvedQuestions: candidate.unresolvedQuestion ? [candidate.unresolvedQuestion] : [],
     semanticTurns,
-    carryThreads: [...new Set([candidate.lens, proposition.pattern, candidate.payoff].filter(Boolean))],
+    carryThreads: [...new Set([
+      candidate.lens,
+      proposition.pattern,
+      proposition.text,
+      proposition.orderingRule,
+      candidate.payoff,
+    ].filter(Boolean))],
   };
 }
 
@@ -68,6 +72,7 @@ function buildLearningDelta(
       `movement:${judgment.movement.toFixed(3)}`,
       `information_per_cut:${judgment.informationPerCut.toFixed(3)}`,
       `continuation:${judgment.continuationPressure.toFixed(3)}`,
+      `ordering_rule:${proposition.orderingRule}`,
     ],
     metrics: {
       movement: judgment.movement,
