@@ -5,6 +5,7 @@ on:
     branches:
       - main
       - rebuild/author-final
+      - rebuild/author-complete-final
   pull_request:
 
 concurrency:
