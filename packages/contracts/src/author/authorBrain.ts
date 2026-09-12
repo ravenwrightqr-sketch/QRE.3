@@ -34,6 +34,8 @@ export type AuthorDomainContext = {
 export type AuthorCreativeProposition = {
   text: string;
   pattern: string;
+  /** The grounded rule the sequence should progressively reveal. */
+  orderingRule: string;
   sourceEventIds: string[];
   candidateId: string;
   relationIds: string[];
