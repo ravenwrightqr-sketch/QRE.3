@@ -26,7 +26,7 @@ function sourceCoverage(graph: RealityGraph, text: string): number {
 
 function relationCoverage(graph: RealityGraph, proposition: AuthorCreativeProposition, candidate: SequenceCandidate, text: string): number {
   const relationWords = [
-    ...graph.relations.map((relation) => `${relation.kind} ${relation.type} ${relation.mechanism ?? ""}`),
+    ...graph.relations.map((relation) => relation.kind),
     ...graph.patterns?.map((pattern) => `${pattern.kind} ${pattern.label}`) ?? [],
     ...candidate.supportingRelationKinds,
     proposition.pattern,
