@@ -1,5 +1,9 @@
 /**
- * Canonical internal representation of source reality for QRE Author cognition.
+ * QRE REALITY GRAPH CONTRACT
+ *
+ * Source-truth boundary for Author. Author may use this evidence to discover
+ * relationships and build sequence-text films: grounded text moving as a
+ * sequence. It is not a conventional movie or cinematic-production model.
  *
  * Facts remain immutable evidence. Events are the units the Author can relate,
  * contrast, sequence, and revisit. Derived structure is explicitly marked as
@@ -85,5 +89,4 @@ export type RealityGraph = {
   unresolvedTensions: string[];
   recurringSignals: string[];
   sensorySignals: string[];
-  
 };
