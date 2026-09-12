@@ -94,6 +94,9 @@ const OPERATIONAL_CLAIM =
 const FUTURE_CLAIM =
   /\b(?:will|would then|next,?\s+the|later,?\s+the)\b/i;
 
+const EDITORIAL_INSTRUCTION =
+  /^(?:frame|treat|use|show|open with|start with|lead with|rank|contrast|repeat|compress|juxtapose|invert|build|return to|land on)\b/i;
+
 function riskyDirectionText(text: string): boolean {
   const value = clean(text);
   return !value
@@ -131,6 +134,7 @@ function directionPart(
   raw: unknown,
   validIds: Set<string>,
   fallback: string,
+  options?: { centralPremise?: boolean },
 ): ArtistDirectionPart {
   if (!raw || typeof raw !== "object") {
     return { text: fallback, sourceEventIds: [] };
@@ -140,7 +144,11 @@ function directionPart(
   const text = cleanDirectionText(row.text) || fallback;
   const sourceEventIds = normalizeSourceEventIds(row.sourceEventIds, validIds);
 
-  if (riskyDirectionText(text) || sourceEventIds.length === 0) {
+  if (
+    riskyDirectionText(text)
+    || sourceEventIds.length === 0
+    || (options?.centralPremise && EDITORIAL_INSTRUCTION.test(text))
+  ) {
     return { text: fallback, sourceEventIds };
   }
 
@@ -148,23 +156,16 @@ function directionPart(
 }
 
 function formatAttention(direction: AuthorArtistDirection): string {
-  return [
-    `MECHANIC=${direction.mechanic.text}`,
-    `HOOK=${direction.hook.text}`,
-    `OPEN_LOOP=${direction.openLoop.text}`,
-    `TENSION=${direction.tension.text}`,
-    `SURPRISE=${direction.surprise.text}`,
-    `PAYOFF=${direction.payoff.text}`,
-  ].join(" | ");
+  return direction.mechanic.text;
 }
 
 const fallbackDirection = (): AuthorArtistDirection => ({
-  mechanic: { text: "find the subject's strongest organizing idea", sourceEventIds: [] },
-  hook: { text: "lead with the most specific supplied detail", sourceEventIds: [] },
-  openLoop: { text: "create pull from a real unresolved relationship", sourceEventIds: [] },
-  tension: { text: "put two supplied truths under pressure", sourceEventIds: [] },
-  surprise: { text: "let a supplied detail change the reading", sourceEventIds: [] },
-  payoff: { text: "land on the detail that most defines the subject", sourceEventIds: [] },
+  mechanic: { text: "Find the subject's strongest organizing idea.", sourceEventIds: [] },
+  hook: { text: "Lead with the most specific supplied detail.", sourceEventIds: [] },
+  openLoop: { text: "Create pull from a real unresolved relationship.", sourceEventIds: [] },
+  tension: { text: "Put two supplied truths under pressure.", sourceEventIds: [] },
+  surprise: { text: "Let a supplied detail change the reading.", sourceEventIds: [] },
+  payoff: { text: "Land on the detail that most defines the subject.", sourceEventIds: [] },
 });
 
 function compactMovie(movie: LatentMovieCandidate, index: number) {
@@ -260,16 +261,20 @@ export async function chooseArtistDirection(input: {
             "Examples of the KIND of move we want: a mechanic can become 'Problem. Diagnosis. Precision. Repair. Test.' A storage business can become 'People don't store things. They postpone decisions.' A memorial can become 'the small detail that everybody remembers.' A property can become 'what this place makes possible.' These are examples of creative reasoning, NOT reusable output templates.",
             "Do not force a pet, service, retail, real-estate, memorial, receipt, or industry-specific treatment onto another subject.",
             "The six artistDirection fields are six pressures around ONE discovered idea.",
-            "MECHANIC: the organizing rule, pattern, game, ranking, cycle, contrast, or framing device discovered from supplied reality.",
-            "HOOK: the strongest entry into that idea.",
+            "MECHANIC IS THE CENTRAL CREATIVE PREMISE. It is the actual proposition discovered in the evidence, not an instruction for another creative worker.",
+            "MECHANIC must be concise enough that the final moving text could say it or reveal it. Prefer 3-12 words. Good shape: 'Coco has a priority system.' 'The small detail everybody remembers.' 'People don't store things. They postpone decisions.' Bad shape: 'Rank Coco's pleasures.' 'Frame the service around precision.' 'Show how the details unfold.'",
+            "Do not make the mechanic a command beginning with frame, treat, use, show, open with, start with, lead with, rank, contrast, repeat, compress, juxtapose, invert, build, return, or land.",
+            "The mechanic must connect at least TWO supplied facts, unless one exceptionally distinctive fact clearly explains the subject.",
+            "ATTENTION_STRATEGY must be the same central idea in compact form, not a mood, personality label, or abstract psychology.",
+            "HOOK: the strongest entry into the central idea.",
             "OPEN_LOOP: a real unresolved relationship, comparison, question, expectation, or possibility already present in the supplied material.",
             "TENSION: the real contradiction, competing priority, mismatch, or pressure between supplied truths.",
             "SURPRISE: the supplied detail or reversal that changes how earlier material reads.",
             "PAYOFF: the cleanest landing on the detail that most defines the subject.",
             "These fields do NOT require six different events and do NOT require six separate screens.",
             "They should reinforce one central creative thought.",
-            "Write concise, specific, slightly opinionated creative treatment language.",
-            "Creative verbs such as frame, treat, contrast, rank, repeat, compress, juxtapose, invert, build, return, and land are allowed.",
+            "Write concise, specific, slightly opinionated creative treatment language for hook/openLoop/tension/surprise/payoff, but make the mechanic itself a realizable premise rather than an editorial instruction.",
+            "Creative verbs such as frame, treat, contrast, rank, repeat, compress, juxtapose, invert, build, return, and land are allowed outside the mechanic.",
             "Do not turn the treatment into a screenplay or camera plan.",
             "Do not write close-ups, shots, camera moves, zooms, pans, footage, SFX, voice-over, filming instructions, or production notes.",
             "Do not invent people, customer behavior, employee behavior, actions, reactions, thoughts, dialogue, motives, outcomes, operations, future events, or physical changes.",
@@ -278,7 +283,6 @@ export async function chooseArtistDirection(input: {
             "Each field must cite 1-4 exact sourceEventIds in sourceEventIds. Never put IDs inside text.",
             "selectedMovieIndex is optional supporting inspiration. It may be null.",
             "selectedLens may be NONE.",
-            "attentionStrategy is a single compact expression of the central creative idea.",
             "Return JSON only.",
           ].join("\n"),
         },
@@ -314,7 +318,12 @@ export async function chooseArtistDirection(input: {
         : {};
 
     const artistDirection: AuthorArtistDirection = {
-      mechanic: directionPart(rawDirection.mechanic, validEventIds, fallback.mechanic.text),
+      mechanic: directionPart(
+        rawDirection.mechanic,
+        validEventIds,
+        fallback.mechanic.text,
+        { centralPremise: true },
+      ),
       hook: directionPart(rawDirection.hook, validEventIds, fallback.hook.text),
       openLoop: directionPart(rawDirection.openLoop, validEventIds, fallback.openLoop.text),
       tension: directionPart(rawDirection.tension, validEventIds, fallback.tension.text),
