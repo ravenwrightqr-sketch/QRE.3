@@ -13,7 +13,9 @@ import { buildSequencePlay, realizeAuthorSequence } from "./authorMouth.js";
 import { judgeAuthorSequence } from "./authorJudge.js";
 import { buildAuthorReadout } from "./authorReadout.js";
 
-const MAX_CANDIDATE_ATTEMPTS = 3;
+// One cognition pass can yield many hypotheses, but only two expensive
+// Artist -> Mouth realizations are allowed before the operation fails.
+const MAX_CANDIDATE_ATTEMPTS = 2;
 
 function buildMemoryDelta(
   candidate: SequenceCandidate,
