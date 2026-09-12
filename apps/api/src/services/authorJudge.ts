@@ -17,23 +17,17 @@ function overlap(left: string, right: string): number {
   return shared / Math.max(1, Math.min(a.size, b.size));
 }
 
-const hasBannedLanguage = (value: string): boolean =>
-  /\b(?:camera|shot|montage|soundtrack|screenplay|voice[- ]?over|slogan|caption|genre|cinematic)\b/i.test(value);
+const hasBannedLanguage = (value: string): boolean => /\b(?:camera|shot|montage|soundtrack|screenplay|voice[- ]?over|slogan|caption|genre|cinematic)\b/i.test(value);
 
 function sourceCoverage(graph: RealityGraph, text: string): number {
   const labels = graph.events.map((event) => event.label).filter(Boolean);
   return Math.max(0, ...labels.map((label) => overlap(text, label)));
 }
 
-function relationCoverage(
-  graph: RealityGraph,
-  proposition: AuthorCreativeProposition,
-  candidate: SequenceCandidate,
-  text: string,
-): number {
+function relationCoverage(graph: RealityGraph, proposition: AuthorCreativeProposition, candidate: SequenceCandidate, text: string): number {
   const relationWords = [
-    ...graph.relations.map((relation) => `${relation.kind} ${relation.type} ${relation.mechanism}`),
-    ...graph.patterns?.map((pattern) => `${pattern.kind} ${pattern.name ?? ""}`) ?? [],
+    ...graph.relations.map((relation) => `${relation.kind} ${relation.type} ${relation.mechanism ?? ""}`),
+    ...graph.patterns?.map((pattern) => `${pattern.kind} ${pattern.label}`) ?? [],
     ...candidate.supportingRelationKinds,
     proposition.pattern,
   ].join(" ");
@@ -112,9 +106,7 @@ export function judgeAuthorSequence(input: {
   const groundedCuts = sequence.cuts.filter((cut) => cut.sourceIds.length > 0 && cut.sourceIds.every((id) => eventIds.has(id)));
   const grounding = sequence.cuts.length ? groundedCuts.length / sequence.cuts.length : 0;
   const movement = semanticMovement(sequence);
-  const sourceSpecificity = sequence.cuts.length
-    ? sequence.cuts.reduce((sum, cut) => sum + sourceCoverage(graph, cut.informationGain), 0) / sequence.cuts.length
-    : 0;
+  const sourceSpecificity = sequence.cuts.length ? sequence.cuts.reduce((sum, cut) => sum + sourceCoverage(graph, cut.informationGain), 0) / sequence.cuts.length : 0;
   const relationValues = sequence.cuts.map((cut) => relationCoverage(graph, proposition, candidate, cut.informationGain));
   const relationFidelity = topSignalCoverage(relationValues);
   const treatment = treatmentFidelity(proposition, sequence);
@@ -129,9 +121,7 @@ export function judgeAuthorSequence(input: {
   const uniqueSourceSets = new Set(sequence.cuts.map((cut) => cut.sourceIds.join(",")));
   const inventionRisk = Math.max(0, Math.min(1, 1 - grounding * 0.65 - specificity * 0.15 - (propositionSourcesGrounded ? 0.1 : 0) - (orderingRulePresent ? 0.05 : 0)));
   const genericity = Math.max(0, Math.min(1, 1 - (sourceSpecificity * 0.5 + relationFidelity * 0.3 + specificity * 0.2)));
-  const continuationPressure = sequence.cuts.length
-    ? sequence.cuts.slice(0, -1).reduce((sum, cut) => sum + (clean(cut.nextPromise) ? 1 : 0), 0) / Math.max(1, sequence.cuts.length - 1)
-    : 0;
+  const continuationPressure = sequence.cuts.length ? sequence.cuts.slice(0, -1).reduce((sum, cut) => sum + (clean(cut.nextPromise) ? 1 : 0), 0) / Math.max(1, sequence.cuts.length - 1) : 0;
   const reasons: string[] = [];
 
   if (sequence.cuts.length < 4) reasons.push("too-short");
@@ -152,18 +142,9 @@ export function judgeAuthorSequence(input: {
 
   return {
     status: reasons.length ? "REJECT" : "ACCEPT",
-    grounding,
-    movement,
-    propositionFidelity,
-    specificity,
-    transformation,
-    inventionRisk,
-    genericity,
-    relationFidelity,
-    treatmentFidelity: treatment,
-    informationPerCut: information,
-    continuationPressure,
-    necessity,
+    grounding, movement, propositionFidelity, specificity, transformation,
+    inventionRisk, genericity, relationFidelity, treatmentFidelity: treatment,
+    informationPerCut: information, continuationPressure, necessity,
     reasons: [...new Set(reasons)],
   };
 }
