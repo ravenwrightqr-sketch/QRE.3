@@ -61,9 +61,6 @@ export function buildAuthorCognitionIntelligence(
     reason: clean(relation.kind),
   }));
 
-  // A useful creative structure can exist even when the graph has no explicit pair relation.
-  // Ordered real-world actions already contain stages, territory, repetition, constraints and endpoints.
-  // Surface those runs to cognition without pretending they are relationships that the source never asserted.
   const actionMoves = graph.events.length >= 2
     ? graph.events.slice(0, 12).map((event, index, events) => {
         const next = events[index + 1];
@@ -80,7 +77,7 @@ export function buildAuthorCognitionIntelligence(
 
   const candidateMoves = [...relationMoves, ...actionMoves]
     .sort((a, b) => b.strength - a.strength)
-    .slice(0, 20);
+    .slice(0, 24);
 
   const semanticSignals = unique([
     graph.relations.length ? `${graph.relations.length} grounded relationship(s) are available for semantic composition.` : "No strong pair relation is required; inspect event-level distinctiveness instead.",
@@ -95,7 +92,7 @@ export function buildAuthorCognitionIntelligence(
   ]);
 
   const compositionRules = [
-    "The story earns its own length from semantic value. Do not shorten it to accommodate media, geo, timestamps, receipts, or attachments.",
+    "The experience earns its own length from semantic value. Do not shorten it to accommodate media, geo, timestamps, receipts, or attachments.",
     "Time, geo, and media are additive experience material. They may surround, attach to, or sit between story beats without becoming story beats automatically.",
     "Do not spend a story beat merely stating a timestamp or location unless the supplied reality makes that datum itself meaningful.",
     "Do not convert every event into one sentence. Prefer cross-event meaning, recontextualization, contrast, consequence, recurrence, active task structure, material agency, or another grounded viewer-state change when available.",
@@ -103,7 +100,7 @@ export function buildAuthorCognitionIntelligence(
     "A lens may intensify a grounded semantic move but may not create the move.",
     "When the supplied facts form a real sequence of tasks, search operational/game/mission structure before defaulting to rhythm or atmosphere: stages can become rounds, rooms can become territory, repeated work can become a run, the finish can become a final target, and a real interruption can become the obstacle. Do not invent an opponent, failure, deadline, danger, or consequence that the source does not contain.",
     "When concrete material has distinctive identity, test whether it can carry agency metaphorically: a dish may enter like a character, a car may square off with another car, a building may loom like a boss room, or a tool may become the hero's signature weapon. The metaphor changes presentation, not reality.",
-    returning ? "Use prior experience only to create a new reading, not to repeat the same movie with different adjectives." : "Avoid defaulting to a generic routine, recap, chronological montage, or passive poetic treatment when the action or material itself has structure.",
+    returning ? "Use prior experience only to create a new reading, not to repeat the same structure with different adjectives." : "Avoid defaulting to a generic routine, recap, chronological montage, or passive poetic treatment when the action or material itself has structure.",
   ];
 
   const learnedPreferenceSignals = unique(creativeLearningContext)
@@ -115,15 +112,15 @@ export function buildAuthorCognitionIntelligence(
   const decisionRules = [
     "First decide what the experience is actually about; never assume the input is a story just because multiple facts were supplied.",
     "Prefer semantic relationships over event coverage, but do not require an explicit graph relation before searching for form. The sequence of real actions may itself create a grounded creative structure.",
-    "A Movie step must justify its existence by changing attention, expectation, interpretation, status, curiosity, consequence, recognition, or emotional reading.",
+    "A viewer-facing beat must justify its existence by changing attention, expectation, interpretation, status, curiosity, consequence, recognition, or emotional reading.",
     "A sequence with one near-paraphrase per source event is a caption reel and must lose to a smaller sequence with stronger semantic movement.",
-    "A sequence that merely restates timestamps, locations, attachments, or completion status is metadata narration, not a Movie.",
+    "A sequence that merely restates timestamps, locations, attachments, or completion status is metadata narration and should not win selection.",
     "When a run of concrete work has a beginning, ordered stages, repeated operations, distinct territories, accumulation, an interruption, recovery, or a clear finish, explicitly test active forms: mission, campaign, rounds, territory, race, speedrun, countdown, contest, hunt, showdown, boss room, elimination, rescue, repair, transformation, before/after, or status flip. These are expressive hypotheses, not literal claims.",
     "A mundane service is not artistically boring by default. Cleaning can become a campaign, a car wash can become a transformation, a repair job can become a rescue, a move can become an extraction, a queue can become a race, and a malfunction can become an interruption when the supplied details support that reading.",
     "When a distinctive physical thing is present, search for material-character form before abstract atmosphere: food, cars, rooms, houses, tools, machines, clothing, signs, furniture, objects and places can become the cast, stage, rival, relic, boss, mascot, witness, trophy or wildcard through metaphorical language when the supplied facts support it.",
     "Food is not automatically decoration. A supplied dish, ingredient, plate, order or kitchen object may become the center of action, comic tension, competition, seduction, invasion, procession, showdown, transformation or payoff when its concrete context earns that treatment.",
     "Personification must remain visibly figurative when the underlying object did not literally act, speak, move, think, fight or choose. Give the material agency in language without rewriting the world.",
-    "Prefer competing interpretations when several grounded readings exist; select for semantic gain, evidence coverage, novelty, and low repetition risk.",
+    "Prefer competing interpretations when several grounded readings exist; select for semantic gain, evidence coverage, novelty, observer inference potential, and low repetition risk.",
     "Do not reward length by itself. Do not reward shortness by itself. Reward meaningful information density and kinetic or interpretive movement when the reality provides it.",
     "When evidence supports only one meaningful observation, make that observation excellent instead of manufacturing escalation.",
     "When prior experience is available, search for what changed in the world or in the reading before considering repetition.",
@@ -135,6 +132,8 @@ export function buildAuthorCognitionIntelligence(
     "Vary the mechanism: contrast, change, recurrence, consequence, convergence, recontextualization, continuation, distinctive observation, active mission, staged campaign, race, transformation, interruption, reversal, accumulation, status shift, material agency, personification, object-as-character, or object-as-stage.",
     "When a real run of actions supports it, at least one hypothesis must attack the material as active structure rather than treating the work as atmosphere or routine. If the facts do not support active pressure, do not fake it.",
     "When strong physical details exist, at least one hypothesis should test whether the material itself can carry the drama: food, cars, rooms, houses, tools, machines, signs or objects may become an expressive cast or arena through metaphorical framing.",
+    "When a later fact can change the meaning of an earlier fact, at least one hypothesis must test that recontextualization rather than treating the events independently.",
+    "When an entity gains apparent authority, ownership, resistance, status, witness, or possession through the supplied constellation, at least one hypothesis should test that role without making the role literal.",
     "Vary presentation stance as well as mechanism: kinetic, comic, deadpan, game-like, dramatic, stark, lyrical, procedural, surreal, affectionate, ominous, understated, absurd, mythic, or irreverent.",
     "Attack every hypothesis for genericity, caption-reel risk, template dependence, unsupported inference, weak grounding, repetition, fake escalation, passive poetic defaulting, and dead material treatment.",
     "Prefer a surprising interpretation only when the supplied evidence can carry it without invention.",
@@ -147,9 +146,9 @@ export function buildAuthorCognitionIntelligence(
     "CAPTION_REEL: each story beat cannot merely paraphrase a different source event.",
     "CHECKLIST_RECAP: event count must not determine story length.",
     "METADATA_NARRATION: time/geo/media do not become beats unless semantically necessary.",
-    "GENRE_TEMPLATE: lens cannot determine the Movie or manufacture plot.",
+    "GENRE_TEMPLATE: lens cannot determine the experience or manufacture plot.",
     "PSYCHOLOGICAL_FILL_IN: preference/routine/coincidence does not prove inner state or motive.",
-    "PASSIVE_POETRY_DEFAULT: do not choose ritual, melancholy, dust, breath, echoes, or generic atmosphere simply because the source is a routine service when the concrete action sequence supports a more active form.",
+    "PASSIVE_POETRY_DEFAULT: do not choose ritual, melancholy, dust, breath, echoes, or generic atmosphere simply because the source is a routine service when the concrete action sequence supports a more alive form.",
     "DEAD_MATERIAL: do not treat distinctive food, vehicles, architecture, tools, machines or objects as inert scenery when their supplied properties can carry the creative mechanism.",
     "FAKE_ACTION: never invent opponents, danger, failures, deadlines, victories, dialogue, or consequences merely to make a mundane service exciting.",
     "LITERAL_PERSONIFICATION: metaphor may animate an object artistically, but never report figurative agency as a literal source event.",
@@ -165,7 +164,7 @@ export function buildAuthorCognitionIntelligence(
     "When reality contains concrete work verbs, ordered tasks, territories, interruptions, repetitions, constraints, or a finish, treat those verbs as potential engines for the experience rather than background bookkeeping.",
     "When reality contains distinctive physical material, ask what role it could play in the art: object, actor, opponent, relic, mascot, trophy, arena, weapon, witness, joke, threshold, or payoff.",
     "Preserve strong nouns, distinctive objects, concrete actions, and real relationships as anchors for the Mouth.",
-    "Use the ending for the strongest landing available in the evidence, not a generic 'done' statement.",
+    "Use the ending for the strongest landing available in the evidence, especially a return, retained object, unresolved witness, consequence, reversal, or changed reading rather than a generic completion statement.",
     ...learnedPreferenceSignals.slice(0, 6).map((line) => `LEARNED TASTE: ${line}`),
     ...(returning ? ["A return should make the remembered world feel updated, not merely revisited."] : []),
   ]);
