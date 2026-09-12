@@ -8,7 +8,7 @@ import { searchAuthorMetamorphicRelations } from "./authorMetamorphicSearch.js";
  *
  * Reality is not rewritten.
  * Relations are discovered before lenses are applied.
- * A lens changes pressure, not facts and not Movie selection authority.
+ * A lens changes creative pressure, not facts or semantic authority.
  */
 
 export type CreativeOpportunity = {
@@ -58,10 +58,7 @@ const PRESSURE: Record<string, string[]> = {
 };
 
 function lensParts(lens: string): { primary: string; secondary?: string } {
-  const parts = clean(lens)
-    .split(/\s*(?:\+|>|\/|,|\band\b)\s*/i)
-    .map((part) => clean(part).toLowerCase())
-    .filter(Boolean);
+  const parts = clean(lens).split(/\s*(?:\+|>|\/|,|\band\b)\s*/i).map((part) => clean(part).toLowerCase()).filter(Boolean);
   return { primary: parts[0] || "none", secondary: parts[1] };
 }
 
@@ -71,7 +68,6 @@ function treatmentFor(lens: string, relation?: AuthorMetamorphicRelation): LensT
     ...(PRESSURE[primary] ?? ["contrast", "specificity", "implication"]),
     ...(secondary ? (PRESSURE[secondary] ?? ["contrast", "specificity"]) : []),
   ]).slice(0, 8);
-
   return {
     primary,
     secondary,
@@ -109,11 +105,7 @@ export function buildAuthorCreativeSpine(input: {
   lens?: string;
   returning?: boolean;
 }): AuthorCreativeSpine {
-  const relationSet = searchAuthorMetamorphicRelations({
-    graph: input.graph,
-    subject: input.subject,
-    limit: 16,
-  });
+  const relationSet = searchAuthorMetamorphicRelations({ graph: input.graph, subject: input.subject, limit: 16 });
   const opportunities = rankOpportunities(relationSet, Boolean(input.returning));
   const selectedRelationId = opportunities[0]?.relationId ?? relationSet.strongestRelationId;
   const selectedRelation = relationSet.relations.find((relation) => relation.id === selectedRelationId);
