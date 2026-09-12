@@ -97,6 +97,9 @@ const FUTURE_CLAIM =
 const EDITORIAL_INSTRUCTION =
   /^(?:frame|treat|use|show|open with|start with|lead with|rank|contrast|repeat|compress|juxtapose|invert|build|return to|land on)\b/i;
 
+const ABSTRACT_PREMISE =
+  /\b(?:joy|joyful|happiness|happy|pleasure|satisfaction|satisfactions|contentment|simplicity|simple|beautiful|meaning|meaningful|spirit|essence|emotion|emotional|delight|delighted|fun|funny|chaos|energy|vibe|vibes|personality|character)\b/i;
+
 function riskyDirectionText(text: string): boolean {
   const value = clean(text);
   return !value
@@ -148,6 +151,7 @@ function directionPart(
     riskyDirectionText(text)
     || sourceEventIds.length === 0
     || (options?.centralPremise && EDITORIAL_INSTRUCTION.test(text))
+    || (options?.centralPremise && ABSTRACT_PREMISE.test(text))
   ) {
     return { text: fallback, sourceEventIds };
   }
@@ -255,16 +259,16 @@ export async function chooseArtistDirection(input: {
             "Your primary job is NOT to choose an industry style. Your job is to discover the most specific, memorable organizing idea hidden inside THIS supplied reality.",
             "The architecture is universal. The subject determines the idea.",
             "Scan the whole reality before deciding what matters.",
-            "Look for patterns such as priority, hierarchy, contradiction, repetition, cycle, transformation, accumulation, precision, chaos versus order, dependency, ritual, obsession, scarcity, excess, status, competition, identity, hidden complexity, unexpected specificity, recurring failure, recurring success, or tension between two supplied truths.",
+            "Look for patterns such as priority, hierarchy, contradiction, repetition, cycle, transformation, accumulation, precision, chaos versus order, dependency, ritual, obsession, scarcity, excess, status, competition, identity, hidden complexity, unexpected specificity, recurring failure, recurring success, or tension between supplied truths.",
             "These are a search space, not a template. Choose the pattern that the evidence actually supports, or invent another grounded organizing idea.",
             "The strongest idea may be extremely simple after discovery.",
             "Examples of the KIND of move we want: a mechanic can become 'Problem. Diagnosis. Precision. Repair. Test.' A storage business can become 'People don't store things. They postpone decisions.' A memorial can become 'the small detail that everybody remembers.' A property can become 'what this place makes possible.' These are examples of creative reasoning, NOT reusable output templates.",
             "Do not force a pet, service, retail, real-estate, memorial, receipt, or industry-specific treatment onto another subject.",
             "The six artistDirection fields are six pressures around ONE discovered idea.",
             "MECHANIC IS THE CENTRAL CREATIVE PREMISE. It is the actual proposition discovered in the evidence, not an instruction for another creative worker.",
-            "MECHANIC must be concise enough that the final moving text could say it or reveal it. Prefer 3-12 words. Good shape: 'Coco has a priority system.' 'The small detail everybody remembers.' 'People don't store things. They postpone decisions.' Bad shape: 'Rank Coco's pleasures.' 'Frame the service around precision.' 'Show how the details unfold.'",
+            "MECHANIC must be concise enough that the final moving text could say it or reveal it. Prefer 3-12 words. Good shape: 'Coco has a priority system.' 'The small detail everybody remembers.' 'People don't store things. They postpone decisions.' 'The job turns problems into tests.' Bad shape: 'Rank Coco's pleasures.' 'Frame the service around precision.' 'Show how the details unfold.' 'Coco collects satisfactions.' 'Coco pursues pleasure.' 'Coco is joyful.' Those last examples name a mood or theme; they do not organize the supplied facts.",
             "Do not make the mechanic a command beginning with frame, treat, use, show, open with, start with, lead with, rank, contrast, repeat, compress, juxtapose, invert, build, return, or land.",
-            "The mechanic must connect at least TWO supplied facts, unless one exceptionally distinctive fact clearly explains the subject.",
+            "The mechanic should reveal a relationship among at least TWO supplied facts whenever the reality contains such a relationship.",
             "ATTENTION_STRATEGY must be the same central idea in compact form, not a mood, personality label, or abstract psychology.",
             "HOOK: the strongest entry into the central idea.",
             "OPEN_LOOP: a real unresolved relationship, comparison, question, expectation, or possibility already present in the supplied material.",
