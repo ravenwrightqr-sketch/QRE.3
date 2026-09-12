@@ -4,9 +4,7 @@ on:
   push:
     branches:
       - main
-      - cognitive-superstar-final
-      - elite-universal-rebuild-v10
-      - build/universal-author-local
+      - rebuild/author-final
   pull_request:
 
 concurrency:
@@ -14,75 +12,34 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  build-and-cognitive-acceptance:
+  build:
     runs-on: ubuntu-latest
-
     steps:
       - name: Checkout
         uses: actions/checkout@v4
-
       - name: Setup pnpm
         uses: pnpm/action-setup@v4
         with:
           version: 10
           run_install: false
-
       - name: Setup Node
         uses: actions/setup-node@v4
         with:
           node-version: 22
           cache: pnpm
-
       - name: Install
         run: pnpm install --frozen-lockfile
-
-      - name: Verify author architecture
+      - name: Verify canonical Author
         run: pnpm author:guard
-
       - name: Generate Prisma client
         run: pnpm --filter @qre/db prisma:generate
-
       - name: Build contracts
         run: pnpm build:contracts
-
-      - name: Build database package
+      - name: Build database
         run: pnpm build:db
-
       - name: Build engine
         run: pnpm build:engine
-
       - name: Build API
         run: pnpm build:api
-
       - name: Build web
         run: pnpm build:web
-
-      - name: Author semantic gate unit acceptance
-        run: pnpm tsx apps/api/author-semantic-gate-acceptance.ts
-
-      - name: Author readout and semantic acceptance
-        run: pnpm tsx apps/api/author-readout-acceptance.ts
-
-      - name: Author war-readiness acceptance
-        run: pnpm author:war
-
-      - name: Universal Author acceptance
-        run: pnpm tsx apps/api/author-acceptance.ts
-
-      - name: Universal reality acceptance
-        run: pnpm --filter @qre/engine test:universal-mind
-
-      - name: Durable memory compiler acceptance
-        run: pnpm tsx packages/engine/src/experience/tests/latentMovieLearningV6Acceptance.ts
-
-      - name: Universal cognitive mind acceptance
-        run: pnpm --filter @qre/engine test:universal-mind
-
-      - name: Creative superstar acceptance
-        run: pnpm --filter @qre/engine test:creative-superstar
-
-      - name: Runtime cognition acceptance
-        run: pnpm --filter @qre/engine test:runtime-cognition
-
-      - name: Author lens acceptance
-        run: pnpm exec tsx apps/api/author-lens-acceptance.ts

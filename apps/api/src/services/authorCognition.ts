@@ -1,81 +1,33 @@
-/**
- * QRE CANONICAL COGNITION — SEQUENCE-TEXT FILM ONLY
- *
- * The artifact is text moving as a sequence of attention-changing screens.
- * `SequenceCandidate` is the grounded semantic possibility used by cognition.
- * Do not reintroduce Movie objects, movie selection, cinematic production, or
- * any camera/soundtrack/transition abstraction.
- *
- * Cognition discovers semantic relationships and grounded sequence
- * possibilities. It does not choose the artwork. Artist chooses the central
- * proposition; Creative Realizer / Mouth makes that proposition visible.
- * Memory is additional supplied reality, never permission to invent facts.
- */
-import type { SequenceCandidate, RealityGraph } from "@qre/contracts";
-import { buildAuthorCognitivePlan as buildUniversalCognition, type AuthorCognitionInput, type AuthorCognitionPlan as UniversalPlan } from "./authorCognitionUniversal.js";
-import { chooseArtistDirection, type AuthorArtistDirection } from "./authorArtistChoice.js";
-import { rankCreativeLensCandidates } from "./authorCreativeLens.js";
+import type { AuthorBrainTruth, AuthorCognitionResult, SequenceCandidate, SequenceTrajectoryStep, RealityGraph } from "@qre/contracts";
+import { searchAuthorMetamorphicRelations } from "./authorMetamorphicSearch.js";
 
-export type { AuthorCognitionInput, AuthorCreativeInterpretation, AuthorAdaptiveQuestion } from "./authorCognitionUniversal.js";
-export type AuthorCognitionPlan = UniversalPlan & { artistDirection: AuthorArtistDirection };
-
-const clean = (value: unknown): string => String(value ?? "").replace(/\s+/g, " ").trim();
-const unique = (values: readonly string[]): string[] => [...new Set(values.map(clean).filter(Boolean))];
-
-function lensCandidates(graph: RealityGraph, requestedLens: string) {
-  const signals = unique(graph.events.flatMap((event) => [event.label, ...(event.entities ?? [])])).slice(0, 80);
-  const strongSignals = unique([
-    ...graph.relations.slice(0, 20).map((relation) => relation.kind),
-    ...(graph.patterns ?? []).slice(0, 12).map((pattern) => pattern.label),
-    ...graph.events.filter((event) => event.salient).slice(0, 12).map((event) => event.label),
-  ]).slice(0, 40);
-  return rankCreativeLensCandidates({ signals, strongSignals, requestedLens: clean(requestedLens), maxCandidates: 8 });
-}
-
-function fallbackInterpretation(sequence: SequenceCandidate) {
-  return {
-    id: "interpretation-grounded",
-    thesis: sequence.hypothesis[0] ?? "Grounded relationship in supplied reality.",
-    creativeOpportunity: sequence.supportingRelationKinds.length ? "supplied relationship" : "character material",
-    rationale: "derived from supplied reality",
-    evidenceEventIds: sequence.anchorEventIds,
-    confidence: sequence.score,
-  };
-}
-
-export async function buildAuthorCognitivePlan(input: AuthorCognitionInput): Promise<AuthorCognitionPlan> {
-  const universal = await buildUniversalCognition(input);
-  const sequences = universal.sequenceCandidates.slice(0, 10);
-  const lenses = lensCandidates(input.realityGraph, input.lens ?? "");
-  const artist = await chooseArtistDirection({
-    prompt: input.prompt,
-    subject: clean(input.subject) || "the subject",
-    graph: input.realityGraph,
-    subjectMaterial: universal.subjectMaterial,
-    sequences,
-    lensCandidates: lenses,
-    domainContext: input.domainContext,
-  });
-
-  const selectedSequence = sequences[0];
-  const artistDirectionLine = `ARTIST_SELECTED_DIRECTION=${JSON.stringify(artist.artistDirection)}`;
-  const learning = input.creativeLearningContext ?? [];
-  if (!learning.some((item) => item.startsWith("ARTIST_SELECTED_DIRECTION="))) learning.push(artistDirectionLine);
-
-  return {
-    ...universal,
-    selectedLens: artist.selectedLens || "NONE",
-    frame: {
-      ...universal.frame,
-      mode: artist.selectedLens && artist.selectedLens.toUpperCase() !== "NONE" ? "frame" : "none",
-      frame: artist.selectedLens || "NONE",
-    },
-    sequenceCandidates: selectedSequence ? [selectedSequence] : [],
-    selectedSequence,
-    attentionStrategy: artist.attentionStrategy,
-    artistDirection: artist.artistDirection,
-    interpretations: universal.interpretations.length ? universal.interpretations : selectedSequence ? [fallbackInterpretation(selectedSequence)] : [],
-    model: universal.model === "deterministic" ? artist.model : universal.model,
-    modelCalls: universal.modelCalls + artist.modelCalls,
-  };
+const clamp=(n:number)=>Math.max(0,Math.min(1,n));
+export function authorCognition(input:{truth:AuthorBrainTruth; reality:RealityGraph}): AuthorCognitionResult {
+  const meta=searchAuthorMetamorphicRelations(input.reality);
+  const events=input.reality.events;
+  const candidates:SequenceCandidate[]=[];
+  for(const relation of meta.relations.slice(0,8)) {
+    const before=events.find(e=>e.id===relation.beforeEventIds[0]);
+    const after=events.find(e=>e.id===relation.afterEventIds[0]);
+    if(!before||!after) continue;
+    const trajectory:SequenceTrajectoryStep[]=[
+      {order:1,operation:"establish",eventIds:[before.id],viewerChange:"know the first concrete condition",nextQuestion:"what changes this?"},
+      {order:2,operation:relation.mechanism==="contrast"?"contrast":"reframe",eventIds:[after.id],viewerChange:relation.viewerShift,nextQuestion:relation.after},
+      {order:3,operation:"payoff",eventIds:[after.id],viewerChange:"see the relationship rather than isolated facts",nextQuestion:"what does this reveal?"},
+    ];
+    const candidate:SequenceCandidate={
+      id:`candidate-${relation.id}`, lens:relation.creativeOpportunity, anchorEventIds:relation.evidenceEventIds, supportingRelationKinds:[relation.type], trajectory,
+      payoff:relation.after, unresolvedQuestion:relation.viewerShift, evidence:[relation.before,relation.after], hypothesis:[relation.feltEffect],
+      truthRisk:1-relation.confidence, novelty:clamp(relation.score), specificity:clamp(relation.score), informationValue:clamp(relation.score), uncertainty:1-relation.confidence,
+      attentionPotential:clamp((relation.score+relation.confidence)/2), consequencePotential:clamp(relation.score), callbackPotential:relation.mechanism==="recurrence"?0.9:0.35, compressionPotential:0.7,
+      repetitionRisk:0.15, distinctiveness:clamp(relation.score), score:clamp(0.25*relation.score+0.25*relation.confidence+0.25*(relation.mechanism==="contrast"?1:0.65)+0.25*(input.truth.returning?0.9:0.7)),
+    };
+    candidates.push(candidate);
+  }
+  if(!candidates.length && events.length) {
+    const e=events[0];
+    candidates.push({id:"candidate-grounding",lens:"specificity",anchorEventIds:[e.id],supportingRelationKinds:[],trajectory:[{order:1,operation:"establish",eventIds:[e.id],viewerChange:"recognize the supplied reality",nextQuestion:"what is distinctive here?"}],payoff:e.label,unresolvedQuestion:"what is distinctive here?",evidence:[e.label],hypothesis:[],truthRisk:0,novelty:0.4,specificity:0.8,informationValue:0.8,uncertainty:0.2,attentionPotential:0.5,consequencePotential:0.2,callbackPotential:0,compressionPotential:0.8,repetitionRisk:0.2,distinctiveness:0.7,score:0.62});
+  }
+  candidates.sort((a,b)=>b.score-a.score);
+  return {candidates:candidates.slice(0,6),relations:meta,readout:events.slice(0,16).map(e=>e.label)};
 }

@@ -1,26 +1,17 @@
 /**
- * QRE AUTHOR CONTRACT — SEQUENCE-TEXT FILM ONLY
- *
- * Author produces one kind of artifact for now: text moving as a grounded
- * sequence of attention-changing screens. It is NOT a conventional movie,
- * screenplay, shot list, camera plan, soundtrack, transition system, or
- * audiovisual production model.
- *
- * Do not introduce Movie abstractions here. Semantic Author contracts contain
- * reality-grounded meaning, creative proposition, and sequence structure only.
+ * QRE Author contract.
+ * The Author transforms supplied reality into a grounded SequencePlay.
  */
-import type { CognitiveExperiencePlan } from "../cognition/cognition.js";
 import type { RealityGraph } from "../reality/realityGraph.js";
-import type { SubjectTruth } from "../reality/subjectTruth.js";
+import type { SequenceCandidate } from "../sequence/sequenceCandidate.js";
+import type { SequencePlay } from "../sequence/sequencePlay.js";
+import type { AuthorMetamorphicRelationSet } from "../cognition/metamorphic.js";
 
 export type AuthorRhythm = "hit" | "short" | "standard" | "long";
 
 export type AuthorCreativeProposition = {
-  /** The central creative idea discovered from supplied reality. */
   text: string;
-  /** The semantic relationship or organizing pattern behind the proposition. */
   pattern: string;
-  /** Exact supplied reality events that support the proposition. */
   sourceEventIds: string[];
 };
 
@@ -34,7 +25,6 @@ export type AuthorDomainContext = {
   subjectKind?: string;
   knownCapabilities?: string[];
   contextualSignals?: string[];
-
   creatorRole?: string;
   audience?: string[];
   objective?: string;
@@ -42,38 +32,48 @@ export type AuthorDomainContext = {
   creativePreferences?: string[];
 };
 
-export type AuthorCreativeBrief = {
-  angle: string;
-  engine: string;
-  question: string;
-  strongestImage: string;
-  tension: string;
-  payoff: string;
-  callback: string;
-  rhythm: AuthorRhythm[];
-  avoid: string[];
-};
-
 export type AuthorBrainTruth = {
   prompt: string;
-  lens?: string;
   subject?: string;
   place?: string;
-  subjectTruth?: SubjectTruth;
-  cognitivePlan?: CognitiveExperiencePlan;
-  realityGraph?: RealityGraph;
-  domainContext?: AuthorDomainContext;
+  lens?: string;
   returning?: boolean;
   visitNumber?: number;
-  presenceSummary?: string[];
   facts: string[];
   sourceMoments: string[];
   memoryContext?: string[];
   trajectory?: string[];
   creativeLearningContext?: string[];
+  domainContext?: AuthorDomainContext;
+  realityGraph?: RealityGraph;
 };
 
-export type AuthorScene = {
-  text: string;
-  kind?: "line" | "hook" | "movement" | "discovery" | "turn" | "payoff" | "afterglow";
+export type AuthorCognitionResult = {
+  candidates: SequenceCandidate[];
+  relations: AuthorMetamorphicRelationSet;
+  readout: string[];
 };
+
+export type AuthorJudgeResult = {
+  status: "ACCEPT" | "REJECT";
+  grounding: number;
+  movement: number;
+  propositionFidelity: number;
+  specificity: number;
+  transformation: number;
+  inventionRisk: number;
+  genericity: number;
+  reasons: string[];
+};
+
+export type CanonicalAuthorResult = {
+  readout: { subject?: string; lines: string[]; text: string; eventIds: string[] };
+  reality: RealityGraph;
+  metamorphic: AuthorMetamorphicRelationSet;
+  cognition: AuthorCognitionResult;
+  proposition: AuthorCreativeProposition;
+  sequence: SequencePlay;
+  judgment: AuthorJudgeResult;
+};
+
+export type AuthorScene = { text: string; kind?: "line" | "hook" | "movement" | "discovery" | "turn" | "payoff" | "afterglow" };
