@@ -1,16 +1,17 @@
 /**
- * QRE CANONICAL COGNITION
+ * QRE CANONICAL COGNITION — SEQUENCE-TEXT FILM ONLY
  *
- * The artifact is a sequence-text film: text moving as a sequence of
- * attention-changing screens. `LatentMovieCandidate` is only a compatibility
- * name for a possible sequence-text realization.
+ * The artifact is text moving as a sequence of attention-changing screens.
+ * `SequenceCandidate` is the grounded semantic possibility used by cognition.
+ * Do not reintroduce Movie objects, movie selection, cinematic production, or
+ * any camera/soundtrack/transition abstraction.
  *
  * Cognition discovers semantic relationships and grounded sequence
  * possibilities. It does not choose the artwork. Artist chooses the central
  * proposition; Creative Realizer / Mouth makes that proposition visible.
  * Memory is additional supplied reality, never permission to invent facts.
  */
-import type { LatentMovieCandidate, RealityGraph } from "@qre/contracts";
+import type { SequenceCandidate, RealityGraph } from "@qre/contracts";
 import { buildAuthorCognitivePlan as buildUniversalCognition, type AuthorCognitionInput, type AuthorCognitionPlan as UniversalPlan } from "./authorCognitionUniversal.js";
 import { chooseArtistDirection, type AuthorArtistDirection } from "./authorArtistChoice.js";
 import { rankCreativeLensCandidates } from "./authorCreativeLens.js";
@@ -31,7 +32,7 @@ function lensCandidates(graph: RealityGraph, requestedLens: string) {
   return rankCreativeLensCandidates({ signals, strongSignals, requestedLens: clean(requestedLens), maxCandidates: 8 });
 }
 
-function fallbackInterpretation(sequence: LatentMovieCandidate) {
+function fallbackInterpretation(sequence: SequenceCandidate) {
   return {
     id: "interpretation-grounded",
     thesis: sequence.hypothesis[0] ?? "Grounded relationship in supplied reality.",
@@ -44,14 +45,14 @@ function fallbackInterpretation(sequence: LatentMovieCandidate) {
 
 export async function buildAuthorCognitivePlan(input: AuthorCognitionInput): Promise<AuthorCognitionPlan> {
   const universal = await buildUniversalCognition(input);
-  const sequences = universal.latentMovieCandidates.slice(0, 10);
+  const sequences = universal.sequenceCandidates.slice(0, 10);
   const lenses = lensCandidates(input.realityGraph, input.lens ?? "");
   const artist = await chooseArtistDirection({
     prompt: input.prompt,
     subject: clean(input.subject) || "the subject",
     graph: input.realityGraph,
     subjectMaterial: universal.subjectMaterial,
-    movies: sequences,
+    sequences,
     lensCandidates: lenses,
     domainContext: input.domainContext,
   });
@@ -69,8 +70,8 @@ export async function buildAuthorCognitivePlan(input: AuthorCognitionInput): Pro
       mode: artist.selectedLens && artist.selectedLens.toUpperCase() !== "NONE" ? "frame" : "none",
       frame: artist.selectedLens || "NONE",
     },
-    latentMovieCandidates: selectedSequence ? [selectedSequence] : [],
-    selectedMovie: selectedSequence,
+    sequenceCandidates: selectedSequence ? [selectedSequence] : [],
+    selectedSequence,
     attentionStrategy: artist.attentionStrategy,
     artistDirection: artist.artistDirection,
     interpretations: universal.interpretations.length ? universal.interpretations : selectedSequence ? [fallbackInterpretation(selectedSequence)] : [],
