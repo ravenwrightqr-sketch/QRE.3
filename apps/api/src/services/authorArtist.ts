@@ -12,15 +12,9 @@ import { localModelGenerate } from "./localModelRuntime.js";
 const clean = (value: unknown): string =>
   typeof value === "string" ? value.replace(/\s+/g, " ").trim() : "";
 
-const unique = (values: readonly string[]): string[] =>
-  [...new Set(values.map(clean).filter(Boolean))];
+const BLOCKED_WORDS = /\b(?:camera|shot|montage|soundtrack|screenplay|voice[- ]?over|slogan|caption|genre|cinematic)\b/i;
 
-const BLOCKED_WORDS = /\b(?:camera|shot|montage|soundtrack|screenplay|voice[- ]?over|slogan|caption|genre|movie|cinematic)\b/i;
-
-function relationIdsForCandidate(
-  candidate: SequenceCandidate,
-  relations: AuthorMetamorphicRelationSet,
-): string[] {
+function relationIdsForCandidate(candidate: SequenceCandidate, relations: AuthorMetamorphicRelationSet): string[] {
   const anchorIds = new Set(candidate.anchorEventIds);
   return relations.relations
     .filter((relation) =>
@@ -31,6 +25,15 @@ function relationIdsForCandidate(
     )
     .map((relation) => relation.id)
     .slice(0, 8);
+}
+
+function orderingRuleFromCandidate(candidate: SequenceCandidate): string {
+  const trajectory = candidate.trajectory
+    .map((step) => `${step.operation}: ${step.viewerChange}`)
+    .join("; ");
+  return candidate.payoff
+    ? `Reveal the selected relationship progressively: establish concrete evidence, introduce the connected or competing behavior, show the interaction, then let the payoff prove the rule. ${trajectory}`
+    : `Reveal the selected relationship progressively by moving from concrete evidence to the consequence that makes the relationship legible. ${trajectory}`;
 }
 
 function fallback(input: {
@@ -61,6 +64,7 @@ function fallback(input: {
       ? "A distinctive relationship is already present here."
       : text,
     pattern: clean(selected.lens) || selected.supportingRelationKinds[0] || "relationship",
+    orderingRule: orderingRuleFromCandidate(selected),
     sourceEventIds,
     candidateId: selected.id,
     relationIds,
@@ -109,12 +113,14 @@ export async function chooseAuthorProposition(input: {
         content: [
           "You are QRE Artist.",
           "Choose exactly one grounded cognitive candidate and turn it into one central creative proposition.",
+          "Also define one ordering rule for the realization: a concise instruction describing how the selected grounded relationship should be progressively revealed.",
+          "The ordering rule is specific to this evidence. It is not a fixed template or category.",
           "Choose one bounded perceptual treatment from: horror-romance, heist-comedy, game-fierce, noir-tenderness, documentary-chaos.",
           "A treatment changes perception of the selected relationship; it never changes reality and never invents an event.",
-          "The proposition should be memorable because it exposes a rule, tension, dependency, contradiction, priority, recurrence, transformation, or consequence that belongs to this supplied reality.",
+          "The proposition should expose a rule, tension, dependency, contradiction, priority, recurrence, transformation, or consequence that belongs to this supplied reality.",
           "Prefer a proposition with character, stakes, movement, surprise, and payoff over a list of nouns.",
           "The candidate ID, source event IDs, and relationship IDs must come from the supplied data.",
-          "Do not describe production. Return JSON only.",
+          "Do not write the final sequence. Do not write slogans. Return JSON only.",
         ].join(" "),
       },
       {
@@ -136,17 +142,18 @@ export async function chooseAuthorProposition(input: {
         }),
       },
     ], "json", {
-      numPredict: 950,
+      numPredict: 1150,
       numCtx: 12288,
       temperature: 0.84,
       jsonSchema: {
         type: "object",
         additionalProperties: false,
-        required: ["candidateId", "text", "pattern", "sourceEventIds", "relationIds", "treatment"],
+        required: ["candidateId", "text", "pattern", "orderingRule", "sourceEventIds", "relationIds", "treatment"],
         properties: {
           candidateId: { type: "string" },
           text: { type: "string" },
           pattern: { type: "string" },
+          orderingRule: { type: "string", minLength: 12 },
           sourceEventIds: { type: "array", minItems: 1, maxItems: 8, items: { type: "string" } },
           relationIds: { type: "array", maxItems: 8, items: { type: "string" } },
           treatment: {
@@ -169,19 +176,18 @@ export async function chooseAuthorProposition(input: {
       const candidate = candidates.find((value) => value.id === candidateId);
       const text = clean(row.text);
       const pattern = clean(row.pattern);
+      const orderingRule = clean(row.orderingRule);
       const sourceEventIds = Array.isArray(row.sourceEventIds)
         ? row.sourceEventIds
             .filter((value): value is string =>
-              typeof value === "string" &&
-              input.graph.events.some((event) => event.id === value),
+              typeof value === "string" && input.graph.events.some((event) => event.id === value),
             )
             .slice(0, 8)
         : [];
       const relationIds = Array.isArray(row.relationIds)
         ? row.relationIds
             .filter((value): value is string =>
-              typeof value === "string" &&
-              input.relations.relations.some((relation) => relation.id === value),
+              typeof value === "string" && input.relations.relations.some((relation) => relation.id === value),
             )
             .slice(0, 8)
         : [];
@@ -195,6 +201,7 @@ export async function chooseAuthorProposition(input: {
         candidate &&
         text &&
         pattern &&
+        orderingRule.length >= 12 &&
         sourceEventIds.length &&
         !BLOCKED_WORDS.test(text) &&
         isAuthorTreatmentId(treatmentId)
@@ -217,6 +224,7 @@ export async function chooseAuthorProposition(input: {
         return {
           text,
           pattern,
+          orderingRule,
           sourceEventIds,
           candidateId: candidate.id,
           relationIds: relationIds.length
