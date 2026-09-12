@@ -9,11 +9,18 @@ import type {
 import { isAuthorTreatmentId, chooseFallbackTreatment, treatmentDescriptor } from "./authorTreatment.js";
 import { localModelGenerate } from "./localModelRuntime.js";
 
-const clean = (value: unknown): string => typeof value === "string" ? value.replace(/\s+/g, " ").trim() : "";
-const unique = (values: readonly string[]): string[] => [...new Set(values.map(clean).filter(Boolean))];
+const clean = (value: unknown): string =>
+  typeof value === "string" ? value.replace(/\s+/g, " ").trim() : "";
+
+const unique = (values: readonly string[]): string[] =>
+  [...new Set(values.map(clean).filter(Boolean))];
+
 const BLOCKED_WORDS = /\b(?:camera|shot|montage|soundtrack|screenplay|voice[- ]?over|slogan|caption|genre|movie|cinematic)\b/i;
 
-function relationIdsForCandidate(candidate: SequenceCandidate, relations: AuthorMetamorphicRelationSet): string[] {
+function relationIdsForCandidate(
+  candidate: SequenceCandidate,
+  relations: AuthorMetamorphicRelationSet,
+): string[] {
   const anchorIds = new Set(candidate.anchorEventIds);
   return relations.relations
     .filter((relation) =>
@@ -32,17 +39,27 @@ function fallback(input: {
   alternatives: SequenceCandidate[];
   graph: RealityGraph;
   relations: AuthorMetamorphicRelationSet;
+  excludedCandidateIds: ReadonlySet<string>;
 }): AuthorCreativeProposition {
-  const pool = input.alternatives.length ? input.alternatives : [input.candidate];
+  const pool = (input.alternatives.length ? input.alternatives : [input.candidate])
+    .filter((candidate) => !input.excludedCandidateIds.has(candidate.id));
   const selected = [...pool].sort((a, b) => b.score - a.score)[0] ?? input.candidate;
-  const sourceEventIds = selected.anchorEventIds.filter((id) => input.graph.events.some((event) => event.id === id)).slice(0, 8);
+  const sourceEventIds = selected.anchorEventIds
+    .filter((id) => input.graph.events.some((event) => event.id === id))
+    .slice(0, 8);
   const relationIds = relationIdsForCandidate(selected, input.relations);
   const hypothesis = clean(selected.hypothesis[0]);
   const payoff = clean(selected.payoff);
   const text = hypothesis || payoff || clean(selected.lens) || "A distinctive relationship is already present here.";
-  const treatment = chooseFallbackTreatment({ relations: input.relations, returning: input.truth.returning });
+  const treatment = chooseFallbackTreatment({
+    relations: input.relations,
+    returning: input.truth.returning,
+  });
+
   return {
-    text: BLOCKED_WORDS.test(text) ? "A distinctive relationship is already present here." : text,
+    text: BLOCKED_WORDS.test(text)
+      ? "A distinctive relationship is already present here."
+      : text,
     pattern: clean(selected.lens) || selected.supportingRelationKinds[0] || "relationship",
     sourceEventIds,
     candidateId: selected.id,
@@ -58,9 +75,20 @@ export async function chooseAuthorProposition(input: {
   graph: RealityGraph;
   relations: AuthorMetamorphicRelationSet;
   domainContext?: AuthorDomainContext;
+  excludedCandidateIds?: string[];
+  judgeFeedback?: string[];
 }): Promise<AuthorCreativeProposition> {
-  const fallbackValue = fallback(input);
-  const candidates = (input.alternatives.length ? input.alternatives : [input.candidate]).slice(0, 6);
+  const excluded = new Set(input.excludedCandidateIds ?? []);
+  const available = (input.alternatives.length ? input.alternatives : [input.candidate])
+    .filter((candidate) => !excluded.has(candidate.id))
+    .slice(0, 6);
+  const candidates = available.length ? available : [input.candidate];
+  const fallbackValue = fallback({
+    ...input,
+    alternatives: candidates,
+    excludedCandidateIds: excluded,
+  });
+
   const candidateField = candidates.map((candidate) => ({
     id: candidate.id,
     lens: candidate.lens,
@@ -103,6 +131,8 @@ export async function chooseAuthorProposition(input: {
           reality: input.graph.events.slice(0, 100),
           relationships: input.relations.relations.slice(0, 24),
           candidates: candidateField,
+          excludedCandidateIds: [...excluded],
+          judgeFeedback: input.judgeFeedback?.slice(-8) ?? [],
         }),
       },
     ], "json", {
@@ -123,7 +153,10 @@ export async function chooseAuthorProposition(input: {
             type: "object",
             additionalProperties: false,
             required: ["id", "reason"],
-            properties: { id: { type: "string" }, reason: { type: "string" } },
+            properties: {
+              id: { type: "string" },
+              reason: { type: "string" },
+            },
           },
         },
       },
@@ -137,10 +170,20 @@ export async function chooseAuthorProposition(input: {
       const text = clean(row.text);
       const pattern = clean(row.pattern);
       const sourceEventIds = Array.isArray(row.sourceEventIds)
-        ? row.sourceEventIds.filter((value): value is string => typeof value === "string" && input.graph.events.some((event) => event.id === value)).slice(0, 8)
+        ? row.sourceEventIds
+            .filter((value): value is string =>
+              typeof value === "string" &&
+              input.graph.events.some((event) => event.id === value),
+            )
+            .slice(0, 8)
         : [];
       const relationIds = Array.isArray(row.relationIds)
-        ? row.relationIds.filter((value): value is string => typeof value === "string" && input.relations.relations.some((relation) => relation.id === value)).slice(0, 8)
+        ? row.relationIds
+            .filter((value): value is string =>
+              typeof value === "string" &&
+              input.relations.relations.some((relation) => relation.id === value),
+            )
+            .slice(0, 8)
         : [];
       const treatment = row.treatment && typeof row.treatment === "object" && !Array.isArray(row.treatment)
         ? row.treatment as Record<string, unknown>
@@ -156,7 +199,10 @@ export async function chooseAuthorProposition(input: {
         !BLOCKED_WORDS.test(text) &&
         isAuthorTreatmentId(treatmentId)
       ) {
-        const fallbackTreatment = chooseFallbackTreatment({ relations: input.relations, returning: input.truth.returning });
+        const fallbackTreatment = chooseFallbackTreatment({
+          relations: input.relations,
+          returning: input.truth.returning,
+        });
         const selectedTreatment = treatmentId === fallbackTreatment.id
           ? fallbackTreatment
           : {
@@ -167,18 +213,21 @@ export async function chooseAuthorProposition(input: {
               rule: treatmentDescriptor(treatmentId),
               reason: reason || `Selected ${treatmentId} to alter perception of the grounded relationship.`,
             };
+
         return {
           text,
           pattern,
           sourceEventIds,
           candidateId: candidate.id,
-          relationIds: relationIds.length ? relationIds : relationIdsForCandidate(candidate, input.relations),
+          relationIds: relationIds.length
+            ? relationIds
+            : relationIdsForCandidate(candidate, input.relations),
           treatment: selectedTreatment,
         };
       }
     }
   } catch {
-    // Deterministic fallback preserves a valid Author result when the local model fails.
+    // Deterministic fallback preserves a valid Author result when local inference fails.
   }
 
   return fallbackValue;
