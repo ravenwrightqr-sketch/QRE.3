@@ -4,13 +4,14 @@ import { requireAuth, type AuthRequest } from "../middleware/requireAuth.js";
 import { getDashboardMetrics, getRecentActivity } from "@qre/engine";
 import { createAnalyticsRepository } from "../repositories/analyticsRepository.js";
 import { analyzeImageForKnowledge } from "../services/aiProvider.js";
+import { learnWebsiteWorld } from "../services/websiteLearning.js";
 import { safeStringParam } from "../lib/safeParam.js";
 
 const router = express.Router();
 const analyticsRepository = createAnalyticsRepository();
 
 async function resolveOwnedAsset(slug: string, userId: string) {
-  const asset = await db.asset.findUnique({ where: { slug }, select: { id: true, slug: true, displayName: true, ownerId: true, accountId: true } });
+  const asset = await db.asset.findUnique({ where: { slug }, select: { id: true, slug: true, displayName: true, ownerId: true, accountId: true, templateData: true } });
   if (!asset) return null;
   if (asset.ownerId === userId) return asset;
   if (!asset.accountId) return null;
@@ -52,6 +53,109 @@ router.get("/:slug", requireAuth, async (req: AuthRequest, res) => {
   } catch (error) {
     console.error("Knowledge load failed:", error);
     return res.status(500).json({ error: "Knowledge load failed." });
+  }
+});
+
+router.post("/:slug/learn-website", requireAuth, async (req: AuthRequest, res) => {
+  try {
+    const slug = safeStringParam(req.params.slug);
+    const userId = req.user?.userId;
+    const url = normalizeValue(req.body?.url);
+    const ownerDescription = normalizeValue(req.body?.ownerDescription);
+    if (!slug || !userId) return res.status(400).json({ error: "Missing asset." });
+    if (!url) return res.status(400).json({ error: "Website URL is required." });
+
+    const asset = await resolveOwnedAsset(slug, userId);
+    if (!asset) return res.status(404).json({ error: "Asset not found." });
+
+    const learned = await learnWebsiteWorld({ url, ownerDescription: ownerDescription || undefined });
+    const world = learned.world;
+    const currentData = asset.templateData && typeof asset.templateData === "object" && !Array.isArray(asset.templateData)
+      ? asset.templateData as Record<string, unknown>
+      : {};
+    const existingSignals = Array.isArray(currentData.contextualSignals)
+      ? currentData.contextualSignals.filter((value): value is string => typeof value === "string")
+      : [];
+    const existingServices = Array.isArray(currentData.services)
+      ? currentData.services.filter((value): value is string => typeof value === "string")
+      : [];
+    const existingCapabilities = Array.isArray(currentData.capabilities)
+      ? currentData.capabilities.filter((value): value is string => typeof value === "string")
+      : [];
+    const existingSubjects = Array.isArray(currentData.subjectKinds)
+      ? currentData.subjectKinds.filter((value): value is string => typeof value === "string")
+      : [];
+
+    const payload = {
+      label: "Business world learned from website",
+      value: world.businessName || asset.displayName || "Business world",
+      category: "business_world",
+      source: "website",
+      sourceUrl: learned.url,
+      sourceTitle: learned.title || undefined,
+      confidence: 0.9,
+      businessName: world.businessName || undefined,
+      businessType: world.businessType || undefined,
+      businessDescription: world.description || undefined,
+      services: world.services,
+      differentiators: world.differentiators,
+      signals: world.signals,
+      subjectKinds: world.subjectKinds,
+      importantFacts: world.importantFacts,
+      sourceExcerpt: learned.sourceExcerpt,
+      updatedBy: userId,
+    };
+
+    const row = await db.insight.create({
+      data: {
+        assetId: asset.id,
+        type: "KNOWLEDGE",
+        message: JSON.stringify(payload),
+        impact: world.description || world.businessType || world.businessName || learned.title,
+      },
+    });
+
+    const templateData = {
+      ...currentData,
+      businessName: world.businessName || currentData.businessName || asset.displayName,
+      businessType: world.businessType || currentData.businessType || "",
+      businessDescription: world.description || currentData.businessDescription || "",
+      services: world.services.length ? world.services : existingServices,
+      capabilities: world.services.length ? world.services : existingCapabilities,
+      contextualSignals: [...new Set([...existingSignals, ...world.signals, ...world.differentiators])].slice(0, 48),
+      subjectKinds: world.subjectKinds.length ? world.subjectKinds : existingSubjects,
+      websiteKnowledge: {
+        sourceUrl: learned.url,
+        sourceTitle: learned.title,
+        businessName: world.businessName,
+        businessType: world.businessType,
+        description: world.description,
+        services: world.services,
+        differentiators: world.differentiators,
+        signals: world.signals,
+        subjectKinds: world.subjectKinds,
+        importantFacts: world.importantFacts,
+        learnedAt: new Date().toISOString(),
+      },
+    };
+
+    await db.asset.update({ where: { id: asset.id }, data: { templateData } });
+    await db.analyticsEvent.create({
+      data: {
+        assetId: asset.id,
+        type: "AI_MEMORY_LEARNED",
+        meta: { source: "website", url: learned.url, category: "business_world", businessName: world.businessName },
+      },
+    });
+
+    return res.status(201).json({
+      success: true,
+      item: { id: row.id, createdAt: row.createdAt, ...payload },
+      context: templateData.websiteKnowledge,
+    });
+  } catch (error) {
+    console.error("Website learning failed:", error);
+    return res.status(500).json({ error: error instanceof Error ? error.message : "Website learning failed." });
   }
 });
 
