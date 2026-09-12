@@ -1,4 +1,5 @@
 import type {
+  AuthorCreativeProposition,
   AuthorDomainContext,
   LatentMovieCandidate,
   RealityGraph,
@@ -15,6 +16,8 @@ export type ArtistDirectionPart = {
 };
 
 export type AuthorArtistDirection = {
+  /** One discovered proposition. All other fields are treatment pressure around it. */
+  creativeProposition: AuthorCreativeProposition;
   mechanic: ArtistDirectionPart;
   hook: ArtistDirectionPart;
   openLoop: ArtistDirectionPart;
@@ -53,16 +56,33 @@ const partSchema = {
   },
 } as const;
 
+const propositionSchema = {
+  type: "object",
+  additionalProperties: false,
+  required: ["text", "pattern", "sourceEventIds"],
+  properties: {
+    text: { type: "string", minLength: 1, maxLength: 180 },
+    pattern: { type: "string", minLength: 1, maxLength: 100 },
+    sourceEventIds: {
+      type: "array",
+      minItems: 1,
+      maxItems: 6,
+      items: { type: "string", minLength: 1 },
+    },
+  },
+} as const;
+
 const schema: LocalModelJsonSchema = {
   type: "object",
   additionalProperties: false,
-  required: ["selectedLens", "selectedMovieIndex", "attentionStrategy", "artistDirection"],
+  required: ["selectedLens", "selectedMovieIndex", "attentionStrategy", "creativeProposition", "artistDirection"],
   properties: {
     selectedLens: { type: "string", minLength: 1, maxLength: 80 },
     selectedMovieIndex: {
       anyOf: [{ type: "integer", minimum: 0 }, { type: "null" }],
     },
     attentionStrategy: { type: "string", minLength: 1, maxLength: 600 },
+    creativeProposition: propositionSchema,
     artistDirection: {
       type: "object",
       additionalProperties: false,
@@ -94,9 +114,6 @@ const OPERATIONAL_CLAIM =
 const FUTURE_CLAIM =
   /\b(?:will|would then|next,?\s+the|later,?\s+the)\b/i;
 
-const EDITORIAL_INSTRUCTION =
-  /^(?:frame|treat|use|show|open with|start with|lead with|rank|contrast|repeat|compress|juxtapose|invert|build|return to|land on)\b/i;
-
 function riskyDirectionText(text: string): boolean {
   const value = clean(text);
   return !value
@@ -110,6 +127,7 @@ function riskyDirectionText(text: string): boolean {
 function normalizeSourceEventIds(
   raw: unknown,
   validIds: Set<string>,
+  max = 4,
 ): string[] {
   const values = Array.isArray(raw)
     ? raw.flatMap((value) =>
@@ -121,7 +139,7 @@ function normalizeSourceEventIds(
 
   return unique(values)
     .filter((id) => validIds.has(id))
-    .slice(0, 4);
+    .slice(0, max);
 }
 
 function cleanDirectionText(raw: unknown): string {
@@ -150,18 +168,47 @@ function directionPart(
   return { text, sourceEventIds };
 }
 
-function formatAttention(direction: AuthorArtistDirection): string {
-  return direction.mechanic.text;
+function proposition(
+  raw: unknown,
+  validIds: Set<string>,
+  mechanic: ArtistDirectionPart,
+): AuthorCreativeProposition {
+  const row = raw && typeof raw === "object"
+    ? raw as Record<string, unknown>
+    : {};
+  const text = cleanDirectionText(row.text) || mechanic.text;
+  const pattern = clean(row.pattern) || "organizing relationship";
+  const sourceEventIds = normalizeSourceEventIds(row.sourceEventIds, validIds, 6);
+  const mechanicIds = normalizeSourceEventIds(mechanic.sourceEventIds, validIds, 6);
+
+  return {
+    text,
+    pattern,
+    sourceEventIds: unique([...sourceEventIds, ...mechanicIds]).slice(0, 6),
+  };
 }
 
-const fallbackDirection = (): AuthorArtistDirection => ({
-  mechanic: { text: "Find the subject's strongest organizing idea.", sourceEventIds: [] },
-  hook: { text: "Lead with the most specific supplied detail.", sourceEventIds: [] },
-  openLoop: { text: "Create pull from a real unresolved relationship.", sourceEventIds: [] },
-  tension: { text: "Put two supplied truths under pressure.", sourceEventIds: [] },
-  surprise: { text: "Let a supplied detail change the reading.", sourceEventIds: [] },
-  payoff: { text: "Land on the detail that most defines the subject.", sourceEventIds: [] },
-});
+function formatAttention(direction: AuthorArtistDirection): string {
+  return direction.creativeProposition.text;
+}
+
+const fallbackDirection = (): AuthorArtistDirection => {
+  const proposition: AuthorCreativeProposition = {
+    text: "Find the subject's strongest organizing idea.",
+    pattern: "organizing relationship",
+    sourceEventIds: [],
+  };
+
+  return {
+    creativeProposition: proposition,
+    mechanic: { text: proposition.text, sourceEventIds: [] },
+    hook: { text: "Lead with the most specific supplied detail.", sourceEventIds: [] },
+    openLoop: { text: "Create pull from a real unresolved relationship.", sourceEventIds: [] },
+    tension: { text: "Put two supplied truths under pressure.", sourceEventIds: [] },
+    surprise: { text: "Let a supplied detail change the reading.", sourceEventIds: [] },
+    payoff: { text: "Land on the detail that most defines the subject.", sourceEventIds: [] },
+  };
+};
 
 function compactMovie(movie: LatentMovieCandidate, index: number) {
   return {
@@ -253,29 +300,26 @@ export async function chooseArtistDirection(input: {
             "Look for patterns such as priority, hierarchy, contradiction, repetition, cycle, transformation, accumulation, precision, chaos versus order, dependency, ritual, obsession, scarcity, excess, status, competition, identity, hidden complexity, unexpected specificity, recurring failure, recurring success, or tension between two supplied truths.",
             "These are a search space, not a template. Choose the pattern that the evidence actually supports, or invent another grounded organizing idea.",
             "The strongest idea may be extremely simple after discovery.",
-            "Examples of the KIND of move we want: a mechanic can become 'Problem. Diagnosis. Precision. Repair. Test.' A storage business can become 'People don't store things. They postpone decisions.' A memorial can become 'the small detail that everybody remembers.' A property can become 'what this place makes possible.' 'Coco has a priority system.' These are examples of creative reasoning, NOT reusable output templates.",
-            "Do not force a pet, service, retail, real-estate, memorial, receipt, or industry-specific treatment onto another subject.",
-            "The six artistDirection fields are six pressures around ONE discovered idea.",
-            "MECHANIC IS THE CENTRAL CREATIVE PREMISE. It is the actual proposition discovered in the evidence, not an instruction for another creative worker.",
-            "MECHANIC must be concise enough that the final moving text could say it or reveal it. Prefer 3-12 words. Good shape: 'Coco has a priority system.' 'The small detail everybody remembers.' 'People don't store things. They postpone decisions.' 'The job turns problems into tests.' Bad shape: 'Rank Coco's pleasures.' 'Frame the service around precision.' 'Show how the details unfold.' Those are instructions, not premises.",
-            "Do not make the mechanic a command beginning with frame, treat, use, show, open with, start with, lead with, rank, contrast, repeat, compress, juxtapose, invert, build, return, or land.",
-            "The mechanic should reveal a relationship among at least TWO supplied facts whenever the reality contains such a relationship.",
-            "ATTENTION_STRATEGY must be the same central idea in compact form. The system will treat the mechanic as the authoritative attention value, so keep mechanic and attentionStrategy semantically identical.",
-            "HOOK: the strongest entry into the central idea.",
+            "FIRST-CLASS CREATIVE PROPOSITION: discover ONE proposition that explains the relationship among the strongest supplied details. The proposition is the idea the final piece is about. It is not a topic, mood, trait, or instruction.",
+            "A proposition should answer, in compact form, what the supplied details reveal when considered together. Good shapes include 'Coco has a priority system.', 'People don't store things. They postpone decisions.', 'The job turns problems into tests.', 'The small detail everybody remembers.' These are reasoning examples, NOT templates.",
+            "A bad proposition is only a mood or noun cluster such as 'Coco's pleasures' or 'Bacon and apples'. A bad proposition is also an instruction such as 'Rank Coco's pleasures.'",
+            "The proposition should normally connect at least TWO supplied events when the reality contains that evidence. Its sourceEventIds identify the facts that make the relationship credible.",
+            "The six artistDirection fields are six pressures around ONE proposition.",
+            "MECHANIC must equal or tightly restate creativeProposition.text. Do not make mechanic a second idea.",
+            "MECHANIC is the central creative premise, not an instruction for another creative worker. Prefer 3-12 words.",
+            "ATTENTION_STRATEGY must be the same central proposition in compact form. The system will use creativeProposition.text as authoritative.",
+            "HOOK: the strongest entry into the proposition.",
             "OPEN_LOOP: a real unresolved relationship, comparison, question, expectation, or possibility already present in the supplied material.",
             "TENSION: the real contradiction, competing priority, mismatch, or pressure between supplied truths.",
             "SURPRISE: the supplied detail or reversal that changes how earlier material reads.",
-            "PAYOFF: the cleanest landing on the detail that most defines the subject.",
+            "PAYOFF: the cleanest landing on the proposition and the detail that most defines it.",
             "These fields do NOT require six different events and do NOT require six separate screens.",
-            "They should reinforce one central creative thought.",
-            "Write concise, specific, slightly opinionated creative treatment language for hook/openLoop/tension/surprise/payoff, but make the mechanic itself a realizable premise rather than an editorial instruction.",
-            "Creative verbs such as frame, treat, contrast, rank, repeat, compress, juxtapose, invert, build, return, and land are allowed outside the mechanic.",
-            "Do not turn the treatment into a screenplay or camera plan.",
+            "Do not force a pet, service, retail, real-estate, memorial, receipt, or industry-specific treatment onto another subject.",
             "Do not write close-ups, shots, camera moves, zooms, pans, footage, SFX, voice-over, filming instructions, or production notes.",
             "Do not invent people, customer behavior, employee behavior, actions, reactions, thoughts, dialogue, motives, outcomes, operations, future events, or physical changes.",
             "Do not turn interpretation into fact with words like deliberately, intentionally, secretly, or obviously.",
             "A sourceEventId is evidence for the creative idea, not permission to invent activity around that event.",
-            "Each field must cite 1-4 exact sourceEventIds in sourceEventIds. Never put IDs inside text.",
+            "Each artistDirection field must cite 1-4 exact sourceEventIds. The creative proposition may cite up to 6.",
             "selectedMovieIndex is optional supporting inspiration. It may be null.",
             "selectedLens may be NONE.",
             "Return JSON only.",
@@ -285,8 +329,8 @@ export async function chooseArtistDirection(input: {
       ],
       "json",
       {
-        numPredict: 650,
-        temperature: 1.12,
+        numPredict: 700,
+        temperature: 1.08,
         jsonSchema: schema,
       },
     );
@@ -312,8 +356,20 @@ export async function chooseArtistDirection(input: {
         ? parsed.artistDirection as Record<string, unknown>
         : {};
 
+    const mechanic = directionPart(rawDirection.mechanic, validEventIds, fallback.mechanic.text);
+    const rawProposition = proposition(parsed?.creativeProposition, validEventIds, mechanic);
     const artistDirection: AuthorArtistDirection = {
-      mechanic: directionPart(rawDirection.mechanic, validEventIds, fallback.mechanic.text),
+      creativeProposition: {
+        ...rawProposition,
+        text: riskyDirectionText(rawProposition.text) ? fallback.creativeProposition.text : rawProposition.text,
+        sourceEventIds: rawProposition.sourceEventIds.length
+          ? rawProposition.sourceEventIds
+          : mechanic.sourceEventIds,
+      },
+      mechanic: {
+        ...mechanic,
+        text: riskyDirectionText(rawProposition.text) ? fallback.creativeProposition.text : rawProposition.text,
+      },
       hook: directionPart(rawDirection.hook, validEventIds, fallback.hook.text),
       openLoop: directionPart(rawDirection.openLoop, validEventIds, fallback.openLoop.text),
       tension: directionPart(rawDirection.tension, validEventIds, fallback.tension.text),
