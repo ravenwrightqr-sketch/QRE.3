@@ -1,0 +1,16 @@
+export type ExperienceTone =
+  | "luxury"
+  | "cinematic"
+  | "emotional"
+  | "viral"
+  | "professional"
+  | "friendly"
+  | "energetic"
+  | "humorous"
+  | "romantic"
+  | "premium"
+  | "playful"
+  | "dark"
+  | "trustworthy"
+  | "mysterious"
+  | "educational";
