@@ -23,7 +23,6 @@ const reality = {
   ],
   trajectory: [],
   creativeLearningContext: [],
-  movieMode: true,
 };
 
 const result = await authorBrainCanonical(reality);

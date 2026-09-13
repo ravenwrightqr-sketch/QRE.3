@@ -1,8 +1,8 @@
 import type { ExperienceMoment } from "../experience/moment.js";
 import type { GeoStory } from "../geo/geoStory.js";
-import type { CinematicScene } from "../cinematic/cinematic.js";
 import type { MemorySnapshot } from "../memory/memorySnapshot.js";
 import type { ServiceReceipt } from "../commerce/serviceReceipt.js";
+import type { SequencePlay } from "../sequence/sequencePlay.js";
 
 export type ExperienceAccess = "DEMO" | "UNLOCKED";
 
@@ -20,8 +20,8 @@ export type ExperiencePlayerConfig = {
   autoplay?: boolean;
   loop?: boolean;
   showControls?: boolean;
-  theme?: "dark" | "light" | "glass" | "cinematic";
-  transition?: "fade" | "cinematic" | "slide";
+  theme?: "dark" | "light" | "glass";
+  transition?: "fade" | "slide";
 };
 
 export type ExperienceMediaManifest = {
@@ -37,7 +37,7 @@ export type Experience = {
   asset: AssetSummary | null;
   moments: ExperienceMoment[];
   geoStory: GeoStory | null;
-  cinematicScenes: CinematicScene[];
+  sequence: SequencePlay | null;
   memorySnapshot: MemorySnapshot | null;
   receipt: ServiceReceipt | null;
   media?: ExperienceMediaManifest;

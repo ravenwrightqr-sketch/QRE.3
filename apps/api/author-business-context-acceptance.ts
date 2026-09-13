@@ -27,7 +27,6 @@ const reality = {
   memoryContext: [],
   trajectory: [],
   creativeLearningContext: [],
-  movieMode: true,
 };
 
 const withBusiness = await authorBrainCanonical({ ...reality, domainContext: business });

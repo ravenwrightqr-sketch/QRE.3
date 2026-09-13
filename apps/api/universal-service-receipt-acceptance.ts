@@ -16,7 +16,6 @@ const input = {
     "scared at first",
     "happy at end",
   ],
-  movieMode: true,
 };
 
 const result = await authorBrainCanonical(input);

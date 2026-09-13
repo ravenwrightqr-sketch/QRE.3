@@ -48,7 +48,6 @@ const BASE = {
   creativeLearningContext: [] as string[],
   returning: false,
   visitNumber: 1,
-  movieMode: true,
 };
 
 const LENSES = [

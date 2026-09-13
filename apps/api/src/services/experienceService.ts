@@ -55,11 +55,9 @@ export type CompiledExperienceResult = {
   blueprint: Record<string, unknown>;
   flowSteps: Array<Record<string, unknown>>;
   moments: Array<Record<string, unknown>>;
-  cinematicScenes: Array<Record<string, unknown>>;
   beats?: ExperienceBeat[];
-  estimatedDuration: number;
   momentCount: number;
-  plan: unknown;
+  sequence: unknown;
   world?: unknown;
   adaptiveQuestions?: string[];
   discoveries?: string[];
@@ -70,7 +68,6 @@ export type CompiledExperienceResult = {
   memory?: { entities: number; facts: number; relations: number; events: number } | null;
   geo?: GeoAnchorInput | null;
   presence?: ExperiencePresenceContext | null;
-  movieMode?: boolean;
   warnings?: string[];
   [key: string]: unknown;
 };
@@ -188,7 +185,6 @@ function buildAssetDomainContext(asset: any): AuthorDomainContext | undefined {
     : undefined;
 }
 
-
 function inferSubject(prompt: string, context?: MemoryContext): string {
   const normalizedPrompt = prompt.toLowerCase();
   const candidate = context?.entities
@@ -221,29 +217,6 @@ function experienceBeats(scenes: Array<{ text: string; kind?: string }>, sourceI
   }));
 }
 
-function cinematicScenes(scenes: Array<{ text: string; kind?: string }>, sourceIds: string[][]): Array<Record<string, unknown>> {
-  return scenes.map((scene, index) => ({
-    id: `canonical-scene-${index + 1}`,
-    type: index === 0 ? "intro" : index === scenes.length - 1 ? "emotion" : "action",
-    duration: index === scenes.length - 1 ? 2200 : 1700,
-    transition: index === 0 ? "none" : index === scenes.length - 1 ? "cinematic" : "fade",
-    order: index,
-    moment: {
-      type: "message",
-      editable: false,
-      demo: false,
-      order: index,
-      payload: { text: clean(scene.text), sourceIds: sourceIds[index] ?? [] },
-    },
-    meta: {
-      authoredBy: "qre-author-canonical",
-      sourceIds: sourceIds[index] ?? [],
-      sceneKind: scene.kind ?? "line",
-      realizationPath: "authorBrainCanonical",
-    },
-  }));
-}
-
 function moments(scenes: Array<{ text: string; kind?: string }>, sourceIds: string[][]): Array<Record<string, unknown>> {
   return scenes.map((scene, index) => ({
     type: "message",
@@ -266,13 +239,11 @@ export async function compileExperience(input: {
   memoryRepository?: MemoryRepository;
   analyticsEvents?: unknown[];
   geoAnchor?: GeoAnchorInput;
-  movieMode?: boolean;
   lens?: string;
 }): Promise<CompiledExperienceResult> {
   const operationId = input.operationId ?? input.sessionId ?? `experience:${input.assetId ?? "unknown"}:${input.prompt}`;
   const prompt = clean(input.prompt);
   if (!prompt) throw new Error("Experience prompt required");
-  const requestedMovieMode = input.movieMode !== false;
   const warnings: string[] = [];
 
   if (input.assetId && input.sessionId) {
@@ -367,17 +338,8 @@ export async function compileExperience(input: {
   const place = clean(input.geoAnchor?.label) || clean(presence?.places?.[0]);
   const subjectTruth = resolveSubjectTruth(subject, prompt, memoryContext);
   const priorScenes = priorExperienceStates.flatMap((state) => state.chapter.semanticTurns);
-// Intent remains intent.
-// Only explicitly supplied facts/events become source reality.
-// Memory and learning remain contextual inputs to cognition and must never
-// be promoted into current source reality without explicit verification.
-const sourceMoments = unique(
-  input.sourceMoments ?? [],
-).slice(0, 80);
-
-const facts = unique(
-  input.facts ?? [],
-).slice(0, 100);
+  const sourceMoments = unique(input.sourceMoments ?? []).slice(0, 80);
+  const facts = unique(input.facts ?? []).slice(0, 100);
   const trajectory = unique([...priorScenes, ...(presence?.summary ?? [])]).slice(0, 40);
   const presenceSummary = unique(presence?.summary ?? []).slice(0, 24);
 
@@ -386,7 +348,6 @@ const facts = unique(
     subject,
     place,
     subjectTruth,
-    movieMode: requestedMovieMode,
     lens: clean(input.lens),
     domainContext,
     returning: presence?.isReturning ?? false,
@@ -412,7 +373,6 @@ const facts = unique(
           userId: input.userId ?? null,
           lens: clean(input.lens),
           resolvedLens: clean(canonical.brief.angle),
-          movieId: canonical.movie?.id ?? null,
           realizationMode: canonical.realizationMode,
           beatCount: canonical.sequence.cuts.length,
           selectedScore: canonical.diagnostics.selectedScore,
@@ -430,7 +390,6 @@ const facts = unique(
   const authoredScenes = canonical.scenes.map((scene) => ({ text: clean(scene.text), kind: scene.kind }));
   const beats = experienceBeats(authoredScenes, sourceIds);
   const renderedMoments = moments(authoredScenes, sourceIds);
-  const renderedScenes = cinematicScenes(authoredScenes, sourceIds);
 
   const graph = buildAuthorRealityGraph({
     prompt,
@@ -465,10 +424,10 @@ const facts = unique(
     try {
       const nextState = buildExperienceState({
         graph,
-        movie: canonical.movie,
+        sequence: canonical.sequence,
         lens: canonical.brief.angle,
         memoryContext: [...memorySummary, ...presenceSummary],
-        priorExperienceStates: priorExperienceStates,
+        priorExperienceStates,
         round: presence?.visitNumber ?? Math.max(1, priorExperienceStates.length + 1),
       });
       authorExperienceState = adaptExperienceTempo(nextState, learnedProfile);
@@ -506,7 +465,6 @@ const facts = unique(
   }
 
   const title = clean(canonical.brief.strongestImage) || (subject !== "the subject" ? subject : "QRE Experience");
-  const estimatedDuration = renderedScenes.reduce((sum, scene) => sum + Number(scene.duration ?? 0), 0);
   const authorDiagnostics = canonical.diagnostics;
 
   return {
@@ -519,7 +477,6 @@ const facts = unique(
           author: "qre-author-canonical",
           realizationPath: "authorBrainCanonical",
           lens: canonical.brief.angle,
-          movieMode: requestedMovieMode,
           diagnostics: authorDiagnostics,
           learnedPreferenceLines: learningLines,
         },
@@ -539,11 +496,9 @@ const facts = unique(
     },
     flowSteps: renderedMoments.map((moment, index) => ({ order: index + 1, type: "message", payload: moment.payload })),
     moments: renderedMoments,
-    cinematicScenes: renderedScenes,
     beats,
-    estimatedDuration,
     momentCount: renderedMoments.length,
-    plan: canonical.sequence,
+    sequence: canonical.sequence,
     world: graph,
     adaptiveQuestions: canonical.sequence.cuts.map((cut) => clean(cut.nextPromise)).filter(Boolean),
     discoveries: canonical.sequence.cuts.map((cut) => clean(cut.informationGain)).filter(Boolean),
@@ -554,7 +509,6 @@ const facts = unique(
     memory,
     geo: input.geoAnchor ?? null,
     presence,
-    movieMode: requestedMovieMode,
     warnings,
   };
 }

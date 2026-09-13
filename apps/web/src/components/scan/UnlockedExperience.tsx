@@ -1,4 +1,4 @@
-import CinematicScanPlayer from "./CinematicScanPlayer";
+import SequenceScanPlayer from "./SequenceScanPlayer";
 import type { ScanResponse } from "@qre/contracts";
 
 
@@ -14,7 +14,7 @@ export default function UnlockedExperience({
 
   return (
 
-    <CinematicScanPlayer
+    <SequenceScanPlayer
 
       data={data}
 
