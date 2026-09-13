@@ -1,12 +1,11 @@
 import { nanoid } from "nanoid";
-import type { ExperienceMoment, GeoStoryScene, CinematicScene, MemorySnapshot } from "@qre/contracts";
+import type { ExperienceMoment, GeoStoryScene, MemorySnapshot } from "@qre/contracts";
 import { evolveRuntimeMemory } from "../cognition/serviceMemoryState.js";
 
 type SnapshotInput = {
   assetId: string;
   moments: ExperienceMoment[];
   geoStory: { scenes: GeoStoryScene[]; summary?: string } | null;
-  cinematicScenes: CinematicScene[];
   prior?: MemorySnapshot | null;
 };
 
@@ -15,7 +14,7 @@ function hasMomentType(moments: ExperienceMoment[], types: string[]) {
 }
 
 export function buildMemorySnapshot(input: SnapshotInput): MemorySnapshot {
-  const { moments, geoStory, cinematicScenes, prior } = input;
+  const { moments, geoStory, prior } = input;
   const hasLocation = hasMomentType(moments, ["location", "arrival"]);
   const hasMedia = hasMomentType(moments, ["photos", "video", "soundtrack", "replay", "media"]);
   const hasStory = hasMomentType(moments, ["story", "memory", "timeline"]);
@@ -64,7 +63,6 @@ export function buildMemorySnapshot(input: SnapshotInput): MemorySnapshot {
     meta: {
       ...(evolved.meta ?? {}),
       assetId: input.assetId,
-      cinematicSceneCount: cinematicScenes.length,
       geoSceneCount: geoStory?.scenes.length ?? 0,
       hasMedia,
       hasLocation,

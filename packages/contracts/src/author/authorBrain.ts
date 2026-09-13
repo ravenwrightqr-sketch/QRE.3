@@ -42,7 +42,6 @@ export type AuthorBrainTruth = {
   cognitivePlan?: CognitiveExperiencePlan;
   realityGraph?: RealityGraph;
   domainContext?: AuthorDomainContext;
-  movieMode?: boolean;
   returning?: boolean;
   visitNumber?: number;
   presenceSummary?: string[];

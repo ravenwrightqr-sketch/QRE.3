@@ -1,5 +1,17 @@
 import { db } from "@qre/db";
 import type { AssetRepository, AssetRecord } from "@qre/engine";
+import type { SequencePlay } from "@qre/contracts";
+
+function isSequencePlay(value: unknown): value is SequencePlay {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return false;
+  const candidate = value as Record<string, unknown>;
+  return (
+    typeof candidate.subject === "string" &&
+    typeof candidate.premise === "string" &&
+    Boolean(candidate.openingState) &&
+    Array.isArray(candidate.cuts)
+  );
+}
 
 export function createAssetRepository(): AssetRepository {
   return {
@@ -19,7 +31,7 @@ export function createAssetRepository(): AssetRepository {
       const activeFlow = activeLink?.flow ?? null;
       const experiences = asset.experiences.map((experience) => {
         const blueprint = experience.blueprint as Record<string, unknown> | null;
-        return { id: experience.id, title: experience.title ?? null, sourcePrompt: typeof blueprint?.sourcePrompt === "string" ? blueprint.sourcePrompt : null, blueprint: experience.blueprint, createdAt: experience.createdAt.toISOString() };
+        return { id: experience.id, title: experience.title ?? null, sourcePrompt: typeof blueprint?.sourcePrompt === "string" ? blueprint.sourcePrompt : null, blueprint: experience.blueprint, sequence: isSequencePlay(blueprint?.sequence) ? blueprint.sequence : null, createdAt: experience.createdAt.toISOString() };
       });
       return {
         id: asset.id, slug: asset.slug, accountId: asset.accountId ?? null, paid: asset.paid, category: asset.category ?? null,

@@ -1,6 +1,5 @@
 /** QRE CONTRACTS PUBLIC API */
 
-export * from "./cinematic/index.js";
 export * from "./sequence/index.js";
 export * from "./scan/index.js";
 export type { ScanResponse } from "./scan/scanResponse.js";
@@ -20,7 +19,6 @@ export * from "./media/index.js";
 export * from "./sponsorship/index.js";
 export * from "./intelligence/index.js";
 export * from "./mouth/index.js";
-export * from "./movie/index.js";
 export * from "./world/index.js";
 export * from "./presence/index.js";
 export * from "./factory/index.js";

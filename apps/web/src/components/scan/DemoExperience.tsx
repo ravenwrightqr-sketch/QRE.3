@@ -1,4 +1,4 @@
-import CinematicScanPlayer from "./CinematicScanPlayer";
+import SequenceScanPlayer from "./SequenceScanPlayer";
 import type { ScanResponse } from "@qre/contracts";
 
 type Props = {
@@ -20,7 +20,7 @@ export default function DemoExperience({
       }}
     >
 
-    <CinematicScanPlayer
+    <SequenceScanPlayer
     data={data}
     />
     

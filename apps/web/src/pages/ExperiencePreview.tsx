@@ -1,5 +1,5 @@
 import { useLocation, useNavigate } from "react-router-dom";
-import CinematicScanPlayer from "../components/scan/CinematicScanPlayer";
+import SequenceScanPlayer from "../components/scan/SequenceScanPlayer";
 import type { Experience } from "@qre/contracts";
 
 type PreviewState = {
@@ -38,9 +38,7 @@ export default function ExperiencePreview() {
 
   return (
     <main style={playWorld}>
-      <CinematicScanPlayer
-        scenes={experience.cinematicScenes ?? []}
-      />
+      <SequenceScanPlayer data={experience} />
     </main>
   );
 }

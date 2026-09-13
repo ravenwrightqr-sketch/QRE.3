@@ -55,11 +55,9 @@ export type CompiledExperienceResult = {
   blueprint: Record<string, unknown>;
   flowSteps: Array<Record<string, unknown>>;
   moments: Array<Record<string, unknown>>;
-  cinematicScenes: Array<Record<string, unknown>>;
   beats?: ExperienceBeat[];
-  estimatedDuration: number;
   momentCount: number;
-  plan: unknown;
+  sequence: unknown;
   world?: unknown;
   adaptiveQuestions?: string[];
   discoveries?: string[];
@@ -70,7 +68,6 @@ export type CompiledExperienceResult = {
   memory?: { entities: number; facts: number; relations: number; events: number } | null;
   geo?: GeoAnchorInput | null;
   presence?: ExperiencePresenceContext | null;
-  movieMode?: boolean;
   warnings?: string[];
   [key: string]: unknown;
 };
@@ -220,29 +217,6 @@ function experienceBeats(scenes: Array<{ text: string; kind?: string }>, sourceI
   }));
 }
 
-function cinematicScenes(scenes: Array<{ text: string; kind?: string }>, sourceIds: string[][]): Array<Record<string, unknown>> {
-  return scenes.map((scene, index) => ({
-    id: `canonical-scene-${index + 1}`,
-    type: index === 0 ? "intro" : index === scenes.length - 1 ? "emotion" : "action",
-    duration: index === scenes.length - 1 ? 2200 : 1700,
-    transition: index === 0 ? "none" : index === scenes.length - 1 ? "cinematic" : "fade",
-    order: index,
-    moment: {
-      type: "message",
-      editable: false,
-      demo: false,
-      order: index,
-      payload: { text: clean(scene.text), sourceIds: sourceIds[index] ?? [] },
-    },
-    meta: {
-      authoredBy: "qre-author-canonical",
-      sourceIds: sourceIds[index] ?? [],
-      sceneKind: scene.kind ?? "line",
-      realizationPath: "authorBrainCanonical",
-    },
-  }));
-}
-
 function moments(scenes: Array<{ text: string; kind?: string }>, sourceIds: string[][]): Array<Record<string, unknown>> {
   return scenes.map((scene, index) => ({
     type: "message",
@@ -265,13 +239,11 @@ export async function compileExperience(input: {
   memoryRepository?: MemoryRepository;
   analyticsEvents?: unknown[];
   geoAnchor?: GeoAnchorInput;
-  movieMode?: boolean;
   lens?: string;
 }): Promise<CompiledExperienceResult> {
   const operationId = input.operationId ?? input.sessionId ?? `experience:${input.assetId ?? "unknown"}:${input.prompt}`;
   const prompt = clean(input.prompt);
   if (!prompt) throw new Error("Experience prompt required");
-  const requestedMovieMode = input.movieMode !== false;
   const warnings: string[] = [];
 
   if (input.assetId && input.sessionId) {
@@ -376,7 +348,6 @@ export async function compileExperience(input: {
     subject,
     place,
     subjectTruth,
-    movieMode: requestedMovieMode,
     lens: clean(input.lens),
     domainContext,
     returning: presence?.isReturning ?? false,
@@ -419,7 +390,6 @@ export async function compileExperience(input: {
   const authoredScenes = canonical.scenes.map((scene) => ({ text: clean(scene.text), kind: scene.kind }));
   const beats = experienceBeats(authoredScenes, sourceIds);
   const renderedMoments = moments(authoredScenes, sourceIds);
-  const renderedScenes = cinematicScenes(authoredScenes, sourceIds);
 
   const graph = buildAuthorRealityGraph({
     prompt,
@@ -495,7 +465,6 @@ export async function compileExperience(input: {
   }
 
   const title = clean(canonical.brief.strongestImage) || (subject !== "the subject" ? subject : "QRE Experience");
-  const estimatedDuration = renderedScenes.reduce((sum, scene) => sum + Number(scene.duration ?? 0), 0);
   const authorDiagnostics = canonical.diagnostics;
 
   return {
@@ -508,7 +477,6 @@ export async function compileExperience(input: {
           author: "qre-author-canonical",
           realizationPath: "authorBrainCanonical",
           lens: canonical.brief.angle,
-          movieMode: requestedMovieMode,
           diagnostics: authorDiagnostics,
           learnedPreferenceLines: learningLines,
         },
@@ -528,11 +496,9 @@ export async function compileExperience(input: {
     },
     flowSteps: renderedMoments.map((moment, index) => ({ order: index + 1, type: "message", payload: moment.payload })),
     moments: renderedMoments,
-    cinematicScenes: renderedScenes,
     beats,
-    estimatedDuration,
     momentCount: renderedMoments.length,
-    plan: canonical.sequence,
+    sequence: canonical.sequence,
     world: graph,
     adaptiveQuestions: canonical.sequence.cuts.map((cut) => clean(cut.nextPromise)).filter(Boolean),
     discoveries: canonical.sequence.cuts.map((cut) => clean(cut.informationGain)).filter(Boolean),
@@ -543,7 +509,6 @@ export async function compileExperience(input: {
     memory,
     geo: input.geoAnchor ?? null,
     presence,
-    movieMode: requestedMovieMode,
     warnings,
   };
 }

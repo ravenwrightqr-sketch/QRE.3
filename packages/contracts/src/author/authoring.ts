@@ -1,6 +1,7 @@
 import type { ExperienceBlueprint } from "../experience/blueprint.js";
 import type { FlowStep } from "../runtime/flow.js";
 import type { ExperienceBeat } from "../story/beat.js";
+import type { SequencePlay } from "../sequence/sequencePlay.js";
 
 export type ExperienceStatus = "draft" | "published" | "archived";
 
@@ -22,7 +23,7 @@ export type ExperienceVersion = {
   blueprint: ExperienceBlueprint;
   beats: ExperienceBeat[];
   moments: any[];
-  cinematicScenes: any[];
+  sequence: SequencePlay | null;
   flowSteps: FlowStep[];
   createdAt: string;
 };
