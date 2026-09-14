@@ -3,7 +3,6 @@
  *
  * The cognitive system does not need to know whether the subject is a dog,
  * couple, house, car, wedding, place, workout, rescue animal, or object.
- * Everything useful for cinematic realization is reduced to entities,
  * observations, relations, place/time context, and provenance.
  */
 export type RealityProvenance =

@@ -36,6 +36,8 @@ const EXPLANATION = /\b(?:this means|which means|this shows|which shows|the poin
 const GENERIC = /^(?:something happened|something changed|everything changed|a moment|the moment|a feeling|the feeling|it was meaningful|it was special|it was important|the transformation was|the situation was|the experience was|the result was|worth noticing)\.?$/i;
 const SCREENPLAY = /^(?:close(?:\s+in)?(?:\s+on)?|quick\s+cut|cut\s+to|sound\s*:|camera\s*:|wide\s+shot|medium\s+shot|tight\s+shot|fade(?:\s+(?:in|out|to))?|angle(?:\s+on)?|montage|dissolve(?:\s+to)?|smash\s+cut)\b/i;
 const SCREENPLAY_INLINE = /\b(?:camera|close-up|wide shot|medium shot|tight shot|sound design|sound effect|sfx|voice-over|voiceover)\s*:/i;
+const PRODUCTION_DIRECTION =
+  /^\s*(?:\[|\()\s*(?:visual|camera|shot|scene direction|b-roll|edit|editing|time-lapse|timelapse|rapid-cut|rapid cut|montage|sfx|sound design|voice-over|voiceover)\b/i;
 const ALLOWED_KINDS = new Set(["line", "hook", "movement", "discovery", "turn", "payoff", "afterglow"]);
 const MAX_CUTS = 24;
 const MAX_BEAT_CHARS = 140;
@@ -75,30 +77,42 @@ function parseJson(text: string): Record<string, unknown> | undefined {
   }
 }
 
-function bindProvenance(rawIds: unknown, index: number, spine: AuthorCreativeSpine, graph: RealityGraph, sceneText: string): string[] {
+function bindProvenance(
+  rawIds: unknown,
+  _index: number,
+  _spine: AuthorCreativeSpine,
+  graph: RealityGraph,
+  sceneText: string,
+): string[] {
   const valid = new Set(graph.events.map((event) => event.id));
+
   const supplied = Array.isArray(rawIds)
-    ? unique(rawIds.filter((id): id is string => typeof id === "string").filter((id) => valid.has(id)))
+    ? unique(
+        rawIds
+          .filter((id): id is string => typeof id === "string")
+          .filter((id) => valid.has(id)),
+      )
     : [];
+
   if (supplied.length) return supplied.slice(0, 3);
 
   const scored = graph.events
-    .map((event) => ({ id: event.id, score: overlap(sceneText, eventText(event)) }))
-    .filter((item) => item.score > 0)
+    .map((event) => ({
+      id: event.id,
+      score: overlap(sceneText, eventText(event)),
+    }))
+    .filter((item) => item.score >= 0.18)
     .sort((a, b) => b.score - a.score);
-  if (scored.length) {
-    const best = scored[0]!.score;
-    return scored.filter((item) => item.score >= Math.max(0.18, best * 0.55)).slice(0, 2).map((item) => item.id);
-  }
 
-  const evidence = spine.opportunities.length
-    ? spine.opportunities[index % spine.opportunities.length]!.evidenceEventIds
-    : spine.relationSet.relations.length
-      ? spine.relationSet.relations[index % spine.relationSet.relations.length]!.evidenceEventIds
-      : [];
-  return evidence.filter((id) => valid.has(id)).slice(0, 2);
+  if (!scored.length) return [];
+
+  const best = scored[0]!.score;
+
+  return scored
+    .filter((item) => item.score >= Math.max(0.22, best * 0.55))
+    .slice(0, 2)
+    .map((item) => item.id);
 }
-
 function validateSet(raw: unknown, input: { graph: RealityGraph; spine: AuthorCreativeSpine }): ValidationResult {
   if (!raw || typeof raw !== "object") return { reason: "treatment is not an object" };
   const row = raw as RawSet;
@@ -117,7 +131,12 @@ function validateSet(raw: unknown, input: { graph: RealityGraph; spine: AuthorCr
     if (EXPLANATION.test(text)) return { reason: `screen ${index + 1} explains instead of expressing` };
     if (GENERIC.test(text)) return { reason: `screen ${index + 1} is generic` };
     if (SCREENPLAY.test(text) || SCREENPLAY_INLINE.test(text)) return { reason: `screen ${index + 1} contains production direction` };
-
+    if (
+  PRODUCTION_DIRECTION.test(text) ||
+  /\b(?:time-lapse|timelapse|rapid-cut|rapid cut|b-roll|camera angle|camera shot)\b/i.test(text)
+) {
+  return { reason: `screen ${index + 1} contains production direction` };
+}
     const rawKind = clean(scene.kind);
     const kind = ALLOWED_KINDS.has(rawKind)
       ? rawKind as AuthorScene["kind"]
@@ -171,7 +190,17 @@ function context(input: {
     subjectReference: clean(input.subject),
     frame: clean(input.lens) || "NONE",
     sourceReality: input.graph.events.map((event) => ({ id: event.id, text: eventText(event), entities: event.entities, place: event.place, time: event.time })),
-    relations: input.spine.relationSet.relations.slice(0, 12),
+    metamorphicRelations: input.spine.relationSet.relations.slice(0, 12).map((relation) => ({
+      id: relation.id,
+      mechanism: relation.mechanism,
+      creativeOpportunity: relation.creativeOpportunity,
+      realizationMove: relation.realizationMove,
+      before: relation.before,
+      after: relation.after,
+      evidenceEventIds: relation.evidenceEventIds,
+      feltEffect: relation.feltEffect,
+      viewerShift: relation.viewerShift,
+    })),
     creativeOpportunities: input.spine.opportunities.slice(0, 8),
     lensTreatment: input.spine.lensTreatment,
     interpretations: input.interpretations.slice(0, 8),
@@ -181,29 +210,54 @@ function context(input: {
     creativeLearning: (input.creativeLearningContext ?? []).slice(0, 20),
   };
 }
-
 function artistPrompt(attempt: number, feedback: string): string {
   const attacks = [
     "Find the strongest creative idea hidden anywhere in the supplied material and commit to it.",
-    "Reject the safest treatment. Search for the unusual combination, contradiction, joke, mechanic, rhythm, detail or framing that makes this subject itself.",
-    "Make the result memorable tomorrow. Take a creative risk without breaking reality.",
+    "Reject the safest treatment. Search for the unusual relationship, contradiction, rhythm, detail, joke, tension, callback or surprise that makes this subject itself.",
+    "Make the result memorable tomorrow. Let the scanner discover the connection rather than explaining it.",
   ];
+
   return [
     "You are QRE's ONE CREATIVE ARTIST.",
     "Reality is sacred. Concrete supplied reality cannot be changed.",
-    "Creative Spine contains grounded semantic leverage discovered from the supplied reality.",
+    "Use the supplied reality as the entire creative palette.",
+    "Creative Spine exposes grounded semantic leverage discovered from that reality.",
+    "Metamorphic relations are invisible creative mechanics. Use them; never name them, explain them or turn them into plot.",
+    "Recurrence can create rhythm or a callback.",
+    "Continuation can create return or progression.",
+    "Contrast can create juxtaposition.",
+    "Convergence can create a reveal or payoff.",
+    "Expectation shift can create a delayed landing.",
+    "Consequence can create a final landing.",
+    "State change can create transition.",
+    "Make something people would actually want to watch.",
+    "Recognition can bring an established detail back with changed meaning.",
+    "A metamorphic relation never authorizes a new concrete event.",
+    "Never turn a semantic mechanism into unsupported people, actions, objects, dialogue, motives, threats, targets, missions, enemies or plot.",
+    "Memory can accumulate meaning. When an established detail returns, use that return when it creates recognition, contrast, accumulation or payoff.",
     "Cognition contains interpretations. They are inspiration, not instructions.",
-    "The lens is pressure: attitude, rhythm, emphasis, framing and language may change; facts may not.",
+    "An explicit lens is optional creative pressure. When supplied, use it. When absent, discover the strongest grounded creative pressure yourself from reality, memory and metamorphic relations.",
+    "Business or service context can push creative intent, audience and desired effect, but it never creates reality.",
+    "Make ordinary material worth watching. Find the hidden relationship inside mundane details.",
+    "Let the scanner connect the dots.",
+    "Do not explain a connection when ordering, omission, repetition, juxtaposition, interruption or payoff can make it felt.",
     "You own visible language, ordering, rhythm, number of screens and final treatment.",
-    "Create moving screen text, not a summary, chronology dump, receipt formatter, caption reel or screenplay.",
-    "Every screen must be grounded in supplied reality. Figurative language, personification, metaphor, humor, absurdity, tenderness, menace, gamification and dramatic framing are allowed when earned.",
-    "For business or service media, make the service or business interesting rather than reciting the appointment in order.",
-    "Use all supplied reality as a palette. A detail outside the strongest semantic opportunity may become the hook.",
-    "Do not add people, actions, places, dialogue, sounds, outcomes, capabilities, prices, offers, emotions, motives, victories, failures or chronology.",
-    "Do not explain the artistic device. Make the language carry it.",
-    "Do not write production directions such as CAMERA, CUT TO, FADE, MONTAGE, SFX, VOICE-OVER, WIDE SHOT or similar.",
-    "One screen is one attention beat, not necessarily one fact. Combine or split supplied facts as the treatment requires.",
-    "Create four genuinely different treatments. Vary hook, central idea, ordering, rhythm, framing, humor, metaphor, callback or creative mechanic.",
+    "Write the actual words the scanner experiences.",
+    "Prefer fragments, short sentences, deliberate gaps and unexpected ordering when they strengthen the treatment.",
+    "A longer line is allowed only when it earns its length.",
+    "When an idea is visual, express it through the actual visible language. Never describe how it should be produced.",
+    "Never output labels such as VISUAL, CAMERA, SHOT, EDIT, B-ROLL, TIME-LAPSE, RAPID-CUT, SCENE DIRECTION or similar.",
+    "Never write production directions.",
+    "Never add concrete reality that was not supplied.",
+    "Do not reinterpret ordinary preferences as vulnerabilities, targets, threats, leverage, lures, control, thieves, teams, missions, enemies or attacks unless the supplied reality explicitly supports those ideas.",
+    "Never turn a figurative lens into a literal plot.",
+    "Do not produce a summary or list of facts unless that is genuinely the strongest creative treatment.",
+    "One screen is one attention beat, not necessarily one fact.",
+    "Create four genuinely different treatments.",
+    "Vary the hook, central relationship, ordering, rhythm, framing, callback, contrast, interruption and payoff.",
+    "Prefer implication over explanation.",
+    "Prefer recognition over repetition.",
+    "Prefer a discovered relationship over a labeled concept.",
     "After creating the four treatments, select the strongest one yourself using selectedSetIndex.",
     "Return JSON only: {\"selectedSetIndex\":0,\"sets\":[{\"scenes\":[{\"text\":\"...\",\"kind\":\"hook\",\"sourceEventIds\":[\"...\"]}]}]}",
     "selectedSetIndex is zero-based and refers only to the generated treatments.",
@@ -212,7 +266,6 @@ function artistPrompt(attempt: number, feedback: string): string {
     feedback || attacks[Math.min(attempt, attacks.length - 1)]!,
   ].join("\n");
 }
-
 export async function realizeAuthorExperience(input: {
   prompt: string;
   subject: string;
