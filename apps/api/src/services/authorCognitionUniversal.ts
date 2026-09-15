@@ -10,7 +10,6 @@ import {
   buildAuthorCreativeSpine,
   type AuthorCreativeSpine,
 } from "./authorCreativeSpine.js";
-import { buildAuthorCognitionIntelligence } from "./authorCognitionIntelligence.js";
 
 export type AuthorCognitionInput = {
   prompt: string;
@@ -103,7 +102,59 @@ function validIds(value: unknown, graph: RealityGraph): string[] {
       : [];
   return unique(raw.map(clean).filter((id) => known.has(id)));
 }
+const COGNITION_LENS_ALIASES: Record<string, string> = {
+  funny: "comedy",
+  romantic: "romance",
+  affectionate: "tender",
+  lovingly: "tender",
+  playful: "comedy",
+  intense: "fierce",
+};
 
+const COGNITION_LENS_WORDS = new Set([
+  "comedy",
+  "romance",
+  "horror",
+  "heist",
+  "game",
+  "fierce",
+  "courtroom",
+  "military",
+  "documentary",
+  "deadpan",
+  "tender",
+  "surreal",
+  "wild",
+  "spy",
+  "mission",
+  "speedrun",
+  "tournament",
+  "investigation",
+  "backstage",
+  "transformation",
+  "race",
+  "restoration",
+  "expedition",
+  "quest",
+  "countdown",
+  "archive",
+]);
+
+function canonicalExplicitLens(value: string): string {
+  const parts = clean(value)
+    .toLowerCase()
+    .split(/\s*(?:\+|>|\/|,|;|\band\b)\s*/i)
+    .map((part) =>
+      part
+        .split(/\s+/)
+        .filter((word) => !["slightly", "very", "really", "somewhat", "specific"].includes(word))
+        .join(" "),
+    )
+    .map((part) => COGNITION_LENS_ALIASES[part] ?? part)
+    .filter((part) => COGNITION_LENS_WORDS.has(part));
+
+  return unique(parts).join("+");
+}
 function chooseFrame(
   parsed: Record<string, unknown> | undefined,
   explicit: string,
@@ -112,15 +163,16 @@ function chooseFrame(
   const rawFrame = parsed?.frame && typeof parsed.frame === "object"
     ? parsed.frame as Record<string, unknown>
     : {};
+   const explicitLens = clean(explicit);
+const explicitCanonical = canonicalExplicitLens(explicitLens);
 
-  const explicitLens = clean(explicit).toLowerCase();
-  const requested = clean(
-    rawFrame.frame ??
-    parsed?.selectedLens ??
-    explicitLens,
-  ).toLowerCase();
+const requested = clean(
+  rawFrame.frame ??
+  parsed?.selectedLens ??
+  explicitCanonical,
+).toLowerCase();
 
-  const normalized = requested.replace(/[^a-z0-9_-]/g, "");
+const normalized = requested.replace(/[^a-z0-9_+-]/g, "");
 
   const evidenceEventIds = validIds(
     rawFrame.evidenceEventIds ?? parsed?.frameEvidenceEventIds,
@@ -128,9 +180,9 @@ function chooseFrame(
   );
 
   const explicitChosen =
-    explicitLens && explicitLens !== "let qre decide"
-      ? normalized
-      : "";
+  explicitCanonical && explicitLens.toLowerCase() !== "let qre decide"
+    ? explicitCanonical
+    : "";
 
   const modelText = [
     clean(parsed?.selectedLens),
@@ -208,16 +260,11 @@ export async function buildAuthorCognitivePlan(input: AuthorCognitionInput): Pro
     returning,
   });
   const explicitLens = clean(input.lens);
-  const intelligence = buildAuthorCognitionIntelligence(
-    input.realityGraph,
-    returning,
-    input.creativeLearningContext ?? [],
-  );
-
-  const compact = {
+const compact = {
     subject: clean(input.subject) || "unknown",
     place: clean(input.place) || "unknown",
     prompt: clean(input.prompt),
+    lens: explicitLens || "NONE",
     creatorContext: input.domainContext ?? null,
     returning,
     memory: (input.memoryContext ?? []).slice(0, 20),
@@ -258,14 +305,14 @@ content: [
 "Look for connections between supplied facts, especially contrasts, recurrence, continuation, consequence, recognition, and changes in meaning.",
 "Use non-adjacent facts when they create a stronger grounded reading.",
 "Prefer a surprising interpretation that is actually supported by the supplied evidence over a generic theme.",
-"Creative framing may use comedy, game, heist, horror, romance, noir, or other pressure, but the frame only changes emphasis and language. It must never create plot or new reality.",
+"A lens is optional. When no lens is supplied, do not manufacture a genre. Let the strongest discovered relationship determine the creative pressure. A frame may change emphasis and language, but it must never create plot or new reality.",
 "When several readings are plausible, choose genuinely different grounded interpretations.",
 "Do not invent motives, missions, targets, bait, enemies, crimes, weapons, or events.",
 "Do not optimize for event coverage. Optimize for the strongest grounded creative possibility.",
 "Do not force intensity. A precise observation is better than invented drama.",
 "Return JSON only with selectedLens, frame, interpretations, adaptiveQuestions, attentionStrategy, reasoningSummary.",
 "Each interpretation must contain evidenceEventIds using only supplied event IDs.",
-"Each interpretation should name the mechanism of interest in plain language through thesis, opportunity, and rationale: relationship, contrast, recontextualization, consequence, role, pattern, continuation, or other grounded structure.",
+"Each interpretation should state the discovered meaning in plain language. Do not lead with or repeat an internal mechanism label.",
 "Keep it compact. Interpretations are semantic guidance to the Artist, not visible prose or production directions.",
 "Never leak internal architecture language to customer-facing output.",
 ].join("\n"),
@@ -274,14 +321,20 @@ content: [
 role: "user",
 content: JSON.stringify({
 reality: compact,
-intelligence: {
-signals: intelligence.semanticSignals.slice(0, 12),
-moves: intelligence.candidateMoves.slice(0, 12),
-rules: intelligence.decisionRules.slice(0, 12),
-competition: intelligence.competitionProtocol.slice(0, 10),
-attention: intelligence.attention.slice(0, 10),
-antiFailure: intelligence.antiFailureChecks.slice(0, 10),
-},
+selectedRelationship: (() => {
+const relation = spine.relationSet.relations.find(
+(item) => item.id === spine.selectedRelationId,
+);
+return relation
+? {
+evidenceEventIds: relation.evidenceEventIds,
+feltEffect: relation.feltEffect,
+viewerShift: relation.viewerShift,
+languageAim: relation.languageAim,
+}
+: null;
+})(),
+lens: explicitLens || "NONE",
 }),
 },
 ],

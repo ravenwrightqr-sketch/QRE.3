@@ -367,7 +367,7 @@ export async function compileExperience(input: {
       await createAnalyticsRepository().trackEvent({
         assetId: input.assetId,
         sessionId: input.sessionId ?? null,
-        type: AnalyticsEventTypes.AI_CINEMATIC_DECISION,
+        type: AnalyticsEventTypes.AI_AUTHOR_EXPERIENCE,
         meta: {
           source: "author",
           userId: input.userId ?? null,
@@ -381,7 +381,7 @@ export async function compileExperience(input: {
         },
       });
     } catch (error) {
-      console.warn("[QRE][AUTHORING] AI_CINEMATIC_DECISION analytics failed.", error);
+      console.warn("[QRE][AUTHORING] AI_AUTHOR_EXPERIENCE analytics failed.", error);
       warnings.push("author_decision_analytics_failed");
     }
   }

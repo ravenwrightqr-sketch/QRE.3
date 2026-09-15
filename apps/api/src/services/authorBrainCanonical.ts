@@ -497,7 +497,9 @@ lens: clean(input.lens),
 returning,
 });
 
-const cognitionLearningContext = unique([
+const cognitionLearningContext = unique(input.creativeLearningContext ?? []);
+
+const artistLearningContext = unique([
 ARTIST_DNA,
 ...(input.creativeLearningContext ?? []),
 ]);
@@ -564,7 +566,7 @@ interpretations: cognition.interpretations,
 domainContext: input.domainContext,
 memoryContext: input.memoryContext ?? [],
 priorScenes: input.trajectory,
-creativeLearningContext: cognitionLearningContext,
+creativeLearningContext: artistLearningContext,
 });
 
 const scenes: AuthorScene[] =
