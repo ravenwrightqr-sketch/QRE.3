@@ -1,4 +1,4 @@
-﻿/**
+/**
  * QRE CANONICAL ARTIST / CREATIVE REALIZER
  *
  * RealityGraph owns concrete truth.
@@ -46,10 +46,10 @@ const GENERIC = new RegExp(
   "i",
 );
 
-const SCREENPLAY = /^(?:close(?:\\s+in)?(?:\\s+on)?|quick\\s+cut|cut\\s+to|sound\\s*:|camera\\s*:|wide\\s+shot|medium\\s+shot|tight\\s+shot|fade(?:\\s+(?:in|out|to))?|angle(?:\\s+on)?|montage|dissolve(?:\\s+to)?|smash\\s+cut)\\b/i;
-const SCREENPLAY_INLINE = /\\b(?:camera|close-up|wide shot|medium shot|tight shot|sound design|sound effect|sfx|voice-over|voiceover)\\s*:/i;
+const SCREENPLAY = /^(?:close(?:\s+in)?(?:\s+on)?|quick\s+cut|cut\s+to|sound\s*:|camera\s*:|wide\s+shot|medium\s+shot|tight\s+shot|fade(?:\s+(?:in|out|to))?|angle(?:\s+on)?|montage|dissolve(?:\s+to)?|smash\s+cut)\b/i;
+const SCREENPLAY_INLINE = /\b(?:camera|close-up|wide shot|medium shot|tight shot|sound design|sound effect|sfx|voice-over|voiceover)\s*:/i;
 const PRODUCTION_DIRECTION =
-  /^\\s*(?:\\[|\\()\\s*(?:visual|camera|shot|scene direction|b-roll|edit|editing|time-lapse|timelapse|rapid-cut|rapid cut|montage|sfx|sound design|voice-over|voiceover)\\b/i;
+  /^\s*(?:\[|\()\s*(?:visual|camera|shot|scene direction|b-roll|edit|editing|time-lapse|timelapse|rapid-cut|rapid cut|montage|sfx|sound design|voice-over|voiceover)\b/i;
 const ALLOWED_KINDS = new Set(["line", "hook", "movement", "discovery", "turn", "payoff", "afterglow"]);
 const MAX_CUTS = 24;
 const MAX_CANDIDATES = 4;

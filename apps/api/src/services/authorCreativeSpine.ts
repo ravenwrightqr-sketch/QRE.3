@@ -192,7 +192,7 @@ function candidateFromRelation(
     .filter(Boolean);
   const primary = evidence[0] ?? relation.before;
   const secondary = evidence[1] ?? relation.after;
-  const operation = operationFor(relation);
+  const operation: LatentMovieCandidate["trajectory"][number]["operation"] = operationFor(relation);
 
   return {
     id: `latent-${relation.id}`,
@@ -221,7 +221,7 @@ function candidateFromRelation(
         viewerChange: relation.languageAim,
         nextQuestion: "What lands?",
       },
-    ].filter((step) => step.eventIds.length),
+    ],
     payoff: relation.languageAim,
     unresolvedQuestion: relation.after ? "What does this become?" : "What lands?",
     evidence,
