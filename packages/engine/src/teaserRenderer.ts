@@ -50,7 +50,6 @@ export function renderTeaser(
    * No button.
    * No "experience unlocked".
    *
-   * Cinematic player starts immediately.
    */
   return [];
 

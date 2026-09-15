@@ -11,7 +11,7 @@ type Shared = {
     asset: { slug: string; displayName?: string | null };
     dropOffPoints: {
       moments?: Array<Record<string, unknown>>;
-      cinematicScenes?: Array<Record<string, any>>;
+      sequence?: { cuts?: Array<Record<string, unknown>> };
       geoStory?: unknown;
     };
   };
@@ -45,18 +45,17 @@ export default function SharedExperience() {
   }
 
   if (!data) {
-    return <main style={stage}><div style={loading}>LOADING EXPERIENCE…</div></main>;
+    return <main style={stage}><div style={loading}>LOADING EXPERIENCEÃ¢â‚¬Â¦</div></main>;
   }
 
-  const scenes = Array.isArray(data.share.dropOffPoints?.cinematicScenes)
-    ? data.share.dropOffPoints.cinematicScenes
+  const cuts = Array.isArray(data.share.dropOffPoints?.sequence?.cuts)
+    ? data.share.dropOffPoints.sequence.cuts
     : [];
   const moments = Array.isArray(data.share.dropOffPoints?.moments)
     ? data.share.dropOffPoints.moments
     : [];
-  const source = scenes.length ? scenes : moments;
+  const source = cuts.length ? cuts : moments;
   const lines = source.map(textOf).filter(Boolean);
-
   return (
     <main style={stage}>
       <div style={vignette} />

@@ -38,7 +38,6 @@ const experience = await compileExperience({
   sessionId,
   operationId: sessionId,
   memoryRepository: createMemoryRepository(),
-  movieMode: true,
 });
 
 const receipt = buildServiceReceipt({

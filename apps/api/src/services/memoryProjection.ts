@@ -291,7 +291,7 @@ export function buildScanMemoryBatch(input: {
       metadata: {
         preview: input.experience.preview,
         momentCount: input.experience.moments.length,
-        sceneCount: input.experience.cinematicScenes.length,
+        sceneCount: input.experience.sequence?.cuts.length ?? 0,
         access: input.experience.access,
       },
     }],

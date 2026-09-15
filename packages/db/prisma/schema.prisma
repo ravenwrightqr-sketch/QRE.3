@@ -156,7 +156,6 @@ model ScanSession {
   city            String?
   userAgent       String?
   lastAction      Json?
-  cinematicScenes Json?
   completedAt     DateTime?
   geoStory        Json?
   memorySnapshot  Json?
@@ -481,6 +480,7 @@ enum AnalyticsEventType {
   SCAN
   SESSION_START
   SESSION_END
+  FLOW_TRIGGERED
   FLOW_START
   FLOW_STEP
   FLOW_COMPLETE
@@ -493,7 +493,7 @@ enum AnalyticsEventType {
   AI_CREATIVE_REJECTED
   AI_VARIATION_SELECTED
   AI_SIGNIFICANCE_SHIFT
-  AI_CINEMATIC_DECISION
+  AI_AUTHOR_EXPERIENCE
   CTA_CLICK
   REDIRECT
   PAYMENT_REQUIRED
@@ -524,6 +524,7 @@ enum AnalyticsEventType {
   EXPERIENCE_REPLAY
   EXPERIENCE_SHARED
   EXPERIENCE_SAVED
+  MEMORY_APPLIED
   MEMORY_CREATED
   MEMORY_UPDATED
   MEMORY_RECOMMENDATION_VIEWED

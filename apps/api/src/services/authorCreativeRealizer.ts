@@ -1,38 +1,20 @@
 /**
- * QRE CANONICAL CREATIVE REALIZER
+ * QRE CANONICAL ARTIST / CREATIVE REALIZER
  *
- * Cognition discovers grounded relationships and creative possibilities.
- * The Artist discovers how to embody them.
+ * RealityGraph owns concrete truth.
+ * Cognition discovers grounded meaning.
+ * Creative Spine may influence lens pressure internally, but its taxonomy never
+ * becomes Artist-facing language.
  *
- * Reality owns concrete truth.
- * The Artist owns visible language, form, rhythm, selection and treatment.
- *
- * The rendered product is moving screen text.
- * Each cut is one attention beat.
- *
- * A Movie is a possibility, not an outline.
- * The Artist may choose one, combine several, mutate one, use none,
- * or discover a stronger idea outside every Movie.
+ * The Artist owns the visible experience: language, rhythm, ordering, omission,
+ * repetition, contrast, callback and final landing.
  */
+import type { AuthorDomainContext, AuthorScene, RealityGraph } from "@qre/contracts";
+import { localModelGenerate, type LocalModelJsonSchema } from "./localModelRuntime.js";
+import type { AuthorCreativeSpine } from "./authorCreativeSpine.js";
+import type { AuthorCreativeInterpretation } from "./authorCognitionUniversal.js";
 
-import type {
-  AuthorDomainContext,
-  AuthorScene,
-  LatentMovieCandidate,
-  RealityGraph,
-} from "@qre/contracts";
-import {
-  localModelGenerate,
-  type LocalModelJsonSchema,
-} from "./localModelRuntime.js";
-import {
-  judgeRealizedFilm,
-  type RealizedFilmJudgment,
-} from "./authorRealizedFilmJudge.js";
-export type RealizedScene = AuthorScene & {
-  sourceEventIds: string[];
-  score: number;
-};
+export type RealizedScene = AuthorScene & { sourceEventIds: string[]; score: number };
 
 export type AuthorRealizationResult = {
   scenes: RealizedScene[];
@@ -40,345 +22,84 @@ export type AuthorRealizationResult = {
   model: string;
   modelCalls: number;
   rejectedSets: number;
-
-  /**
-   * The Artist's semantic inspiration choice.
-   * This does NOT select the visible film.
-   */
-  selectedMovieIndex?: number;
-
-  /**
-   * The Artist's actual visible-film choice.
-   */
   selectedSetIndex?: number;
-
-  judgment?: RealizedFilmJudgment;
   reason?: string;
 };
 
-type RawScene = {
-  text?: unknown;
-  kind?: unknown;
-  sourceEventIds?: unknown;
-};
+type RawScene = { text?: unknown; kind?: unknown; sourceEventIds?: unknown };
+type ValidationResult = { scenes?: RealizedScene[]; reason?: string };
 
-type RawSet = {
-  scenes?: unknown;
-};
+type RawSet = { scenes?: unknown };
 
-type ValidationResult = {
-  scenes?: RealizedScene[];
-  reason?: string;
-};
+const INTERNAL = new RegExp(
+  "\\b(?:cognition|planner|candidate|trajectory|evidenceEventIds|semantic turn|future thread|creative opportunity|viewer state|compiler|realizer|SequencePlay|Mouth|Author|metamorphic|creative spine|realization move|mechanism)\\b",
+  "i",
+);
 
-type ArtistDevice = {
-  relationKind: string;
-  mechanism: string;
-  sourceEventIds: string[];
-  operation: string;
-  transformationModes: string[];
-  languageAim: string;
-};
+const EXPLANATION = new RegExp(
+  "\\b(?:this means|which means|the point is|the meaning is|in other words|this shows|which shows|because this|the reason is)\\b",
+  "i",
+);
 
-const INTERNAL =
-  /\b(?:cognition|planner|planning|candidate|trajectory|viewer|audience|curiosity|prediction error|state shift|sequence|author|mouth|canonical|supplied evidence|evidenceEventIds|payoff dependency|memory projection|future thread|latent movie|creative opportunity|semantic turn|semanticRealization)\b/i;
+const GENERIC = new RegExp(
+  "^(?:something happened|something changed|everything changed|a moment|the moment|a feeling|the feeling|worth noticing|it was meaningful|it was special)\\.?$",
+  "i",
+);
 
-const EXPLANATION =
-  /\b(?:this means|which means|this shows|which shows|the point is|the meaning is|in other words|reveals that|the viewer|the audience|the narrative|the experience was|the significance|let the supplied detail|the relationship between|changes what is worth noticing)\b/i;
-
-const GENERIC =
-  /^(?:something happened|something changed|everything changed|a moment|the moment|a feeling|the feeling|it was meaningful|it was special|it was important|the transformation was|the situation was|the experience was|the result was|worth noticing)\.?$/i;
-
-const SCREENPLAY =
-  /^(?:close(?:\s+in)?(?:\s+on)?|quick\s+cut|cut\s+to|sound\s*:|camera\s*:|wide\s+shot|medium\s+shot|tight\s+shot|fade(?:\s+(?:in|out|to))?|angle(?:\s+on)?|montage|dissolve(?:\s+to)?|smash\s+cut)\b/i;
-
-const SCREENPLAY_INLINE =
-  /\b(?:camera|close-up|wide shot|medium shot|tight shot|sound design|sound effect|sfx|voice-over|voiceover)\s*:/i;
-
-const ALLOWED_KINDS = new Set([
-  "line",
-  "hook",
-  "movement",
-  "discovery",
-  "turn",
-  "payoff",
-  "afterglow",
-]);
-
+const SCREENPLAY = /^(?:close(?:\s+in)?(?:\s+on)?|quick\s+cut|cut\s+to|sound\s*:|camera\s*:|wide\s+shot|medium\s+shot|tight\s+shot|fade(?:\s+(?:in|out|to))?|angle(?:\s+on)?|montage|dissolve(?:\s+to)?|smash\s+cut)\b/i;
+const SCREENPLAY_INLINE = /\b(?:camera|close-up|wide shot|medium shot|tight shot|sound design|sound effect|sfx|voice-over|voiceover)\s*:/i;
+const PRODUCTION_DIRECTION =
+  /^\s*(?:\[|\()\s*(?:visual|camera|shot|scene direction|b-roll|edit|editing|time-lapse|timelapse|rapid-cut|rapid cut|montage|sfx|sound design|voice-over|voiceover)\b/i;
+const ALLOWED_KINDS = new Set(["line", "hook", "movement", "discovery", "turn", "payoff", "afterglow"]);
 const MAX_CUTS = 24;
+const MAX_CANDIDATES = 4;
 const MAX_BEAT_CHARS = 140;
 
-const clean = (value: unknown): string =>
-  String(value ?? "")
-    .replace(/\s+/g, " ")
-    .trim();
+const clean = (value: unknown): string => String(value ?? "").replace(/\\s+/g, " ").trim();
+const unique = (values: readonly string[]): string[] => [...new Set(values.map(clean).filter(Boolean))];
+const words = (text: string): string[] => clean(text).toLowerCase().match(/[a-z0-9]+/g) ?? [];
 
-const unique = (values: readonly string[]): string[] => [
-  ...new Set(values.map(clean).filter(Boolean)),
-];
-
-const words = (text: string): string[] =>
-  clean(text)
-    .toLowerCase()
-    .match(/[a-z0-9]+/g) ?? [];
-
-/**
- * Lexical overlap used ONLY for provenance binding.
- *
- * This is not a creative judge.
- * It does not select art.
- * It simply helps bind a finished line back to supplied reality.
- */
 function overlap(a: string, b: string): number {
   const left = new Set(words(a));
   const right = new Set(words(b));
-
   if (!left.size || !right.size) return 0;
-
   let intersection = 0;
-
-  for (const token of left) {
-    if (right.has(token)) intersection += 1;
-  }
-
+  for (const token of left) if (right.has(token)) intersection += 1;
   return (2 * intersection) / (left.size + right.size);
 }
 
-function relationForMovie(
-  graph: RealityGraph,
-  movie: LatentMovieCandidate,
-): { relationKind: string; sourceEventIds: string[] } {
-  const preferred = new Set(
-    movie.supportingRelationKinds.map(clean).filter(Boolean),
-  );
-
-  for (const step of movie.trajectory) {
-    const ids = unique(step.eventIds);
-
-    if (ids.length < 2) continue;
-
-    const relation = graph.relations.find(
-      (candidate) =>
-        ids.includes(candidate.from) &&
-        ids.includes(candidate.to) &&
-        (!preferred.size || preferred.has(candidate.kind)),
-    );
-
-    if (relation) {
-      return {
-        relationKind: relation.kind,
-        sourceEventIds: [relation.from, relation.to],
-      };
-    }
-  }
-
-  for (const relation of graph.relations) {
-    if (preferred.size && !preferred.has(relation.kind)) continue;
-
-    if (
-      movie.anchorEventIds.includes(relation.from) ||
-      movie.anchorEventIds.includes(relation.to)
-    ) {
-      return {
-        relationKind: relation.kind,
-        sourceEventIds: [relation.from, relation.to],
-      };
-    }
-  }
-
-  return {
-    relationKind: "observation",
-    sourceEventIds: movie.anchorEventIds.slice(0, 2),
-  };
-}
-
-function mechanismFor(relationKind: string): {
-  mechanism: string;
-  operation: string;
-  modes: string[];
-  languageAim: string;
-} {
-  switch (relationKind) {
-    case "recontextualizes":
-      return {
-        mechanism: "expectation_shift",
-        operation: "reframe",
-        modes: [
-          "compression",
-          "juxtaposition",
-          "omission",
-          "grammatical_shift",
-          "callback",
-        ],
-        languageAim:
-          "make the later fact alter the charge of the earlier one",
-      };
-
-    case "contrasts":
-      return {
-        mechanism: "contrast",
-        operation: "contrast",
-        modes: [
-          "juxtaposition",
-          "asymmetry",
-          "fragmentation",
-          "reversal",
-          "silence",
-        ],
-        languageAim: "make the difference itself carry the energy",
-      };
-
-    case "changes":
-    case "state_change":
-      return {
-        mechanism: "state_shift",
-        operation: "escalate",
-        modes: [
-          "before_after_compression",
-          "status_flip",
-          "repetition_with_mutation",
-          "inversion",
-        ],
-        languageAim:
-          "make the changed state feel different without inventing the transition",
-      };
-
-    case "repeats":
-      return {
-        mechanism: "recurrence",
-        operation: "recur",
-        modes: [
-          "repetition_with_mutation",
-          "callback",
-          "rhythmic_return",
-          "omission",
-        ],
-        languageAim: "return to a real detail with a changed charge",
-      };
-
-    case "causes":
-      return {
-        mechanism: "consequence",
-        operation: "consequence",
-        modes: [
-          "compression",
-          "aftermath",
-          "causal_cut",
-          "status_flip",
-        ],
-        languageAim: "let the consequence land rather than explain the cause",
-      };
-
-    case "converges":
-      return {
-        mechanism: "convergence",
-        operation: "converge",
-        modes: [
-          "accumulation",
-          "collision",
-          "fragmentation",
-          "compression",
-        ],
-        languageAim:
-          "make separate supplied details arrive at one felt point",
-      };
-
-    case "before":
-    case "after":
-      return {
-        mechanism: "continuation",
-        operation: "continue",
-        modes: ["ellipsis", "open_end", "callback", "compression"],
-        languageAim:
-          "leave the world moving rather than summarizing it",
-      };
-
-    default:
-      return {
-        mechanism: "observation",
-        operation: "observe",
-        modes: [
-          "compression",
-          "fragmentation",
-          "nominalization",
-          "silence",
-          "unexpected_selection",
-        ],
-        languageAim:
-          "make one supplied detail newly charged without inventing plot",
-      };
-  }
-}
-
-function buildArtistDevice(
-  graph: RealityGraph,
-  movie: LatentMovieCandidate,
-): ArtistDevice {
-  const relation = relationForMovie(graph, movie);
-  const mechanism = mechanismFor(relation.relationKind);
-
-  return {
-    relationKind: relation.relationKind,
-    mechanism: mechanism.mechanism,
-    sourceEventIds: relation.sourceEventIds,
-    operation: mechanism.operation,
-    transformationModes: mechanism.modes,
-    languageAim: mechanism.languageAim,
-  };
+function canonicalText(text: string): string {
+  return clean(text)
+    .toLowerCase()
+    .replace(/[“”‘’]/g, "'")
+    .replace(/[^a-z0-9']+/g, " ")
+    .trim();
 }
 
 function eventText(event: RealityGraph["events"][number]): string {
-  return [
-    event.label,
-    ...event.entities,
-    event.place,
-    event.time,
-  ]
-    .filter(Boolean)
-    .join(" ");
+  return [event.label, ...event.entities, event.place, event.time].filter(Boolean).join(" ");
 }
 
 function parseJson(text: string): Record<string, unknown> | undefined {
-  const cleaned = text
-    .trim()
-    .replace(/^```(?:json)?/i, "")
-    .replace(/```$/i, "")
-    .trim();
-
+  const cleaned = text.trim().replace(/^```(?:json)?/i, "").replace(/```$/i, "").trim();
   try {
     const parsed = JSON.parse(cleaned);
-
-    return parsed && typeof parsed === "object"
-      ? (parsed as Record<string, unknown>)
-      : undefined;
+    return parsed && typeof parsed === "object" ? parsed as Record<string, unknown> : undefined;
   } catch {
     const start = cleaned.indexOf("{");
     const end = cleaned.lastIndexOf("}");
-
     if (start < 0 || end <= start) return undefined;
-
     try {
       const parsed = JSON.parse(cleaned.slice(start, end + 1));
-
-      return parsed && typeof parsed === "object"
-        ? (parsed as Record<string, unknown>)
-        : undefined;
+      return parsed && typeof parsed === "object" ? parsed as Record<string, unknown> : undefined;
     } catch {
       return undefined;
     }
   }
 }
 
-/**
- * Bind provenance AFTER the Artist creates the text.
- *
- * Artist language is authoritative.
- * Provenance is reconstructed from the finished artifact.
- */
 function bindProvenance(
   rawIds: unknown,
-  index: number,
-  movies: readonly LatentMovieCandidate[],
   graph: RealityGraph,
   sceneText: string,
 ): string[] {
@@ -392,936 +113,315 @@ function bindProvenance(
       )
     : [];
 
-  if (supplied.length) {
-    return supplied.slice(0, 3);
-  }
+  if (supplied.length) return supplied.slice(0, 3);
 
   const scored = graph.events
-    .map((event) => ({
-      id: event.id,
-      score: overlap(sceneText, eventText(event)),
-    }))
-    .filter((item) => item.score > 0)
+    .map((event) => ({ id: event.id, score: overlap(sceneText, eventText(event)) }))
+    .filter((item) => item.score >= 0.18)
     .sort((a, b) => b.score - a.score);
 
-  if (scored.length) {
-    const best = scored[0]!.score;
+  if (!scored.length) return [];
 
-    return scored
-      .filter(
-        (item) =>
-          item.score >= Math.max(0.18, best * 0.55),
-      )
-      .slice(0, 2)
-      .map((item) => item.id);
-  }
-
-  /**
-   * Provenance fallback.
-   *
-   * This is NOT creative selection.
-   * We rotate through cognitive candidates only to avoid blindly
-   * attaching every orphaned scene to Movie zero.
-   */
-  const fallbackMovie =
-    movies.length > 0
-      ? movies[index % movies.length]
-      : undefined;
-
-  if (fallbackMovie) {
-    const trajectoryIds = unique(
-      fallbackMovie.trajectory.flatMap((step) => step.eventIds),
-    ).filter((id) => valid.has(id));
-
-    if (trajectoryIds.length) {
-      return [
-        trajectoryIds[
-          Math.min(index, trajectoryIds.length - 1)
-        ]!,
-      ];
-    }
-
-    const anchors = unique(
-      fallbackMovie.anchorEventIds.filter((id) => valid.has(id)),
-    );
-
-    if (anchors.length) {
-      return anchors.slice(0, 2);
-    }
-  }
-
-  return [];
+  const best = scored[0]!.score;
+  return scored
+    .filter((item) => item.score >= Math.max(0.22, best * 0.55))
+    .slice(0, 2)
+    .map((item) => item.id);
 }
 
-function validateSet(
-  raw: unknown,
-  input: {
-    graph: RealityGraph;
-    movies: readonly LatentMovieCandidate[];
-  },
-): ValidationResult {
-  if (!raw || typeof raw !== "object") {
-    return { reason: "set is not an object" };
-  }
+function isDuplicateLine(text: string, previous: readonly string[]): boolean {
+  const canonical = canonicalText(text);
+  if (!canonical) return false;
+  return previous.some((item) => {
+    const other = canonicalText(item);
+    return other === canonical || overlap(canonical, other) >= 0.86;
+  });
+}
+
+function validateSet(raw: unknown, input: { graph: RealityGraph }): ValidationResult {
+  if (!raw || typeof raw !== "object") return { reason: "treatment is not an object" };
 
   const row = raw as RawSet;
-
-  if (!Array.isArray(row.scenes)) {
-    return { reason: "set.scenes is missing" };
-  }
-
-  if (row.scenes.length < 2) {
-    return { reason: "film needs at least 2 cuts" };
-  }
-
-  if (row.scenes.length > MAX_CUTS) {
-    return {
-      reason: `film exceeds ${MAX_CUTS} cuts`,
-    };
-  }
+  if (!Array.isArray(row.scenes)) return { reason: "treatment.scenes is missing" };
+  if (row.scenes.length < 1) return { reason: "treatment contains no screens" };
+  if (row.scenes.length > MAX_CUTS) return { reason: `treatment exceeds ${MAX_CUTS} screens` };
 
   const scenes: RealizedScene[] = [];
+  const previousTexts: string[] = [];
 
   for (const [index, item] of row.scenes.entries()) {
-    if (!item || typeof item !== "object") {
-      return {
-        reason: `cut ${index + 1} is not an object`,
-      };
-    }
+    if (!item || typeof item !== "object") return { reason: `screen ${index + 1} is not an object` };
 
     const scene = item as RawScene;
     const text = clean(scene.text);
-
-    if (!text) {
-      return {
-        reason: `cut ${index + 1} is empty`,
-      };
-    }
-
-    if (text.length > MAX_BEAT_CHARS) {
-      return {
-        reason: `cut ${index + 1} exceeds ${MAX_BEAT_CHARS} characters`,
-      };
-    }
-
-    if (INTERNAL.test(text)) {
-      return {
-        reason: `cut ${index + 1} leaks internal architecture`,
-      };
-    }
-
-    if (EXPLANATION.test(text)) {
-      return {
-        reason: `cut ${index + 1} explains instead of dramatizing`,
-      };
-    }
-
-    if (GENERIC.test(text)) {
-      return {
-        reason: `cut ${index + 1} is generic`,
-      };
-    }
-
+    if (!text) return { reason: `screen ${index + 1} is empty` };
+    if (text.length > MAX_BEAT_CHARS) return { reason: `screen ${index + 1} exceeds ${MAX_BEAT_CHARS} characters` };
+    if (INTERNAL.test(text)) return { reason: `screen ${index + 1} leaks internal architecture` };
+    if (EXPLANATION.test(text)) return { reason: `screen ${index + 1} explains instead of expressing` };
+    if (GENERIC.test(text)) return { reason: `screen ${index + 1} is generic` };
+    if (SCREENPLAY.test(text) || SCREENPLAY_INLINE.test(text)) return { reason: `screen ${index + 1} contains production direction` };
     if (
-      SCREENPLAY.test(text) ||
-      SCREENPLAY_INLINE.test(text)
+      PRODUCTION_DIRECTION.test(text) ||
+      /\\b(?:time-lapse|timelapse|rapid-cut|rapid cut|b-roll|camera angle|camera shot)\\b/i.test(text)
     ) {
-      return {
-        reason: `cut ${index + 1} contains screenplay direction`,
-      };
+      return { reason: `screen ${index + 1} contains production direction` };
     }
+    if (isDuplicateLine(text, previousTexts)) return { reason: `screen ${index + 1} repeats an earlier screen` };
 
     const rawKind = clean(scene.kind);
-
     const kind = ALLOWED_KINDS.has(rawKind)
-      ? (rawKind as AuthorScene["kind"])
+      ? rawKind as AuthorScene["kind"]
       : index === 0
         ? "hook"
         : index === row.scenes.length - 1
           ? "payoff"
           : "line";
 
-    scenes.push({
-      text,
-      kind,
-      sourceEventIds: bindProvenance(
-        scene.sourceEventIds,
-        index,
-        input.movies,
-        input.graph,
-        text,
-      ),
-      score: 0,
-    });
-  }
+    const sourceEventIds = bindProvenance(scene.sourceEventIds, input.graph, text);
+    if (!sourceEventIds.length) return { reason: `screen ${index + 1} could not be grounded to supplied reality` };
 
-  if (
-    scenes.some(
-      (scene) => scene.sourceEventIds.length === 0,
-    )
-  ) {
-    return {
-      reason:
-        "one or more cuts could not be grounded to supplied reality",
-    };
+    scenes.push({ text, kind, sourceEventIds, score: 1 });
+    previousTexts.push(text);
   }
 
   return { scenes };
 }
 
-function context(
-  input: {
-    prompt: string;
-    subject: string;
-    lens: string;
-    graph: RealityGraph;
-    movies: readonly LatentMovieCandidate[];
-    domainContext?: AuthorDomainContext;
-    memoryContext?: string[];
-    priorScenes?: string[];
-    creativeLearningContext?: string[];
-  },
-  repairFeedback: string,
-) {
-  const availableReality = input.graph.events.map(
-    (event) => ({
+function context(input: {
+  prompt: string;
+  subject: string;
+  lens: string;
+  graph: RealityGraph;
+  spine: AuthorCreativeSpine;
+  interpretations: readonly AuthorCreativeInterpretation[];
+  domainContext?: AuthorDomainContext;
+  memoryContext?: string[];
+  priorScenes?: string[];
+  creativeLearningContext?: string[];
+}) {
+  const creatorContext = input.domainContext
+    ? {
+        category: clean(input.domainContext.category),
+        businessType: clean(input.domainContext.businessType),
+        businessName: clean(input.domainContext.businessName),
+        businessDescription: clean(input.domainContext.businessDescription),
+        serviceType: clean(input.domainContext.serviceType),
+        serviceName: clean(input.domainContext.serviceName),
+        subjectKind: clean(input.domainContext.subjectKind),
+        specialties: unique(input.domainContext.specialties ?? []).slice(0, 24),
+        contextualSignals: unique(input.domainContext.contextualSignals ?? []).slice(0, 24),
+        creatorRole: clean(input.domainContext.creatorRole),
+        audience: unique(input.domainContext.audience ?? []).slice(0, 24),
+        objective: clean(input.domainContext.objective),
+        desiredAction: clean(input.domainContext.desiredAction),
+        creativePreferences: unique(input.domainContext.creativePreferences ?? []).slice(0, 24),
+      }
+    : null;
+
+  const creativeSearch = {
+    groundedMeaning: input.interpretations.slice(0, 4).map((interpretation) => ({
+      evidenceEventIds: interpretation.evidenceEventIds.slice(0, 4),
+      thesis: clean(interpretation.thesis),
+    })),
+    selectedCharge: {
+      feltEffect: clean(input.spine.lensTreatment.feltEffect),
+      languageAim: clean(input.spine.lensTreatment.languageAim),
+      pressureHints: unique(input.spine.lensTreatment.pressure ?? []).slice(0, 10),
+      guardrails: unique(input.spine.lensTreatment.guardrails ?? []).slice(0, 12),
+    },
+    alternateGroundedCharges: input.spine.opportunities.slice(0, 6).map((opportunity) => ({
+      evidenceEventIds: opportunity.evidenceEventIds.slice(0, 4),
+      whyItWorks: clean(opportunity.whyItWorks),
+    })),
+  };
+
+  return {
+    creativeTask: clean(input.prompt),
+    creatorContext,
+    creatorContextRule: "Creator context shapes intent and emphasis only. It never creates reality or unsupported claims.",
+    subjectReference: clean(input.subject),
+    lens: clean(input.lens) || "NONE",
+    sourceReality: input.graph.events.map((event) => ({
       id: event.id,
       text: eventText(event),
       entities: event.entities,
       place: event.place,
       time: event.time,
-    }),
-  );
-
-  const creatorContext = input.domainContext
-    ? {
-        category: clean(
-          input.domainContext.category,
-        ),
-        businessType: clean(
-          input.domainContext.businessType,
-        ),
-        businessName: clean(
-          input.domainContext.businessName,
-        ),
-        businessDescription: clean(
-          input.domainContext.businessDescription,
-        ),
-        serviceType: clean(
-          input.domainContext.serviceType,
-        ),
-        serviceName: clean(
-          input.domainContext.serviceName,
-        ),
-        subjectKind: clean(
-          input.domainContext.subjectKind,
-        ),
-        knownCapabilities: unique(
-          input.domainContext.knownCapabilities ?? [],
-        ).slice(0, 24),
-        contextualSignals: unique(
-          input.domainContext.contextualSignals ?? [],
-        ).slice(0, 24),
-        creatorRole: clean(
-          input.domainContext.creatorRole,
-        ),
-        audience: unique(
-          input.domainContext.audience ?? [],
-        ).slice(0, 24),
-        objective: clean(
-          input.domainContext.objective,
-        ),
-        desiredAction: clean(
-          input.domainContext.desiredAction,
-        ),
-        creativePreferences: unique(
-          input.domainContext.creativePreferences ?? [],
-        ).slice(0, 24),
-      }
-    : null;
-   const creativeSparks = input.movies
-  .slice(0, 8)
-  .map((movie, index) => ({
-    index,
-    id: movie.id,
-    lens: clean(movie.lens),
-    hypothesis: clean(movie.hypothesis),
-    payoff: clean(movie.payoff),
-    unresolvedQuestion: clean(
-      movie.unresolvedQuestion,
-    ),
-    supportingRelations: unique(
-      movie.supportingRelationKinds,
-    ),
-    anchors: unique(
-      movie.anchorEventIds,
-    ),
-  }));
-
-  return {
-    creativeTask: clean(input.prompt),
-
-    creatorContext,
-
-    creatorContextRule:
-      "Creator context defines what the media is for when supplied. Use it to shape creative intent, emphasis, identity, promotional relevance, audience relevance and desired action. It is never source reality. Never invent claims, capabilities, prices, reactions, actors, actions, outcomes or events from creator context alone.",
-
-    subjectReference: clean(input.subject),
-
-    frame: clean(input.lens) || "NONE",
-
-    sourceReality: availableReality,
-
-    realityPriority:
-      "The entire supplied reality is the primary creative palette. Every supplied event is eligible for artistic use.",
-
-    creativeSparks,
-
-    selectedStructureRule:
-      "These Movie possibilities are hypotheses discovered by cognition. They are not instructions, outlines, rankings, or required structures. The Artist may choose one, combine several, transform one, ignore one, or reject all of them.",
-
-    memory: (
-      input.memoryContext ?? []
-    ).slice(0, 20),
-
-    priorFilms: (
-      input.priorScenes ?? []
-    ).slice(-12),
-
-    creativeLearning: (
-      input.creativeLearningContext ?? []
-    ).slice(0, 20),
-
-    repairFeedback: clean(repairFeedback),
-
-    creativePermission:
-      "Interpretive language is wide open. Humor, irony, metaphor, personification, status, absurdity, tenderness, menace, gamification, playful language, pop-cultural framing, compression, omission, fragments, sensory intensity, unexpected grammar, attitude and dramatic framing are available whenever earned by the supplied reality.",
-
-    artistRule:
-      "The Artist owns the creative treatment. Semantic truth must survive; source wording does not. Start from creator objective plus the entire reality palette. Treat cognition's Movies only as possible sparks. You may invent no literal facts, but you may make the truth feel radically more interesting through framing, compression, metaphor, juxtaposition, rhythm, repetition, implication, contrast, escalation, surprise and unexpected language.",
-
-    selectionRule:
-      "Do not merely elaborate the first Movie. Before writing, silently compare all possibilities against the entire supplied reality and creator objective. A detail outside every Movie may be the strongest hook. A Movie may be partially used or discarded entirely.",
-
-    serviceMediaRule:
-      "When the creator objective is service or business media, make media for the service or business—not a boring chronological recap of the service appointment. Use supplied details to create desire, personality, memorability, proof, identity, humor, tension, transformation, craft, speed, precision, chaos-to-order or another earned creative treatment.",
-
-    beatRule:
-      "One beat is one screenful of attention, not one fact. Combine facts when their collision creates the stronger hit. Split facts when separation creates rhythm, surprise, escalation or payoff. The Artist chooses the number of beats.",
-
-    truthRule:
-      "Concrete supplied reality is immutable. Figurative language is allowed. Never present invented people, objects, actions, locations, sounds, dialogue, reactions, outcomes, capabilities, offers, prices or claims as literal reality.",
-
-    sensoryRule:
-      "Supplied sound, music, bass, silence, darkness, light, heat, cold, movement, texture, taste, smell, impact, repetition and physical work are creative material, not facts to flatten into explanation.",
-
-    universalityRule:
-      "Do not assume every subject is a person, every experience is a story, every business is an advertisement, or every creation has the same structure. Let the supplied objective and reality determine the form.",
+    })),
+    creativeSearch,
+    realityPriority: "The supplied reality is the entire factual palette. Every concrete claim must remain grounded in it.",
+    memory: (input.memoryContext ?? []).slice(0, 20),
+    priorScreens: (input.priorScenes ?? []).slice(-12),
+    creativeLearning: (input.creativeLearningContext ?? []).slice(0, 20),
   };
 }
 
-function prompt(
-  attempt: number,
-  feedback: string,
-): string {
+function artistPrompt(attempt: number, feedback: string): string {
   const attacks = [
-    "Find the strongest creative idea hidden anywhere in the supplied material. Then make it undeniable.",
-
-    "Reject the safest treatment. Search for the unusual combination, contradiction, joke, image, mechanic, rhythm or detail that makes this piece uniquely itself.",
-
-    "Make the thing a human would remember tomorrow. Take a creative risk without breaking reality.",
+    "Search for the latent charge before writing. Then embody it without explaining it.",
+    "Destroy the safest fact-list treatment. Rebuild from the strongest grounded relationship and the whole reality palette. Be materially different from the last attempt.",
+    "Make the viewer recognize something they did not see coming. Use the strangest useful supplied detail, a sharp contrast, a callback, a status shift, a consequence, a joke, a metaphor, or another earned device.",
   ];
 
   return [
     "You are QRE's ONE CREATIVE ARTIST.",
-
-    "You are the final creative authority for the visible moving-text film.",
-
-    "You are NOT a summarizer.",
-    "You are NOT a receipt writer.",
-    "You are NOT a chronology formatter.",
-    "You are NOT a caption generator.",
-    "You are NOT a screenplay writer.",
-
-    "You are creating entertainment media from supplied reality.",
-
-    "SOURCE TRUTH:",
-    "Concrete supplied reality is sacred.",
-    "Source wording is disposable.",
-    "Never invent literal facts.",
-
-    "Creative expression may be bold, strange, funny, dramatic, lyrical, absurd, fierce, surreal, deadpan, tender, playful or irreverent when the supplied world supports it.",
-
-    "ARTIST AUTHORITY:",
-    "The supplied Movie possibilities are ONLY hypotheses.",
-    "They are not instructions.",
-    "They are not beat outlines.",
-    "They are not mandatory.",
-    "They are not the semantic spine.",
-    "Do not serialize a Movie trajectory.",
-    "Do not turn Movie steps into screens.",
-
-    "You may choose one Movie, combine several Movies, transform a Movie, partially use a Movie, or reject all Movies.",
-
-    "The entire supplied reality and creator objective outrank every Movie hypothesis.",
-
-    "CREATIVE ORDER:",
-    "FIRST silently understand the creator objective.",
-    "SECOND silently scan the entire supplied reality palette.",
-    "THIRD silently identify the strongest creative ingredients.",
-    "FOURTH silently choose the strongest creative idea.",
-    "FIFTH decide the rhythm and number of screens.",
-    "ONLY THEN write the films.",
-
-    "DO NOT CONFUSE MATERIAL WITH FORM:",
-    "Facts are material.",
-    "Movies are possibilities.",
-    "The Artist creates the form.",
-    "One fact can become multiple screens.",
-    "Multiple facts can become one screen.",
-    "A detail outside the selected Movie can become the most important detail in the film.",
-
-    "FOR SERVICE AND BUSINESS MEDIA:",
-    "When the creator objective is promotional, create actual media for the service, business, product, place or offering.",
-    "Do not make a boring appointment recap.",
-    "Do not simply narrate what happened in order.",
-    "Use reality to create personality, desire, identity, proof, humor, contrast, transformation, craft, speed, precision, chaos-to-order, surprise or another earned creative mechanism.",
-    "The viewer should want to keep watching and understand why this particular subject is worth noticing.",
-
-    "FIND THE FUCKING IDEA:",
-    "Silently ask:",
-    "What is the weirdest useful detail?",
-    "What two details become powerful when combined?",
-    "What is the strongest contradiction?",
-    "What can return with a changed meaning?",
-    "What can become the hook?",
-    "What can become the escalation?",
-    "What can become the turn?",
-    "What can become the payoff?",
-    "What makes this materially different from ten generic examples of the same category?",
-
-    "MOVING TEXT:",
-    "The viewer sees ONLY text.",
-    "One beat equals one screenful of attention.",
-    "Do not write production directions.",
-    "Do not describe camera work.",
-    "Do not explain why something is funny, meaningful or emotional.",
-    "Make the viewer experience it.",
-
-    "SCREEN RULE:",
-    "Do not write one beat per fact.",
-    "Do not make all beats the same length.",
-    "Do not force every fact into the film.",
-    "Do not force every Movie detail into the film.",
-    "Do not force a beginning-middle-end template.",
-    "Do not force a fixed beat count.",
-    "Use exactly as many beats as the idea needs.",
-
-    "LANGUAGE:",
-    "Compression is encouraged.",
-    "Fragments are encouraged.",
-    "Unexpected grammar is encouraged.",
-    "Metaphor is encouraged.",
-    "Personification is encouraged.",
-    "Attitude is encouraged.",
-    "Humor is encouraged.",
-    "Silence and omission are encouraged.",
-    "A small factual detail can carry an entire film.",
-
-    "FORBIDDEN VISIBLE LANGUAGE:",
-    "Never write CLOSE ON, QUICK CUT, CUT TO, SOUND:, CAMERA:, WIDE SHOT, MEDIUM SHOT, TIGHT SHOT, FADE, MONTAGE, DISSOLVE, SHOT OF, SFX, VOICE-OVER or production notes.",
-
-    "NO EXPLANATION:",
-    "Never write this means, the point is, the meaning is, the viewer, the audience, this shows or similar explanation.",
-    "Do not explain the metaphor.",
-    "Do not explain the artistic device.",
-
-    "CREATE:",
-    "Make something worth watching.",
-    "Make the supplied material feel alive.",
-    "Do not sanitize it into a summary.",
-    "Do not let a narrow semantic hypothesis trap the Artist.",
-    "Artist creativity is the product.",
-
-    "GENERATE FOUR DIFFERENT FILMS.",
-    "These must be genuinely different creative treatments.",
-    "Change the central idea, hook, structure, rhythm, ordering, joke, metaphor, framing, callback or creative mechanic.",
-    "Do not create four cosmetic rewrites of the same chronology.",
-
-    "The four films are independent creative alternatives.",
-
-    "AFTER CREATING THE FOUR FILMS:",
-    "Choose the strongest film yourself.",
-
-    "IMPORTANT SELECTION RULE:",
-    "selectedSetIndex chooses WHICH OF THE FOUR GENERATED FILMS should ship.",
-    "selectedMovieIndex records WHICH COGNITIVE MOVIE POSSIBILITY most influenced your treatment, if any.",
-    "These are different indexes.",
-    "Do not use the Movie index as the film-set index.",
-    "You may set selectedMovieIndex to null when you rejected all Movies.",
-
-    "OUTPUT EXACTLY:",
-    "{\"selectedSetIndex\":3,\"selectedMovieIndex\":1,\"sets\":[{\"scenes\":[{\"text\":\"...\",\"kind\":\"hook\"}]}]}",
-
-    "selectedSetIndex is zero-based and refers to the generated sets array.",
-    "selectedMovieIndex is zero-based and refers to the supplied creativePossibilities array.",
-    "selectedMovieIndex may be null if no Movie materially influenced the final work.",
-
-    "Each text value is exactly one moving screen.",
-
+    "Reality is sacred. Concrete supplied reality cannot be changed.",
+    "The entire supplied RealityGraph is your artistic palette, not a checklist.",
+    "Cognition has already searched for grounded meaning. Creative search findings are fuel, not copy.",
+    "The selected lens is pressure on treatment, not permission to invent reality.",
+    "The supplied facts are sacred. The supplied wording is disposable.",
+    "Do not merely translate facts into a sequence of captions. Search for the relationship that makes the facts worth experiencing together.",
+    "A minor supplied detail can become the hook, callback, joke, reversal, metaphorical image, pressure point or payoff when the surrounding reality earns it.",
+    "The reality palette is not an inventory lock. You may pull a detail from anywhere in the supplied reality when it makes the experience funnier, stranger, clearer, more moving, more vivid or more memorable.",
+    "SEARCH ACTIVE PRESSURE BEFORE DEFAULTING TO ATMOSPHERE. Look for obstacle, mission, race, countdown, competition, inspection, interruption, malfunction, recovery, transformation, before/after, status change, handoff, accumulation, escalation, reversal, reveal, absurd task, game-like progression, consequence or completion whenever the supplied reality actually supports one.",
+    "These are creative possibilities, not genres. A cleaning job may become a mission. A grooming appointment may become a transformation. A repair may become a rescue. A queue may become a race. An ordinary object may become a rival, trophy, witness or obsession. Use such forms only when the reality earns them.",
+    "Active, funny, blunt, kinetic, irreverent, game-like, dramatic, strange, tender, deadpan and lyrical forms are all valid. Do not default to melancholy, generic mystery, atmosphere or poetic sludge simply because it sounds artistic.",
+    "Do not explain the meaning. Make it felt through selection, order, rhythm, omission, implication, irony, metaphor, repetition, collision, reversal, abstraction, personification, callback, gamification or another earned device.",
+    "Metaphor is allowed. Figurative language may bend imagery without turning that imagery into a literal event.",
+    "Ask what would make a human laugh, feel something, or remember this tiny piece tomorrow. Make that piece.",
+    "Do not force every supplied fact into the experience. Do not force a fixed screen count. A 2-screen knockout can beat 8 dead screens. Rich reality can deserve a richer experience.",
+    "Do not force chronology when a stronger truthful ordering creates a clearer realization. Never invent literal chronology that is contradicted by the source reality.",
+    "Concrete truth remains the hard boundary: never invent a literal event, person, object, action, location, time, dialogue, motive, threat, target, mission, enemy, outcome, sensation or circumstance and present it as though it happened.",
+    "Never write production directions or internal analysis.",
+    "Generate FOUR materially different candidate treatments in one response. Change the core idea, relationship, mechanism, rhythm, ordering, compression, stance, joke, metaphor, callback or structure—not merely adjectives.",
+    "At least one candidate should seriously test an active-pressure form when the reality supports it. At least one should test a materially different non-active form. The candidates are exploratory, not a scoring rubric.",
+    "Order the candidates from exploration toward the strongest creative choice. Candidate four should be what you would actually ship if it remains truthful. Do not merely restate one idea four ways.",
+    "Each candidate may use the supplied reality broadly. Preserve sourceEventIds whenever possible as provenance. Provenance does not restrict artistic selection.",
+    "JSON ONLY: {sets:[{scenes:[{text,kind,sourceEventIds:[string]}]}]}. Return 1-4 candidates. Each candidate has 1-24 screens. No commentary.",
     "Allowed kinds: line, hook, movement, discovery, turn, payoff, afterglow.",
-
-    "No commentary.",
-    "No source IDs.",
-    "No analysis.",
-
     `Creative attack ${attempt + 1} of 3.`,
-
-    feedback
-      ? `Previous attempts failed because: ${feedback}. Do not become safer. Become more specific, more inventive and more committed to the strongest idea.`
-      : "No prior failure. Explore the full creative space.",
-
-    attacks[Math.min(attempt, attacks.length - 1)],
+    feedback ? `Previous attempts were rejected because: ${feedback}. Do not become safer. Become more inventive, more concrete, and more structurally varied.` : "No prior failure. Explore the full artistic space.",
+    attacks[Math.min(attempt, attacks.length - 1)]!,
   ].join("\n");
 }
+
 export async function realizeAuthorExperience(input: {
-prompt: string;
-subject: string;
-lens: string;
-graph: RealityGraph;
-movies: readonly LatentMovieCandidate[];
-domainContext?: AuthorDomainContext;
-memoryContext?: string[];
-priorScenes?: string[];
-creativeLearningContext?: string[];
+  prompt: string;
+  subject: string;
+  lens: string;
+  graph: RealityGraph;
+  creativeSpine: AuthorCreativeSpine;
+  interpretations: readonly AuthorCreativeInterpretation[];
+  domainContext?: AuthorDomainContext;
+  memoryContext?: string[];
+  priorScenes?: string[];
+  creativeLearningContext?: string[];
 }): Promise<AuthorRealizationResult> {
-let model = "fallback";
-let modelCalls = 0;
-let rejectedSets = 0;
+  let model = "deterministic";
+  let modelCalls = 0;
+  let rejectedSets = 0;
+  const rejectedReasons: string[] = [];
 
-let lastJudgment:
-| RealizedFilmJudgment
-| undefined;
-
-let selectedMovieIndex:
-| number
-| undefined;
-
-let selectedSetIndex:
-| number
-| undefined;
-
-const rejectedReasons: string[] = [];
-
-const realizationMode =
-process.env.QRE_AUTHOR_REALIZATION_MODE || "full";
-
-const artistJsonSchema: LocalModelJsonSchema = {
-type: "object",
-additionalProperties: false,
-required: [
-"selectedSetIndex",
-"selectedMovieIndex",
-"sets",
-],
-properties: {
-selectedSetIndex: {
-type: "integer",
-minimum: 0,
-maximum: 3,
-},
-selectedMovieIndex: {
-anyOf: [
-{
-type: "integer",
-minimum: 0,
-},
-{
-type: "null",
-},
-],
-},
-sets: {
-type: "array",
-minItems: 4,
-maxItems: 4,
-items: {
-type: "object",
-additionalProperties: false,
-required: ["scenes"],
-properties: {
-scenes: {
-type: "array",
-minItems: 2,
-maxItems: 24,
-items: {
-type: "object",
-additionalProperties: false,
-required: ["text", "kind"],
-properties: {
-text: {
-type: "string",
-minLength: 1,
-maxLength: 140,
-},
-kind: {
-type: "string",
-enum: [
-"line",
-"hook",
-"movement",
-"discovery",
-"turn",
-"payoff",
-"afterglow",
-],
-},
-},
-},
-},
-},
-},
-},
-},
-} as const;
-
-/**
-
-* EXPERIMENTAL SINGLE MODE
-*
-* Pass 1:
-* Artist chooses the strongest Movie.
-*
-* Pass 2:
-* Artist realizes only that Movie.
-*
-* The rest of QRE receives the same normalized result shape.
-*
-* FULL mode below remains the existing implementation.
-  */
-  if (realizationMode === "single") {
-  const feedback =
-  rejectedReasons.slice(-4).join(" | ");
-
-
-const ctx = context(input, feedback);
-
-
-
-const selectionSchema: LocalModelJsonSchema = {
-  type: "object",
-  additionalProperties: false,
-  required: ["selectedMovieIndex"],
-  properties: {
-    selectedMovieIndex: {
-      type: "integer",
-      minimum: 0,
-      maximum: Math.max(
-        0,
-        input.movies.length - 1,
-      ),
-    },
-  },
-};
-
-try {
-  /**
-   * SINGLE / PASS 1
-   *
-   * Artist chooses the creative Movie.
-   * No scenes are generated here.
-   */
-  const selection = await localModelGenerate(
-    [
-      {
-        role: "system",
-        content: `
-
-
-Choose the single strongest Movie candidate for the supplied reality.
-
-You are the Artist.
-You must make the creative choice yourself.
-
-Do not write scenes.
-Do not summarize the reality.
-Do not invent facts.
-Do not explain your reasoning.
-
-Return ONLY the selectedMovieIndex.
-
-Choose the Movie that can produce the strongest final experience from the supplied reality and constraints.
-`,
-},
-{
-role: "user",
-content: JSON.stringify(ctx),
-},
-],
-undefined,
-{
-numPredict: 128,
-temperature: 1.05,
-jsonSchema: selectionSchema,
-},
-);
-
-
-  model = selection.model;
-  modelCalls += 1;
-
-  const parsedSelection =
-    parseJson(selection.text);
-
-  const rawMovieValue =
-    parsedSelection?.selectedMovieIndex;
-
-  if (
-    typeof rawMovieValue !== "number" ||
-    !Number.isInteger(rawMovieValue) ||
-    rawMovieValue < 0 ||
-    rawMovieValue >= input.movies.length
-  ) {
-    rejectedSets += 1;
-
-    rejectedReasons.push(
-      "single mode returned invalid selectedMovieIndex",
-    );
-
-    return {
-      scenes: [],
-      score: 0,
-      model,
-      modelCalls,
-      rejectedSets,
-      selectedMovieIndex,
-      selectedSetIndex,
-      judgment: lastJudgment,
-      reason:
-        rejectedReasons.join(" | "),
-    };
-  }
-
-  selectedMovieIndex = rawMovieValue;
-
-  const selectedMovie =
-    input.movies[selectedMovieIndex];
-
-  if (!selectedMovie) {
-    rejectedSets += 1;
-
-    rejectedReasons.push(
-      "single mode selected nonexistent Movie",
-    );
-
-    return {
-      scenes: [],
-      score: 0,
-      model,
-      modelCalls,
-      rejectedSets,
-      selectedMovieIndex,
-      selectedSetIndex,
-      judgment: lastJudgment,
-      reason:
-        rejectedReasons.join(" | "),
-    };
-  }
-
-  const realizationSchema: LocalModelJsonSchema = {
+  const schema: LocalModelJsonSchema = {
     type: "object",
     additionalProperties: false,
-    required: ["scenes"],
+    required: ["sets"],
     properties: {
-      scenes: {
+      sets: {
         type: "array",
-        minItems: 2,
-        maxItems: 24,
+        minItems: 1,
+        maxItems: MAX_CANDIDATES,
         items: {
           type: "object",
           additionalProperties: false,
-          required: ["text", "kind"],
+          required: ["scenes"],
           properties: {
-            text: {
-              type: "string",
-              minLength: 1,
-              maxLength: 140,
-            },
-            kind: {
-              type: "string",
-              enum: [
-                "line",
-                "hook",
-                "movement",
-                "discovery",
-                "turn",
-                "payoff",
-                "afterglow",
-              ],
+            scenes: {
+              type: "array",
+              minItems: 1,
+              maxItems: MAX_CUTS,
+              items: {
+                type: "object",
+                additionalProperties: false,
+                required: ["text", "kind"],
+                properties: {
+                  text: { type: "string", minLength: 1, maxLength: MAX_BEAT_CHARS },
+                  kind: {
+                    type: "string",
+                    enum: ["line", "hook", "movement", "discovery", "turn", "payoff", "afterglow"],
+                  },
+                  sourceEventIds: {
+                    type: "array",
+                    items: { type: "string" },
+                    maxItems: 3,
+                  },
+                },
+              },
             },
           },
         },
       },
     },
-  };
+  } as const;
 
-  /**
-   * SINGLE / PASS 2
-   *
-   * Artist realizes ONLY the chosen Movie.
-   */
-  const realization =
-    await localModelGenerate(
-      [
-        {
-          role: "system",
-          content: `
+  for (let attempt = 0; attempt < 3; attempt += 1) {
+    const feedback = rejectedReasons.slice(-3).join(" | ");
 
-
-Realize the selected Movie into the strongest possible final scene sequence.
-
-You are the Artist.
-
-The supplied reality is authoritative.
-The selected Movie is the creative direction.
-
-Do not invent facts that are not supported by the supplied reality.
-Do not explain your reasoning.
-Do not describe your planning.
-Do not output metadata.
-Do not output anything except the finished scenes JSON.
-
-Every scene must materially use the supplied reality.
-
-Favor:
-
-* specificity
-* movement
-* meaningful progression
-* concrete details
-* actual supplied events
-
-Avoid:
-
-* generic summaries
-* planner language
-* timestamps used merely as a recap
-* invented backstory
-* fake escalation
-* psychological claims unsupported by reality
-  `,
-  },
-  {
-  role: "user",
-  content: JSON.stringify({
-  ...ctx,
-  selectedMovieIndex,
-  selectedMovie,
-  }),
-  },
-  ],
-  undefined,
-  {
-  numPredict: 3500,
-  temperature: 1.1,
-  jsonSchema: realizationSchema,
-  },
-  );
-
-  
-  model = realization.model;
-  modelCalls += 1;
-
-  const parsedRealization =
-    parseJson(realization.text);
-
-  const validation = validateSet(
-    {
-      scenes:
-        parsedRealization?.scenes,
-    },
-    {
-      graph: input.graph,
-      movies: input.movies,
-    },
-  );
-
-  if (!validation.scenes) {
-    rejectedSets += 1;
-
-    if (validation.reason) {
-      rejectedReasons.push(
-        validation.reason,
+    try {
+      const result = await localModelGenerate(
+        [
+          { role: "system", content: artistPrompt(attempt, feedback) },
+          {
+            role: "user",
+            content: JSON.stringify(
+              context({
+                prompt: input.prompt,
+                subject: input.subject,
+                lens: input.lens,
+                graph: input.graph,
+                spine: input.creativeSpine,
+                interpretations: input.interpretations,
+                domainContext: input.domainContext,
+                memoryContext: input.memoryContext,
+                priorScenes: input.priorScenes,
+                creativeLearningContext: input.creativeLearningContext,
+              }),
+            ),
+          },
+        ],
+        "json",
+        { numPredict: 4200, temperature: [1.0, 1.08, 1.15][attempt]!, jsonSchema: schema },
       );
+
+      model = result.model;
+      modelCalls += 1;
+
+      const parsed = parseJson(result.text);
+      const rawSets = Array.isArray(parsed?.sets)
+        ? parsed.sets.slice(0, MAX_CANDIDATES)
+        : parsed?.scenes
+          ? [parsed]
+          : [];
+
+      const validSets: Array<{ scenes: RealizedScene[]; index: number }> = [];
+      for (const [index, raw] of rawSets.entries()) {
+        const validation = validateSet(raw, { graph: input.graph });
+        if (!validation.scenes) {
+          rejectedSets += 1;
+          if (validation.reason) rejectedReasons.push(`candidate ${index + 1}: ${validation.reason}`);
+          continue;
+        }
+        validSets.push({ scenes: validation.scenes, index });
+      }
+
+      if (validSets.length) {
+        const winner = validSets[validSets.length - 1]!;
+        const score = winner.scenes.reduce((sum, scene) => sum + scene.score, 0) / winner.scenes.length;
+        return {
+          scenes: winner.scenes,
+          score,
+          model,
+          modelCalls,
+          rejectedSets,
+          selectedSetIndex: winner.index,
+          reason: rejectedReasons.length ? rejectedReasons.join(" | ") : undefined,
+        };
+      }
+    } catch (error) {
+      rejectedSets += 1;
+      rejectedReasons.push(error instanceof Error ? error.message : "artist realization failed");
     }
-
-    return {
-      scenes: [],
-      score: 0,
-      model,
-      modelCalls,
-      rejectedSets,
-      selectedMovieIndex,
-      selectedSetIndex,
-      judgment: lastJudgment,
-      reason:
-        rejectedReasons.join(" | ") ||
-        "single realization failed validation",
-    };
   }
-
-  /**
-   * Diagnostic only.
-   *
-   * Judge observes the already-created artifact.
-   * It does NOT choose the art.
-   */
-  const judgment =
-    judgeRealizedFilm({
-      scenes: validation.scenes,
-      movie: selectedMovie,
-      graph: input.graph,
-    });
-
-  lastJudgment = judgment;
-
-  /**
-   * Internal normalization:
-   *
-   * SINGLE returns one realized set.
-   * The rest of the system still receives the
-   * standard AuthorRealizationResult.
-   *
-   * Set index 0 is a normalization detail, not
-   * a creative choice.
-   */
-  selectedSetIndex = 0;
-
-  return {
-    scenes: validation.scenes,
-    score: judgment.score,
-    model,
-    modelCalls,
-    rejectedSets,
-    selectedMovieIndex,
-    selectedSetIndex,
-    judgment,
-    reason:
-      rejectedReasons.length
-        ? rejectedReasons.join(" | ")
-        : undefined,
-  };
-  
-
-  } catch (error) {
-  rejectedSets += 1;
-
-  
-  rejectedReasons.push(
-    error instanceof Error
-      ? error.message
-      : "single creative realizer call failed",
-  );
 
   return {
     scenes: [],
@@ -1329,245 +429,6 @@ Avoid:
     model,
     modelCalls,
     rejectedSets,
-    selectedMovieIndex,
-    selectedSetIndex,
-    judgment: lastJudgment,
-    reason:
-      rejectedReasons.join(" | ") ||
-      "single creative realizer failed",
+    reason: rejectedReasons.join(" | ") || "no realized treatment survived validation",
   };
-  
-
-  }
-  }
-
-  /**
-
-  * FULL MODE
-  *
-  * This is your existing implementation.
-  * Leave this path unchanged for A/B comparison.
-    */
-    for (let attempt = 0; attempt < 3; attempt += 1) {
-    const feedback =
-    rejectedReasons.slice(-4).join(" | ");
-
-  const ctx = context(input, feedback);
-
-  try {
-  const result = await localModelGenerate(
-  [
-  {
-  role: "system",
-  content: prompt(
-  attempt,
-  feedback,
-  ),
-  },
-  {
-  role: "user",
-  content: JSON.stringify(ctx),
-  },
-  ],
-  undefined,
-  {
-  numPredict: 10000,
-  temperature:
-  [1.05, 1.15, 1.1][attempt]!,
-  jsonSchema: artistJsonSchema,
-  },
-  );
-
-  
-  model = result.model;
-  modelCalls += 1;
-
-  const parsed = parseJson(result.text);
-
-  const rawSets = Array.isArray(
-    parsed?.sets,
-  )
-    ? parsed.sets
-    : [];
-
-  const rawSetIndex = Number(
-    parsed?.selectedSetIndex,
-  );
-
-  if (
-    Number.isInteger(rawSetIndex) &&
-    rawSetIndex >= 0 &&
-    rawSetIndex < rawSets.length
-  ) {
-    selectedSetIndex = rawSetIndex;
-  }
-
-  const rawMovieValue =
-    parsed?.selectedMovieIndex;
-
-  if (
-    typeof rawMovieValue === "number" &&
-    Number.isInteger(rawMovieValue) &&
-    rawMovieValue >= 0 &&
-    rawMovieValue < input.movies.length
-  ) {
-    selectedMovieIndex =
-      rawMovieValue;
-  } else if (
-    typeof rawMovieValue === "string" &&
-    rawMovieValue.trim() !== "" &&
-    Number.isInteger(
-      Number(rawMovieValue),
-    ) &&
-    Number(rawMovieValue) >= 0 &&
-    Number(rawMovieValue) < input.movies.length
-  ) {
-    selectedMovieIndex =
-      Number(rawMovieValue);
-  }
-
-  const diagnosticMovie =
-    selectedMovieIndex !== undefined
-      ? input.movies[
-          selectedMovieIndex
-        ]
-      : input.movies[0];
-
-  if (!diagnosticMovie) {
-    rejectedSets += 1;
-
-    rejectedReasons.push(
-      "no diagnostic Movie available",
-    );
-
-    continue;
-  }
-
-  const validSets: Array<{
-    scenes: RealizedScene[];
-    judgment: RealizedFilmJudgment;
-    index: number;
-  }> = [];
-
-  for (const [
-    index,
-    raw,
-  ] of rawSets.entries()) {
-    const validation =
-      validateSet(raw, {
-        graph: input.graph,
-        movies: input.movies,
-      });
-
-    if (!validation.scenes) {
-      rejectedSets += 1;
-
-      if (validation.reason) {
-        rejectedReasons.push(
-          validation.reason,
-        );
-      }
-
-      continue;
-    }
-
-    /**
-     * Diagnostic only.
-     *
-     * The judge does NOT choose the art.
-     * It observes the already-created artifact.
-     */
-    const judgment =
-      judgeRealizedFilm({
-        scenes: validation.scenes,
-        movie: diagnosticMovie,
-        graph: input.graph,
-      });
-
-    lastJudgment = judgment;
-
-    validSets.push({
-      scenes: validation.scenes,
-      judgment,
-      index,
-    });
-  }
-
-  if (!validSets.length) {
-    continue;
-  }
-
-  /**
-   * Artist chooses generated film.
-   *
-   * Never confuse this with selectedMovieIndex.
-   */
-  const selected =
-    selectedSetIndex !== undefined
-      ? validSets.find(
-          (candidate) =>
-            candidate.index ===
-            selectedSetIndex,
-        )
-      : undefined;
-
-  /**
-   * If Artist selection was malformed, preserve
-   * creativity rather than collapsing the whole run.
-   *
-   * Pick the last valid candidate because prompt position
-   * four is intentionally the strongest shipping attempt.
-   */
-  const chosen =
-    selected ??
-    validSets[validSets.length - 1]!;
-
-  selectedSetIndex = chosen.index;
-
-  return {
-    scenes: chosen.scenes,
-    score: chosen.judgment.score,
-    model,
-    modelCalls,
-    rejectedSets,
-    selectedMovieIndex,
-    selectedSetIndex,
-    judgment: chosen.judgment,
-    reason:
-      rejectedReasons.length
-        ? rejectedReasons.join(" | ")
-        : undefined,
-  };
-  
-
-  } catch (error) {
-  rejectedSets += 1;
-
-  
-  rejectedReasons.push(
-    error instanceof Error
-      ? error.message
-      : "creative realizer call failed",
-  );
-  
-
-  }
-  }
-
-  return {
-  scenes: [],
-  score: 0,
-  model,
-  modelCalls,
-  rejectedSets,
-  selectedMovieIndex,
-  selectedSetIndex,
-  judgment: lastJudgment,
-  reason:
-  rejectedReasons.join(" | ") ||
-  "no realized film survived validation",
-  };
-  }
-
-
-
+}

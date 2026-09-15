@@ -3,7 +3,7 @@
  * Semantic structures shared by canonical Mouth candidate, repair, quality,
  * and sequence-selection services. These are not viewer prose.
  */
-import type { LatentSemanticRealization } from "../movie/latentMovie.js";
+import type { LatentSemanticRealization } from "../cognition/metamorphic.js";
 import type { MouthRealizationAuthority } from "./realizationAuthority.js";
 import type { RealizationObligations } from "./realizationObligations.js";
 

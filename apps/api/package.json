@@ -10,7 +10,6 @@
     "author:fast": "tsx ./author-acceptance.ts",
     "author:readout-gate": "tsx ./author-readout-acceptance.ts",
     "author:semantic-gate": "tsx ./author-semantic-gate-acceptance.ts",
-    "author:superintelligence": "tsx ./author-superintelligence-lab.ts",
     "author:universal-cognition": "tsx ./author-universal-cognition-acceptance.ts",
     "author:realized-film": "tsx ./author-realized-film-acceptance.ts"
   },

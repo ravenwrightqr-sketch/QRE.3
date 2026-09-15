@@ -1,6 +1,6 @@
 /** QRE ENGINE REPOSITORY CONTRACTS */
 
-import type { AnalyticsEventType } from "@qre/contracts";
+import type { AnalyticsEventType, SequencePlay } from "@qre/contracts";
 
 export type FlowStepRecord = {
   id: string;
@@ -19,6 +19,7 @@ export type AssetExperienceRecord = {
   title: string | null;
   sourcePrompt: string | null;
   blueprint: unknown;
+  sequence?: SequencePlay | null;
   createdAt?: string;
 };
 
@@ -89,7 +90,7 @@ export interface StoryDeliveryRepository {
     sessionId: string;
     moments: unknown;
     geoStory: unknown;
-    cinematicScenes: unknown;
+    sequence: unknown;
   }): Promise<{ id: string }>;
 }
 

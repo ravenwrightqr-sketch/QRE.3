@@ -1,5 +1,5 @@
 import type { GeoStory } from "../geo/geoStory.js";
-import type { CinematicScene } from "../cinematic/cinematic.js";
+import type { SequencePlay } from "../sequence/sequencePlay.js";
 import type { ExperienceMoment } from "../experience/moment.js";
 
 export type StoryDeliveryInput = {
@@ -8,7 +8,7 @@ export type StoryDeliveryInput = {
   userId?: string | null;
   moments: ExperienceMoment[];
   geoStory: GeoStory | null;
-  cinematicScenes: CinematicScene[];
+  sequence: SequencePlay | null;
 };
 
 export type StoryDeliveryResult = {

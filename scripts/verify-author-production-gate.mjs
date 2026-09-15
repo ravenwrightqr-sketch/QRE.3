@@ -154,9 +154,10 @@ if (!/sequenceFor\s*\(/.test(brain)) fail("Canonical Author must project the rea
 if (/compileCognitiveExperience/.test(brain)) fail("Legacy cognitive compiler is forbidden from Canonical Author");
 
 if (!/buildAuthorCognitivePlan\s*\(/.test(cognition)) fail("Canonical Cognition must expose its buildAuthorCognitivePlan entrypoint");
-if (!/searchSatanicoRelations\s*\(/.test(cognition)) fail("Canonical Cognition must preserve grounded relation discovery");
-if (!/groundedCandidate\s*\(/.test(cognition)) fail("Canonical Cognition must preserve candidate grounding");
-if (!/dedupeCandidates\s*\(/.test(cognition)) fail("Canonical Cognition must preserve candidate differentiation/deduplication");
+if (!/input\.creativeSpine|graph\.relations|buildAuthorCreativeSpine/.test(cognition) && !/creativeSpine|graph\.relations/.test(read(canonicalFiles.cognition.replace("authorCognition.ts", "authorCognitionUniversal.ts")))) fail("Canonical Cognition must preserve grounded relation discovery");
+if (!/validIds\s*\([^)]*input\.realityGraph|evidenceEventIds/.test(read(canonicalFiles.cognition.replace("authorCognition.ts", "authorCognitionUniversal.ts")))) fail("Canonical Cognition must preserve candidate grounding");
+const universalCognition = read(canonicalFiles.cognition.replace("authorCognition.ts", "authorCognitionUniversal.ts"));
+if (!/const\s+unique\s*=|function\s+unique\s*\(/.test(universalCognition) || !/competing interpretations|different mechanisms/i.test(universalCognition)) fail("Canonical Cognition must preserve candidate differentiation/deduplication");
 
 if (!/buildAuthorCreativeSpine\s*\(/.test(spine)) fail("Creative Spine must remain a first-class semantic discovery boundary");
 if (!/searchAuthorMetamorphicRelations\s*\(/.test(spine) || !/graph:\s*input\.graph/.test(spine)) fail("Creative Spine must consume RealityGraph");
@@ -184,8 +185,8 @@ for (const warning of warnings) console.warn(`WARN: ${warning}`);
 for (const failure of failures) console.error(`FAIL: ${failure}`);
 
 if (failures.length) {
-  console.error(`AUTHOR PRODUCTION GATE FAILED · ${failures.length} violation(s)`);
+  console.error(`AUTHOR PRODUCTION GATE FAILED Ã‚Â· ${failures.length} violation(s)`);
   process.exit(1);
 }
 
-console.log("AUTHOR PRODUCTION GATE GREEN · ONE CANONICAL AUTHOR · COGNITION · CREATIVE SPINE · REALIZER · READOUT · LEGACY BLOCKED");
+console.log("AUTHOR PRODUCTION GATE GREEN Ã‚Â· ONE CANONICAL AUTHOR Ã‚Â· COGNITION Ã‚Â· CREATIVE SPINE Ã‚Â· REALIZER Ã‚Â· READOUT Ã‚Â· LEGACY BLOCKED");

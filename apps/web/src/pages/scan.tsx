@@ -105,7 +105,7 @@ export default function Scan() {
 
 
         console.log(
-          "🔥 FULL EXPERIENCE RESPONSE",
+          "ðŸ”¥ FULL EXPERIENCE RESPONSE",
           {
 
             access:
@@ -119,8 +119,8 @@ export default function Scan() {
             geoStory:
               json.geoStory,
 
-            cinematicScenes:
-              json.cinematicScenes,
+            sequence:
+              json.sequence,
 
             memorySnapshot:
               json.memorySnapshot,
@@ -144,7 +144,7 @@ export default function Scan() {
 
 
         console.error(
-          "🔥 SCAN PAGE FAILED",
+          "ðŸ”¥ SCAN PAGE FAILED",
           error
         );
 

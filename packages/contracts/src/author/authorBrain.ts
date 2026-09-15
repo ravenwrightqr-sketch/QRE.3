@@ -11,7 +11,7 @@ export type AuthorDomainContext = {
   serviceType?: string;
   serviceName?: string;
   subjectKind?: string;
-  knownCapabilities?: string[];
+  specialties: string[];
   contextualSignals?: string[];
 
   creatorRole?: string;
@@ -42,7 +42,6 @@ export type AuthorBrainTruth = {
   cognitivePlan?: CognitiveExperiencePlan;
   realityGraph?: RealityGraph;
   domainContext?: AuthorDomainContext;
-  movieMode?: boolean;
   returning?: boolean;
   visitNumber?: number;
   presenceSummary?: string[];

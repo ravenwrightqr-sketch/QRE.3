@@ -349,7 +349,7 @@ const requiredEvents = [
   "SESSION_START",
   "AI_DECISION",
   "AI_MEMORY_USED",
-  "AI_CINEMATIC_DECISION",
+  "AI_AUTHOR_EXPERIENCE",
   "SESSION_END",
 ] as const;
 

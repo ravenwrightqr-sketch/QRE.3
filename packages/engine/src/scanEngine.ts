@@ -13,7 +13,7 @@ import { systemMoments } from "./moments/systemMoments.js";
 import { purchaseMoments } from "./moments/purchaseMoments.js";
 import { buildGeoStory } from "./geo/geoStoryCompiler.js";
 import { buildMemorySnapshot } from "./geo/buildMemorySnapshot.js";
-import { cinematicRuntime } from "./runtime/cinematic/cinematicRuntime.js";
+
 import { createStoryDelivery } from "./delivery/StoryDeliveryEngine.js";
 import { getScanInsights } from "./analytics/analyticsService.js";
 import { runFlowActions } from "./flowOrchestrator.js";
@@ -23,7 +23,7 @@ import type {
   FlowStepType,
   ExperienceMoment,
   Experience,
-  CinematicScene,
+
 } from "@qre/contracts";
 
 type ScanEngineInput = {
@@ -37,93 +37,6 @@ type ScanEngineInput = {
 };
 
 type BlueprintRecord = Record<string, unknown>;
-
-type AuthoredSceneRecord = CinematicScene & {
-  meta?: Record<string, unknown>;
-};
-
-type ExperienceChapterRecord = {
-  id: string;
-  createdAt?: string;
-  blueprint?: unknown;
-};
-
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return Boolean(value) && typeof value === "object" && !Array.isArray(value);
-}
-
-function acceptedAuthoredScenes(
-  asset: { experiences?: ExperienceChapterRecord[] },
-): CinematicScene[] {
-  const records = Array.isArray(asset.experiences)
-    ? asset.experiences
-    : [];
-
-  const scenes: AuthoredSceneRecord[] = records.flatMap(
-    (record): AuthoredSceneRecord[] => {
-      const blueprint: BlueprintRecord = isRecord(record.blueprint)
-        ? record.blueprint
-        : {};
-
-      const collaboration = isRecord(blueprint.collaboration)
-        ? blueprint.collaboration
-        : undefined;
-
-      if (
-        collaboration?.kind ===
-          "collaborative_memory_contribution" &&
-        collaboration.status !== "ACCEPTED"
-      ) {
-        return [];
-      }
-
-      const cinematicSequence = isRecord(blueprint.cinematicSequence)
-        ? blueprint.cinematicSequence
-        : undefined;
-
-      const clip =
-        cinematicSequence &&
-        isRecord(cinematicSequence.clip)
-          ? cinematicSequence.clip
-          : undefined;
-
-      const rawScenes = clip?.scenes;
-
-      if (!Array.isArray(rawScenes)) return [];
-
-      return rawScenes
-        .filter(
-          (
-            scene,
-          ): scene is AuthoredSceneRecord =>
-            isRecord(scene) &&
-            typeof scene.id === "string" &&
-            typeof scene.type === "string" &&
-            typeof scene.duration === "number" &&
-            isRecord(scene.moment),
-        )
-        .map((scene) => ({
-          ...scene,
-          meta: {
-            ...(scene.meta ?? {}),
-            chapterId: record.id,
-            chapterCreatedAt: record.createdAt ?? null,
-          },
-        }));
-    },
-  );
-
-  return scenes.map(
-    (
-      scene: AuthoredSceneRecord,
-      index: number,
-    ): CinematicScene => ({
-      ...scene,
-      id: `world-scene-${index + 1}`,
-      order: index,
-    }),
-  );
-}
 
 export async function scanEngine(
   input: ScanEngineInput,
@@ -146,7 +59,7 @@ export async function scanEngine(
       asset: null,
       moments: [],
       geoStory: null,
-      cinematicScenes: [],
+      sequence: null,
       memorySnapshot: null,
       receipt: null,
       insights: [],
@@ -295,28 +208,10 @@ try {
     });
   }
 
-  const generatedScenes = cinematicRuntime({
-    moments,
-    geoStory,
-  });
-
-  const authoredScenes =
+  const sequence =
     access.state === "UNLOCKED"
-      ? acceptedAuthoredScenes(asset)
-      : [];
-
-  const cinematicScenes =
-    authoredScenes.length
-      ? authoredScenes
-      : generatedScenes;
-
-  await track("AI_CINEMATIC_DECISION", {
-    scenes: cinematicScenes.length,
-    authoredChapters:
-      asset.experiences?.length ?? 0,
-    audioCapable: true,
-  });
-
+      ? asset.experience?.sequence ?? null
+      : null;
   let memorySnapshot = null;
 
   if (access.state === "UNLOCKED") {
@@ -324,7 +219,6 @@ try {
       assetId: asset.id,
       moments,
       geoStory,
-      cinematicScenes,
     });
 
     await track("AI_MEMORY_LEARNED", {
@@ -346,7 +240,7 @@ try {
           userId: input.userId ?? null,
           moments,
           geoStory,
-          cinematicScenes,
+          sequence,
         },
         repos.storyDeliveryRepository,
       );
@@ -410,7 +304,7 @@ try {
     {
       moments,
       geoStory,
-      cinematicScenes,
+      sequence,
       memorySnapshot,
       receipt,
       endedAt: new Date(),
@@ -421,7 +315,7 @@ try {
   await track("SESSION_END", {
     completed: true,
     moments: moments.length,
-    cinematicScenes: cinematicScenes.length,
+    sequenceCuts: sequence?.cuts?.length ?? 0,
     memoryLearned: Boolean(memorySnapshot),
     serviceExperience: Boolean(receipt),
   });
@@ -433,7 +327,7 @@ try {
     timestamp: new Date().toISOString(),
     moments,
     geoStory,
-    cinematicScenes,
+    sequence,
     memorySnapshot,
     receipt,
     insights,

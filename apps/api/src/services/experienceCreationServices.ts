@@ -1,11 +1,10 @@
 /**
  * QRE CANONICAL AUTHOR LAW
- * ROLE: Production creation boundary: canonical Author → durable experience/flow.
+ * ROLE: Production creation boundary: canonical Author ÃƒÂ¢Ã¢â‚¬Â Ã¢â‚¬â„¢ durable experience/flow.
  * LAW: QRE may surprise us.
  * Guardrails protect truth, provenance, architecture, and safety; style is scored.
  */
 
-import { randomUUID } from "node:crypto";
 import { db, type Prisma } from "@qre/db";
 import { createMemoryRepository } from "../repositories/memoryRepository.js";
 import { compileExperience } from "./experienceService.js";
@@ -121,20 +120,7 @@ export async function createExperience(input: CreateExperienceInput) {
   const authoringMetadata = (compiled.blueprint?.metadata as Record<string, unknown> | undefined)?.authoring as Record<string, unknown> | undefined;
   const lens = typeof authoringMetadata?.lens === "string" ? authoringMetadata.lens : "neutral";
 
-  const cinematicScenes = Array.isArray(compiled.cinematicScenes) ? compiled.cinematicScenes : [];
-  const cinematicSequence = {
-    version: 1,
-    appendOnly: true,
-    sceneRule: "one_short_thought_per_scene",
-    clip: {
-      id: randomUUID(),
-      createdAt: new Date().toISOString(),
-      sourcePrompt: input.prompt.trim(),
-      sceneCount: cinematicScenes.length,
-      estimatedDurationMs: cinematicScenes.reduce((sum: number, scene: any) => sum + Number(scene?.duration || 0), 0),
-      scenes: cinematicScenes,
-    },
-  } as Prisma.InputJsonValue;
+  const sequence = (compiled.sequence ?? {}) as Prisma.InputJsonValue;
 
   const learningProfile = {
     lens,
@@ -149,7 +135,7 @@ export async function createExperience(input: CreateExperienceInput) {
     ...(compiled.blueprint as Record<string, unknown>),
     sourcePrompt: input.prompt.trim(),
     sponsor,
-    cinematicSequence,
+    sequence,
     authoring: {
       kind: "service_experience",
       authoredBy: "qre-author-canonical",
@@ -185,7 +171,7 @@ export async function createExperience(input: CreateExperienceInput) {
         category: String((compiled.blueprint as Record<string, unknown>).type ?? "experience"),
         sourcePrompt: input.prompt.trim(),
         sponsor,
-        cinematicSequence,
+        sequence,
         learningAware: true,
         learningProfile,
       } as Prisma.InputJsonValue,
@@ -221,7 +207,7 @@ export async function createExperience(input: CreateExperienceInput) {
     compiled,
     entityMemory,
     sponsor,
-    cinematicSequence,
+    sequence,
     learning,
   };
 }

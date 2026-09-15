@@ -1,5 +1,5 @@
 import type { StoryDeliveryRepository } from "../repositories/index.js";
-import type { CinematicScene, GeoStory, ExperienceMoment } from "@qre/contracts";
+import type { GeoStory, ExperienceMoment, SequencePlay } from "@qre/contracts";
 
 type StoryInput = {
   assetId: string;
@@ -8,7 +8,7 @@ type StoryInput = {
   recipient?: { email?: string; phone?: string };
   moments: ExperienceMoment[];
   geoStory: GeoStory | null;
-  cinematicScenes: CinematicScene[];
+  sequence: SequencePlay | null;
 };
 
 export async function createStoryDelivery(input: StoryInput, repo: StoryDeliveryRepository) {
@@ -22,14 +22,14 @@ export async function createStoryDelivery(input: StoryInput, repo: StoryDelivery
 
   const safeGeoStory = structuredClone(input.geoStory);
   const safeMoments = structuredClone(input.moments);
-  const safeScenes = structuredClone(input.cinematicScenes);
+  const safeSequence = input.sequence ? structuredClone(input.sequence) : null;
 
   const snapshot = await repo.createStorySnapshot({
     assetId: input.assetId,
     sessionId: input.sessionId,
     moments: safeMoments,
     geoStory: safeGeoStory,
-    cinematicScenes: safeScenes,
+    sequence: safeSequence,
   });
 
   const shareUrl = `/share/${snapshot.id}`;

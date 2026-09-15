@@ -6,8 +6,7 @@
  * Shared media representation.
  *
  * Used by:
- *
- * - cinematic scenes
+ * 
  * - geo stories
  * - galleries
  * - memory snapshots
@@ -29,23 +28,16 @@ export type MediaType =
 export type MediaAsset = {
 
   id:string;
-
-
   type:MediaType;
-
-
   /**
    * Final playable URL
    */
   url:string;
-
-
   /**
    * Preview image
    * for video/audio cards
    */
   thumbnail?:string;
-
 
   /**
    * Optional metadata
@@ -53,14 +45,10 @@ export type MediaAsset = {
   title?:string;
 
   caption?:string;
-
-
   /**
    * Playback
    */
   duration?:number;
-
-
   /**
    * Future:
    * S3
@@ -68,8 +56,5 @@ export type MediaAsset = {
    * IPFS
    */
   provider?:string;
-
-
   metadata?:Record<string,unknown>;
-
 };

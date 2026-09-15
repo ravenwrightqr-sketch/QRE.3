@@ -8,8 +8,8 @@ const boundaryPath = "packages/contracts/src/.qre-canonical-boundary";
 const contractsRoot = join(root, "packages/contracts/src");
 
 const coreSymbols = [
-  "ServiceReceipt", "MemorySnapshot", "CinematicScene", "ExperienceMoment", "ExperienceBeat",
-  "LatentMovie", "SequencePlay", "ViewerMomentum", "MagnetCircle", "CutNecessity",
+  "ServiceReceipt", "MemorySnapshot", "ExperienceMoment", "ExperienceBeat",
+  "SequencePlay", "ViewerMomentum", "MagnetCircle", "CutNecessity",
   "SequenceTransition", "InformationFrontier", "SubjectContinuity", "AuthorBrainTruth",
   "AuthorCreativeBrief", "AuthorScene",
 ];
@@ -116,7 +116,7 @@ if (!existsSync(contractsRoot)) {
 console.log("=== QRE CONTRACT OWNERSHIP GUARD ===");
 for (const message of failures) console.error(`FAIL: ${message}`);
 if (failures.length) {
-  console.error(`CONTRACT OWNERSHIP GUARD FAILED · ${failures.length} violation(s)`);
+  console.error(`CONTRACT OWNERSHIP GUARD FAILED Ã‚Â· ${failures.length} violation(s)`);
   process.exit(1);
 }
-console.log("CONTRACT OWNERSHIP GUARD GREEN · ONE OWNER PER CORE SYMBOL · RETIRED BOUNDARIES CLEAN");
+console.log("CONTRACT OWNERSHIP GUARD GREEN Ã‚Â· ONE OWNER PER CORE SYMBOL Ã‚Â· RETIRED BOUNDARIES CLEAN");

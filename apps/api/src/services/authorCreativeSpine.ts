@@ -1,4 +1,8 @@
-import type { AuthorMetamorphicRelation, AuthorMetamorphicRelationSet } from "@qre/contracts";
+import type {
+  AuthorMetamorphicRelation,
+  AuthorMetamorphicRelationSet,
+  LatentMovieCandidate,
+} from "@qre/contracts";
 import { searchAuthorMetamorphicRelations } from "./authorMetamorphicSearch.js";
 
 /**
@@ -8,7 +12,8 @@ import { searchAuthorMetamorphicRelations } from "./authorMetamorphicSearch.js";
  *
  * Reality is not rewritten.
  * Relations are discovered before lenses are applied.
- * A lens changes pressure, not facts and not Movie selection authority.
+ * A lens changes creative pressure, not facts or semantic authority.
+ * LatentMovieCandidate is a semantic hypothesis boundary, not source truth.
  */
 
 export type CreativeOpportunity = {
@@ -32,18 +37,23 @@ export type LensTreatment = {
 export type AuthorCreativeSpine = {
   version: 1;
   relationSet: AuthorMetamorphicRelationSet;
+  latentMovieCandidates: LatentMovieCandidate[];
   opportunities: CreativeOpportunity[];
   selectedRelationId?: string;
   lensTreatment: LensTreatment;
 };
 
-const clean = (value: unknown): string => String(value ?? "").replace(/\s+/g, " ").trim();
+const clean = (value: unknown): string =>
+  String(value ?? "").replace(/\s+/g, " ").trim();
+
 const unique = <T>(values: readonly T[]): T[] => [...new Set(values)];
 
 const PRESSURE: Record<string, string[]> = {
   comedy: ["contrast", "deadpan", "understatement", "timing"],
+  funny: ["contrast", "playfulness", "understatement", "timing"],
   noir: ["implication", "omission", "unease", "status"],
   romance: ["intimacy", "irrelevance_of_surroundings", "recognition", "tender_contrast"],
+  romantic: ["intimacy", "recognition", "tender_contrast", "selective_detail"],
   horror: ["dread", "anomaly", "implication", "withhold_explanation"],
   heist: ["mission_pressure", "objective_language", "escalation", "payoff"],
   game: ["progression", "status", "levels", "reward_pressure"],
@@ -55,6 +65,24 @@ const PRESSURE: Record<string, string[]> = {
   tender: ["intimacy", "specificity", "recognition", "quiet_payoff"],
   surreal: ["dislocation", "contrast", "implication", "uncertainty"],
   wild: ["velocity", "escalation", "compression", "surprise"],
+  spy: ["secrecy", "observation", "misdirection", "reveal"],
+  mission: ["objective", "progression", "obstacles", "completion"],
+  speedrun: ["velocity", "compression", "optimization", "finish_line"],
+  tournament: ["rounds", "status", "competition", "escalation"],
+  investigation: ["clues", "uncertainty", "recontextualization", "reveal"],
+  backstage: ["access", "contrast", "hidden_work", "reveal"],
+  transformation: ["contrast", "before_after", "accumulation", "reveal"],
+  race: ["velocity", "competition", "progression", "finish_line"],
+  restoration: ["damage", "repair", "before_after", "reveal"],
+  expedition: ["discovery", "terrain", "uncertainty", "arrival"],
+  quest: ["objective", "obstacles", "discovery", "payoff"],
+  countdown: ["deadline", "compression", "escalation", "completion"],
+  archive: ["evidence", "selection", "residue", "recontextualization"],
+};
+
+const LENS_ALIASES: Record<string, string> = {
+  funny: "comedy",
+  romantic: "romance",
 };
 
 function lensParts(lens: string): { primary: string; secondary?: string } {
@@ -62,14 +90,41 @@ function lensParts(lens: string): { primary: string; secondary?: string } {
     .split(/\s*(?:\+|>|\/|,|\band\b)\s*/i)
     .map((part) => clean(part).toLowerCase())
     .filter(Boolean);
+
   return { primary: parts[0] || "none", secondary: parts[1] };
 }
 
-function treatmentFor(lens: string, relation?: AuthorMetamorphicRelation): LensTreatment {
-  const { primary, secondary } = lensParts(lens);
+function treatmentFor(
+  lens: string,
+  relation?: AuthorMetamorphicRelation,
+): LensTreatment {
+  const { primary: rawPrimary, secondary: rawSecondary } = lensParts(lens);
+  const primary = LENS_ALIASES[rawPrimary] ?? rawPrimary;
+  const secondary = rawSecondary ? LENS_ALIASES[rawSecondary] ?? rawSecondary : undefined;
+
+  if (primary === "none") {
+    return {
+      primary: "none",
+      secondary: undefined,
+      pressure: [],
+      relationId: relation?.id,
+      feltEffect: relation?.feltEffect ?? "Make the supplied reality newly noticeable.",
+      languageAim: relation?.languageAim ?? "Express the selected meaning without added framing.",
+      guardrails: [
+        "do not add facts",
+        "do not add actors",
+        "do not add places",
+        "do not change chronology",
+        "do not apply a creative lens",
+        "do not turn the absence of a lens into a hidden genre",
+        "do not let unstated creative taste become a replacement lens",
+      ],
+    };
+  }
+
   const pressures = unique([
-    ...(PRESSURE[primary] ?? ["contrast", "specificity", "implication"]),
-    ...(secondary ? (PRESSURE[secondary] ?? ["contrast", "specificity"]) : []),
+    ...(PRESSURE[primary] ?? []),
+    ...(secondary ? PRESSURE[secondary] ?? [] : []),
   ]).slice(0, 8);
 
   return {
@@ -90,7 +145,10 @@ function treatmentFor(lens: string, relation?: AuthorMetamorphicRelation): LensT
   };
 }
 
-function rankOpportunities(relationSet: AuthorMetamorphicRelationSet, returning: boolean): CreativeOpportunity[] {
+function rankOpportunities(
+  relationSet: AuthorMetamorphicRelationSet,
+  returning: boolean,
+): CreativeOpportunity[] {
   return relationSet.relations
     .map((relation) => ({
       relationId: relation.id,
@@ -101,6 +159,90 @@ function rankOpportunities(relationSet: AuthorMetamorphicRelationSet, returning:
     }))
     .sort((a, b) => b.strength - a.strength)
     .slice(0, 8);
+}
+
+function operationFor(relation: AuthorMetamorphicRelation): LatentMovieCandidate["trajectory"][number]["operation"] {
+  switch (relation.creativeOpportunity) {
+    case "contrast_reframe":
+      return "contrast";
+    case "state_to_callback":
+    case "callback_recontextualization":
+      return "recur";
+    case "status_turn":
+      return "reframe";
+    case "consequence":
+      return "consequence";
+    case "recognition":
+      return "reveal";
+    case "return_with_new_status":
+      return "payoff";
+    default:
+      return "reframe";
+  }
+}
+
+function candidateFromRelation(
+  relation: AuthorMetamorphicRelation,
+  graph: Parameters<typeof searchAuthorMetamorphicRelations>[0]["graph"],
+  index: number,
+): LatentMovieCandidate {
+  const eventById = new Map(graph.events.map((event) => [event.id, event]));
+  const evidence = relation.evidenceEventIds
+    .map((id) => clean(eventById.get(id)?.label))
+    .filter(Boolean);
+  const primary = evidence[0] ?? relation.before;
+  const secondary = evidence[1] ?? relation.after;
+  const operation: LatentMovieCandidate["trajectory"][number]["operation"] = operationFor(relation);
+
+  return {
+    id: `latent-${relation.id}`,
+    lens: "NONE",
+    anchorEventIds: relation.evidenceEventIds.slice(0, 4),
+    supportingRelationKinds: relation.relation ? [relation.relation.kind] : [],
+    trajectory: [
+      {
+        order: 1,
+        operation: "establish",
+        eventIds: relation.beforeEventIds.slice(0, 3),
+        viewerChange: relation.viewerShift,
+        nextQuestion: relation.after ? "What changes the reading?" : "What remains?",
+      },
+      {
+        order: 2,
+        operation,
+        eventIds: relation.evidenceEventIds.slice(0, 4),
+        viewerChange: relation.feltEffect,
+        nextQuestion: "What does this mean now?",
+      },
+      {
+        order: 3,
+        operation: "payoff",
+        eventIds: relation.afterEventIds.length ? relation.afterEventIds.slice(0, 3) : relation.evidenceEventIds.slice(0, 3),
+        viewerChange: relation.languageAim,
+        nextQuestion: "What lands?",
+      },
+    ],
+    payoff: relation.languageAim,
+    unresolvedQuestion: relation.after ? "What does this become?" : "What lands?",
+    evidence,
+    hypothesis: [relation.feltEffect, relation.viewerShift].filter(Boolean),
+    truthRisk: metric(1 - relation.confidence),
+    novelty: metric(relation.score),
+    specificity: metric(Math.min(1, relation.evidenceEventIds.length / 3)),
+    informationValue: metric(relation.score),
+    uncertainty: metric(1 - relation.confidence),
+    attentionPotential: metric(relation.score),
+    consequencePotential: metric(relation.creativeOpportunity === "consequence" ? relation.score : relation.score * 0.7),
+    callbackPotential: metric(relation.type.includes("callback") ? relation.score : 0.2 * relation.score),
+    compressionPotential: metric(0.7 + relation.score * 0.3),
+    repetitionRisk: metric(relation.type.includes("callback") ? 0.15 : 0.05),
+    distinctiveness: metric(Math.max(0.1, relation.score)),
+    score: metric(relation.score),
+  };
+}
+
+function metric(value: number): number {
+  return Number(Math.max(0, Math.min(1, Number.isFinite(value) ? value : 0)).toFixed(3));
 }
 
 export function buildAuthorCreativeSpine(input: {
@@ -114,12 +256,19 @@ export function buildAuthorCreativeSpine(input: {
     subject: input.subject,
     limit: 16,
   });
+
+  const latentMovieCandidates = relationSet.relations.map((relation, index) =>
+    candidateFromRelation(relation, input.graph, index),
+  );
+
   const opportunities = rankOpportunities(relationSet, Boolean(input.returning));
   const selectedRelationId = opportunities[0]?.relationId ?? relationSet.strongestRelationId;
   const selectedRelation = relationSet.relations.find((relation) => relation.id === selectedRelationId);
+
   return {
     version: 1,
     relationSet,
+    latentMovieCandidates,
     opportunities,
     selectedRelationId,
     lensTreatment: treatmentFor(input.lens || "none", selectedRelation),

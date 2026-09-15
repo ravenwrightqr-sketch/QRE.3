@@ -13,3 +13,4 @@ export * from "./industry.js";
 export * from "./tier.js";
 export * from "./tone.js";
 export * from "./experienceState.js";
+export * from "./latentMovie.js";
