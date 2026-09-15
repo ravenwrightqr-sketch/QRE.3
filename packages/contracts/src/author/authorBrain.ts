@@ -11,7 +11,7 @@ export type AuthorDomainContext = {
   serviceType?: string;
   serviceName?: string;
   subjectKind?: string;
-  knownCapabilities?: string[];
+  specialties: string[];
   contextualSignals?: string[];
 
   creatorRole?: string;

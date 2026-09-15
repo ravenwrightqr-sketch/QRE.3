@@ -168,9 +168,9 @@ rawExplicit && rawExplicit !== "let qre decide"
 if (!source || source === "none") return "none";
 
 const parts = source
-.split(/\s*(?:\+|>|\/|,|\band\b)\s*/i)
-.map(normalizeLensPart)
-.filter(Boolean);
+  .split(/\s*(?:\+|>|\/|,|\band\b)\s*/i)
+  .map(normalizeLensPart)
+  .filter(Boolean);
 
 const uniqueParts = [...new Set(parts)];
 
@@ -377,67 +377,65 @@ antiCrutch: [
 continuation: clean(spine.lensTreatment.languageAim),
 };
 }
+
 function briefFor(
-  subject: string,
-  cognition: Awaited<ReturnType<typeof buildAuthorCognitivePlan>>,
-  spine: ReturnType<typeof buildAuthorCreativeSpine>,
+subject: string,
+cognition: Awaited<ReturnType<typeof buildAuthorCognitivePlan>>,
+spine: ReturnType<typeof buildAuthorCreativeSpine>,
 ): AuthorCreativeBrief {
-  const primary = cognition.interpretations[0];
+const primary = cognition.interpretations[0];
 
-  return {
-    angle: spine.lensTreatment.secondary
-      ? `${spine.lensTreatment.primary} + ${spine.lensTreatment.secondary}`
-      : spine.lensTreatment.primary,
+return {
+angle: spine.lensTreatment.secondary
+? `${spine.lensTreatment.primary} + ${spine.lensTreatment.secondary}`
+: spine.lensTreatment.primary,
 
-    engine:
-      "Reality → Metamorphic → Cognition → Creative Spine → Artist → Sequence",
 
-    question:
-      clean(primary?.creativeOpportunity) ||
-      clean(spine.lensTreatment.languageAim),
+engine:
+  "Reality → Metamorphic → Cognition → Creative Spine → Artist → Sequence",
 
-    strongestImage:
-      clean(primary?.thesis) || subject,
+question:
+  clean(primary?.creativeOpportunity) ||
+  clean(spine.lensTreatment.languageAim),
 
-    tension:
-      clean(spine.lensTreatment.feltEffect) ||
-      clean(primary?.rationale),
+strongestImage:
+  clean(primary?.thesis) || subject,
 
-    payoff:
-      clean(spine.lensTreatment.languageAim),
+tension:
+  clean(spine.lensTreatment.feltEffect) ||
+  clean(primary?.rationale),
 
-    callback: spine.opportunities.some((item) =>
-      item.opportunity.includes("callback"),
-    )
-      ? "continuity available"
-      : "none",
+payoff:
+  clean(spine.lensTreatment.languageAim),
 
-    rhythm: ["short", "standard", "hit"],
+callback: spine.opportunities.some((item) =>
+  item.opportunity.includes("callback"),
+)
+  ? "continuity available"
+  : "none",
 
-    avoid: [
-      "invented reality",
-      "fixed story template",
-      "fact-by-fact transcription",
-      "production directions",
-    ],
-  };
+rhythm: ["short", "standard", "hit"],
+
+avoid: [
+  "invented reality",
+  "fixed story template",
+  "fact-by-fact transcription",
+  "production directions",
+],
+
+
+};
 }
-
 
 export type CanonicalAuthorResult = {
 readout: AuthorReadout;
-
 scenes: AuthorScene[];
-
 sequence: SequencePlay;
-
 realizationMode:
 | "collection"
 | "state"
 | "sequence";
-
 brief: AuthorCreativeBrief;
-
 diagnostics: {
 model: string;
 modelCalls: number;
@@ -449,13 +447,11 @@ complete: boolean;
 selectedScore: number;
 rejectedCandidates: unknown[];
 };
-
 adaptiveQuestions: Array<{
 kind: string;
 question: string;
 reason: string;
 }>;
-
 world: ReturnType<typeof buildAuthorRealityGraph>;
 };
 
@@ -497,7 +493,9 @@ lens: clean(input.lens),
 returning,
 });
 
-const cognitionLearningContext = unique(input.creativeLearningContext ?? []);
+const cognitionLearningContext = unique(
+input.creativeLearningContext ?? [],
+);
 
 const artistLearningContext = unique([
 ARTIST_DNA,
@@ -524,30 +522,31 @@ visitNumber: input.visitNumber,
 /*
 
 * Explicit creator lens wins.
-* Otherwise Cognition's discovered lens survives.
-* A valid discovered frame may add secondary pressure.
 *
-* Example:
-* selectedLens = "comic absurdity"
-* frame = "game show"
+* "let qre decide" is the deliberate opt-in for automatic
+* creative-pressure selection.
 *
-* becomes:
-* comedy + game
-*
-* without requiring Gemma to speak only in our internal vocabulary.
+* With no lens at all, Author must stay unlensed rather than
+* silently manufacturing a genre/frame from Cognition.
   */
-  const selectedLens = combineCreativePressures(
-  clean(input.lens),
-  cognition.selectedLens,
-  cognition.frame,
-  );
+ const explicitLens = clean(input.lens);
 
 /*
+ * Explicit lens wins when supplied.
+ * Otherwise Cognition may discover a creative pressure.
+ * If Cognition finds no useful pressure, the result remains "none".
+ */
+const selectedLens = combineCreativePressures(
+  explicitLens,
+  cognition.selectedLens,
+  cognition.frame,
+);
 
-* Cognition decides pressure first.
-* Creative Spine is then rebuilt around that decision.
-* Artist, SequencePlay and Brief all use the selected spine.
-  */
+/*
+ * Creative Spine is rebuilt only around the final creative pressure.
+ * With no useful pressure, the Spine remains unlensed.
+ */
+
   const selectedCreativeSpine =
   buildAuthorCreativeSpine({
   graph: world,
@@ -593,6 +592,7 @@ cognition.model === "deterministic"
 
 return {
 readout,
+
 
 scenes,
 
@@ -643,6 +643,7 @@ diagnostics: {
 adaptiveQuestions: cognition.adaptiveQuestions,
 
 world,
+
 
 };
 }

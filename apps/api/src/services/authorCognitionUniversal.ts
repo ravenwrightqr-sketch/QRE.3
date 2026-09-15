@@ -1,4 +1,4 @@
-/* QRE UNIVERSAL COGNITION ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â· semantic interpretation only */
+﻿/* QRE UNIVERSAL COGNITION ÃƒÆ’Ã†â€™ÃƒÂ¢Ã¢â€šÂ¬Ã…Â¡ÃƒÆ’Ã¢â‚¬Å¡Ãƒâ€šÃ‚Â· semantic interpretation only */
 import type {
   AuthorDomainContext,
   AuthorMetamorphicRelationSet,
@@ -210,11 +210,10 @@ const normalized = requested.replace(/[^a-z0-9_+-]/g, "");
   const modelChosen =
     !explicitChosen &&
     FRAMES.has(normalized) &&
-    evidenceEventIds.length > 0 &&
+    graph.events.length > 0 &&
     !literalPlotLeak
       ? normalized
       : "";
-
   const chosen = explicitChosen || modelChosen;
 
   return {
@@ -305,13 +304,16 @@ content: [
 "Look for connections between supplied facts, especially contrasts, recurrence, continuation, consequence, recognition, and changes in meaning.",
 "Use non-adjacent facts when they create a stronger grounded reading.",
 "Prefer a surprising interpretation that is actually supported by the supplied evidence over a generic theme.",
-"A lens is optional. When no lens is supplied, do not manufacture a genre. Let the strongest discovered relationship determine the creative pressure. A frame may change emphasis and language, but it must never create plot or new reality.",
+"When no lens is supplied, evaluate whether a creative frame would materially improve the realization.",
+"If a frame would materially improve the realization, select one grounded frame. If not, return selectedLens as null and frame as null.",
+"A frame may change emphasis, language, rhythm, humor or attitude, but it must never create plot or new reality.",
 "When several readings are plausible, choose genuinely different grounded interpretations.",
 "Do not invent motives, missions, targets, bait, enemies, crimes, weapons, or events.",
 "Do not optimize for event coverage. Optimize for the strongest grounded creative possibility.",
 "Do not force intensity. A precise observation is better than invented drama.",
-"Return JSON only with selectedLens, frame, interpretations, adaptiveQuestions, attentionStrategy, reasoningSummary.",
-"Each interpretation must contain evidenceEventIds using only supplied event IDs.",
+"Return compact JSON only with selectedLens, frame, and interpretations.",
+"Each interpretation must contain evidenceEventIds and a plain-language thesis describing the meaning discovered in the supplied reality.",
+"Do not describe how the experience should be produced. Do not write customer-facing prose.",
 "Each interpretation should state the discovered meaning in plain language. Do not lead with or repeat an internal mechanism label.",
 "Keep it compact. Interpretations are semantic guidance to the Artist, not visible prose or production directions.",
 "Never leak internal architecture language to customer-facing output.",
@@ -339,7 +341,56 @@ lens: explicitLens || "NONE",
 },
 ],
 "json",
-{ numPredict: 1500, temperature: 0.95 },
+{
+  numPredict: 1000,
+  temperature: 0.9,
+  jsonSchema: {
+    type: "object",
+    additionalProperties: false,
+    required: ["selectedLens", "frame", "interpretations"],
+    properties: {
+      selectedLens: {
+        type: "string",
+        minLength: 1,
+      },
+      frame: {
+        type: "string",
+        minLength: 1,
+      },
+      interpretations: {
+        type: "array",
+        minItems: 1,
+        maxItems: 3,
+        items: {
+          type: "object",
+          additionalProperties: false,
+          required: ["evidenceEventIds", "thesis"],
+          properties: {
+            evidenceEventIds: {
+              type: "array",
+              minItems: 1,
+              maxItems: 6,
+              items: { type: "string" },
+            },
+            thesis: {
+              type: "string",
+              minLength: 1,
+              maxLength: 500,
+            },
+            creativeOpportunity: {
+              type: "string",
+              maxLength: 300,
+            },
+            rationale: {
+              type: "string",
+              maxLength: 300,
+            },
+          },
+        },
+      },
+    },
+  },
+} as const,
 );
 
 parsed = parse(result.text);
@@ -355,7 +406,7 @@ modelCalls = 1;
     ? parsed.interpretations.slice(0, 10).flatMap((value, index) => {
         if (!value || typeof value !== "object") return [];
         const row = value as Record<string, unknown>;
-        const thesis = clean(row.thesis);
+        const thesis = clean(row.thesis ?? row.meaning);
         const creativeOpportunity = clean(row.creativeOpportunity);
         const rationale = clean(row.rationale);
         if (!thesis || GENERIC.test(thesis) || INTERNAL.test(thesis) || PSYCH.test(thesis)) return [];
@@ -401,3 +452,5 @@ modelCalls = 1;
     modelCalls,
   };
 }
+
+

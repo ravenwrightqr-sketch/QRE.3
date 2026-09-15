@@ -131,7 +131,7 @@ function buildAssetDomainContext(asset: any): AuthorDomainContext | undefined {
       data?.subject_kind,
     ),
 
-    knownCapabilities: unique([
+    specialties: unique([
       ...stringList(data?.services),
       ...stringList(data?.capabilities),
       ...stringList(data?.offerings),

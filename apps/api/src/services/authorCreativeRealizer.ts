@@ -1,4 +1,4 @@
-/**
+﻿/**
  * QRE CANONICAL ARTIST / CREATIVE REALIZER
  *
  * RealityGraph owns concrete truth.
@@ -30,10 +30,20 @@ export type AuthorRealizationResult = {
 type RawScene = { text?: unknown; kind?: unknown; sourceEventIds?: unknown };
 type RawSet = { scenes?: unknown };
 type ValidationResult = { scenes?: RealizedScene[]; reason?: string };
+const INTERNAL = new RegExp(
+  "\\b(?:cognition|planner|candidate|trajectory|evidenceEventIds|semantic turn|future thread|creative opportunity|viewer state|compiler|realizer|SequencePlay|Mouth|Author)\\b",
+  "i",
+);
 
-const INTERNAL = /\b(?:cognition|planner|planning|candidate|trajectory|viewer state|compiler|realizer|provenance|evidence id|metamorphic|semantic turn|author architecture|creative spine)\b/i;
-const EXPLANATION = /\b(?:this means|which means|this shows|which shows|the point is|the meaning is|in other words|reveals that|the viewer|the audience|the narrative|the experience was|the significance|the relationship between|changes what is worth noticing)\b/i;
-const GENERIC = /^(?:something happened|something changed|everything changed|a moment|the moment|a feeling|the feeling|it was meaningful|it was special|it was important|the transformation was|the situation was|the experience was|the result was|worth noticing)\.?$/i;
+const EXPLANATION = new RegExp(
+  "\\b(?:this means|which means|the point is|the meaning is|in other words|this shows|which shows|because this)\\b",
+  "i",
+);
+
+const GENERIC = new RegExp(
+  "^(?:something happened|something changed|everything changed|a moment|the moment|a feeling|the feeling|worth noticing|it was meaningful|it was special)\\.?$",
+  "i",
+);
 const SCREENPLAY = /^(?:close(?:\s+in)?(?:\s+on)?|quick\s+cut|cut\s+to|sound\s*:|camera\s*:|wide\s+shot|medium\s+shot|tight\s+shot|fade(?:\s+(?:in|out|to))?|angle(?:\s+on)?|montage|dissolve(?:\s+to)?|smash\s+cut)\b/i;
 const SCREENPLAY_INLINE = /\b(?:camera|close-up|wide shot|medium shot|tight shot|sound design|sound effect|sfx|voice-over|voiceover)\s*:/i;
 const PRODUCTION_DIRECTION =
@@ -173,7 +183,7 @@ function context(input: {
         serviceType: clean(input.domainContext.serviceType),
         serviceName: clean(input.domainContext.serviceName),
         subjectKind: clean(input.domainContext.subjectKind),
-        knownCapabilities: unique(input.domainContext.knownCapabilities ?? []).slice(0, 24),
+        specialties: unique(input.domainContext.specialties ?? []).slice(0, 24),
         contextualSignals: unique(input.domainContext.contextualSignals ?? []).slice(0, 24),
         creatorRole: clean(input.domainContext.creatorRole),
         audience: unique(input.domainContext.audience ?? []).slice(0, 24),
@@ -253,12 +263,17 @@ function artistPrompt(attempt: number, feedback: string): string {
     "Never turn a figurative lens into a literal plot.",
     "Do not produce a summary or list of facts unless that is genuinely the strongest creative treatment.",
     "One screen is one attention beat, not necessarily one fact.",
-    "Create four genuinely different treatments.",
+    "Do not report the supplied events one by one unless that is genuinely the strongest realization.",
+    "The approved meaning is the primary thing to realize. The supplied facts are the palette, not a checklist.",
+    "A strong cut should make the viewer notice the reality differently, create pull toward the next cut, or land a realization.",
+    "Do not explain the discovered meaning. Make the viewer feel it by choosing the right words, omission, ordering, repetition, contrast or payoff.",
+    "Use fewer screens when fewer screens make the experience stronger.",
+    "Create three genuinely different treatments.",
     "Vary the hook, central relationship, ordering, rhythm, framing, callback, contrast, interruption and payoff.",
     "Prefer implication over explanation.",
     "Prefer recognition over repetition.",
     "Prefer a discovered relationship over a labeled concept.",
-    "After creating the four treatments, select the strongest one yourself using selectedSetIndex.",
+    "After creating the three treatments, select the strongest one yourself using selectedSetIndex.",
     "Return JSON only: {\"selectedSetIndex\":0,\"sets\":[{\"scenes\":[{\"text\":\"...\",\"kind\":\"hook\",\"sourceEventIds\":[\"...\"]}]}]}",
     "selectedSetIndex is zero-based and refers only to the generated treatments.",
     "Allowed kinds: line, hook, movement, discovery, turn, payoff, afterglow.",
@@ -282,34 +297,55 @@ export async function realizeAuthorExperience(input: {
   let modelCalls = 0;
   let rejectedSets = 0;
   const rejectedReasons: string[] = [];
-
-  const schema: LocalModelJsonSchema = {
-    type: "object",
-    additionalProperties: false,
-    required: ["selectedSetIndex", "sets"],
-    properties: {
-      selectedSetIndex: { type: "integer", minimum: 0, maximum: 3 },
-      sets: {
-        type: "array",
-        minItems: 4,
-        maxItems: 4,
-        items: {
-          type: "object",
-          additionalProperties: false,
-          required: ["scenes"],
-          properties: {
-            scenes: {
-              type: "array",
-              minItems: 1,
-              maxItems: MAX_CUTS,
-              items: {
-                type: "object",
-                additionalProperties: false,
-                required: ["text", "kind"],
-                properties: {
-                  text: { type: "string", minLength: 1, maxLength: MAX_BEAT_CHARS },
-                  kind: { type: "string", enum: ["line", "hook", "movement", "discovery", "turn", "payoff", "afterglow"] },
-                  sourceEventIds: { type: "array", items: { type: "string" }, maxItems: 3 },
+const schema: LocalModelJsonSchema = {
+  type: "object",
+  additionalProperties: false,
+  required: ["selectedSetIndex", "sets"],
+  properties: {
+    selectedSetIndex: {
+      type: "integer",
+      minimum: 0,
+      maximum: 2,
+    },
+    sets: {
+      type: "array",
+      minItems: 3,
+      maxItems: 3,
+      items: {
+        type: "object",
+        additionalProperties: false,
+        required: ["scenes"],
+        properties: {
+          scenes: {
+            type: "array",
+            minItems: 1,
+            maxItems: MAX_CUTS,
+            items: {
+              type: "object",
+              additionalProperties: false,
+              required: ["text", "kind"],
+              properties: {
+                text: {
+                  type: "string",
+                  minLength: 1,
+                  maxLength: MAX_BEAT_CHARS,
+                },
+                kind: {
+                  type: "string",
+                  enum: [
+                    "line",
+                    "hook",
+                    "movement",
+                    "discovery",
+                    "turn",
+                    "payoff",
+                    "afterglow",
+                  ],
+                },
+                sourceEventIds: {
+                  type: "array",
+                  items: { type: "string" },
+                  maxItems: 3,
                 },
               },
             },
@@ -317,7 +353,8 @@ export async function realizeAuthorExperience(input: {
         },
       },
     },
-  } as const;
+  },
+} as const;
 
   for (let attempt = 0; attempt < 3; attempt += 1) {
     const feedback = rejectedReasons.slice(-3).join(" | ");
@@ -328,7 +365,7 @@ export async function realizeAuthorExperience(input: {
           { role: "user", content: JSON.stringify(context({ prompt: input.prompt, subject: input.subject, lens: input.lens, graph: input.graph, spine: input.creativeSpine, interpretations: input.interpretations, domainContext: input.domainContext, memoryContext: input.memoryContext, priorScenes: input.priorScenes, creativeLearningContext: input.creativeLearningContext })) },
         ],
         "json",
-        { numPredict: 10000, temperature: [1.05, 1.15, 1.1][attempt]!, jsonSchema: schema },
+        { numPredict: 4200, temperature: [1.05, 1.1, 1.15][attempt]!, jsonSchema: schema },
       );
       model = result.model;
       modelCalls += 1;
@@ -374,3 +411,7 @@ export async function realizeAuthorExperience(input: {
     reason: rejectedReasons.join(" | ") || "no realized treatment survived validation",
   };
 }
+
+
+
+
