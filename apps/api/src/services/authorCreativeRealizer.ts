@@ -3,9 +3,11 @@
  *
  * RealityGraph owns concrete truth.
  * Cognition discovers grounded meaning.
- * Creative Spine may discover additional creative leverage, but its
- * internal taxonomy never becomes Artist-facing language.
- * The Artist owns visible language, rhythm, ordering and treatment.
+ * Creative Spine may influence lens pressure internally, but its taxonomy never
+ * becomes Artist-facing language.
+ *
+ * The Artist owns the visible experience: language, rhythm, ordering, omission,
+ * repetition, contrast, callback and final landing.
  */
 import type { AuthorDomainContext, AuthorScene, RealityGraph } from "@qre/contracts";
 import { localModelGenerate, type LocalModelJsonSchema } from "./localModelRuntime.js";
@@ -25,7 +27,6 @@ export type AuthorRealizationResult = {
 };
 
 type RawScene = { text?: unknown; kind?: unknown; sourceEventIds?: unknown };
-type RawSet = { scenes?: unknown };
 type ValidationResult = { scenes?: RealizedScene[]; reason?: string };
 
 const INTERNAL = new RegExp(
@@ -43,15 +44,15 @@ const GENERIC = new RegExp(
   "i",
 );
 
-const SCREENPLAY = /^(?:close(?:\s+in)?(?:\s+on)?|quick\s+cut|cut\s+to|sound\s*:|camera\s*:|wide\s+shot|medium\s+shot|tight\s+shot|fade(?:\s+(?:in|out|to))?|angle(?:\s+on)?|montage|dissolve(?:\s+to)?|smash\s+cut)\b/i;
-const SCREENPLAY_INLINE = /\b(?:camera|close-up|wide shot|medium shot|tight shot|sound design|sound effect|sfx|voice-over|voiceover)\s*:/i;
+const SCREENPLAY = /^(?:close(?:\\s+in)?(?:\\s+on)?|quick\\s+cut|cut\\s+to|sound\\s*:|camera\\s*:|wide\\s+shot|medium\\s+shot|tight\\s+shot|fade(?:\\s+(?:in|out|to))?|angle(?:\\s+on)?|montage|dissolve(?:\\s+to)?|smash\\s+cut)\\b/i;
+const SCREENPLAY_INLINE = /\\b(?:camera|close-up|wide shot|medium shot|tight shot|sound design|sound effect|sfx|voice-over|voiceover)\\s*:/i;
 const PRODUCTION_DIRECTION =
-  /^\s*(?:\[|\()\s*(?:visual|camera|shot|scene direction|b-roll|edit|editing|time-lapse|timelapse|rapid-cut|rapid cut|montage|sfx|sound design|voice-over|voiceover)\b/i;
+  /^\\s*(?:\\[|\\()\\s*(?:visual|camera|shot|scene direction|b-roll|edit|editing|time-lapse|timelapse|rapid-cut|rapid cut|montage|sfx|sound design|voice-over|voiceover)\\b/i;
 const ALLOWED_KINDS = new Set(["line", "hook", "movement", "discovery", "turn", "payoff", "afterglow"]);
 const MAX_CUTS = 24;
 const MAX_BEAT_CHARS = 140;
 
-const clean = (value: unknown): string => String(value ?? "").replace(/\s+/g, " ").trim();
+const clean = (value: unknown): string => String(value ?? "").replace(/\\s+/g, " ").trim();
 const unique = (values: readonly string[]): string[] => [...new Set(values.map(clean).filter(Boolean))];
 const words = (text: string): string[] => clean(text).toLowerCase().match(/[a-z0-9]+/g) ?? [];
 
@@ -62,6 +63,14 @@ function overlap(a: string, b: string): number {
   let intersection = 0;
   for (const token of left) if (right.has(token)) intersection += 1;
   return (2 * intersection) / (left.size + right.size);
+}
+
+function canonicalText(text: string): string {
+  return clean(text)
+    .toLowerCase()
+    .replace(/[“”‘’]/g, "'")
+    .replace(/[^a-z0-9']+/g, " ")
+    .trim();
 }
 
 function eventText(event: RealityGraph["events"][number]): string {
@@ -117,29 +126,81 @@ function bindProvenance(
     .map((item) => item.id);
 }
 
+function isDuplicateLine(text: string, previous: readonly string[]): boolean {
+  const canonical = canonicalText(text);
+  if (!canonical) return false;
+  return previous.some((item) => {
+    const other = canonicalText(item);
+    return other === canonical || overlap(canonical, other) >= 0.86;
+  });
+}
+
+function stronglyGroundedToOneEvent(text: string, graph: RealityGraph): boolean {
+  const best = graph.events.reduce((score, event) => Math.max(score, overlap(text, eventText(event))), 0);
+  return best >= 0.74;
+}
+
+function sharesSingleFactPattern(text: string, graph: RealityGraph): boolean {
+  return stronglyGroundedToOneEvent(text, graph) && words(text).length <= 5;
+}
+
 function looksLikeFlatFactList(scenes: readonly RealizedScene[], graph: RealityGraph): boolean {
-  if (scenes.length < 4) return false;
+  if (scenes.length < 3) return false;
 
   const averageWords =
     scenes.reduce((sum, scene) => sum + words(scene.text).length, 0) / scenes.length;
-  if (averageWords > 2.1) return false;
 
-  const groundedLabels = scenes.filter((scene) => {
-    const text = scene.text;
-    return graph.events.some((event) => overlap(text, eventText(event)) >= 0.5);
-  }).length;
+  const singleFactLines = scenes.filter((scene) => sharesSingleFactPattern(scene.text, graph)).length;
+  const tinyLines = scenes.filter((scene) => words(scene.text).length <= 3).length;
 
-  return groundedLabels / scenes.length >= 0.75;
+  if (singleFactLines >= Math.ceil(scenes.length * 0.6) && tinyLines >= Math.ceil(scenes.length * 0.5)) {
+    return true;
+  }
+
+  if (scenes.length >= 5 && averageWords <= 4.2 && singleFactLines / scenes.length >= 0.7) {
+    return true;
+  }
+
+  const eventCoverage = new Map<string, number>();
+  for (const scene of scenes) {
+    const eventIds = scene.sourceEventIds;
+    if (eventIds.length === 1) {
+      eventCoverage.set(eventIds[0]!, (eventCoverage.get(eventIds[0]!) ?? 0) + 1);
+    }
+  }
+
+  const maxRepeatedEvent = Math.max(0, ...eventCoverage.values());
+  return scenes.length >= 5 && maxRepeatedEvent >= 3;
+}
+
+function hasRealizationMovement(scenes: readonly RealizedScene[], graph: RealityGraph): boolean {
+  if (scenes.length <= 2) return true;
+
+  const relational = scenes.some((scene) => {
+    if (scene.sourceEventIds.length >= 2) return true;
+    if (words(scene.text).length >= 5 && !stronglyGroundedToOneEvent(scene.text, graph)) return true;
+    return /\\b(?:but|yet|still|apparently|somehow|turns out|except|instead|apparently|actually|even)\\b/i.test(scene.text);
+  });
+
+  const landing = scenes.some((scene, index) => {
+    if (index < 1) return false;
+    return scene.kind === "turn" || scene.kind === "payoff" || scene.kind === "afterglow";
+  });
+
+  return relational || landing;
 }
 
 function validateSet(raw: unknown, input: { graph: RealityGraph }): ValidationResult {
   if (!raw || typeof raw !== "object") return { reason: "treatment is not an object" };
-  const row = raw as RawSet;
+
+  const row = raw as { scenes?: unknown };
   if (!Array.isArray(row.scenes)) return { reason: "treatment.scenes is missing" };
   if (row.scenes.length < 1) return { reason: "treatment contains no screens" };
   if (row.scenes.length > MAX_CUTS) return { reason: `treatment exceeds ${MAX_CUTS} screens` };
 
   const scenes: RealizedScene[] = [];
+  const previousTexts: string[] = [];
+
   for (const [index, item] of row.scenes.entries()) {
     if (!item || typeof item !== "object") return { reason: `screen ${index + 1} is not an object` };
 
@@ -153,10 +214,11 @@ function validateSet(raw: unknown, input: { graph: RealityGraph }): ValidationRe
     if (SCREENPLAY.test(text) || SCREENPLAY_INLINE.test(text)) return { reason: `screen ${index + 1} contains production direction` };
     if (
       PRODUCTION_DIRECTION.test(text) ||
-      /\b(?:time-lapse|timelapse|rapid-cut|rapid cut|b-roll|camera angle|camera shot)\b/i.test(text)
+      /\\b(?:time-lapse|timelapse|rapid-cut|rapid cut|b-roll|camera angle|camera shot)\\b/i.test(text)
     ) {
       return { reason: `screen ${index + 1} contains production direction` };
     }
+    if (isDuplicateLine(text, previousTexts)) return { reason: `screen ${index + 1} repeats an earlier screen` };
 
     const rawKind = clean(scene.kind);
     const kind = ALLOWED_KINDS.has(rawKind)
@@ -171,10 +233,15 @@ function validateSet(raw: unknown, input: { graph: RealityGraph }): ValidationRe
     if (!sourceEventIds.length) return { reason: `screen ${index + 1} could not be grounded to supplied reality` };
 
     scenes.push({ text, kind, sourceEventIds, score: 1 });
+    previousTexts.push(text);
   }
 
   if (looksLikeFlatFactList(scenes, input.graph)) {
-    return { reason: "treatment is a flat fact list instead of a realized experience" };
+    return { reason: "treatment is a fact collage instead of a realized experience" };
+  }
+
+  if (!hasRealizationMovement(scenes, input.graph)) {
+    return { reason: "treatment does not create a change in how the supplied reality is noticed" };
   }
 
   return { scenes };
@@ -211,21 +278,6 @@ function context(input: {
       }
     : null;
 
-  const creativeLeverage = input.spine.relationSet.relations
-    .slice(0, 3)
-    .map((relation) => ({
-      feltEffect: clean(relation.feltEffect),
-      viewerShift: clean(relation.viewerShift),
-      evidenceEventIds: relation.evidenceEventIds.slice(0, 3),
-    }))
-    .filter((item) => item.feltEffect || item.viewerShift);
-
-  const lensTreatment = {
-    primary: clean(input.spine.lensTreatment.primary),
-    secondary: clean(input.spine.lensTreatment.secondary),
-    feltEffect: clean(input.spine.lensTreatment.feltEffect),
-  };
-
   return {
     creativeTask: clean(input.prompt),
     creatorContext,
@@ -239,13 +291,16 @@ function context(input: {
       place: event.place,
       time: event.time,
     })),
-    creativeLeverage,
-    lensTreatment,
-    interpretations: input.interpretations.slice(0, 6).map((interpretation) => ({
+    lensTreatment: {
+      primary: clean(input.spine.lensTreatment.primary),
+      secondary: clean(input.spine.lensTreatment.secondary),
+      feltEffect: clean(input.spine.lensTreatment.feltEffect),
+    },
+    interpretations: input.interpretations.slice(0, 3).map((interpretation) => ({
       evidenceEventIds: interpretation.evidenceEventIds.slice(0, 4),
       thesis: clean(interpretation.thesis),
     })),
-    realityPriority: "The supplied reality is the creative palette. Every concrete claim must remain grounded in it.",
+    realityPriority: "The supplied reality is the entire factual palette. Every concrete claim must remain grounded in it.",
     memory: (input.memoryContext ?? []).slice(0, 20),
     priorScreens: (input.priorScenes ?? []).slice(-12),
     creativeLearning: (input.creativeLearningContext ?? []).slice(0, 20),
@@ -254,52 +309,42 @@ function context(input: {
 
 function artistPrompt(attempt: number, feedback: string): string {
   const attacks = [
-    "Find the strongest creative idea hidden anywhere in the supplied material and commit to it.",
-    "Reject the safest treatment. Search for the unusual relationship, contradiction, rhythm, detail, joke, tension, callback or surprise that makes this subject itself.",
-    "Make the result memorable tomorrow. Let the scanner discover the connection rather than explaining it.",
+    "Commit to one realization. Do not provide alternatives.",
+    "Throw away the safest fact-list treatment. Find the strongest earned relationship already present in the supplied reality and build the whole experience around it.",
+    "Make the viewer recognize something new about this subject. Start where attention naturally catches, let details accumulate toward a changed meaning, and land the strongest line.",
   ];
 
   return [
     "You are QRE's ONE CREATIVE ARTIST.",
     "Reality is sacred. Concrete supplied reality cannot be changed.",
-    "Use the supplied reality as the entire creative palette.",
-    "Cognition and Creative Spine have already done the semantic discovery. You are not being asked to classify it.",
-    "You receive only grounded creative leverage in plain language. Never reproduce internal field names, architecture terms, or analysis vocabulary in the visible text.",
-    "Use the supplied meaning as creative fuel, not as a sentence to paraphrase.",
-    "The meaning is not the output. Realize it.",
+    "Use the supplied reality as the entire factual palette.",
+    "Cognition has already discovered grounded meaning. You are not being asked to classify or explain it.",
+    "The meaning is fuel, not copy. Realize it in visible language.",
     "A lens is pressure on treatment, not permission to invent reality.",
     "Make something people would actually want to watch.",
-    "Memory can accumulate meaning. A returning established detail may carry more weight when it comes back.",
-    "Never invent people, actions, objects, dialogue, motives, threats, targets, missions, enemies, locations, outcomes or chronology.",
-    "Never turn figurative language into a literal event.",
-    "Do not report supplied facts one by one unless that is genuinely the strongest realization.",
-    "The supplied facts are the palette, not a checklist.",
-    "A strong cut should make the viewer notice the supplied reality differently, create pull toward what follows, or land a realization.",
-    "Do not explain the discovered meaning. Make it felt through language, ordering, omission, repetition, contrast, interruption, callback or payoff.",
-    "Use fewer screens when fewer screens make the experience stronger.",
-    "Do not make every screen merely name a supplied fact or attribute.",
-    "Avoid label-like fragments such as a subject name followed by disconnected nouns or traits.",
+    "Write ONE treatment only. Never create three treatments, alternatives, variants, drafts, or repeated versions inside one response.",
+    "Usually fewer than eight screens is stronger. Do not pad the experience. There is no required screen count.",
+    "Every screen must earn the next one. The sequence should accumulate toward a recognition, reversal, joke, contrast, callback, consequence or other changed meaning that is actually supported by the supplied reality.",
+    "Do not simply walk through the supplied facts.",
+    "Do not spend most of the experience naming attributes one at a time.",
+    "Do not repeat a fact in slightly different words just to add screens.",
+    "Do not use isolated labels such as 'Poodle.', 'Grass.', 'Apples.' as the main structure of the experience.",
+    "A detail may return only when the return changes how the viewer understands it.",
     "When several supplied details belong together, connect them through the realization instead of listing them.",
+    "Prefer concrete details that earn a changed meaning.",
     "Prefer implication over explanation.",
     "Prefer recognition over repetition.",
-    "Prefer a discovered relationship over a labeled concept.",
-    "Prefer concrete details that earn a changed meaning.",
-    "You own visible language, ordering, rhythm, number of screens and final treatment.",
-    "Write the actual words the scanner experiences.",
-    "Prefer fragments, short sentences, deliberate gaps and unexpected ordering when they strengthen the treatment.",
-    "A longer line is allowed only when it earns its length.",
+    "Use fragments when they create pull, not merely because fragments are short.",
+    "A line can be longer when its length earns the landing.",
+    "Never invent people, actions, objects, dialogue, motives, threats, targets, missions, enemies, locations, outcomes or chronology.",
+    "Never turn figurative language into a literal event.",
     "Never write production directions.",
-    "Never output labels such as VISUAL, CAMERA, SHOT, EDIT, B-ROLL, TIME-LAPSE, RAPID-CUT, SCENE DIRECTION or similar.",
-    "Do not output internal analysis, explanations, mechanism names, field names, or descriptions of your reasoning.",
-    "Create three genuinely different treatments.",
-    "Vary the hook, central relationship, ordering, rhythm, framing, callback, contrast, interruption and payoff.",
-    "After creating the three treatments, select the strongest one yourself using selectedSetIndex.",
-    "Return JSON only: {\"selectedSetIndex\":0,\"sets\":[{\"scenes\":[{\"text\":\"...\",\"kind\":\"hook\",\"sourceEventIds\":[\"...\"]}]}]}",
-    "selectedSetIndex is zero-based and refers only to the three generated treatments.",
+    "Never output internal analysis, architecture terms, mechanism names, field names, or descriptions of your reasoning.",
+    "Return JSON only: {\"scenes\":[{\"text\":\"...\",\"kind\":\"hook\",\"sourceEventIds\":[\"...\"]}]}.",
     "Allowed kinds: line, hook, movement, discovery, turn, payoff, afterglow.",
     `Creative attack ${attempt + 1} of 3.`,
     feedback || attacks[Math.min(attempt, attacks.length - 1)]!,
-  ].join("\n");
+  ].join("\\n");
 }
 
 export async function realizeAuthorExperience(input: {
@@ -322,39 +367,26 @@ export async function realizeAuthorExperience(input: {
   const schema: LocalModelJsonSchema = {
     type: "object",
     additionalProperties: false,
-    required: ["selectedSetIndex", "sets"],
+    required: ["scenes"],
     properties: {
-      selectedSetIndex: { type: "integer", minimum: 0, maximum: 2 },
-      sets: {
+      scenes: {
         type: "array",
-        minItems: 3,
-        maxItems: 3,
+        minItems: 1,
+        maxItems: MAX_CUTS,
         items: {
           type: "object",
           additionalProperties: false,
-          required: ["scenes"],
+          required: ["text", "kind"],
           properties: {
-            scenes: {
+            text: { type: "string", minLength: 1, maxLength: MAX_BEAT_CHARS },
+            kind: {
+              type: "string",
+              enum: ["line", "hook", "movement", "discovery", "turn", "payoff", "afterglow"],
+            },
+            sourceEventIds: {
               type: "array",
-              minItems: 1,
-              maxItems: MAX_CUTS,
-              items: {
-                type: "object",
-                additionalProperties: false,
-                required: ["text", "kind"],
-                properties: {
-                  text: { type: "string", minLength: 1, maxLength: MAX_BEAT_CHARS },
-                  kind: {
-                    type: "string",
-                    enum: ["line", "hook", "movement", "discovery", "turn", "payoff", "afterglow"],
-                  },
-                  sourceEventIds: {
-                    type: "array",
-                    items: { type: "string" },
-                    maxItems: 3,
-                  },
-                },
-              },
+              items: { type: "string" },
+              maxItems: 3,
             },
           },
         },
@@ -388,43 +420,28 @@ export async function realizeAuthorExperience(input: {
           },
         ],
         "json",
-        { numPredict: 4200, temperature: [1.05, 1.1, 1.15][attempt]!, jsonSchema: schema },
+        { numPredict: 2600, temperature: [1.05, 1.1, 1.15][attempt]!, jsonSchema: schema },
       );
 
       model = result.model;
       modelCalls += 1;
 
       const parsed = parseJson(result.text);
-      const rawSets = Array.isArray(parsed?.sets) ? parsed.sets : [];
-      const rawSelected = Number(parsed?.selectedSetIndex);
-      const selectedSetIndex =
-        Number.isInteger(rawSelected) && rawSelected >= 0 && rawSelected < rawSets.length
-          ? rawSelected
-          : undefined;
+      const validation = validateSet(parsed, { graph: input.graph });
 
-      const validSets = rawSets.flatMap((raw, index) => {
-        const validation = validateSet(raw, { graph: input.graph });
-        if (!validation.scenes) {
-          rejectedSets += 1;
-          if (validation.reason) rejectedReasons.push(`treatment ${index + 1}: ${validation.reason}`);
-          return [];
-        }
-        return [{ index, scenes: validation.scenes }];
-      });
-
-      if (!validSets.length) continue;
-
-      const chosen =
-        validSets.find((candidate) => candidate.index === selectedSetIndex) ??
-        validSets[validSets.length - 1]!;
+      if (!validation.scenes) {
+        rejectedSets += 1;
+        if (validation.reason) rejectedReasons.push(validation.reason);
+        continue;
+      }
 
       return {
-        scenes: chosen.scenes,
-        score: chosen.scenes.reduce((sum, scene) => sum + scene.score, 0) / chosen.scenes.length,
+        scenes: validation.scenes,
+        score: validation.scenes.reduce((sum, scene) => sum + scene.score, 0) / validation.scenes.length,
         model,
         modelCalls,
         rejectedSets,
-        selectedSetIndex: chosen.index,
+        selectedSetIndex: 0,
         reason: rejectedReasons.length ? rejectedReasons.join(" | ") : undefined,
       };
     } catch (error) {
