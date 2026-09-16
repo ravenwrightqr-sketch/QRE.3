@@ -1,14 +1,10 @@
-/**
- * QRE EXPERIENCE BLUEPRINT CONTRACT
- */
-
 import type { ExperienceTone } from "./tone.js";
 import type { ExperienceType } from "./experienceType.js";
 import type { ExperienceMoment } from "./moment.js";
-import type { ExperienceEntities } from "./entityExtractor.js";
-import type { ExperienceMeaning } from "./meaning.js";
-import type { CognitiveExperiencePlan } from "./cognition.js";
-import type { SponsorPolicy } from "./sponsor.js";
+import type { ExperienceEntities } from "../reality/entityExtractor.js";
+import type { ExperienceMeaning } from "../cognition/meaning.js";
+import type { CognitiveExperiencePlan } from "../cognition/cognition.js";
+import type { SponsorPolicy } from "../sponsorship/sponsor.js";
 
 export type ExperienceBlueprint = {
   title: string;
