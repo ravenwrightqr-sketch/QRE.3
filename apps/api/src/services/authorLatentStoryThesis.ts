@@ -56,64 +56,241 @@ function relationBetween(
 
 function mechanismPriority(kind: CreativeInterpretation["mechanism"]): number {
   switch (kind) {
-    case "recurrence": return 1;
-    case "state_change": return 0.99;
-    case "contrast": return 0.98;
-    case "expectation_shift": return 0.96;
-    case "consequence": return 0.9;
-    case "convergence": return 0.58;
-    case "continuation": return 0.52;
-    default: return 0.4;
+    case "recurrence":
+      return 1;
+    case "state_change":
+      return 0.99;
+    case "contrast":
+      return 0.98;
+    case "expectation_shift":
+      return 0.96;
+    case "consequence":
+      return 0.9;
+    case "convergence":
+      return 0.58;
+    case "continuation":
+      return 0.52;
+    default:
+      return 0.4;
   }
 }
 
 function statementSpecificity(statement: string): number {
   const value = clean(statement);
-  const concrete = /\b(?:bow|collar|tag|mirror|photo|picture|gift|key|keys|ring|flower|flowers|coat|dress|shirt|shoe|shoes|ticket|receipt|book|letter|phone|screen|car|room|house|home|table|door|window|box|bag|cake|towel|towels|leash)\b/i.test(value);
-  const specificState = /\b(?:nervous|scared|afraid|anxious|worried|sad|angry|tired|awkward|uneasy|tense|stressed|uncomfortable|happy|proud|calm|excited|confident|comfortable|relieved|fabulous|good|glad|pleased|delighted|fierce|cool|sharp|dapper|ready)\b/i.test(value);
-  const generic = /\b(?:separate|supplied|changes|converge|continuing thread|meaningful relationship|same realization|small changes in feeling)\b/i.test(value);
-  return (concrete ? 0.34 : 0) + (specificState ? 0.28 : 0) + (generic ? -0.32 : 0) + Math.min(0.2, value.split(/\s+/).filter(Boolean).length / 40);
+  const concrete =
+    /\b(?:bow|collar|tag|mirror|photo|picture|gift|key|keys|ring|flower|flowers|coat|dress|shirt|shoe|shoes|ticket|receipt|book|letter|phone|screen|car|room|house|home|table|door|window|box|bag|cake|towel|towels|leash)\b/i.test(
+      value,
+    );
+  const specificState =
+    /\b(?:nervous|scared|afraid|anxious|worried|sad|angry|tired|awkward|uneasy|tense|stressed|uncomfortable|happy|proud|calm|excited|confident|comfortable|relieved|fabulous|good|glad|pleased|delighted|fierce|cool|sharp|dapper|ready)\b/i.test(
+      value,
+    );
+  const generic =
+    /\b(?:separate|supplied|changes|converge|continuing thread|meaningful relationship|same realization|small changes in feeling)\b/i.test(
+      value,
+    );
+
+  return (
+    (concrete ? 0.34 : 0) +
+    (specificState ? 0.28 : 0) +
+    (generic ? -0.32 : 0) +
+    Math.min(0.2, value.split(/\s+/).filter(Boolean).length / 40)
+  );
+}
+
+/**
+ * Preserve every meaningful non-structural relationship available inside the
+ * selected movie. This is deliberately broader than adjacency: a later fact
+ * may become meaningful because it connects back to an earlier fact.
+ */
+function rankedRelations(
+  graph: RealityGraph,
+  candidate: LatentMovieCandidate,
+): Array<{ relation: RealityRelation; from: string; to: string }> {
+  const ids = orderedIds(candidate);
+
+  const ranked: Array<{
+    relation: RealityRelation;
+    from: string;
+    to: string;
+  }> = [];
+
+  for (let i = 0; i < ids.length; i += 1) {
+    for (let j = i + 1; j < ids.length; j += 1) {
+      const relation = relationBetween(graph, ids[i]!, ids[j]!);
+      if (!relation) continue;
+
+      if (
+        ["before", "after", "involves", "belongs_to"].includes(
+          relation.kind,
+        )
+      ) {
+        continue;
+      }
+
+      ranked.push({
+        relation,
+        from: ids[i]!,
+        to: ids[j]!,
+      });
+    }
+  }
+
+  const priority = (kind: RealityRelation["kind"]): number => {
+    switch (kind) {
+      case "recontextualizes":
+        return 1;
+      case "repeats":
+        return 0.98;
+      case "contrasts":
+        return 0.97;
+      case "changes":
+        return 0.96;
+      case "causes":
+        return 0.94;
+      case "converges":
+        return 0.75;
+      default:
+        return 0.5;
+    }
+  };
+
+  return ranked.sort(
+    (left, right) =>
+      right.relation.strength * 0.72 +
+      priority(right.relation.kind) * 0.28 -
+      (left.relation.strength * 0.72 +
+        priority(left.relation.kind) * 0.28),
+  );
+}
+
+function interpretationRelationPower(
+  graph: RealityGraph,
+  candidate: LatentMovieCandidate,
+  interpretation: CreativeInterpretation,
+): {
+  strongest: number;
+  nonAdjacent: number;
+  count: number;
+} {
+  const ids = orderedIds(candidate);
+  const evidenceIds = new Set(interpretation.evidenceEventIds);
+
+  let strongest = 0;
+  let nonAdjacent = 0;
+  let count = 0;
+
+  for (const entry of rankedRelations(graph, candidate)) {
+    if (
+      !evidenceIds.has(entry.from) ||
+      !evidenceIds.has(entry.to)
+    ) {
+      continue;
+    }
+
+    count += 1;
+    strongest = Math.max(strongest, entry.relation.strength);
+
+    const fromIndex = ids.indexOf(entry.from);
+    const toIndex = ids.indexOf(entry.to);
+
+    if (
+      fromIndex >= 0 &&
+      toIndex >= 0 &&
+      Math.abs(fromIndex - toIndex) > 1
+    ) {
+      nonAdjacent = Math.max(nonAdjacent, entry.relation.strength);
+    }
+  }
+
+  return {
+    strongest,
+    nonAdjacent,
+    count,
+  };
 }
 
 function interpretationScore(
+  graph: RealityGraph,
   candidate: LatentMovieCandidate,
   interpretation: CreativeInterpretation,
 ): number {
   const ids = orderedIds(candidate);
-  const evidence = interpretation.evidenceEventIds.filter((id) => ids.includes(id));
+
+  const evidence = interpretation.evidenceEventIds.filter((id) =>
+    ids.includes(id),
+  );
+
   const coverage = interpretation.evidenceEventIds.length
     ? evidence.length / interpretation.evidenceEventIds.length
     : 0;
-  const positions = evidence.map((id) => ids.indexOf(id)).filter((index) => index >= 0);
-  const spread = positions.length >= 2
-    ? (Math.max(...positions) - Math.min(...positions)) / Math.max(1, ids.length - 1)
-    : 0;
-  const endpoint = endpointId(candidate);
-  const endpointSupport = endpoint && evidence.includes(endpoint) ? 1 : 0;
 
-  return interpretation.confidence * 0.3 +
-    mechanismPriority(interpretation.mechanism) * 0.28 +
-    statementSpecificity(interpretation.statement) * 0.2 +
-    coverage * 0.12 +
-    spread * 0.06 +
-    endpointSupport * 0.04;
+  const positions = evidence
+    .map((id) => ids.indexOf(id))
+    .filter((index) => index >= 0);
+
+  const spread =
+    positions.length >= 2
+      ? (Math.max(...positions) - Math.min(...positions)) /
+        Math.max(1, ids.length - 1)
+      : 0;
+
+  const endpoint = endpointId(candidate);
+  const endpointSupport =
+    endpoint && evidence.includes(endpoint) ? 1 : 0;
+
+  const wholeRealityCoverage = Math.min(
+    1,
+    evidence.length / Math.max(1, ids.length),
+  );
+
+  const relationPower = interpretationRelationPower(
+    graph,
+    candidate,
+    interpretation,
+  );
+
+  const mechanism = mechanismPriority(interpretation.mechanism);
+  const specificity = statementSpecificity(
+    interpretation.statement,
+  );
+
+  return (
+    interpretation.confidence * 0.22 +
+    mechanism * 0.18 +
+    specificity * 0.12 +
+    coverage * 0.13 +
+    spread * 0.08 +
+    endpointSupport * 0.06 +
+    wholeRealityCoverage * 0.08 +
+    relationPower.strongest * 0.06 +
+    relationPower.nonAdjacent * 0.05 +
+    Math.min(0.02, relationPower.count * 0.005)
+  );
 }
 
 function strongestInterpretation(
+  graph: RealityGraph,
   candidate: LatentMovieCandidate,
   interpretations: readonly CreativeInterpretation[],
 ): CreativeInterpretation | undefined {
   return [...interpretations]
     .map((interpretation, index) => ({
       interpretation,
-      score: interpretationScore(candidate, interpretation),
+      score: interpretationScore(
+        graph,
+        candidate,
+        interpretation,
+      ),
       index,
     }))
     .sort(
       (a, b) =>
         b.score - a.score ||
-        b.interpretation.confidence - a.interpretation.confidence ||
-        b.interpretation.evidenceEventIds.length - a.interpretation.evidenceEventIds.length ||
+        b.interpretation.confidence -
+          a.interpretation.confidence ||
+        b.interpretation.evidenceEventIds.length -
+          a.interpretation.evidenceEventIds.length ||
         a.index - b.index,
     )[0]?.interpretation;
 }
@@ -122,35 +299,14 @@ function strongestRelation(
   graph: RealityGraph,
   candidate: LatentMovieCandidate,
 ): { relation: RealityRelation; from: string; to: string } | undefined {
-  const ids = orderedIds(candidate);
-  const ranked: Array<{ relation: RealityRelation; from: string; to: string }> = [];
-  for (let i = 0; i < ids.length; i += 1) {
-    for (let j = i + 1; j < ids.length; j += 1) {
-      const relation = relationBetween(graph, ids[i]!, ids[j]!);
-      if (relation) ranked.push({ relation, from: ids[i]!, to: ids[j]! });
-    }
-  }
-  return ranked.sort((a, b) => {
-    const priority = (kind: RealityRelation["kind"]): number => {
-      switch (kind) {
-        case "recontextualizes": return 1;
-        case "repeats": return 0.98;
-        case "contrasts": return 0.97;
-        case "changes": return 0.96;
-        case "causes": return 0.94;
-        case "converges": return 0.75;
-        default: return 0.5;
-      }
-    };
-    return (
-      b.relation.strength * 0.72 + priority(b.relation.kind) * 0.28 -
-      (a.relation.strength * 0.72 + priority(a.relation.kind) * 0.28)
-    );
-  })[0];
+  return rankedRelations(graph, candidate)[0];
 }
 
 function buildInitialReading(candidate: LatentMovieCandidate): string {
-  const first = candidate.trajectory.find((step) => step.operation === "establish");
+  const first = candidate.trajectory.find(
+    (step) => step.operation === "establish",
+  );
+
   return clean(first?.viewerChange || candidate.evidence[0]);
 }
 
@@ -158,76 +314,136 @@ function buildObserverExperienceObjective(
   interpretation: CreativeInterpretation | undefined,
 ): ObserverExperienceObjective | undefined {
   if (!interpretation) return undefined;
-  const byMechanism: Record<string, ObserverExperienceObjective> = {
+
+  const byMechanism: Record<
+    string,
+    ObserverExperienceObjective
+  > = {
     recurrence: {
       objective: interpretation.statement,
-      surprise: "Let the observer notice that an earlier concrete detail has returned with new importance.",
-      curiosity: "Make the observer hold the earlier detail in mind without explaining why it matters.",
-      attention: ["notice the detail", "let other supplied material pass", "return to the detail", "recognize the continuity"],
-      landing: "Let the recurrence itself create the realization.",
+      surprise:
+        "Let the observer notice that an earlier concrete detail has returned with new importance.",
+      curiosity:
+        "Make the observer hold the earlier detail in mind without explaining why it matters.",
+      attention: [
+        "notice the detail",
+        "let other supplied material pass",
+        "return to the detail",
+        "recognize the continuity",
+      ],
+      landing:
+        "Let the recurrence itself create the realization.",
       explanationForbidden: true,
     },
+
     state_change: {
       objective: interpretation.statement,
-      surprise: "Let the observer feel the supplied before-and-after difference rather than hear a summary of it.",
-      curiosity: "Make the observer notice that the subject is no longer where the story began.",
-      attention: ["establish the starting state", "watch the supplied change accumulate", "delay the label", "recognize the new state"],
-      landing: "Let the supplied later state answer the earlier state.",
+      surprise:
+        "Let the observer feel the supplied before-and-after difference rather than hear a summary of it.",
+      curiosity:
+        "Make the observer notice that the subject is no longer where the story began.",
+      attention: [
+        "establish the starting state",
+        "watch the supplied change accumulate",
+        "delay the label",
+        "recognize the new state",
+      ],
+      landing:
+        "Let the supplied later state answer the earlier state.",
       explanationForbidden: true,
     },
+
     contrast: {
       objective: interpretation.statement,
-      surprise: "Hold two supplied readings together until the tension becomes visible.",
-      curiosity: "Do not resolve the contrast before the supplied evidence earns it.",
-      attention: ["establish one reading", "introduce the contrast", "hold both", "let recognition resolve it"],
-      landing: "Let the supplied evidence determine which reading survives.",
+      surprise:
+        "Hold two supplied readings together until the tension becomes visible.",
+      curiosity:
+        "Do not resolve the contrast before the supplied evidence earns it.",
+      attention: [
+        "establish one reading",
+        "introduce the contrast",
+        "hold both",
+        "let recognition resolve it",
+      ],
+      landing:
+        "Let the supplied evidence determine which reading survives.",
       explanationForbidden: true,
     },
   };
-  return byMechanism[interpretation.mechanism] ?? {
-    objective: interpretation.statement,
-    surprise: "Let the observer discover the supplied relationship without being told what it means.",
-    curiosity: "Delay explanation while the supplied evidence accumulates.",
-    attention: ["establish", "accumulate", "withhold", "recognize"],
-    landing: "Let the supplied endpoint complete the realization.",
-    explanationForbidden: true,
-  };
+
+  return (
+    byMechanism[interpretation.mechanism] ?? {
+      objective: interpretation.statement,
+      surprise:
+        "Let the observer discover the supplied relationship without being told what it means.",
+      curiosity:
+        "Delay explanation while the supplied evidence accumulates.",
+      attention: [
+        "establish",
+        "accumulate",
+        "withhold",
+        "recognize",
+      ],
+      landing:
+        "Let the supplied endpoint complete the realization.",
+      explanationForbidden: true,
+    }
+  );
 }
 
 function buildSemanticRealization(
   graph: RealityGraph,
   interpretation: CreativeInterpretation | undefined,
-  fallbackRelation: { relation: RealityRelation; from: string; to: string } | undefined,
+  fallbackRelation:
+    | {
+        relation: RealityRelation;
+        from: string;
+        to: string;
+      }
+    | undefined,
 ): LatentSemanticRealization | undefined {
   if (interpretation) {
     return {
       mechanism: interpretation.mechanism,
-      evidenceEventIds: unique(interpretation.evidenceEventIds),
-      beforeEventIds: unique(interpretation.beforeEventIds),
-      afterEventIds: unique(interpretation.afterEventIds),
+      evidenceEventIds: unique(
+        interpretation.evidenceEventIds,
+      ),
+      beforeEventIds: unique(
+        interpretation.beforeEventIds,
+      ),
+      afterEventIds: unique(
+        interpretation.afterEventIds,
+      ),
       before: clean(interpretation.before),
       after: clean(interpretation.after),
       subject: clean(interpretation.subject),
       callback: interpretation.callback
         ? {
             detail: clean(interpretation.callback.detail),
-            eventIds: unique(interpretation.callback.eventIds),
+            eventIds: unique(
+              interpretation.callback.eventIds,
+            ),
             role: interpretation.callback.role,
           }
         : undefined,
-      relation: interpretation.relation ?? (
-        fallbackRelation &&
-        interpretation.evidenceEventIds.includes(fallbackRelation.from) &&
-        interpretation.evidenceEventIds.includes(fallbackRelation.to)
+      relation:
+        interpretation.relation ??
+        (fallbackRelation &&
+        interpretation.evidenceEventIds.includes(
+          fallbackRelation.from,
+        ) &&
+        interpretation.evidenceEventIds.includes(
+          fallbackRelation.to,
+        )
           ? {
               kind: fallbackRelation.relation.kind,
               fromEventId: fallbackRelation.from,
               toEventId: fallbackRelation.to,
             }
-          : undefined
-      ),
+          : undefined),
       realizationMove: interpretation.realizationMove,
-      creativeOpportunity: interpretation.creativeOpportunity,
+      creativeOpportunity:
+        interpretation.creativeOpportunity,
       confidence: interpretation.confidence,
     };
   }
@@ -247,33 +463,59 @@ function buildSemanticRealization(
               : fallbackRelation.relation.kind === "converges"
                 ? "convergence"
                 : "continuation",
-    evidenceEventIds: unique([fallbackRelation.from, fallbackRelation.to]),
+
+    evidenceEventIds: unique([
+      fallbackRelation.from,
+      fallbackRelation.to,
+    ]),
+
     beforeEventIds: [fallbackRelation.from],
     afterEventIds: [fallbackRelation.to],
-    before: eventLabel(graph, fallbackRelation.from),
-    after: eventLabel(graph, fallbackRelation.to),
+
+    before: eventLabel(
+      graph,
+      fallbackRelation.from,
+    ),
+
+    after: eventLabel(
+      graph,
+      fallbackRelation.to,
+    ),
+
     relation: {
       kind: fallbackRelation.relation.kind,
       fromEventId: fallbackRelation.from,
       toEventId: fallbackRelation.to,
     },
+
     realizationMove:
-      fallbackRelation.relation.kind === "recontextualizes"
+      fallbackRelation.relation.kind ===
+      "recontextualizes"
         ? "recontextualize_callback"
-        : fallbackRelation.relation.kind === "contrasts"
+        : fallbackRelation.relation.kind ===
+            "contrasts"
           ? "hold_contrast"
-          : fallbackRelation.relation.kind === "changes"
+          : fallbackRelation.relation.kind ===
+              "changes"
             ? "feel_state_transition"
             : "recognize",
+
     creativeOpportunity:
-      fallbackRelation.relation.kind === "recontextualizes"
+      fallbackRelation.relation.kind ===
+      "recontextualizes"
         ? "callback_recontextualization"
-        : fallbackRelation.relation.kind === "contrasts"
+        : fallbackRelation.relation.kind ===
+            "contrasts"
           ? "contrast_reframe"
-          : fallbackRelation.relation.kind === "changes"
+          : fallbackRelation.relation.kind ===
+              "changes"
             ? "status_turn"
             : "recognition",
-    confidence: Math.min(1, fallbackRelation.relation.strength),
+
+    confidence: Math.min(
+      1,
+      fallbackRelation.relation.strength,
+    ),
   };
 }
 
@@ -281,49 +523,153 @@ export function deriveLatentStoryThesis(
   graph: RealityGraph,
   candidate: LatentMovieCandidate,
 ): LatentStoryThesis {
-  const interpretations = deriveSequenceBackedCreativeInterpretations(graph, candidate);
-  const interpretation = strongestInterpretation(candidate, interpretations);
-  const fallbackRelation = strongestRelation(graph, candidate);
+  const interpretations =
+    deriveSequenceBackedCreativeInterpretations(
+      graph,
+      candidate,
+    );
+
+  const interpretation = strongestInterpretation(
+    graph,
+    candidate,
+    interpretations,
+  );
+
+  const relationCandidates = rankedRelations(
+    graph,
+    candidate,
+  );
+
+  const fallbackRelation =
+    relationCandidates[0] ??
+    strongestRelation(graph, candidate);
+
   const endpoint = endpointId(candidate);
 
-  const beforeId = interpretation?.beforeEventIds[0] ?? fallbackRelation?.from ?? "";
-  const afterId = interpretation?.afterEventIds[0] ?? fallbackRelation?.to ?? endpoint;
-  const semanticTurn = interpretation?.statement ||
+  const beforeId =
+    interpretation?.beforeEventIds[0] ??
+    fallbackRelation?.from ??
+    "";
+
+  const afterId =
+    interpretation?.afterEventIds[0] ??
+    fallbackRelation?.to ??
+    endpoint;
+
+  const semanticTurn =
+    clean(interpretation?.statement) ||
     (fallbackRelation
-      ? `${eventLabel(graph, fallbackRelation.from)} changes the reading of ${eventLabel(graph, fallbackRelation.to)} through ${fallbackRelation.relation.kind}.`
+      ? `${eventLabel(
+          graph,
+          fallbackRelation.from,
+        )} changes the reading of ${eventLabel(
+          graph,
+          fallbackRelation.to,
+        )} through ${fallbackRelation.relation.kind}.`
       : "");
 
   const carrierEventIds = unique([
     ...(interpretation?.evidenceEventIds ?? []),
-  ]).filter((id) => id !== endpoint).slice(0, 2);
+  ])
+    .filter((id) => id !== endpoint)
+    .slice(0, 2);
 
-  const sealingEventIds = endpoint && endpoint !== beforeId && endpoint !== afterId
-    ? [endpoint]
-    : afterId && afterId !== beforeId
-      ? [afterId]
-      : [];
+  const sealingEventIds =
+    endpoint &&
+    endpoint !== beforeId &&
+    endpoint !== afterId
+      ? [endpoint]
+      : afterId && afterId !== beforeId
+        ? [afterId]
+        : [];
 
   const payoffDependency = endpoint
-    ? afterId
-      ? `The supplied ending depends on the earlier supplied relationship culminating in ${eventLabel(graph, endpoint)}.`
-      : `The supplied ending is ${eventLabel(graph, endpoint)}.`
+    ? interpretation?.statement
+      ? `The supplied ending is earned by the grounded relationship expressed in the selected realization, culminating in ${eventLabel(
+          graph,
+          endpoint,
+        )}.`
+      : afterId
+        ? `The supplied ending depends on the earlier supplied relationship culminating in ${eventLabel(
+            graph,
+            endpoint,
+          )}.`
+        : `The supplied ending is ${eventLabel(
+            graph,
+            endpoint,
+          )}.`
     : "";
 
   return {
     initialReading: buildInitialReading(candidate),
+
     semanticTurn,
-    semanticRealization: buildSemanticRealization(graph, interpretation, fallbackRelation),
-    beforeMeaning: beforeId ? [eventLabel(graph, beforeId)].filter(Boolean) : [],
-    afterMeaning: afterId ? [eventLabel(graph, afterId)].filter(Boolean) : [],
-    beforeEventIds: beforeId ? [beforeId] : [],
-    afterEventIds: afterId ? [afterId] : [],
-    relationKind: interpretation?.mechanism,
+
+    semanticRealization:
+      buildSemanticRealization(
+        graph,
+        interpretation,
+        fallbackRelation,
+      ),
+
+    beforeMeaning: beforeId
+      ? [eventLabel(graph, beforeId)].filter(Boolean)
+      : [],
+
+    afterMeaning: afterId
+      ? [eventLabel(graph, afterId)].filter(Boolean)
+      : [],
+
+    beforeEventIds: beforeId
+      ? [beforeId]
+      : [],
+
+    afterEventIds: afterId
+      ? [afterId]
+      : [],
+
+    relationKind:
+      interpretation?.mechanism ??
+      (
+        fallbackRelation?.relation.kind ===
+        "recontextualizes"
+          ? "recurrence"
+          : fallbackRelation?.relation.kind ===
+              "contrasts"
+            ? "contrast"
+            : fallbackRelation?.relation.kind ===
+                "changes"
+              ? "state_change"
+              : fallbackRelation?.relation.kind ===
+                  "causes"
+                ? "consequence"
+                : fallbackRelation
+                  ? "continuation"
+                  : undefined
+      ),
+
     carrierEventIds,
+
     sealingEventIds,
+
     payoffDependency,
-    counterfactualDependency: interpretation
-      ? Math.min(1, interpretation.evidenceEventIds.length / Math.max(2, orderedIds(candidate).length))
-      : 0,
-    observerExperience: buildObserverExperienceObjective(interpretation),
+
+    counterfactualDependency:
+      interpretation
+        ? Math.min(
+            1,
+            interpretation.evidenceEventIds
+              .length /
+              Math.max(
+                2,
+                orderedIds(candidate).length,
+              ),
+          )
+        : 0,
+
+    observerExperience:
+      buildObserverExperienceObjective(
+        interpretation,
+      ),
   };
 }

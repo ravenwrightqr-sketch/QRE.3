@@ -17,6 +17,7 @@ import {
   classifyLens,
   rankLensOpportunities,
 } from "./authorCharacterLensEngine.js";
+import { buildAuthorWorldSimulation } from "./authorWorldSimulation.js";
 
 export type AuthorCognitionInput = {
   prompt: string;
@@ -188,6 +189,7 @@ function parsePriorExperienceStates(
 function enrichMovieCandidate(
   candidate: LatentMovieCandidate,
   graph: RealityGraph | undefined,
+  worldSimulation?: ReturnType<typeof buildAuthorWorldSimulation>,
 ): LatentMovieCandidate {
   if (
     !graph ||
@@ -202,9 +204,49 @@ function enrichMovieCandidate(
       candidate,
     );
 
+  const observer =
+    storyThesis.observerExperience;
+
+  const observerWithSimulation =
+    observer || worldSimulation
+      ? {
+          ...(observer ?? {
+            objective:
+              "Construct a viewer-facing realization from the supplied world without changing its truth.",
+            surprise:
+              "Meaning should emerge from changing supplied relationships.",
+            curiosity:
+              "What becomes newly meaningful?",
+            attention: [
+              "notice the strongest supplied relationship",
+              "let surrounding detail accumulate",
+              "recognize the turn",
+            ],
+            landing:
+              "Let the supplied relationship create the realization.",
+            explanationForbidden: true,
+          }),
+          ...(worldSimulation
+            ? {
+                simulation:
+                  worldSimulation,
+              }
+            : {}),
+          explanationForbidden: true,
+        }
+      : undefined;
+
   return {
     ...candidate,
-    storyThesis,
+    storyThesis: {
+      ...storyThesis,
+      ...(observerWithSimulation
+        ? {
+            observerExperience:
+              observerWithSimulation,
+          }
+        : {}),
+    },
     hypothesis: [
       ...candidate.hypothesis,
       ...(storyThesis.semanticTurn
@@ -221,7 +263,6 @@ function enrichMovieCandidate(
     ),
   };
 }
-
 /**
  * Auto lens selection is owned by the canonical character-lens engine.
  * Cognition supplies the canonical RealityEnvelope so there is one lens
@@ -293,6 +334,7 @@ function resolveLens(
 function movieFor(
   input: AuthorCognitionInput,
   lens: string,
+  priorExperienceStates: readonly AuthorExperienceState[],
 ): {
   latentMovieCandidates: LatentMovieCandidate[];
   selectedMovie?: LatentMovieCandidate;
@@ -305,6 +347,33 @@ function movieFor(
       latentMovieCandidates: [],
     };
   }
+
+  const worldSimulation =
+    buildAuthorWorldSimulation({
+      reality:
+        input.realityGraph,
+      subject:
+        input.subject,
+      lens,
+      priorExperienceIds:
+        priorExperienceStates
+          .map(
+            (state) =>
+              state.selectedMovieId,
+          )
+          .filter(
+            (id): id is string =>
+              Boolean(id),
+          ),
+      rememberedRefIds:
+        priorExperienceStates.flatMap(
+          (state) =>
+            state.worldSimulation
+              ?.reentry
+              .rememberedRefIds ??
+            [],
+        ),
+    });
 
   const searched =
     searchUniversalMovieCandidates({
@@ -319,6 +388,7 @@ function movieFor(
       enrichMovieCandidate(
         candidate,
         input.realityGraph,
+        worldSimulation,
       ),
     );
 
@@ -640,19 +710,21 @@ function buildSceneRules(
 export function buildAuthorCognitivePlan(
   input: AuthorCognitionInput,
 ): AuthorCognitivePlan {
+
   const selectedLens =
-    resolveLens(input);
+  resolveLens(input);
 
-  const movie =
-    movieFor(
-      input,
-      selectedLens,
-    );
+const priorExperienceStates =
+  parsePriorExperienceStates(
+    input.priorStrategies,
+  );
 
-  const priorExperienceStates =
-    parsePriorExperienceStates(
-      input.priorStrategies,
-    );
+const movie =
+  movieFor(
+    input,
+    selectedLens,
+    priorExperienceStates,
+  );
 
   const experienceState =
     input.realityGraph &&
