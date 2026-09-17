@@ -36,14 +36,14 @@ function creativeOpportunityFor(
 ): LatentSemanticCreativeOpportunity {
   if (interpretation.creativeOpportunity) return interpretation.creativeOpportunity;
   switch (interpretation.mechanism) {
-    case "expectation_shift": return "reframe";
-    case "contrast": return "juxtaposition";
-    case "state_change": return "status_flip";
-    case "recurrence": return "callback";
-    case "consequence": return "aftermath";
-    case "convergence": return "accumulation";
-    case "continuation": return "open_end";
-    default: return "compression";
+    case "expectation_shift": return "contrast_reframe";
+    case "contrast": return "contrast_reframe";
+    case "state_change": return "status_turn";
+    case "recurrence": return "callback_recontextualization";
+    case "consequence": return "consequence";
+    case "convergence": return "recognition";
+    case "continuation": return "return_with_new_status";
+    default: return "recognition";
   }
 }
 
