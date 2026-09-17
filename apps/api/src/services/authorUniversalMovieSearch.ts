@@ -460,54 +460,12 @@ function structuralViewerChange(
   }
 
   if (
-    previousStates.length &&
-    currentStates.length
+    relation?.kind ===
+    "changes"
   ) {
-    const before =
-      previousStates[0]!;
-
-    const after =
-      currentStates[0]!;
-
-    if (
-      before.toLowerCase() !==
-      after.toLowerCase()
-    ) {
-      return `The supplied state shifts from ${before} to ${after}.`;
-    }
+    return `The supplied relationship establishes a change through ${currentLabel}.`;
   }
 
-  if (
-    currentStructure &&
-    currentStructure.transitionScore >=
-      0.65
-  ) {
-    const action =
-      currentActions[0];
-
-    const object =
-      currentObjects[0];
-
-    if (action && object) {
-      return `The supplied transition moves through ${action} involving ${object}.`;
-    }
-
-    if (action) {
-      return `The supplied transition moves through ${action}.`;
-    }
-
-    if (object) {
-      return `The supplied transition centers on ${object}.`;
-    }
-  }
-
-  if (
-    currentTags.includes(
-      "recurrence",
-    )
-  ) {
-    return `A supplied recurring signal returns in ${currentLabel}.`;
-  }
 
   return final
     ? `Land on the supplied endpoint: ${currentLabel}.`
