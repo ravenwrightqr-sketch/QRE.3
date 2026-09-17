@@ -445,13 +445,10 @@ if (
    */
   const hasApprovedBeat =
     Boolean(
-      beat &&
+      beat?.realizationAuthority &&
       (
-        beat.eventIds?.length ||
-        beat.attentionFunction ||
-        beat.change ||
-        beat.role ||
-        beat.relationKinds?.length
+        beat.realizationAuthority.earnedInterpretations.length ||
+        beat.realizationAuthority.permittedRealizationModes.length
       ),
     );
 
@@ -686,13 +683,10 @@ if (
    */
   const approvedSemanticBeat =
     Boolean(
-      input.beat &&
+      input.beat?.realizationAuthority &&
       (
-        input.beat.eventIds?.length ||
-        input.beat.attentionFunction ||
-        input.beat.change ||
-        input.beat.role ||
-        input.beat.relationKinds?.length
+        input.beat.realizationAuthority.earnedInterpretations.length ||
+        input.beat.realizationAuthority.permittedRealizationModes.length
       ),
     );
 
