@@ -22,6 +22,8 @@ import type {
 import { buildAuthorCognitivePlan } from "./authorCognition.js";
 import { buildAuthorRealityGraph } from "./authorRealityGraph.js";
 import { buildAuthorRealityEnvelope } from "./authorRealityEnvelope.js";
+import { buildAuthorMetamorphicRelationSet } from "./authorMetamorphicRelationSet.js";
+import { buildMouthRealizationAuthority } from "./authorMouthRealizationAuthority.js";
 import { deriveViewerStateCut } from "./authorMouthCandidateSearch.js";
 import {
   classifyAuthorRealizationMode,
@@ -275,10 +277,6 @@ function composeTrajectoryBeats(
     index += group.length;
   }
 
-  /*
-   * Never compress a sequence into a single cut once there is enough
-   * evidence for a filmic arc. Preserve at least hook / turn / landing.
-   */
   if (groups.length < 3 && total >= 4) {
     const first = steps.slice(0, 1);
     const last = steps.slice(-1);
@@ -602,11 +600,22 @@ export async function authorBrainCanonical(
   }
 
   const envelope = buildAuthorRealityEnvelope({ graph, subject });
+  const metamorphicRelationSet = buildAuthorMetamorphicRelationSet({ graph, movie });
   const composedBeats = composeTrajectoryBeats(movie);
-  const beats = composedBeats.map((beat, index, allBeats) => ({
-    ...beat,
-    viewerState: deriveViewerStateCut(beat, index, allBeats, envelope),
-  }));
+  const beats = composedBeats.map((beat, index, allBeats) => {
+    const beatWithViewerState: MouthCandidateBeat = {
+      ...beat,
+      viewerState: deriveViewerStateCut(beat, index, allBeats, envelope),
+    };
+    return {
+      ...beatWithViewerState,
+      realizationAuthority: buildMouthRealizationAuthority({
+        beat: beatWithViewerState,
+        envelope,
+        metamorphicRelationSet,
+      }),
+    };
+  });
 
   if (process.env.QRE_AUTHOR_DEBUG_MOVIE === "true") {
     console.log("\n--- QRE AUTHOR COMPOSITION ---");
