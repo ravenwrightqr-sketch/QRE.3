@@ -2,6 +2,7 @@ import type {
   AuthorMetamorphicRelation,
   AuthorMetamorphicRelationSet,
   LatentMovieCandidate,
+  LatentSemanticCreativeOpportunity,
   RealityGraph,
 } from "@qre/contracts";
 import {
@@ -18,7 +19,7 @@ const unique = (values: readonly string[]): string[] =>
 function relationType(
   interpretation: CreativeInterpretation,
 ): AuthorMetamorphicRelation["type"] {
-  if (interpretation.evidenceEventIds.length === 1) return "event_observation";
+  if (interpretation.evidenceEventIds.length === 1) return "relation_observation";
   switch (interpretation.mechanism) {
     case "contrast": return "contrast_reversal";
     case "consequence": return "consequence_reframe";
@@ -27,6 +28,22 @@ function relationType(
     case "convergence": return "convergence";
     case "expectation_shift": return "expectation_break";
     default: return "recontextualization";
+  }
+}
+
+function creativeOpportunityFor(
+  interpretation: CreativeInterpretation,
+): LatentSemanticCreativeOpportunity {
+  if (interpretation.creativeOpportunity) return interpretation.creativeOpportunity;
+  switch (interpretation.mechanism) {
+    case "expectation_shift": return "reframe";
+    case "contrast": return "juxtaposition";
+    case "state_change": return "status_flip";
+    case "recurrence": return "callback";
+    case "consequence": return "aftermath";
+    case "convergence": return "accumulation";
+    case "continuation": return "open_end";
+    default: return "compression";
   }
 }
 
@@ -52,11 +69,12 @@ function mapInterpretation(
         }
       : undefined,
     realizationMove: interpretation.realizationMove,
-    creativeOpportunity: interpretation.creativeOpportunity,
+    creativeOpportunity: creativeOpportunityFor(interpretation),
     feltEffect: clean(interpretation.feltEffect),
     viewerShift: clean(interpretation.viewerShift),
     languageAim: clean(interpretation.languageAim),
     confidence,
+    // CreativeInterpretation remains the single semantic ranking authority.
     score: confidence,
   };
 }
