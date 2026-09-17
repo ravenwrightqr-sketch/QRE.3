@@ -17,7 +17,50 @@ function getSlug(value: unknown): string | null {
 
 /**
  * =========================
- * GET SINGLE ASSET (LOOKUP / DEBUG / ADMIN)
+ * PUBLIC RETAIL INVENTORY
+ * =========================
+ *
+ * Only unassigned, unpaid retail assets are listed.
+ * This is the storefront inventory source; it does not
+ * expose ownership, analytics, or private account data.
+ */
+router.get("/available", async (_req: Request, res: Response) => {
+  try {
+    const assets = await db.asset.findMany({
+      where: {
+        paid: false,
+        accountId: null,
+        saleChannel: SaleChannel.RETAIL,
+        status: "active",
+      },
+      orderBy: { createdAt: "asc" },
+      take: 24,
+      select: {
+        id: true,
+        slug: true,
+        displayName: true,
+        priceCents: true,
+        qrSvg: true,
+      },
+    });
+
+    return res.json({
+      products: assets.map((asset) => ({
+        id: asset.id,
+        slug: asset.slug,
+        displayName: asset.displayName ?? "QRE Physical QR",
+        priceCents: asset.priceCents,
+        qrSvg: asset.qrSvg,
+      })),
+    });
+  } catch (e: any) {
+    return res.status(500).json({ error: e.message });
+  }
+});
+
+/**
+ * =========================
+ * GET SINGLE ASSET
  * =========================
  */
 router.get("/", async (req: Request, res: Response) => {
@@ -44,14 +87,13 @@ router.get("/", async (req: Request, res: Response) => {
 
 /**
  * =========================
- * BULK PRODUCT CREATION (QR/NFC ITEMS)
+ * BULK PRODUCT CREATION
  * =========================
  */
 router.post("/create", async (req: Request, res: Response) => {
   try {
     const { quantity, priceCents } = req.body;
 
-    // VALIDATION
     if (typeof quantity !== "number" || quantity <= 0 || quantity > 10000) {
       return res.status(400).json({ error: "Invalid quantity" });
     }
@@ -60,12 +102,11 @@ router.post("/create", async (req: Request, res: Response) => {
       return res.status(400).json({ error: "Invalid price" });
     }
 
-   const assets =
-  await createAssetBatch(
-    quantity,
-    priceCents,
-    SaleChannel.RETAIL
-  );
+    const assets = await createAssetBatch(
+      quantity,
+      priceCents,
+      SaleChannel.RETAIL,
+    );
     const baseUrl = process.env.PUBLIC_BASE_URL || "https://qre.ink";
 
     const enriched = assets.map((a) => ({
