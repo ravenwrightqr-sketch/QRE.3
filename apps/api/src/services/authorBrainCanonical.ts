@@ -17,6 +17,7 @@ import type {
   SequencePlay,
   ViewerAttentionRole,
   ViewerState,
+  ViewerStateCut,
 } from "@qre/contracts";
 
 import { buildAuthorCognitivePlan } from "./authorCognition.js";
@@ -603,7 +604,7 @@ export async function authorBrainCanonical(
   const metamorphicRelationSet = buildAuthorMetamorphicRelationSet({ graph, movie });
   const composedBeats = composeTrajectoryBeats(movie);
   const beats = composedBeats.map((beat, index, allBeats) => {
-    const beatWithViewerState: MouthCandidateBeat = {
+    const beatWithViewerState: MouthCandidateBeat & { viewerState: ViewerStateCut } = {
       ...beat,
       viewerState: deriveViewerStateCut(beat, index, allBeats, envelope),
     };
