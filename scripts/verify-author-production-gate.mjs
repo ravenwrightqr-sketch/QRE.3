@@ -82,6 +82,10 @@ const allowedDirectModelCallers = new Set([
   "apps/api/src/services/authorMouthSequenceCritic.ts",
   "apps/api/src/services/localModelRuntime.ts",
   "apps/api/src/services/creativeSeedEngine.ts",
+  // Knowledge acquisition is not an Author realization path. It learns a
+  // source-backed business world for later cognition and never creates an
+  // experience, scene, sequence, or competing Author output.
+  "apps/api/src/services/websiteLearning.ts",
 ]);
 
 const reviewOnlyFiles = new Set();
