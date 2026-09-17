@@ -1,12 +1,22 @@
-import { useParams } from "react-router-dom";
+import { useParams, useNavigate } from "react-router-dom";
 import { useEffect, useState } from "react";
 import { checkout } from "../lib/api";
+import { useAuth } from "../components/auth/authContext";
 
 export default function Checkout() {
   const { slug } = useParams();
+  const navigate = useNavigate();
+  const { isAuthed, loading: authLoading } = useAuth();
   const [error, setError] = useState("");
 
   useEffect(() => {
+    if (authLoading) return;
+
+    if (!isAuthed) {
+      navigate(`/login?next=${encodeURIComponent(`/checkout/${slug ?? ""}`)}`, { replace: true });
+      return;
+    }
+
     let cancelled = false;
 
     async function startCheckout() {
@@ -22,7 +32,7 @@ export default function Checkout() {
           window.location.href = data.url;
           return;
         }
-        setError("Checkout did not return a payment URL.");
+        setError(data?.message ?? "Checkout did not return a payment URL.");
       } catch (err) {
         if (!cancelled) {
           setError(err instanceof Error ? err.message : String(err));
@@ -34,14 +44,15 @@ export default function Checkout() {
     return () => {
       cancelled = true;
     };
-  }, [slug]);
+  }, [slug, isAuthed, authLoading, navigate]);
 
   return (
     <div style={stage}>
       <div style={card}>
         <div style={eyebrow}>QRE</div>
-        <h1 style={title}>{error ? "Checkout unavailable" : "Unlocking Experience…"}</h1>
+        <h1 style={title}>{error ? "Checkout unavailable" : "Preparing secure checkout…"}</h1>
         {error && <p style={message}>{error}</p>}
+        {!error && <p style={message}>Your QRE piece is reserved for your account while payment is prepared.</p>}
       </div>
     </div>
   );
