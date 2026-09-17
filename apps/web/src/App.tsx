@@ -1,5 +1,6 @@
 import { BrowserRouter, Navigate, Route, Routes } from "react-router-dom";
 import Login from "./pages/Login";
+import Home from "./pages/Home";
 import Dashboard from "./pages/Dashboard";
 import AssetDashboard from "./pages/AssetDashboard";
 import KnowledgeDashboard from "./pages/KnowledgeDashboard";
@@ -37,8 +38,8 @@ export default function App() {
   return (
     <BrowserRouter>
       <Routes>
+        <Route path="/" element={<Home />} />
         <Route path="/login" element={isAuthed ? <Navigate to="/dashboard" replace /> : <Login />} />
-        <Route path="/" element={<Navigate to={isAuthed ? "/dashboard" : "/login"} replace />} />
         <Route path="/dashboard" element={gate(<Dashboard />)} />
         <Route path="/dashboard/service-receipt" element={gate(<ServiceReceipt />)} />
         <Route path="/dashboard/info" element={gate(<QreInfo />)} />
