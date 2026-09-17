@@ -3,7 +3,6 @@ import type {
   LatentMovieTrajectoryStep,
   RealityGraph,
   RealityRelation,
-  RealityPattern,
 } from "@qre/contracts";
 
 /**
@@ -528,249 +527,53 @@ function buildTrajectory(
     )
     .slice(0, 7);
 
-  const patterns =
-    graph.patterns ?? [];
-
-  const patternForEvent = (
-    eventId: string,
-  ): RealityPattern | undefined =>
-    patterns
+  const semanticRelationBetween = (
+    left: string,
+    right: string,
+  ): RealityRelation | undefined =>
+    graph.relations
       .filter(
-        (pattern) =>
-          pattern.eventIds.includes(
-            eventId,
-          ),
+        (relation) =>
+          (
+            (relation.from === left && relation.to === right) ||
+            (relation.from === right && relation.to === left)
+          ) &&
+          [
+            "causes",
+            "changes",
+            "contrasts",
+            "repeats",
+            "recontextualizes",
+            "converges",
+          ].includes(relation.kind),
       )
-      .sort(
-        (a, b) =>
-          b.strength -
-          a.strength,
-      )[0];
-
-  const strongRelation =
-    (
-      left: string,
-      right: string,
-    ): RealityRelation | undefined =>
-      relationBetween(
-        graph,
-        left,
-        right,
-      );
+      .sort((a, b) => b.strength - a.strength)[0];
 
   const operationForSequence = (
     currentId: string,
     previousId: string | undefined,
-    index: number,
     final: boolean,
   ): LatentMovieTrajectoryStep["operation"] => {
+    if (!previousId) {
+      return "establish";
+    }
+
     if (final) {
       return "payoff";
     }
 
     const relation =
-      previousId
-        ? strongRelation(
-            previousId,
-            currentId,
-          )
-        : undefined;
-
-    if (relation) {
-      const explicit =
-        operationFor(
-          relation,
-          previousId
-            ? label(
-                graph,
-                previousId,
-              )
-            : "",
-          label(
-            graph,
-            currentId,
-          ),
-          false,
-        );
-
-      if (
-        explicit !==
-        "reveal"
-      ) {
-        return explicit;
-      }
-    }
-
-    const currentStructure =
-      eventStructureFor(
-        graph,
+      semanticRelationBetween(
+        previousId,
         currentId,
       );
 
-    const previousStructure =
-      previousId
-        ? eventStructureFor(
-            graph,
-            previousId,
-          )
-        : undefined;
-
-    const currentPattern =
-      patternForEvent(
-        currentId,
-      );
-
-    const hasRecurrence =
-      Boolean(
-        currentStructure &&
-          currentStructure.recurrenceScore >=
-            0.65,
-      );
-
-    const hasTransition =
-      Boolean(
-        currentStructure &&
-          currentStructure.transitionScore >=
-            0.65,
-      );
-
-    const hasAnomaly =
-      Boolean(
-        currentStructure &&
-          currentStructure.anomalyScore >=
-            0.65,
-      );
-
-    const patternKind =
-      currentPattern?.kind;
-
-    if (
-      patternKind ===
-        "recurrence" ||
-      hasRecurrence
-    ) {
-      return "recur";
-    }
-
-    if (
-      patternKind ===
-        "anomaly" ||
-      hasAnomaly
-    ) {
-      return "contrast";
-    }
-
-    if (
-      patternKind ===
-      "transition"
-    ) {
-      return hasTransition
-        ? "reframe"
-        : "reveal";
-    }
-
-    if (
-      patternKind ===
-      "tension"
-    ) {
-      return "contrast";
-    }
-
-    /*
-     * Detect state movement even when the graph has not emitted an explicit
-     * relation between adjacent events.
-     */
-    const previousStates =
-      unique([
-        ...(previousStructure?.states ??
-          []),
-        event(
-          graph,
-          previousId ?? "",
-        )?.emotionalState ??
-          "",
-      ].filter(Boolean));
-
-    const currentStates =
-      unique([
-        ...(currentStructure?.states ??
-          []),
-        event(
-          graph,
-          currentId,
-        )?.emotionalState ??
-          "",
-      ].filter(Boolean));
-
-    if (
-      previousStates.length &&
-      currentStates.length &&
-      previousStates[0]!.toLowerCase() !==
-        currentStates[0]!.toLowerCase()
-    ) {
-      return "reframe";
-    }
-
-    /*
-     * A supplied object/detail becomes more cinematic when it arrives after
-     * an action or state. Treat that as an attention shift, not a second
-     * generic reveal.
-     */
-    if (
-      currentStructure?.objects.length &&
-      (
-        previousStructure?.actions.length ||
-        previousStructure?.states.length
-      )
-    ) {
-      return "reframe";
-    }
-
-    /*
-     * A later event that semantically accumulates several earlier signals is
-     * a convergence point.
-     */
-    const currentTokens =
-      tokens(
-        label(
-          graph,
-          currentId,
-        ),
-      );
-
-    const priorMatches =
-      selected
-        .slice(
-          0,
-          index,
-        )
-        .filter(
-          (priorId) =>
-            sharedTokenScore(
-              label(
-                graph,
-                priorId,
-              ),
-              label(
-                graph,
-                currentId,
-              ),
-            ) >=
-            0.6,
-        );
-
-    if (
-      priorMatches.length >=
-      2
-    ) {
-      return "converge";
-    }
-
-    void currentTokens;
-
-    return hasTransition
-      ? "reframe"
-      : "reveal";
+    return operationFor(
+      relation,
+      label(graph, previousId),
+      label(graph, currentId),
+      false,
+    );
   };
 
   return selected.map(
@@ -781,14 +584,12 @@ function buildTrajectory(
 
       const previousId =
         index > 0
-          ? selected[
-              index - 1
-            ]
+          ? selected[index - 1]
           : undefined;
 
       const relation =
         previousId
-          ? strongRelation(
+          ? semanticRelationBetween(
               previousId,
               id,
             )
@@ -798,17 +599,13 @@ function buildTrajectory(
         operationForSequence(
           id,
           previousId,
-          index,
           final,
         );
 
       return {
-        order:
-          index + 1,
+        order: index + 1,
         operation,
-        eventIds: [
-          id,
-        ],
+        eventIds: [id],
         viewerChange:
           structuralViewerChange(
             graph,
@@ -818,9 +615,7 @@ function buildTrajectory(
             final,
           ),
         nextQuestion:
-          questionFor(
-            operation,
-          ),
+          questionFor(operation),
       };
     },
   );
