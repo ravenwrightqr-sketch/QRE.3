@@ -1,5 +1,6 @@
 import express from "express";
 import Stripe from "stripe";
+import { SaleChannel } from "@prisma/client";
 import { db } from "@qre/db";
 import { requireAuth, AuthRequest } from "../middleware/requireAuth.js";
 
@@ -51,7 +52,7 @@ router.post("/", requireAuth, async (req: AuthRequest, res) => {
     if (
       asset.paid ||
       asset.accountId ||
-      asset.saleChannel !== "RETAIL" ||
+      asset.saleChannel !== SaleChannel.RETAIL ||
       asset.status !== "active"
     ) {
       return res.status(409).json({ error: "This QRE asset is no longer available" });
@@ -66,7 +67,7 @@ router.post("/", requireAuth, async (req: AuthRequest, res) => {
         id: asset.id,
         paid: false,
         accountId: null,
-        saleChannel: "RETAIL",
+        saleChannel: SaleChannel.RETAIL,
         status: "active",
       },
       data: {
