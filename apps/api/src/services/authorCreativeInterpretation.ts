@@ -72,7 +72,6 @@ const CONTINUATION = /\b(?:kept|continued|continue|continues|still|again|returne
 const CALLBACK = /\b(?:same|still|remember(?:ed|ing|s)?|again|returned|return|back|kept)\b/i;
 const EXPECTATION = /\b(?:didn'?t|did not|never)\s+(?:expect|plan|think|assume)|\b(?:unexpected|surpris(?:e|ed|ing)|unplanned|unlike\s+expected)\b/i;
 const CONTRAST = /\b(?:but|yet|although|instead|rather|except|while|however|still)\b/i;
-const ACTION = /\b(?:arrived|arrive|visited|started|called|texted|messaged|talked|spoke|worked|played|danced|went|came|left|returned|watched|looked|chose|chosen|selected|picked|remembered|met|made|gave|found|lost|fixed|repaired|groomed|dyed|tailored|installed|built|bought|sold|celebrated)\b/i;
 const OBJECT = /\b(?:bow|collar|tag|mirror|photo|picture|gift|key|keys|ring|flower|flowers|coat|dress|shirt|shoe|shoes|ticket|receipt|book|letter|phone|screen|car|room|bathroom|house|home|table|door|window|box|bag|cake|towel|towels|leash|tool|tools|food|drink|coffee|music)\b/i;
 
 function isState(label: string): boolean {
@@ -263,6 +262,179 @@ function callbackEventIds(
   return callback ? [callback.earlierId, callback.laterId] : [];
 }
 
+function graphBackedCreativeInterpretations(
+  graph: RealityGraph,
+  orderedEventIds: readonly string[],
+): CreativeInterpretation[] {
+  const selected = new Set(orderedEventIds);
+  const positions = new Map(
+    orderedEventIds.map((eventId, index) => [eventId, index] as const),
+  );
+
+  const semanticRelations = graph.relations.filter((relation) => {
+    if (!selected.has(relation.from) || !selected.has(relation.to)) {
+      return false;
+    }
+
+    return [
+      "causes",
+      "changes",
+      "contrasts",
+      "repeats",
+      "recontextualizes",
+      "converges",
+    ].includes(relation.kind);
+  });
+
+  const result: CreativeInterpretation[] = [];
+  for (const relation of semanticRelations) {
+    const fromPosition = positions.get(relation.from);
+    const toPosition = positions.get(relation.to);
+
+    if (fromPosition === undefined || toPosition === undefined) {
+      continue;
+    }
+
+    const earlierId =
+      fromPosition <= toPosition ? relation.from : relation.to;
+    const laterId =
+      fromPosition <= toPosition ? relation.to : relation.from;
+
+    const before = labelFor(graph, earlierId);
+    const after = labelFor(graph, laterId);
+    const confidence = metric(relation.strength);
+
+    const relationAuthority = {
+      kind: relation.kind,
+      fromEventId: relation.from,
+      toEventId: relation.to,
+    };
+
+    switch (relation.kind) {
+      case "changes":
+        result.push(
+          buildCandidate(
+            "A supplied relationship establishes a change between two moments.",
+            "state_change",
+            [relation.from, relation.to],
+            confidence,
+            {
+              beforeEventIds: [earlierId],
+              afterEventIds: [laterId],
+              before,
+              after,
+              relation: relationAuthority,
+              realizationMove: "feel_state_transition",
+              creativeOpportunity: "status_turn",
+            },
+          ),
+        );
+        break;
+
+      case "repeats":
+        result.push(
+          buildCandidate(
+            "A supplied relationship establishes recurrence across the sequence.",
+            "recurrence",
+            [relation.from, relation.to],
+            confidence,
+            {
+              beforeEventIds: [earlierId],
+              afterEventIds: [laterId],
+              before,
+              after,
+              relation: relationAuthority,
+              realizationMove: "recognize_callback",
+              creativeOpportunity: "callback_recontextualization",
+            },
+          ),
+        );
+        break;
+
+      case "recontextualizes":
+        result.push(
+          buildCandidate(
+            "A later supplied moment changes the reading of an earlier one.",
+            "recurrence",
+            [relation.from, relation.to],
+            confidence,
+            {
+              beforeEventIds: [earlierId],
+              afterEventIds: [laterId],
+              before,
+              after,
+              relation: relationAuthority,
+              realizationMove: "recontextualize_callback",
+              creativeOpportunity: "callback_recontextualization",
+            },
+          ),
+        );
+        break;
+
+      case "contrasts":
+        result.push(
+          buildCandidate(
+            "Two supplied moments establish a grounded contrast.",
+            "contrast",
+            [relation.from, relation.to],
+            confidence,
+            {
+              beforeEventIds: [earlierId],
+              afterEventIds: [laterId],
+              before,
+              after,
+              relation: relationAuthority,
+              realizationMove: "hold_contrast",
+              creativeOpportunity: "contrast_reframe",
+            },
+          ),
+        );
+        break;
+
+      case "causes":
+        result.push(
+          buildCandidate(
+            "A supplied relationship establishes consequence.",
+            "consequence",
+            [relation.from, relation.to],
+            confidence,
+            {
+              beforeEventIds: [earlierId],
+              afterEventIds: [laterId],
+              before,
+              after,
+              relation: relationAuthority,
+              realizationMove: "land_consequence",
+              creativeOpportunity: "consequence",
+            },
+          ),
+        );
+        break;
+
+      case "converges":
+        result.push(
+          buildCandidate(
+            "Supplied moments converge into a shared semantic pressure.",
+            "convergence",
+            [relation.from, relation.to],
+            confidence,
+            {
+              beforeEventIds: [earlierId],
+              afterEventIds: [laterId],
+              before,
+              after,
+              relation: relationAuthority,
+              realizationMove: "recognize",
+              creativeOpportunity: "recognition",
+            },
+          ),
+        );
+        break;
+    }
+  }
+
+  return result;
+}
 export function deriveSequenceBackedCreativeInterpretations(
   graph: RealityGraph,
   candidate: LatentMovieCandidate,
@@ -277,10 +449,9 @@ export function deriveSequenceBackedCreativeInterpretations(
   const continuations = orderedEventIds.filter((id) => CONTINUATION.test(labelFor(graph, id)));
   const expectations = orderedEventIds.filter((id) => EXPECTATION.test(labelFor(graph, id)));
   const contrasts = orderedEventIds.filter((id) => CONTRAST.test(labelFor(graph, id)));
-  const encounters = orderedEventIds.filter((id) => ACTION.test(labelFor(graph, id)));
   const states = orderedEventIds.filter((id) => isState(labelFor(graph, id)));
-
-  const result: CreativeInterpretation[] = [];
+  const result: CreativeInterpretation[] =
+    graphBackedCreativeInterpretations(graph, orderedEventIds);
   const concreteCallback = bestConcreteCallback(graph, orderedEventIds);
   const stateTransition = bestStateTransition(graph, orderedEventIds);
   const subjectReturn = bestSubjectReturn(graph, orderedEventIds);
@@ -403,39 +574,6 @@ export function deriveSequenceBackedCreativeInterpretations(
         },
       ),
     );
-  }
-
-  if (encounters.length && states.length) {
-    let bestPair: { left: string; right: string; score: number } | undefined;
-    for (const leftId of encounters) {
-      for (const rightId of states) {
-        const leftIndex = orderedEventIds.indexOf(leftId);
-        const rightIndex = orderedEventIds.indexOf(rightId);
-        if (leftIndex < 0 || rightIndex < 0) continue;
-        const distance = Math.abs(leftIndex - rightIndex);
-        const score = (distance <= 1 ? 1 : distance === 2 ? 0.78 : 0.52) * 0.8 + overlap(labelFor(graph, leftId), labelFor(graph, rightId)) * 0.2;
-        if (!bestPair || score > bestPair.score) bestPair = { left: leftId, right: rightId, score };
-      }
-    }
-    if (bestPair && bestPair.score >= 0.72) {
-      result.push(
-        buildCandidate(
-          `A supplied encounter is followed by a concrete change in ${subject || "the subject"}.`,
-          "state_change",
-          [bestPair.left, bestPair.right],
-          0.76,
-          {
-            subject,
-            beforeEventIds: [bestPair.left],
-            afterEventIds: [bestPair.right],
-            before: labelFor(graph, bestPair.left),
-            after: labelFor(graph, bestPair.right),
-            realizationMove: "feel_state_transition",
-            creativeOpportunity: "status_turn",
-          },
-        ),
-      );
-    }
   }
 
   if (states.length >= 2 && continuations.length) {
