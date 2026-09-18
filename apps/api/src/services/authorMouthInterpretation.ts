@@ -190,9 +190,9 @@ function normalizedRoleText(
 ): string {
   return ` ${clean(value)
     .toLowerCase()
-    .replace(/['’]s\\b/g, "")
+    .replace(/['’]s\b/g, "")
     .replace(/[^a-z0-9]+/g, " ")
-    .replace(/\\s+/g, " ")
+    .replace(/\s+/g, " ")
     .trim()} `;
 }
 
