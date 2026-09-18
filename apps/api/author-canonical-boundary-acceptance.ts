@@ -621,6 +621,192 @@ cases.push({
   authorization: treatmentInventedRole.authorization,
 });
 
+
+function scopedRealityBeat(input: {
+  envelope: ReturnType<typeof buildAuthorRealityEnvelope>;
+  eventIds: string[];
+  change: string;
+}): MouthCandidateBeat {
+  const candidateBeat: MouthCandidateBeat = {
+    order: 1,
+    role: "payoff",
+    attentionFunction:
+      "Realize only explicitly supplied reality. Context is not participant authority.",
+    eventIds: input.eventIds,
+    change: input.change,
+    next: "",
+    frontier: "",
+    relationKinds: [],
+  };
+
+  candidateBeat.realizationAuthority =
+    buildMouthRealizationAuthority({
+      beat: candidateBeat,
+      envelope: input.envelope,
+    });
+
+  return candidateBeat;
+}
+
+const groomerContextGraph = buildAuthorRealityGraph({
+  prompt: "Create a QRE experience from supplied reality.",
+  subject: "Coco",
+  facts: [],
+  sourceMoments: [
+    "Coco went to the groomer",
+  ],
+  memoryContext: [],
+  trajectory: [],
+});
+const groomerContextEnvelope =
+  buildAuthorRealityEnvelope({
+    graph: groomerContextGraph,
+    subject: "Coco",
+  });
+const groomerContextBeat = scopedRealityBeat({
+  envelope: groomerContextEnvelope,
+  eventIds: groomerContextGraph.events.map((event) => event.id),
+  change: "Coco went to the groomer",
+});
+const groomerPromotedToActor = scoreMouthCandidate({
+  text: "The groomer smiled.",
+  beat: groomerContextBeat,
+  envelope: groomerContextEnvelope,
+});
+cases.push({
+  name: "context noun cannot become an actor",
+  expected: "rejected",
+  actual: isAuthorizedMouthCandidate(groomerPromotedToActor)
+    ? "allowed"
+    : "rejected",
+  text: groomerPromotedToActor.text,
+  reasons: groomerPromotedToActor.reasons,
+  authorization: groomerPromotedToActor.authorization,
+});
+
+const explicitGroomerGraph = buildAuthorRealityGraph({
+  prompt: "Create a QRE experience from supplied reality.",
+  subject: "Coco",
+  facts: [],
+  sourceMoments: [
+    "The groomer smiled at Coco",
+  ],
+  memoryContext: [],
+  trajectory: [],
+});
+const explicitGroomerEnvelope =
+  buildAuthorRealityEnvelope({
+    graph: explicitGroomerGraph,
+    subject: "Coco",
+  });
+const explicitGroomerBeat = scopedRealityBeat({
+  envelope: explicitGroomerEnvelope,
+  eventIds: explicitGroomerGraph.events.map((event) => event.id),
+  change: "The groomer smiled at Coco",
+});
+const suppliedGroomerActor = scoreMouthCandidate({
+  text: "The groomer smiled.",
+  beat: explicitGroomerBeat,
+  envelope: explicitGroomerEnvelope,
+});
+cases.push({
+  name: "explicitly supplied secondary actor remains available",
+  expected: "allowed",
+  actual: isAuthorizedMouthCandidate(suppliedGroomerActor)
+    ? "allowed"
+    : "rejected",
+  text: suppliedGroomerActor.text,
+  reasons: suppliedGroomerActor.reasons,
+  authorization: suppliedGroomerActor.authorization,
+});
+
+const raveGraph = buildAuthorRealityGraph({
+  prompt: "Create a QRE experience from supplied reality.",
+  subject: "Raven",
+  facts: [],
+  sourceMoments: [
+    "Raven arrived at Neon District",
+  ],
+  memoryContext: [],
+  trajectory: [],
+});
+const raveEnvelope = buildAuthorRealityEnvelope({
+  graph: raveGraph,
+  subject: "Raven",
+});
+const raveBeat = scopedRealityBeat({
+  envelope: raveEnvelope,
+  eventIds: raveGraph.events.map((event) => event.id),
+  change: "Raven arrived at Neon District",
+});
+const inventedCrowd = scoreMouthCandidate({
+  text: "The crowd cheered.",
+  beat: raveBeat,
+  envelope: raveEnvelope,
+});
+cases.push({
+  name: "venue context cannot invent a crowd",
+  expected: "rejected",
+  actual: isAuthorizedMouthCandidate(inventedCrowd)
+    ? "allowed"
+    : "rejected",
+  text: inventedCrowd.text,
+  reasons: inventedCrowd.reasons,
+  authorization: inventedCrowd.authorization,
+});
+
+const livingMemoryGraph = buildAuthorRealityGraph({
+  prompt: "Create a QRE living memory.",
+  subject: "Our relationship",
+  facts: [],
+  sourceMoments: [
+    "We met at The Underground",
+  ],
+  memoryContext: [],
+  trajectory: [],
+});
+const livingMemoryEnvelope =
+  buildAuthorRealityEnvelope({
+    graph: livingMemoryGraph,
+    subject: "Our relationship",
+  });
+const livingMemoryBeat = scopedRealityBeat({
+  envelope: livingMemoryEnvelope,
+  eventIds: livingMemoryGraph.events.map((event) => event.id),
+  change: "We met at The Underground",
+});
+const inventedBartender = scoreMouthCandidate({
+  text: "The bartender watched.",
+  beat: livingMemoryBeat,
+  envelope: livingMemoryEnvelope,
+});
+cases.push({
+  name: "living-memory venue cannot invent another person",
+  expected: "rejected",
+  actual: isAuthorizedMouthCandidate(inventedBartender)
+    ? "allowed"
+    : "rejected",
+  text: inventedBartender.text,
+  reasons: inventedBartender.reasons,
+  authorization: inventedBartender.authorization,
+});
+
+const inventedRecipient = scoreMouthCandidate({
+  text: "Sent to client.",
+  beat: serviceBeat,
+  envelope: serviceEnvelope,
+});
+cases.push({
+  name: "service output cannot invent an unsupplied recipient",
+  expected: "rejected",
+  actual: isAuthorizedMouthCandidate(inventedRecipient)
+    ? "allowed"
+    : "rejected",
+  text: inventedRecipient.text,
+  reasons: inventedRecipient.reasons,
+  authorization: inventedRecipient.authorization,
+});
+
 const operational = await authorBrainCanonical({
   prompt: "Maria cleaned the kitchen and bathroom. Done.",
   subject: "Maria",
