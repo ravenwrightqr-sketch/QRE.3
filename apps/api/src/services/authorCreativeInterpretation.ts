@@ -1480,43 +1480,64 @@ function buildExpectationCandidate(
     return undefined;
   }
 
+  const expectationComesFirst =
+    Boolean(laterInteresting);
+
+  const beforeId =
+    expectationComesFirst
+      ? expectationId
+      : qualifyingEvent;
+
+  const afterId =
+    expectationComesFirst
+      ? qualifyingEvent
+      : expectationId;
+
+  const evidenceIds =
+    orderedEventIds.filter(
+      (id) =>
+        id === expectationId ||
+        id === qualifyingEvent,
+    );
+
   return buildCandidate(
-    laterInteresting
-      ? "The later supplied material changes what the earlier expectation means."
-      : "A supplied expectation changes how an already-supplied event is perceived, even when the human told the expectation afterward.",
+    expectationComesFirst
+      ? "The later supplied event changes what the supplied expectation means."
+      : "A supplied expectation cue recontextualizes an already-supplied event in the observer's reading. Narration order does not establish real-world chronology.",
     "expectation_shift",
-    [
-      expectationId,
-      qualifyingEvent,
-    ],
-    laterInteresting ? 0.82 : 0.84,
+    evidenceIds,
+    expectationComesFirst ? 0.82 : 0.86,
     {
+      subject:
+        subjectName(graph),
       beforeEventIds: [
-        expectationId,
+        beforeId,
       ],
       afterEventIds: [
-        qualifyingEvent,
+        afterId,
       ],
       before:
         labelFor(
           graph,
-          expectationId,
+          beforeId,
         ),
       after:
         labelFor(
           graph,
-          qualifyingEvent,
+          afterId,
         ),
       realizationMove:
         "recognize",
       creativeOpportunity:
         "recognition",
       feltEffect:
-        "The viewer should feel the collision between what was expected and what actually happened without being told the lesson.",
+        "The viewer should feel the collision between the supplied expectation and the supplied event without being told the conclusion.",
       viewerShift:
-        "An ordinary supplied event becomes surprising because the supplied expectation did not predict it.",
+        expectationComesFirst
+          ? "The supplied event changes how the earlier supplied expectation is read."
+          : "The later-supplied expectation cue changes how the earlier-supplied event is read, without asserting when that expectation existed.",
       languageAim:
-        "Compress expectation versus reality into implication; do not explain the relationship.",
+        "Use the supplied expectation collision as implication or recontextualization. Do not explain the relationship and do not invent chronology.",
     },
   );
 }
