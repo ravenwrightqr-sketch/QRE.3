@@ -1035,6 +1035,7 @@ export type CanonicalAuthorResult = {
     truthSafe?: boolean;
     authored?: boolean;
     sourceReplay?: unknown;
+    authorshipQuality?: unknown;
     qualitySignals?: unknown;
     trace?: unknown;
   };
