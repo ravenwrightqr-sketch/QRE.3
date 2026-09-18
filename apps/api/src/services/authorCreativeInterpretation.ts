@@ -143,6 +143,9 @@ const CALLBACK =
 const EXPECTATION =
   /\b(?:didn'?t|did not|never)\s+(?:expect|plan|think|assume)|\b(?:unexpected|surpris(?:e|ed|ing)|unplanned|unlike\s+expected)\b/i;
 
+const PROFILE_RELATION =
+  /\b(?:likes?|loves?|prefers?|enjoys?|hates?|avoids?|favorite|favourite|known for)\b/i;
+
 const CONTRAST =
   /\b(?:but|yet|although|instead|rather|except|while|however|still)\b/i;
 
@@ -1747,6 +1750,49 @@ function buildRelationCandidate(
   }
 }
 
+function buildIdentityConstellationCandidate(
+  graph: RealityGraph,
+  orderedEventIds: readonly string[],
+): CreativeInterpretation | undefined {
+  const subject = subjectName(graph);
+  if (!subject) return undefined;
+
+  const profile = orderedEventIds
+    .map((id) => ({
+      id,
+      label: labelFor(graph, id),
+    }))
+    .filter((item) => PROFILE_RELATION.test(item.label));
+
+  if (profile.length < 2) return undefined;
+
+  const evidence = profile.map((item) => item.id);
+  const first = profile[0]!;
+  const last = profile[profile.length - 1]!;
+
+  return buildCandidate(
+    "Several supplied preferences or stable attributes form one character reading when experienced together.",
+    "convergence",
+    evidence,
+    metric(0.78 + Math.min(0.14, profile.length * 0.03)),
+    {
+      subject,
+      beforeEventIds: [first.id],
+      afterEventIds: [last.id],
+      before: first.label,
+      after: last.label,
+      realizationMove: "recognize",
+      creativeOpportunity: "recognition",
+      feltEffect:
+        "The viewer should recognize a distinct personality from the supplied preferences without being told a personality summary.",
+      viewerShift:
+        "Separate profile facts become one recognizable character impression.",
+      languageAim:
+        "Compress the supplied preferences into sharp character signals; imply more than you explain and do not invent behavior.",
+    },
+  );
+}
+
 function buildSubjectReturnCandidate(
   graph: RealityGraph,
   orderedEventIds: readonly string[],
@@ -2070,6 +2116,22 @@ export function deriveSequenceBackedCreativeInterpretations(
     result.push(
       expectation,
     );
+  }
+
+  /*
+   * DAY-ONE IDENTITY / PROFILE CONSTELLATION
+   *
+   * Stable supplied preferences and attributes are legitimate Author material.
+   * They do not require prior event history before QRE may discover character.
+   */
+  const identityConstellation =
+    buildIdentityConstellationCandidate(
+      graph,
+      orderedEventIds,
+    );
+
+  if (identityConstellation) {
+    result.push(identityConstellation);
   }
 
   /*
