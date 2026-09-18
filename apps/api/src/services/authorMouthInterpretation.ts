@@ -949,11 +949,16 @@ function treatmentMetaphorOverSuppliedTarget(
     return false;
   }
 
-  const predicateTokens = [
-    ...tokens(predicatePhrase),
-  ].filter((token) => !FUNCTION_WORDS.has(token));
+  const rawPredicateWords =
+    clean(predicatePhrase)
+      .toLowerCase()
+      .match(/[a-z0-9'’-]+/g) ?? [];
 
-  if (!predicateTokens.length || predicateTokens.length > 4) {
+  const predicateWords = rawPredicateWords.filter(
+    (word) => !FUNCTION_WORDS.has(normalizeToken(word)),
+  );
+
+  if (!predicateWords.length || predicateWords.length > 4) {
     return false;
   }
 
@@ -966,12 +971,14 @@ function treatmentMetaphorOverSuppliedTarget(
     ].join(" "),
   );
 
-  return predicateTokens.every(
-    (token) =>
+  return predicateWords.every((word) => {
+    const token = normalizeToken(word);
+    return (
       treatmentTokens.has(token) ||
       semanticFrameToken(token) ||
-      /(?:ed|ing)$/.test(token),
-  );
+      /(?:ed|ing)$/.test(word)
+    );
+  });
 }
 
 function concreteAuthorityViolation(
