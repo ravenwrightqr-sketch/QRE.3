@@ -8,6 +8,7 @@ import type {
 import type { RealityEnvelope } from "./authorRealityEnvelope.js";
 import { classifyLens } from "./authorCharacterLensEngine.js";
 import { evaluateMouthInterpretation } from "./authorMouthInterpretation.js";
+import { bindCandidateObservableTruth } from "./authorObservableTruthBinding.js";
 import type { CreativeLensBrief } from "./authorCreativeLensBrief.js";
 
 /**
@@ -60,25 +61,29 @@ const PHYSICAL_VERB = /\b(?:smiled|smile|laughed|laugh|walked|walk|moved|move|lo
 const BODY = /\b(?:eye|eyes|face|mouth|shoulder|shoulders|hand|hands|head|tail|fur|coat|body|room|door|window|floor|wall|table|chair|car|road|street|sky|shadow|light|sound|scent|voice|water|phone|screen)\b/i;
 const SOFT_FIRST_PERSON = /^(?:I|we|my|our)\b/i;
 
-const SAFE_FRAMING = new Set([
-  "apparently", "anyway", "already", "finally", "for", "now", "again", "still", "just", "only", "very", "really", "quite", "somehow", "unexpectedly", "suddenly", "maybe", "perhaps", "yet", "almost", "exactly", "fabulous", "fierce", "cool", "sharp", "ready", "done", "approved", "cleared", "complete", "finished", "temporary", "temporarily", "peace", "exit", "winner", "victory", "legend", "mission", "case", "verdict", "boss", "level", "upgrade", "final", "reset",
-]);
-
-const CONCRETE_WORD = /\b(?:bow|trophy|medal|prize|toy|gift|phone|bag|purse|car|boat|yacht|surfboard|key|keys|bottle|bottles|chair|table|door|window|room|house|hotel|restaurant|kitchen|bathroom|leash|collar|tag|ticket|receipt|dress|shirt|shoe|shoes|cake|ring|flower|flowers|balloon|camera|screen|wallet|passport|boarding|plane|flight|beach|board|bed|blanket|blankets|towel|towels|knife|knives|food|drink|coffee|wine|soap|shampoo|conditioner)\b/i;
 const GENERIC_CONCRETE_HEAD = /\b(?:thing|things|stuff|object|objects|item|items|something|anything|one|piece|pieces|shape|shapes|whatever|whatsoever)\b/i;
 
 function candidateConcreteSubstitutionRisk(text: string, beat: MouthCandidateBeat, envelope: RealityEnvelope): number {
   const value = clean(text);
   if (!value || SOFT_FIRST_PERSON.test(value)) return 0;
-  const labels = sourceLabels(beat, envelope);
-  const evidence = worldEvidence(envelope);
-  if (!CONCRETE_WORD.test(value)) return 0;
-  const candidateTokens = meaningfulTokens(value);
-  const suppliedTokens = meaningfulTokens([...labels, ...evidence].join(" "));
-  const unknownConcreteTokens = [...candidateTokens].filter((token) => CONCRETE_WORD.test(token) && !suppliedTokens.has(token) && !SAFE_FRAMING.has(token));
-  if (unknownConcreteTokens.length >= 2) return 1;
-  if (unknownConcreteTokens.length === 1) return 0.72;
-  return 0;
+
+  /*
+   * Concrete-world veto belongs to the universal binding layer. Do not
+   * maintain a vocabulary of objects, roles, or industries here.
+   */
+  const binding = bindCandidateObservableTruth({
+    text: value,
+    beat,
+    envelope,
+  });
+
+  return binding.claims.some((claim) => !claim.bound && (
+    claim.kind === "referent" ||
+    claim.kind === "relation" ||
+    claim.kind === "pronoun"
+  ))
+    ? 1
+    : 0;
 }
 
 function candidateConcreteSpecificityRisk(text: string, beat: MouthCandidateBeat, envelope: RealityEnvelope): number {
@@ -93,8 +98,6 @@ function candidateConcreteSpecificityRisk(text: string, beat: MouthCandidateBeat
   for (const source of [...labels, ...evidence]) {
     const sourceValue = clean(source);
     if (!sourceValue || GENERIC_CONCRETE_HEAD.test(sourceValue)) continue;
-    if (!CONCRETE_WORD.test(sourceValue)) continue;
-
     const sourceTokens = meaningfulTokens(sourceValue);
     const shared = overlap(candidate, sourceTokens);
 
