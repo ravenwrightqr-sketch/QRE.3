@@ -242,7 +242,6 @@ function chronologyAuthorityCorpus(
       ...scopedEvents.map((event) => event.label),
       ...structures.flatMap((structure) => structure.temporalMarkers ?? []),
       ...envelope.recurringSignals,
-      authorityMeaningCorpus(beat),
     ].join(" "),
   );
 }
