@@ -612,6 +612,7 @@ function projectedRealizationAuthority(beat: MouthCandidateBeat) {
     permittedRealizationModes: authority.permittedRealizationModes,
     inferenceBudget: authority.inferenceBudget,
     creativeMoves: authority.creativeMoves,
+    treatment: authority.treatment,
     forbiddenMoves: authority.forbiddenMoves,
   };
 }
