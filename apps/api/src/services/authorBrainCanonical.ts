@@ -85,7 +85,14 @@ function lensFrom(
   input: AuthorBrainTruth,
   cognition: ReturnType<typeof buildAuthorCognitivePlan>,
 ): string {
-  return clean(input.lens) || clean(cognition.selectedFrame) || "NONE";
+  const requested = clean(input.lens);
+  const explicit =
+    requested &&
+    requested.toLowerCase() !== "let qre decide"
+      ? requested
+      : "";
+
+  return explicit || clean(cognition.selectedFrame) || "NONE";
 }
 
 function buildCognition(
@@ -274,115 +281,200 @@ function synthesizeGroupChange(
   return changes.join(" / ");
 }
 
-function composeTrajectoryBeats(
+function semanticEvidenceUnitGroups(
+  movie: LatentMovieCandidate,
+): LatentMovieTrajectoryStep[][] | undefined {
+  const semantic = movie.storyThesis?.semanticRealization;
+  if (!semantic) return undefined;
+
+  const evidenceIds = unique(semantic.evidenceEventIds ?? []);
+  if (evidenceIds.length < 2) return undefined;
+
+  const evidence = new Set(evidenceIds);
+  const relevantSteps = movie.trajectory.filter((step) =>
+    step.eventIds.some((id) => evidence.has(id)),
+  );
+  if (!relevantSteps.length) return undefined;
+
+  /*
+   * The selected semantic realization, not parser granularity, owns the
+   * minimum authored unit.
+   *
+   * Convergence / continuation are one perceptual recognition: separate
+   * supplied details become meaningful together.
+   *
+   * Change / contrast / expectation / recurrence / consequence preserve a
+   * before-vs-after viewer update when the semantic evidence provides one.
+   */
+  if (
+    semantic.mechanism === "convergence" ||
+    semantic.mechanism === "continuation"
+  ) {
+    return [relevantSteps];
+  }
+
+  const before = new Set(unique(semantic.beforeEventIds ?? []));
+  const after = new Set(unique(semantic.afterEventIds ?? []));
+
+  const beforeSteps = relevantSteps.filter((step) =>
+    step.eventIds.some((id) => before.has(id)),
+  );
+  const afterSteps = relevantSteps.filter((step) =>
+    step.eventIds.some((id) => after.has(id)),
+  );
+
+  if (beforeSteps.length && afterSteps.length) {
+    const used = new Set([...beforeSteps, ...afterSteps]);
+    const middle = relevantSteps.filter((step) => !used.has(step));
+
+    return [
+      [...beforeSteps, ...middle],
+      afterSteps,
+    ].filter((group) => group.length > 0);
+  }
+
+  return [relevantSteps];
+}
+
+export function composeTrajectoryBeats(
   movie: LatentMovieCandidate,
   envelope: ReturnType<typeof buildAuthorRealityEnvelope>,
 ): MouthCandidateBeat[] {
-  if (movie.id === "memory-material") {
-    return unique(
-      movie.trajectory.flatMap((step) => step.eventIds ?? []),
-    ).map((eventId, index, ids) => {
-      const semanticRealization = scopedSemanticRealization(movie, [eventId]);
-      return {
-        order: index + 1,
-        role: index === ids.length - 1 ? "payoff" : "material",
-        attentionFunction:
-          "Realize approved Living Memory detail with maximum specificity and minimum explanation.",
-        eventIds: [eventId],
-        change: "Make supplied material interesting without inventing an occurrence.",
-        next: "",
-        frontier: "",
-        paysOff: index === ids.length - 1 ? [movie.payoff] : [],
-        relationKinds: unique(movie.supportingRelationKinds),
-        semanticRealization,
-        observerExperience: semanticRealization
-          ? movie.storyThesis?.observerExperience
-          : undefined,
-      };
-    });
-  }
-
   const steps = [...movie.trajectory];
-  if (steps.length <= 1) {
-    return steps.map((step) =>
-      stepToBeat(movie, step, 0, 1, envelope),
-    );
-  }
-  const groups: LatentMovieTrajectoryStep[][] = [];
-  const total = steps.length;
-  let index = 0;
+  if (!steps.length) return [];
 
-  while (index < total) {
-    const group: LatentMovieTrajectoryStep[] = [steps[index]];
-    const remaining = total - index;
-    const maxGroupSize = remaining >= 8 ? 3 : remaining >= 4 ? 2 : 1;
-
-    while (group.length < maxGroupSize && index + group.length < total - 1) {
-      const current = group[group.length - 1];
-      const next = steps[index + group.length];
-      const sameOperation =
-        Boolean(current?.operation) &&
-        Boolean(next?.operation) &&
-        current.operation === next.operation;
-      const textSimilarity = overlap(
-        words(clean(current?.viewerChange)),
-        words(clean(next?.viewerChange)),
-      );
-      const contextual =
-        next.operation === "reveal" ||
-        next.operation === "establish" ||
-        next.operation === "contrast" ||
-        next.operation === "recur";
-      const complementary =
-        Boolean(current?.eventIds?.length) &&
-        Boolean(next?.eventIds?.length) &&
-        remaining >= 5;
-      const nextIsEndpoint = index + group.length === total - 1;
-
-      if (nextIsEndpoint) break;
-      if (!(sameOperation || textSimilarity >= 0.34 || contextual || complementary)) break;
-      group.push(next);
-    }
-
-    groups.push(group);
-    index += group.length;
-  }
+  const semanticGroups = semanticEvidenceUnitGroups(movie);
 
   /*
-   * Never compress a sequence into a single cut once there is enough
-   * evidence for a filmic arc. Preserve at least hook / turn / landing.
+   * A selected semantic relation is allowed to omit supplied material that
+   * does not participate in the winning interpretation. Reality remains
+   * persisted; visible playback follows meaning rather than fact count.
    */
-  if (groups.length < 3 && total >= 4) {
-    const first = steps.slice(0, 1);
-    const last = steps.slice(-1);
-    const middle = steps.slice(1, -1);
-    groups.length = 0;
-    groups.push(first);
-    if (middle.length) groups.push(middle);
-    groups.push(last);
-  }
+  const groups: LatentMovieTrajectoryStep[][] =
+    semanticGroups ??
+    (() => {
+      if (steps.length <= 1) return [steps];
+
+      const result: LatentMovieTrajectoryStep[][] = [];
+      let index = 0;
+
+      while (index < steps.length) {
+        const group: LatentMovieTrajectoryStep[] = [steps[index]!];
+        const remaining = steps.length - index;
+        const maxGroupSize =
+          remaining >= 8 ? 3 :
+          remaining >= 4 ? 2 :
+          1;
+
+        while (
+          group.length < maxGroupSize &&
+          index + group.length < steps.length
+        ) {
+          const current = group[group.length - 1];
+          const next = steps[index + group.length];
+
+          if (!current || !next) break;
+
+          const sameOperation =
+            current.operation === next.operation;
+          const textSimilarity = overlap(
+            words(clean(current.viewerChange)),
+            words(clean(next.viewerChange)),
+          );
+          const contextual = [
+            "reveal",
+            "establish",
+            "contrast",
+            "recur",
+          ].includes(next.operation);
+          const complementary =
+            Boolean(current.eventIds.length) &&
+            Boolean(next.eventIds.length) &&
+            remaining >= 5;
+
+          if (
+            !(
+              sameOperation ||
+              textSimilarity >= 0.34 ||
+              contextual ||
+              complementary
+            )
+          ) {
+            break;
+          }
+
+          group.push(next);
+        }
+
+        result.push(group);
+        index += group.length;
+      }
+
+      return result;
+    })();
 
   return groups.map((group, groupIndex) => {
     const final = groupIndex === groups.length - 1;
     const first = group[0];
     const last = group[group.length - 1];
-    const eventIds = unique(group.flatMap((step) => step.eventIds ?? []));
-    const change = synthesizeGroupChange(movie, group, final, envelope);
-    const semanticRealization = scopedSemanticRealization(movie, eventIds);
+    const eventIds = unique(
+      group.flatMap((step) => step.eventIds ?? []),
+    );
+    const semanticRealization =
+      scopedSemanticRealization(movie, eventIds);
+    const semanticUnit =
+      Boolean(semanticRealization) &&
+      (semanticRealization?.evidenceEventIds.length ?? 0) > 1;
+
+    const change = semanticRealization
+      ? clean(
+          semanticRealization.viewerShift ||
+          semanticRealization.feltEffect ||
+          movie.storyThesis?.semanticTurn,
+        ) ||
+        synthesizeGroupChange(
+          movie,
+          group,
+          final,
+          envelope,
+        )
+      : synthesizeGroupChange(
+          movie,
+          group,
+          final,
+          envelope,
+        );
+
+    const viewerObjective = semanticRealization
+      ? [
+          "Change the viewer's interpretation using the approved relationship.",
+          "Never spend a cut saying what the observer can discover.",
+          "Maximize meaningful inference space while maintaining grounding.",
+          "Create productive ambiguity, not confusion.",
+          "The viewer should infer the relationship before QRE explains it.",
+        ]
+      : [
+          "Advance the viewer's understanding using only supplied reality.",
+          "Do not spend a cut merely repeating already-known evidence.",
+        ];
 
     return {
       order: groupIndex + 1,
-      role: final ? "payoff" : groupIndex === 0 ? "establishing" : "reveal",
+      role:
+        final
+          ? "payoff"
+          : groupIndex === 0
+            ? "establishing"
+            : "reveal",
       attentionFunction: [
+        ...viewerObjective,
         clean(first?.viewerChange),
-        group.length > 1
-          ? "This cut is a semantic synthesis of adjacent approved evidence. Realize their joint significance, not a list of source facts."
-          : "",
       ]
         .filter(Boolean)
         .join(" "),
-      creativeMove:
-        group.length > 1
+      creativeMove: semanticUnit
+        ? `semantic-${clean(semanticRealization?.mechanism)}`
+        : group.length > 1
           ? "synthesis"
           : clean(last?.operation) || undefined,
       eventIds,
@@ -392,7 +484,12 @@ function composeTrajectoryBeats(
       paysOff: final ? [movie.payoff] : [],
       relationKinds: unique([
         ...movie.supportingRelationKinds,
-        ...group.flatMap((step) => (step.operation ? [step.operation] : [])),
+        ...group.flatMap((step) =>
+          step.operation ? [step.operation] : [],
+        ),
+        ...(semanticRealization?.mechanism
+          ? [semanticRealization.mechanism]
+          : []),
       ]),
       semanticRealization,
       observerExperience: semanticRealization
@@ -400,22 +497,26 @@ function composeTrajectoryBeats(
         : undefined,
       obligations: [
         "All source event IDs in this cut remain approved evidence.",
+        "Visible beat count follows the selected meaning, not parsed fact count.",
         "Do not turn every source event into a separate sentence.",
-        "Preserve source order while allowing adjacent evidence to share one dramatic function.",
-        ...(group.length > 1
+        "Do not merely concatenate, enumerate, or chronologically connect source labels.",
+        "The cut must change what the viewer can infer.",
+        "Do not state a conclusion the viewer can construct from the evidence.",
+        ...(semanticUnit
           ? [
-              "The realization must express what the grouped evidence means together; do not merely concatenate or enumerate the source details.",
+              "This is one semantic authorship unit spanning multiple evidence items. Realize the joint perception, not the component facts one-by-one.",
             ]
           : []),
         ...(final
           ? [
-              "The final cut must preserve the source-derived endpoint and must not append earlier evidence to the endpoint line.",
+              "Stop when the recognition lands. Do not append explanatory closure.",
             ]
           : []),
       ],
     };
   });
 }
+
 function stepToBeat(
   movie: LatentMovieCandidate,
   step: LatentMovieTrajectoryStep,
@@ -691,6 +792,226 @@ export function evaluateAuthorSourceReplay(
     reason: replayDominant
       ? "final sequence is materially source replay or trivial normalization"
       : "final sequence materially realizes authorized meaning beyond source replay",
+  };
+}
+
+export type AuthorAuthorshipQuality = {
+  score: number;
+  sourceContentCoverage: number;
+  semanticRealizationCoverage: number;
+  factParadeRisk: number;
+  trivialTransformationRisk: number;
+  predicateEnumerationRisk: number;
+  subjectPrefixRisk: number;
+  semanticUnderRealizationRisk: number;
+  explanatoryLabelRisk: number;
+  meaningfulInferenceScore: number;
+  accepted: boolean;
+  reasons: string[];
+};
+
+const AUTHORSHIP_STOP = new Set([
+  "the", "and", "that", "this", "with", "from", "into", "onto",
+  "for", "are", "was", "were", "has", "had", "have", "is",
+  "likes", "like", "loves", "love", "prefers", "prefer", "enjoys",
+  "enjoy", "then", "now", "next", "finally", "after", "before",
+  "follows", "follow", "following", "complete", "completes", "completed",
+  "begin", "begins", "beginning", "it", "its", "his", "her", "their",
+]);
+
+const TRIVIAL_CONNECTIVE =
+  /^(?:then|now|next|finally|after that|and then)\b|\b(?:follows|followed|completes?|completed|begins?|beginning)\b/i;
+
+const EXPLANATORY_LABEL =
+  /^(?:a|an|the)?\s*(?:preference|pattern|transformation|connection|relationship|change|shift|moment|memory|meaning|journey|experience|theme|status|contrast|convergence)\.?$/i;
+
+function authorshipTokens(
+  value: string,
+  subject?: string,
+): Set<string> {
+  const subjectTokens = normalizedTokens(subject ?? "");
+  return new Set(
+    [...normalizedTokens(value)].filter(
+      (token) =>
+        !AUTHORSHIP_STOP.has(token) &&
+        !subjectTokens.has(token),
+    ),
+  );
+}
+
+function coverage(
+  left: Set<string>,
+  right: Set<string>,
+): number {
+  if (!right.size) return 0;
+  let hits = 0;
+  for (const token of right) {
+    if (left.has(token)) hits += 1;
+  }
+  return metric(hits / right.size);
+}
+
+export function evaluateAuthorAuthorshipQuality(input: {
+  texts: readonly string[];
+  envelope: ReturnType<typeof buildAuthorRealityEnvelope>;
+  movie?: LatentMovieCandidate;
+  subject?: string;
+  candidates?: ReturnType<typeof selectBestMouthSequence>["candidates"];
+}): AuthorAuthorshipQuality {
+  const texts = input.texts.map(clean).filter(Boolean);
+  const sourceLabels = input.envelope.events
+    .map((event) => clean(event.label))
+    .filter(Boolean);
+
+  const outputTokens = authorshipTokens(
+    texts.join(" "),
+    input.subject,
+  );
+  const sourceTokens = authorshipTokens(
+    sourceLabels.join(" "),
+    input.subject,
+  );
+
+  const sourceContentCoverage =
+    coverage(outputTokens, sourceTokens);
+
+  const perCutSourceOverlap = texts.map((text) =>
+    Math.max(
+      0,
+      ...sourceLabels.map((label) =>
+        tokenOverlapRatio(text, label),
+      ),
+    ),
+  );
+
+  const highlySourceShapedCuts = perCutSourceOverlap.filter(
+    (value) => value >= 0.58,
+  ).length;
+
+  const factParadeRisk = metric(
+    Math.max(
+      texts.length >= 2
+        ? highlySourceShapedCuts / Math.max(1, texts.length)
+        : 0,
+      sourceContentCoverage >= 0.72
+        ? sourceContentCoverage * 0.9
+        : 0,
+    ),
+  );
+
+  const trivialTransformationRisk = metric(
+    texts.filter((text) => TRIVIAL_CONNECTIVE.test(text)).length /
+      Math.max(1, texts.length) *
+      0.72 +
+    (sourceContentCoverage >= 0.7 ? 0.28 : 0),
+  );
+
+  const subjectName = clean(input.subject).toLowerCase();
+  const subjectPrefixRisk = subjectName
+    ? metric(
+        texts.filter((text) =>
+          clean(text).toLowerCase().startsWith(subjectName),
+        ).length / Math.max(1, texts.length),
+      )
+    : 0;
+
+  const explanatoryLabelRisk = metric(
+    texts.filter((text) => EXPLANATORY_LABEL.test(text)).length /
+      Math.max(1, texts.length),
+  );
+
+  const predicateEnumerationRisk = metric(
+    sourceContentCoverage *
+      (texts.length >= 2 ? 0.55 : 0.35) +
+    subjectPrefixRisk * 0.25 +
+    trivialTransformationRisk * 0.2,
+  );
+
+  const candidates = input.candidates ?? [];
+  const semanticRealizationCoverage = candidates.length
+    ? metric(
+        candidates.reduce(
+          (sum, candidate) =>
+            sum +
+            candidate.meaningScore * 0.45 +
+            candidate.observerDiscoveryScore * 0.55,
+          0,
+        ) / candidates.length,
+      )
+    : metric(
+        input.movie?.storyThesis?.semanticRealization
+          ? 0.62
+          : 0.35,
+      );
+
+  const semanticUnderRealizationRisk = metric(
+    input.movie?.storyThesis?.semanticRealization
+      ? Math.max(
+          0,
+          0.78 - semanticRealizationCoverage,
+        ) /
+        0.78
+      : 0,
+  );
+
+  /*
+   * Meaningful inference rewards semantic realization that is not simply
+   * equivalent to replaying all supplied content nouns.
+   */
+  const meaningfulInferenceScore = metric(
+    semanticRealizationCoverage * 0.5 +
+    (1 - factParadeRisk) * 0.16 +
+    (1 - trivialTransformationRisk) * 0.12 +
+    (1 - semanticUnderRealizationRisk) * 0.12 +
+    (1 - explanatoryLabelRisk) * 0.1,
+  );
+
+  const score = metric(
+    meaningfulInferenceScore * 0.62 +
+    (1 - predicateEnumerationRisk) * 0.12 +
+    (1 - subjectPrefixRisk) * 0.08 +
+    (1 - explanatoryLabelRisk) * 0.08 +
+    (1 - Math.min(1, sourceContentCoverage * 0.72)) * 0.1,
+  );
+
+  const reasons: string[] = [];
+  if (factParadeRisk >= 0.68) reasons.push("fact-parade");
+  if (trivialTransformationRisk >= 0.6) {
+    reasons.push("trivial-connective-transformation");
+  }
+  if (predicateEnumerationRisk >= 0.66) {
+    reasons.push("predicate-object-enumeration");
+  }
+  if (subjectPrefixRisk >= 0.67) {
+    reasons.push("repeated-subject-prefix");
+  }
+  if (semanticUnderRealizationRisk >= 0.58) {
+    reasons.push("semantic-under-realization");
+  }
+  if (explanatoryLabelRisk >= 0.5) {
+    reasons.push("explanatory-labeling");
+  }
+
+  const accepted =
+    score >= 0.54 &&
+    factParadeRisk < 0.78 &&
+    trivialTransformationRisk < 0.78 &&
+    semanticUnderRealizationRisk < 0.82 &&
+    explanatoryLabelRisk < 0.75;
+
+  return {
+    score,
+    sourceContentCoverage,
+    semanticRealizationCoverage,
+    factParadeRisk,
+    trivialTransformationRisk,
+    predicateEnumerationRisk,
+    subjectPrefixRisk,
+    semanticUnderRealizationRisk,
+    explanatoryLabelRisk,
+    meaningfulInferenceScore,
+    accepted,
+    reasons,
   };
 }
 
@@ -982,17 +1303,32 @@ export async function authorBrainCanonical(
     ) as AuthorScene["kind"],
   }));
   const sourceReplay = evaluateAuthorSourceReplay(selected, envelope);
+  const authorshipQuality = evaluateAuthorAuthorshipQuality({
+    texts: selected.texts,
+    envelope,
+    movie,
+    subject,
+    candidates: selected.candidates,
+  });
 
-  const minimumCuts = realizationMode === "sequence-film" ? 3 : 1;
-  const sequenceSourcesComplete = sequence.cuts.every((cut) => cut.sourceIds.length > 0);
+  /*
+   * Cut count is owned by semantic composition. A one-cut recognition can be
+   * complete when Cognition selected one semantic authorship unit.
+   */
+  const sequenceSourcesComplete = sequence.cuts.every(
+    (cut) => cut.sourceIds.length > 0,
+  );
   const complete =
-    scenes.length >= minimumCuts &&
+    scenes.length >= 1 &&
     scenes.length === sequence.cuts.length &&
     sequenceSourcesComplete &&
     attention.accepted === true &&
     arc.accepted === true;
   const truthSafe = complete && sourceReplay.truthSafe;
-  const authored = truthSafe && sourceReplay.authored;
+  const authored =
+    truthSafe &&
+    sourceReplay.authored &&
+    authorshipQuality.accepted;
 
   if (process.env.QRE_AUTHOR_DEBUG_MOVIE === "true") {
     console.log("\n--- QRE AUTHOR COMPLETENESS ---");
@@ -1035,19 +1371,30 @@ export async function authorBrainCanonical(
       acceptedCandidates: selected.candidates.length,
       recoveryUsed,
       qualityStatus: authored ? "ACCEPTED" : "REJECTED",
-      renderable: authored,
+      renderable: truthSafe,
       complete,
       selectedScore: selected.score,
       rejectedCandidates,
       truthSafe,
       authored,
       sourceReplay,
+      authorshipQuality,
       qualitySignals: {
         attentionAccepted: attention.accepted,
         arcAccepted: arc.accepted,
         sequenceSourcesComplete,
         selectedScore: selected.score,
         sourceReplayScore: sourceReplay.sourceReplayScore,
+        authorshipQuality: authorshipQuality.score,
+        meaningfulInferenceScore: authorshipQuality.meaningfulInferenceScore,
+        factParadeRisk: authorshipQuality.factParadeRisk,
+        trivialTransformationRisk: authorshipQuality.trivialTransformationRisk,
+        predicateEnumerationRisk: authorshipQuality.predicateEnumerationRisk,
+        subjectPrefixRisk: authorshipQuality.subjectPrefixRisk,
+        semanticRealizationCoverage: authorshipQuality.semanticRealizationCoverage,
+        semanticUnderRealizationRisk: authorshipQuality.semanticUnderRealizationRisk,
+        explanatoryLabelRisk: authorshipQuality.explanatoryLabelRisk,
+        authorshipReasons: authorshipQuality.reasons,
       },
       trace: {
         input: {
