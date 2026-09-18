@@ -13,6 +13,13 @@ export type AuthorDomainContext = {
   serviceType?: string;
   serviceName?: string;
   subjectKind?: string;
+  /** Canonical business onboarding context. Context only; never occurrence evidence. */
+  services?: string[];
+  differentiators?: string[];
+  signals?: string[];
+  subjectKinds?: string[];
+  importantFacts?: string[];
+  /** Legacy/derived aliases retained for current callers. */
   knownCapabilities?: string[];
   contextualSignals?: string[];
 };
