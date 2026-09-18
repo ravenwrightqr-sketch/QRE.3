@@ -131,6 +131,7 @@ function worldEvidence(envelope: RealityEnvelope): string[] {
     ...envelope.events.map((event) => event.label),
     ...envelope.suppliedPhrases,
     ...envelope.suppliedEntities,
+    ...envelope.suppliedParticipants,
     ...envelope.suppliedPlaces,
     ...envelope.suppliedActions,
     ...envelope.suppliedStates,
