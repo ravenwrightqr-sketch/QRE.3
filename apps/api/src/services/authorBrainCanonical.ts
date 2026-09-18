@@ -315,11 +315,41 @@ function semanticEvidenceUnitGroups(
    * Change / contrast / expectation / recurrence / consequence preserve a
    * before-vs-after viewer update when the semantic evidence provides one.
    */
-  if (
-    semantic.mechanism === "convergence" ||
-    semantic.mechanism === "continuation"
-  ) {
+  if (semantic.mechanism === "continuation") {
     return [relevantSteps];
+  }
+
+  if (semantic.mechanism === "convergence") {
+    /*
+     * Convergence is one approved meaning, but not necessarily one visible
+     * line. Preserve enough staging for the observer to form and revise a
+     * hypothesis. Playback follows inference progression, not parser fact
+     * count and not a forced one-line collapse.
+     */
+    if (relevantSteps.length <= 2) {
+      return [relevantSteps];
+    }
+
+    if (relevantSteps.length === 3) {
+      return [
+        relevantSteps.slice(0, 2),
+        relevantSteps.slice(2),
+      ];
+    }
+
+    const groupCount = Math.min(3, relevantSteps.length);
+    const groups: LatentMovieTrajectoryStep[][] = [];
+    let cursor = 0;
+
+    for (let groupIndex = 0; groupIndex < groupCount; groupIndex += 1) {
+      const remaining = relevantSteps.length - cursor;
+      const remainingGroups = groupCount - groupIndex;
+      const take = Math.ceil(remaining / remainingGroups);
+      groups.push(relevantSteps.slice(cursor, cursor + take));
+      cursor += take;
+    }
+
+    return groups.filter((group) => group.length > 0);
   }
 
   const before = new Set(unique(semantic.beforeEventIds ?? []));
@@ -343,6 +373,44 @@ function semanticEvidenceUnitGroups(
   }
 
   return [relevantSteps];
+}
+
+function inferenceChangeForGroup(input: {
+  semantic?: NonNullable<LatentMovieCandidate["storyThesis"]>["semanticRealization"];
+  groupIndex: number;
+  groupCount: number;
+  fallback: string;
+}): string {
+  const semantic = input.semantic;
+  if (!semantic) return clean(input.fallback);
+
+  if (input.groupCount <= 1) {
+    return (
+      clean(
+        semantic.viewerShift ||
+        semantic.feltEffect ||
+        semantic.languageAim,
+      ) ||
+      clean(input.fallback)
+    );
+  }
+
+  if (input.groupIndex === 0) {
+    return "Supplied evidence establishes a partial reading while leaving the larger relationship for the observer to infer.";
+  }
+
+  if (input.groupIndex === input.groupCount - 1) {
+    return (
+      clean(
+        semantic.viewerShift ||
+        semantic.feltEffect ||
+        semantic.languageAim,
+      ) ||
+      "The final supplied evidence changes how the earlier evidence is understood and lets recognition land."
+    );
+  }
+
+  return "New supplied evidence sharpens or recontextualizes the observer's current hypothesis without stating the conclusion.";
 }
 
 export function composeTrajectoryBeats(
@@ -435,24 +503,24 @@ export function composeTrajectoryBeats(
       Boolean(semanticRealization) &&
       (semanticRealization?.evidenceEventIds.length ?? 0) > 1;
 
-    const change = semanticRealization
-      ? clean(
-          semanticRealization.viewerShift ||
-          semanticRealization.feltEffect ||
+    const fallbackChange =
+      synthesizeGroupChange(
+        movie,
+        group,
+        final,
+        envelope,
+      );
+
+    const change = inferenceChangeForGroup({
+      semantic: semanticRealization,
+      groupIndex,
+      groupCount: groups.length,
+      fallback:
+        clean(
           movie.storyThesis?.semanticTurn,
         ) ||
-        synthesizeGroupChange(
-          movie,
-          group,
-          final,
-          envelope,
-        )
-      : synthesizeGroupChange(
-          movie,
-          group,
-          final,
-          envelope,
-        );
+        fallbackChange,
+    });
 
     const viewerObjective = semanticRealization
       ? [
