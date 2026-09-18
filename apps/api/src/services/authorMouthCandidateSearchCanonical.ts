@@ -724,8 +724,17 @@ export function parseMouthCandidateBatch(
   raw: string,
   expectedBeatCount?: number,
 ): ParsedMouthCandidateBatch | undefined {
+  const normalized = clean(raw)
+    .replace(/^\s*```(?:json)?\s*/i, "")
+    .replace(/\s*```\s*$/i, "")
+    .trim();
+
   try {
-    const parsed = JSON.parse(clean(raw)) as { sequenceVariants?: unknown; variantsByBeat?: unknown };
+    const parsed = JSON.parse(normalized) as {
+      sequenceVariants?: unknown;
+      variantsByBeat?: unknown;
+    };
+
     if (Array.isArray(parsed?.sequenceVariants)) {
       const sequenceVariants = parsed.sequenceVariants
         .filter((item): item is Record<string, unknown> => Boolean(item) && typeof item === "object")
@@ -741,38 +750,53 @@ export function parseMouthCandidateBatch(
       const cutCount = sequenceVariants[0]?.length ?? 0;
       if (sequenceVariants.some((texts) => texts.length !== cutCount)) return undefined;
 
-      const variantsByBeat = Array.from(
-        { length: cutCount },
-        (_, index) => ({
-          order: index + 1,
-          variants: sequenceVariants
-            .map((texts) => clean(texts[index]))
-            .filter(Boolean),
-        }),
-      );
-
       return {
-        variantsByBeat,
+        variantsByBeat: Array.from(
+          { length: cutCount },
+          (_, index) => ({
+            order: index + 1,
+            variants: sequenceVariants.map((texts) => clean(texts[index])).filter(Boolean),
+          }),
+        ),
         sequenceVariants,
       };
     }
 
-    if (!Array.isArray(parsed?.variantsByBeat) || parsed.variantsByBeat.length === 0) return undefined;
-    const variantsByBeat = parsed.variantsByBeat
-      .filter((item): item is Record<string, unknown> => Boolean(item) && typeof item === "object")
-      .map((item) => ({
-        order: Number(item.order),
-        variants: Array.isArray(item.variants) ? item.variants.map(String).map(clean).filter(Boolean) : [],
-      }));
-    if (variantsByBeat.some((item) => !Number.isInteger(item.order) || item.variants.length !== 3)) return undefined;
-    const orders = [...variantsByBeat.map((item) => item.order)].sort((a, b) => a - b);
-    if (orders.some((order, index) => order !== index + 1)) return undefined;
-    if (expectedBeatCount !== undefined && variantsByBeat.length !== expectedBeatCount) return undefined;
-    if (variantsByBeat.some((item) => new Set(item.variants.map((value) => value.toLowerCase())).size !== 3)) return undefined;
-    return { variantsByBeat: variantsByBeat.sort((a, b) => a.order - b.order) };
+    if (Array.isArray(parsed?.variantsByBeat) && parsed.variantsByBeat.length > 0) {
+      const variantsByBeat = parsed.variantsByBeat
+        .filter((item): item is Record<string, unknown> => Boolean(item) && typeof item === "object")
+        .map((item) => ({
+          order: Number(item.order),
+          variants: Array.isArray(item.variants) ? item.variants.map(String).map(clean).filter(Boolean) : [],
+        }));
+      if (variantsByBeat.some((item) => !Number.isInteger(item.order) || item.variants.length !== 3)) return undefined;
+      const orders = [...variantsByBeat.map((item) => item.order)].sort((a, b) => a - b);
+      if (orders.some((order, index) => order !== index + 1)) return undefined;
+      if (expectedBeatCount !== undefined && variantsByBeat.length !== expectedBeatCount) return undefined;
+      if (variantsByBeat.some((item) => new Set(item.variants.map((value) => value.toLowerCase())).size !== 3)) return undefined;
+      return { variantsByBeat: variantsByBeat.sort((a, b) => a.order - b.order) };
+    }
   } catch {
-    return undefined;
+    // Plain-text realization is the canonical fallback format.
   }
+
+  if (expectedBeatCount === undefined) return undefined;
+
+  const lines = normalized
+    .split(/\r?\n/)
+    .map((line) => line.replace(/^\s*(?:[-*]|\d+[.)])\s*/, "").trim())
+    .filter(Boolean);
+
+  if (lines.length < expectedBeatCount) return undefined;
+
+  const texts = lines.slice(0, expectedBeatCount);
+  return {
+    variantsByBeat: texts.map((text, index) => ({
+      order: index + 1,
+      variants: [text],
+    })),
+    sequenceVariants: [texts],
+  };
 }
 
 export function scoreMouthCandidate(input: { text: string; beat: MouthCandidateBeat; envelope: RealityEnvelope; priorTexts?: readonly string[] }): MouthCandidate {
