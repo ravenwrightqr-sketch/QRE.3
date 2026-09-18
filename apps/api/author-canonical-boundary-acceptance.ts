@@ -15,8 +15,12 @@ import {
   selectBestMouthSequence,
 } from "./src/services/authorMouthSequenceBeamSearch.js";
 import {
+  composeTrajectoryBeats,
+  evaluateAuthorAuthorshipQuality,
   evaluateAuthorSourceReplay,
 } from "./src/services/authorBrainCanonical.js";
+import { searchUniversalMovieCandidates } from "./src/services/authorUniversalMovieSearch.js";
+import { deriveLatentStoryThesis } from "./src/services/authorLatentStoryThesis.js";
 
 function assert(condition: unknown, message: string): asserts condition {
   if (!condition) throw new Error(message);
@@ -239,6 +243,109 @@ cases.push({
   reasons: [replayCheck.reason],
   authorization: replayCandidate.authorization,
 });
+
+const miloGraph = buildAuthorRealityGraph({
+  prompt: "Create a QRE experience.",
+  subject: "Milo",
+  facts: ["Milo loves walks, bacon, small dogs"],
+  sourceMoments: ["Milo loves walks, bacon, small dogs"],
+  memoryContext: [],
+  trajectory: [],
+});
+const miloEnvelope = buildAuthorRealityEnvelope({
+  graph: miloGraph,
+  subject: "Milo",
+});
+const miloMovies = searchUniversalMovieCandidates({
+  graph: miloGraph,
+  subject: "Milo",
+  lens: "NONE",
+  limit: 8,
+}).map((candidate) => ({
+  ...candidate,
+  storyThesis: deriveLatentStoryThesis(
+    miloGraph,
+    candidate,
+  ),
+}));
+const miloMovie = miloMovies.find(
+  (candidate) =>
+    candidate.storyThesis?.semanticRealization?.mechanism === "convergence" &&
+    (candidate.storyThesis.semanticRealization.evidenceEventIds.length ?? 0) >= 3,
+);
+assert(
+  miloMovie,
+  `Day-one profile did not produce a multi-evidence convergence: ${JSON.stringify(miloMovies)}`,
+);
+
+const miloBeats = composeTrajectoryBeats(
+  miloMovie,
+  miloEnvelope,
+);
+const miloEvidenceIds =
+  miloMovie.storyThesis?.semanticRealization?.evidenceEventIds ?? [];
+
+assert(
+  miloBeats.length < miloEvidenceIds.length,
+  `Semantic-unit composition still serialized one visible beat per source fact: ${JSON.stringify(miloBeats)}`,
+);
+assert(
+  miloEvidenceIds.every((id) =>
+    miloBeats.some((candidateBeat) =>
+      candidateBeat.eventIds.includes(id),
+    ),
+  ),
+  `Semantic compression dropped provenance evidence: ${JSON.stringify({
+    evidence: miloEvidenceIds,
+    beats: miloBeats,
+  })}`,
+);
+
+const factParadeQuality = evaluateAuthorAuthorshipQuality({
+  texts: [
+    "Walks. Bacon. Small dogs.",
+    "Then bacon.",
+    "Small dogs complete it.",
+  ],
+  envelope: miloEnvelope,
+  movie: miloMovie,
+  subject: "Milo",
+});
+
+assert(
+  !factParadeQuality.accepted &&
+    factParadeQuality.factParadeRisk >= 0.68,
+  `Truth-safe fact parade still qualified as authored: ${JSON.stringify(factParadeQuality)}`,
+);
+
+const subjectPrefixQuality = evaluateAuthorAuthorshipQuality({
+  texts: [
+    "Milo loves walks.",
+    "Milo loves bacon.",
+    "Milo loves small dogs.",
+  ],
+  envelope: miloEnvelope,
+  movie: miloMovie,
+  subject: "Milo",
+});
+
+assert(
+  !subjectPrefixQuality.accepted &&
+    subjectPrefixQuality.subjectPrefixRisk >= 0.67,
+  `Repeated subject-prefix enumeration still qualified as authored: ${JSON.stringify(subjectPrefixQuality)}`,
+);
+
+const transformedQuality = evaluateAuthorAuthorshipQuality({
+  texts: ["Priorities. Specific ones."],
+  envelope: miloEnvelope,
+  movie: miloMovie,
+  subject: "Milo",
+});
+
+assert(
+  transformedQuality.accepted,
+  `Low-replay transformed realization was over-rejected by authorship quality: ${JSON.stringify(transformedQuality)}`,
+);
 
 const parsedWholeSequences = parseMouthCandidateBatch(
   JSON.stringify({
