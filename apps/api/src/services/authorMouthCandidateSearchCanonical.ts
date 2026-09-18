@@ -246,6 +246,55 @@ function semanticScore(
   );
 }
 
+function semanticUnitParadeRisk(
+  text: string,
+  beat: MouthCandidateBeat,
+  envelope: RealityEnvelope,
+): {
+  parade: number;
+  trivialProgression: number;
+  sourceCoverage: number;
+} {
+  const eventCount = beat.eventIds?.length ?? 0;
+  if (eventCount < 2) {
+    return {
+      parade: 0,
+      trivialProgression: 0,
+      sourceCoverage: 0,
+    };
+  }
+
+  const labels = sourceLabels(beat, envelope);
+  const source = meaningfulTokens(labels.join(" "));
+  const candidate = meaningfulTokens(text);
+  const sourceCoverage = overlap(source, candidate);
+
+  const trivialProgression =
+    /^(?:then|now|next|finally|after that|and then)\b|\b(?:follows|followed|completes?|completed|begins?|beginning)\b/i.test(
+      clean(text),
+    )
+      ? 1
+      : 0;
+
+  const fragmentCount = clean(text)
+    .split(/[.!?]+/)
+    .map(clean)
+    .filter(Boolean)
+    .length;
+
+  const parade = metric(
+    sourceCoverage * 0.72 +
+      (fragmentCount >= Math.min(3, eventCount) ? 0.18 : 0) +
+      trivialProgression * 0.1,
+  );
+
+  return {
+    parade,
+    trivialProgression,
+    sourceCoverage,
+  };
+}
+
 function candidateScore(text: string, beat: MouthCandidateBeat, envelope: RealityEnvelope, priorTexts: readonly string[]): MouthCandidate {
   const value = clean(text);
   const labels = sourceLabels(beat, envelope);
@@ -264,6 +313,11 @@ function candidateScore(text: string, beat: MouthCandidateBeat, envelope: Realit
   const abstract = abstractPenalty(value);
   const form = formScore(value);
   const payoff = payoffScore(value, beat);
+  const semanticUnitRisk = semanticUnitParadeRisk(
+    value,
+    beat,
+    envelope,
+  );
   const novelty = priorTexts.length
     ? metric(1 - Math.max(...priorTexts.map((prior) => overlap(meaningfulTokens(value), meaningfulTokens(prior))), 0))
     : 1;
@@ -323,10 +377,36 @@ function candidateScore(text: string, beat: MouthCandidateBeat, envelope: Realit
   const obligation = metric((beat.eventIds?.length ? 0.45 : 0.25) * 0.42 + baseSemantic * 0.38 + (supportedEventIds.length ? 0.2 : 0));
   const transition = metric(Number(beat.viewerState?.stateShift) || 0.45);
   const meaning = metric(baseSemantic * 0.5 + (STATUS.test(value) ? 0.08 : 0) + payoff * 0.26 - abstract * 0.18,);
-  const distinctive = metric(form * 0.42 + meaning * 0.28 + novelty * 0.22 + (isFrameOnly(value) ? 0.14 : 0) + payoff * 0.14 + (sourceOverlap < 0.65 ? 0.08 : 0));
-  const discovery = metric(meaning * 0.38 + transition * 0.24 + distinctive * 0.2 + novelty * 0.1 + (isFrameOnly(value) ? 0.08 : 0));
+  const distinctive = metric(
+    form * 0.42 +
+      meaning * 0.28 +
+      novelty * 0.22 +
+      (isFrameOnly(value) ? 0.14 : 0) +
+      payoff * 0.14 +
+      (sourceOverlap < 0.65 ? 0.08 : 0) -
+      semanticUnitRisk.parade * 0.28,
+  );
+  const discovery = metric(
+    meaning * 0.38 +
+      transition * 0.24 +
+      distinctive * 0.2 +
+      novelty * 0.1 +
+      (isFrameOnly(value) ? 0.08 : 0) -
+      semanticUnitRisk.parade * 0.24,
+  );
   const score = metric(
-    grounding * 0.1 + obligation * 0.1 + meaning * 0.25 + transition * 0.12 + novelty * 0.1 + form * 0.1 + discovery * 0.13 + distinctive * 0.08 + payoff * 0.12 - abstract * 0.16,
+    grounding * 0.1 +
+      obligation * 0.1 +
+      meaning * 0.25 +
+      transition * 0.12 +
+      novelty * 0.1 +
+      form * 0.1 +
+      discovery * 0.13 +
+      distinctive * 0.08 +
+      payoff * 0.12 -
+      abstract * 0.16 -
+      semanticUnitRisk.parade * 0.22 -
+      semanticUnitRisk.trivialProgression * 0.08,
   );
 
   const reasons: string[] = [];
@@ -341,6 +421,19 @@ function candidateScore(text: string, beat: MouthCandidateBeat, envelope: Realit
   if (distinctive >= 0.64) reasons.push("distinctive-realization");
   if (discovery >= 0.62) reasons.push("observer-discovery");
   if (payoff >= 0.62) reasons.push("viewer-reward");
+  if (semanticUnitRisk.parade >= 0.58) {
+    reasons.push("fact-parade-like");
+  }
+  if (semanticUnitRisk.trivialProgression >= 0.9) {
+    reasons.push("trivial-connective-transformation");
+  }
+  if (
+    (beat.eventIds?.length ?? 0) > 1 &&
+    semanticUnitRisk.sourceCoverage < 0.55 &&
+    authorization.semanticAuthorized
+  ) {
+    reasons.push("semantic-unit-transformation");
+  }
   if (abstract > 0.35) reasons.push("abstract-nominalization");
   if (/^(?:a|an|the)\s+/i.test(value) && ABSTRACT_NOUN.test(value)) reasons.push("article-abstract-fragment");
 
