@@ -18,6 +18,31 @@ import { buildExperienceMemoryBatch, memoryContextToCognitiveSummary } from "../
 const router = Router();
 const analyticsRepository = createAnalyticsRepository();
 
+function parsePlayoutMode(
+  value: unknown,
+): "operational" | "experience" | undefined {
+  if (typeof value !== "string") return undefined;
+
+  const normalized = value.trim().toLowerCase();
+  if (
+    normalized === "operational" ||
+    normalized === "receipt"
+  ) {
+    return "operational";
+  }
+
+  if (
+    normalized === "experience" ||
+    normalized === "playout" ||
+    normalized === "cinematic" ||
+    normalized === "movie"
+  ) {
+    return "experience";
+  }
+
+  return undefined;
+}
+
 type CollaborationState = {
   enabled: boolean;
   inviteOnly?: boolean;
@@ -133,7 +158,10 @@ router.post("/compile", requireAuth, async (req, res) => {
       typeof req.body?.assetId === "string"
         ? req.body.assetId
         : undefined;
-    const movieMode = req.body?.movieMode !== false;
+    const playoutMode =
+      parsePlayoutMode(req.body?.playoutMode) ??
+      (req.body?.movieMode === false ? "operational" : "experience");
+    const movieMode = playoutMode === "experience";
     const lens = typeof req.body?.lens === "string" ? req.body.lens.trim() : undefined;
     const rawGeo = parseGeoAnchor(req.body?.geo);
 
@@ -155,6 +183,7 @@ const experience = await compileExperience({
     ? createMemoryRepository()
     : undefined,
   geoAnchor: geo,
+  playoutMode,
   movieMode,
   lens,
 });
