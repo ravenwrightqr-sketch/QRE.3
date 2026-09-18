@@ -178,8 +178,20 @@ function directScopedObjects(
 }
 
 function compactHead(text: string): { head: string; labelOnly: boolean } | undefined {
-  const value = clean(text).replace(/[.!?]+$/g, "").trim();
+  const raw = clean(text);
+  const value = raw.replace(/[.!?]+$/g, "").trim();
   if (!value) return undefined;
+
+  /*
+   * An auxiliary- or interrogative-led question introduces an open variable,
+   * not a concrete participant assertion. Treating "what" or "did I" as a
+   * referential head blocks legitimate rhetorical realization.
+   */
+  const interrogativeClause =
+    /\?$/.test(raw) &&
+    /^(?:what|who|whom|whose|which|where|when|why|how|do|does|did|is|are|was|were|has|have|had|can|could|will|would|should|must|may|might)\b/i.test(value);
+
+  if (interrogativeClause) return undefined;
 
   const colonIndex = value.indexOf(":");
   if (colonIndex > 0) {
