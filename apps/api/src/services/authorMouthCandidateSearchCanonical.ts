@@ -408,7 +408,10 @@ function candidateScore(text: string, beat: MouthCandidateBeat, envelope: Realit
   const supportedRelationPairs = beat.relationKinds?.map((kind) => String(kind)).filter(Boolean) ?? [];
   const grounding = metric(sourceOverlap * 0.46 + worldOverlap * 0.18 + (exact ? 0.36 : 0));
   const obligation = metric((beat.eventIds?.length ? 0.45 : 0.25) * 0.42 + baseSemantic * 0.38 + (supportedEventIds.length ? 0.2 : 0));
-  const transition = metric(Number(beat.viewerState?.stateShift) || 0.45);
+  const transition = metric(
+    (Number(beat.viewerState?.stateShift) || 0.45) * 0.72 +
+      (Number(beat.viewerState?.inferenceSpace) || 0) * 0.28,
+  );
   const meaning = metric(baseSemantic * 0.5 + (STATUS.test(value) ? 0.08 : 0) + payoff * 0.26 - abstract * 0.18,);
   const distinctive = metric(
     form * 0.42 +
@@ -453,6 +456,7 @@ function candidateScore(text: string, beat: MouthCandidateBeat, envelope: Realit
   if (interpretation.reasons.includes("bounded-creative-bet")) reasons.push("bounded-creative-bet");
   if (distinctive >= 0.64) reasons.push("distinctive-realization");
   if (discovery >= 0.62) reasons.push("observer-discovery");
+  if ((beat.viewerState?.inferenceSpace ?? 0) >= 0.55) reasons.push("meaningful-inference-space");
   if (payoff >= 0.62) reasons.push("viewer-reward");
   if (semanticUnitRisk.parade >= 0.58) {
     reasons.push("fact-parade-like");
@@ -517,6 +521,7 @@ function buildSystemPrompt(): string {
     "MAXIMIZE MEANINGFUL INFERENCE SPACE WHILE MAINTAINING GROUNDING.",
     "Never spend a cut saying what the observer can discover from the supplied evidence.",
     "Use viewerState as the cognitive target: each cut must materially change what the viewer can notice, infer, expect, question, or reinterpret.",
+    "viewerState.inferenceBefore / inferenceAfter / inferenceGap are internal observer-model targets, not facts and not viewer copy. Move the observer between them without reciting them.",
     "Productive ambiguity is good; confusion is not. Give enough grounded evidence for the viewer to construct the intended inference without naming the conclusion.",
     "Specific supplied detail beats generic emotional labeling. Prefer the actual supplied place, time, object, action, state, relationship, task, or odd detail as the cue that lets the viewer feel the memory or situation.",
     "Do not trade specific supplied reality for generic sentiment, genre mood, inspirational language, or a summary of why the moment matters.",
@@ -594,7 +599,17 @@ export function buildMouthCandidateMessages(input: MouthCandidateGenerationInput
     purpose: clean(beat.attentionFunction || beat.role),
     realizationAuthority: projectedRealizationAuthority(beat),
     viewerState: beat.viewerState
-      ? { before: clean(beat.viewerState.beforeState), after: clean(beat.viewerState.afterState), move: clean(beat.viewerState.attentionMove) }
+      ? {
+          before: clean(beat.viewerState.beforeState),
+          after: clean(beat.viewerState.afterState),
+          move: clean(beat.viewerState.attentionMove),
+          inferenceBefore: clean(beat.viewerState.inferenceBefore),
+          inferenceAfter: clean(beat.viewerState.inferenceAfter),
+          inferenceGap: clean(beat.viewerState.inferenceGap),
+          reinterpretation: clean(beat.viewerState.reinterpretation),
+          inferenceSpace: beat.viewerState.inferenceSpace,
+          groundingConfidence: beat.viewerState.groundingConfidence,
+        }
       : undefined,
     terminal: Boolean(beat.paysOff?.length),
   }));
