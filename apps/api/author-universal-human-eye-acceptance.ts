@@ -46,9 +46,11 @@ const CASES: UniversalCase[] = [
     subject: "Maria",
     facts: [],
     sourceMoments: [
-      "Maria arrived",
-      "Maria cleaned the kitchen and two bathrooms",
-      "Maria finished the service",
+      "9:04 AM Maria started the housekeeping service",
+      "Maria cleaned the kitchen",
+      "Maria cleaned bathroom one",
+      "Maria cleaned bathroom two",
+      "11:47 AM Maria finished the housekeeping service",
     ],
     domainContext: {
       category: "business",
@@ -69,12 +71,14 @@ const CASES: UniversalCase[] = [
   {
     id: "service-receipt",
     label: "HOUSEKEEPING OPERATIONAL RECEIPT",
-    subject: "Current housekeeping service",
+    subject: "Maria",
     facts: [],
     sourceMoments: [
-      "cleaned kitchen",
-      "cleaned bathrooms",
-      "done",
+      "9:04 AM Maria started the housekeeping service",
+      "Maria cleaned the kitchen",
+      "Maria cleaned bathroom one",
+      "Maria cleaned bathroom two",
+      "11:47 AM Maria finished the housekeeping service",
     ],
     playoutMode: "operational",
     domainContext: {
@@ -88,12 +92,14 @@ const CASES: UniversalCase[] = [
   {
     id: "service-noir",
     label: "HOUSEKEEPING EXPERIENCE FROM SAME REALITY",
-    subject: "Current housekeeping service",
+    subject: "Maria",
     facts: [],
     sourceMoments: [
-      "cleaned kitchen",
-      "cleaned bathrooms",
-      "done",
+      "9:04 AM Maria started the housekeeping service",
+      "Maria cleaned the kitchen",
+      "Maria cleaned bathroom one",
+      "Maria cleaned bathroom two",
+      "11:47 AM Maria finished the housekeeping service",
     ],
     playoutMode: "experience",
     lens: "noir",
@@ -345,6 +351,7 @@ async function runCase(testCase: UniversalCase): Promise<{
   section("INPUT", trace.input);
   section("REALITY READOUT", reality);
   section("WHAT QRE NOTICED", {
+    actionMechanics: trace.actionMechanics,
     unresolvedTensions: reality.unresolvedTensions,
     recurringSignals: reality.recurringSignals,
     sensorySignals: reality.sensorySignals,
