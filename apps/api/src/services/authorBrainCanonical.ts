@@ -1585,34 +1585,15 @@ export async function authorBrainCanonical(
   const rejectedCandidates: unknown[] = [];
 
   try {
+    /*
+     * Keep the transport in plain JSON mode.  The full nested schema caused
+     * Gemma/Qwen structured decoding to stop after the opening array, which
+     * made a valid creative response look like a generation failure.  The
+     * canonical parser and authorization layer remain the contract.
+     */
     const generated = await localModelGenerate(messages, "json", {
       numPredict: 2048,
       temperature: 0.7,
-      jsonSchema: {
-        type: "object",
-        properties: {
-          sequenceVariants: {
-            type: "array",
-            minItems: 3,
-            maxItems: 3,
-            items: {
-              type: "object",
-              properties: {
-                texts: {
-                  type: "array",
-                  items: { type: "string" },
-                  minItems: beats.length,
-                  maxItems: beats.length,
-                },
-              },
-              required: ["texts"],
-              additionalProperties: false,
-            },
-          },
-        },
-        required: ["sequenceVariants"],
-        additionalProperties: false,
-      },
     });
 
     modelCalls = 1;
