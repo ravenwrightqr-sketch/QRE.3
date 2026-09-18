@@ -111,6 +111,11 @@ function domainContextText(context?: AuthorDomainContext): string[] {
     context.serviceType ? `service type: ${context.serviceType}` : "",
     context.serviceName ? `service: ${context.serviceName}` : "",
     context.subjectKind ? `subject kind: ${context.subjectKind}` : "",
+    ...(context.services ?? []).map((item) => `service: ${item}`),
+    ...(context.differentiators ?? []).map((item) => `business differentiator: ${item}`),
+    ...(context.signals ?? []).map((item) => `business signal: ${item}`),
+    ...(context.subjectKinds ?? []).map((item) => `supported subject kind: ${item}`),
+    ...(context.importantFacts ?? []).map((item) => `important business fact: ${item}`),
     ...(context.knownCapabilities ?? []).map((item) => `known capability: ${item}`),
     ...(context.contextualSignals ?? []).map((item) => `contextual signal: ${item}`),
   ].filter(Boolean);
