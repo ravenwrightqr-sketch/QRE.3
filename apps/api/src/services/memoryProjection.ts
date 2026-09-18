@@ -67,6 +67,48 @@ function eventHasSubject(event: RealityEvent, subject?: string): boolean {
   return event.entities.some((value) => lower(value) === target);
 }
 
+type ProfileAssertion = {
+  predicate: string;
+  value: string;
+  kind: "preference" | "attribute";
+};
+
+function profileAssertion(
+  event: RealityEvent,
+  subject?: string,
+): ProfileAssertion | undefined {
+  const label = clean(event.label);
+  const subjectName = clean(subject);
+  if (!label || !subjectName) return undefined;
+
+  const subjectPrefix = subjectName.toLowerCase() + " ";
+  if (!label.toLowerCase().startsWith(subjectPrefix)) return undefined;
+
+  const remainder = clean(label.slice(subjectName.length));
+
+  const preference = remainder.match(
+    /^(likes?|loves?|prefers?|enjoys?|hates?|avoids?)\s+(.+)$/i,
+  );
+  if (preference) {
+    return {
+      predicate: lower(preference[1]),
+      value: clean(preference[2]),
+      kind: "preference",
+    };
+  }
+
+  const attribute = remainder.match(/^(is|has)\s+(.+)$/i);
+  if (attribute) {
+    return {
+      predicate: lower(attribute[1]),
+      value: clean(attribute[2]),
+      kind: "attribute",
+    };
+  }
+
+  return undefined;
+}
+
 function addEntity(
   entities: Map<string, MemoryWriteBatch["entities"][number]>,
   assetId: string,
@@ -107,19 +149,29 @@ function buildEntities(
   }
 
   for (const event of graph.events) {
-    const id = eventEntityId(assetId, event);
-    entities.set(id, {
-      id,
-      kind: "event",
-      name: clean(event.label),
-      canonicalKey: lower(event.label),
-      confidence: 0.95,
-      visibility: VISIBILITY,
-      metadata: {
-        realityRole: "event",
-        realityEventId: event.id,
-      },
-    });
+    const profile = profileAssertion(event, subject);
+
+    if (!profile) {
+      const id = eventEntityId(assetId, event);
+      entities.set(id, {
+        id,
+        kind: "event",
+        name: clean(event.label),
+        canonicalKey: lower(event.label),
+        confidence: 0.95,
+        visibility: VISIBILITY,
+        metadata: {
+          realityRole: "event",
+          realityEventId: event.id,
+        },
+      });
+    } else if (profile.value) {
+      addEntity(entities, assetId, "object", profile.value, 0.95, {
+        realityRole: "profile_value",
+        qreIdentityAnchor: false,
+        predicate: profile.predicate,
+      });
+    }
 
     for (const value of event.entities) {
       const isSubject = Boolean(subjectName) && lower(value) === lower(subjectName);
@@ -181,28 +233,51 @@ function buildFacts(
   }
 
   for (const event of graph.events) {
-    facts.push({
-      entityId: eventEntityId(assetId, event),
-      kind: "event",
-      predicate: "occurred",
-      value: event.label,
-      confidence: 1,
-      source,
-      sourceRef: sessionId,
-      status: "active",
-      observedAt,
-      visibility: VISIBILITY,
-      metadata: {
-        realityEventId: event.id,
-        sourceIds: event.sourceIds,
-        entities: event.entities,
-        place: event.place,
-        time: event.time,
-        provenance: event.provenance,
-      },
-    });
+    const profile = profileAssertion(event, subject);
 
-    if (event.place) {
+    if (profile && subjectName) {
+      facts.push({
+        entityId: entityId(assetId, subjectKindValue, subjectName),
+        kind: profile.kind,
+        predicate: profile.predicate,
+        value: profile.value,
+        confidence: 1,
+        source,
+        sourceRef: sessionId,
+        status: "active",
+        observedAt,
+        visibility: VISIBILITY,
+        metadata: {
+          realityEventId: event.id,
+          sourceIds: event.sourceIds,
+          provenance: event.provenance,
+          qreProfileAssertion: true,
+        },
+      });
+    } else {
+      facts.push({
+        entityId: eventEntityId(assetId, event),
+        kind: "event",
+        predicate: "occurred",
+        value: event.label,
+        confidence: 1,
+        source,
+        sourceRef: sessionId,
+        status: "active",
+        observedAt,
+        visibility: VISIBILITY,
+        metadata: {
+          realityEventId: event.id,
+          sourceIds: event.sourceIds,
+          entities: event.entities,
+          place: event.place,
+          time: event.time,
+          provenance: event.provenance,
+        },
+      });
+    }
+
+    if (!profile && event.place) {
       facts.push({
         entityId: entityId(assetId, "place", event.place),
         kind: "context",
@@ -244,35 +319,66 @@ function buildRelations(
   subject?: string,
   subjectKind?: string,
 ): MemoryRelationWrite[] {
-  const relations: MemoryRelationWrite[] = graph.relations.map((relation) => {
-    const fromEvent = eventForEndpoint(graph, relation.from);
-    const toEvent = eventForEndpoint(graph, relation.to);
-    const fromKind = relationKindForEndpoint(graph, relation.from);
-    const toKind = relationKindForEndpoint(graph, relation.to);
+  const relations: MemoryRelationWrite[] = graph.relations
+    .filter((relation) => {
+      const fromEvent = eventForEndpoint(graph, relation.from);
+      const toEvent = eventForEndpoint(graph, relation.to);
+      return !(
+        (fromEvent && profileAssertion(fromEvent, subject)) ||
+        (toEvent && profileAssertion(toEvent, subject))
+      );
+    })
+    .map((relation) => {
+      const fromEvent = eventForEndpoint(graph, relation.from);
+      const toEvent = eventForEndpoint(graph, relation.to);
+      const fromKind = relationKindForEndpoint(graph, relation.from);
+      const toKind = relationKindForEndpoint(graph, relation.to);
 
-    return {
-      fromEntityId: fromEvent
-        ? eventEntityId(assetId, fromEvent)
-        : entityId(assetId, fromKind, relation.from),
-      toEntityId: toEvent
-        ? eventEntityId(assetId, toEvent)
-        : entityId(assetId, toKind, relation.to),
-      relation: clean(relation.kind) || "connected_to",
-      confidence: Math.min(1, Math.max(0, relation.strength)),
-      source,
-      sourceRef: sessionId,
-      observedAt,
-      visibility: VISIBILITY,
-      metadata: { realityRelation: relation.kind },
-    };
-  });
+      return {
+        fromEntityId: fromEvent
+          ? eventEntityId(assetId, fromEvent)
+          : entityId(assetId, fromKind, relation.from),
+        toEntityId: toEvent
+          ? eventEntityId(assetId, toEvent)
+          : entityId(assetId, toKind, relation.to),
+        relation: clean(relation.kind) || "connected_to",
+        confidence: Math.min(1, Math.max(0, relation.strength)),
+        source,
+        sourceRef: sessionId,
+        observedAt,
+        visibility: VISIBILITY,
+        metadata: { realityRelation: relation.kind },
+      };
+    });
 
   const subjectName = clean(subject);
   if (subjectName) {
     const kind = subjectEntityKind(subjectKind);
     const subjectId = entityId(assetId, kind, subjectName);
+
     for (const event of graph.events) {
       if (!eventHasSubject(event, subjectName)) continue;
+
+      const profile = profileAssertion(event, subjectName);
+      if (profile) {
+        relations.push({
+          fromEntityId: subjectId,
+          toEntityId: entityId(assetId, "object", profile.value),
+          relation: profile.predicate,
+          confidence: 1,
+          source,
+          sourceRef: sessionId,
+          observedAt,
+          visibility: VISIBILITY,
+          metadata: {
+            qreIdentityAnchor: true,
+            qreProfileAssertion: true,
+            realityEventId: event.id,
+          },
+        });
+        continue;
+      }
+
       relations.push({
         fromEntityId: subjectId,
         toEntityId: eventEntityId(assetId, event),
@@ -302,7 +408,9 @@ function buildEvents(
   subject?: string,
   subjectKind?: string,
 ): MemoryEventWrite[] {
-  return graph.events.map((event) => ({
+  return graph.events
+    .filter((event) => !profileAssertion(event, subject))
+    .map((event) => ({
     /*
      * Deliberately omit an explicit ID.
      *
