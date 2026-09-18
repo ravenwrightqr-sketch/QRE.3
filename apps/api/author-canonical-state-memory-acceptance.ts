@@ -17,6 +17,7 @@ import { buildMouthRealizationAuthority } from "./src/services/authorMouthRealiz
 import { buildMouthCandidateMessages } from "./src/services/authorMouthCandidateSearchCanonical.js";
 import { buildCreativeLensBrief } from "./src/services/authorCreativeLensBrief.js";
 import { buildExperienceMemoryBatch } from "./src/services/memoryProjection.js";
+import { authorExperienceMemoryContext } from "./src/services/authorExperienceMemory.js";
 
 function assert(condition: unknown, message: string): asserts condition {
   if (!condition) throw new Error(message);
@@ -354,6 +355,41 @@ const viewerDynamics = scoreViewerStateTrajectory(graph, selectedMovie);
 assert(
   viewerDynamics.score > 0 && viewerDynamics.payoff > 0,
   `Viewer-state trajectory failed to score current movie: ${JSON.stringify(viewerDynamics)}`,
+);
+
+const continuityContext = authorExperienceMemoryContext({
+  assetId: "asset-memory-test",
+  generatedAt: "2026-09-17T12:00:00.000Z",
+  entities: [],
+  facts: [],
+  relations: [],
+  events: [
+    {
+      id: "author-state-1",
+      type: "author_experience_state",
+      summary: "prior author state",
+      occurredAt: "2026-09-17T11:00:00.000Z",
+      source: "system",
+      confidence: 1,
+      entityIds: [],
+      metadata: {
+        authorExperienceState: roundTwoState,
+      },
+    },
+  ],
+});
+
+assert(
+  continuityContext.some((value) => /prior lens:/i.test(value)),
+  "Re-entry memory dropped the selected lens.",
+);
+assert(
+  continuityContext.some((value) => /semantic relation:|relation kind:/i.test(value)),
+  `Re-entry memory dropped semantic continuity: ${JSON.stringify(continuityContext)}`,
+);
+assert(
+  continuityContext.some((value) => /carry:|revisit:|open question:/i.test(value)),
+  "Re-entry memory dropped return/callback pressure.",
 );
 
 const readout = buildAuthorReadout({
