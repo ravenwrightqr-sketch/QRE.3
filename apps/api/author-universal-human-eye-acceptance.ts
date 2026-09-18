@@ -1,3 +1,4 @@
+import type { AuthorDomainContext } from "@qre/contracts";
 import { authorBrainCanonical } from "./src/services/authorBrainCanonical.js";
 
 type UniversalCase = {
@@ -10,6 +11,7 @@ type UniversalCase = {
   lens?: string;
   returning?: boolean;
   visitNumber?: number;
+  domainContext?: AuthorDomainContext;
 };
 
 type RecordValue = Record<string, unknown>;
@@ -44,6 +46,21 @@ const CASES: UniversalCase[] = [
       "Maria cleaned the kitchen and two bathrooms",
       "Maria finished the service",
     ],
+    domainContext: {
+      category: "business",
+      businessType: "housekeeping",
+      businessName: "Example Housekeeping",
+      serviceType: "housekeeping",
+      serviceName: "home cleaning",
+      knownCapabilities: [
+        "clean kitchens",
+        "clean bathrooms",
+        "clean living areas",
+      ],
+      contextualSignals: [
+        "service completion can be sent as a moving receipt or QRE experience",
+      ],
+    },
   },
   {
     id: "coco",
@@ -169,6 +186,8 @@ async function runCase(testCase: UniversalCase): Promise<{
     visitNumber: testCase.visitNumber,
     facts: testCase.facts,
     sourceMoments: testCase.sourceMoments,
+    domainContext: testCase.domainContext,
+    playoutMode: "experience",
     memoryContext: testCase.memoryContext ?? [],
     trajectory: [],
     creativeLearningContext: [
