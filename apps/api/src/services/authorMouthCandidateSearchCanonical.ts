@@ -603,6 +603,11 @@ export function buildMouthCandidateMessages(input: MouthCandidateGenerationInput
               serviceType: clean(input.domainContext.serviceType),
               serviceName: clean(input.domainContext.serviceName),
               subjectKind: clean(input.domainContext.subjectKind),
+              services: input.domainContext.services ?? [],
+              differentiators: input.domainContext.differentiators ?? [],
+              signals: input.domainContext.signals ?? [],
+              subjectKinds: input.domainContext.subjectKinds ?? [],
+              importantFacts: input.domainContext.importantFacts ?? [],
               knownCapabilities: input.domainContext.knownCapabilities ?? [],
               contextualSignals: input.domainContext.contextualSignals ?? [],
               authority:
