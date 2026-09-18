@@ -532,10 +532,53 @@ function bestConcreteCallback(
         continue;
       }
 
+      const earlierLabel =
+        labelFor(
+          graph,
+          earlierId,
+        );
+
+      const graphCallback =
+        graph.relations.some(
+          (relation) =>
+            (
+              relation.from === earlierId &&
+              relation.to === laterId
+            ) ||
+            (
+              relation.from === laterId &&
+              relation.to === earlierId
+            )
+              ? (
+                  relation.kind === "repeats" ||
+                  relation.kind === "recontextualizes"
+                )
+              : false,
+        );
+
+      /*
+       * Shared concrete vocabulary is continuity of subject matter, not proof
+       * that a detail has returned. A service name, room, object, venue, or
+       * other supplied noun may legitimately appear in several events without
+       * becoming a callback.
+       *
+       * Recurrence authority requires explicit recurrence/callback language or
+       * a RealityGraph edge that already establishes repetition /
+       * recontextualization. This prevents generic shared nouns from erasing
+       * richer middle evidence during semantic selection.
+       */
       const callback =
         CALLBACK.test(
+          earlierLabel,
+        ) ||
+        CALLBACK.test(
           laterLabel,
-        );
+        ) ||
+        graphCallback;
+
+      if (!callback) {
+        continue;
+      }
 
       const distance =
         Math.min(
@@ -544,9 +587,7 @@ function bestConcreteCallback(
         );
 
       const score =
-        (callback
-          ? 0.82
-          : 0.5) +
+        0.82 +
         Math.min(
           0.12,
           shared.length *
