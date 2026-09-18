@@ -131,6 +131,75 @@ export function deriveViewerStateCut(
 
   const afterState = currentMeaning || "New material enters.";
 
+  /*
+   * Viewer inference is interpretation metadata, never reality authority.
+   *
+   * It is derived only from this beat's approved semantic realization and
+   * grounded event IDs. Mouth may use it to shape what the observer notices,
+   * withholds, connects, or reinterprets, but it cannot promote any of these
+   * strings into a concrete event, participant, relationship, or fact.
+   */
+  const semantic = beat.semanticRealization;
+  const priorSemantic =
+    priorBeats.length > 0
+      ? priorBeats[priorBeats.length - 1]?.semanticRealization
+      : undefined;
+
+  const inferenceBefore =
+    clean(
+      priorSemantic?.viewerShift ||
+        priorSemantic?.after ||
+        priorSemantic?.feltEffect ||
+        semantic?.before,
+    ) ||
+    beforeState;
+
+  const inferenceAfter =
+    clean(
+      semantic?.viewerShift ||
+        semantic?.feltEffect ||
+        semantic?.after,
+    ) ||
+    afterState;
+
+  const inferenceGap =
+    nextPressure ||
+    (
+      !beat.paysOff?.length &&
+      semantic
+        ? "What can the remaining supplied evidence make newly inferable without QRE stating the conclusion?"
+        : ""
+    );
+
+  const reinterpretation =
+    semantic
+      ? clean(
+          [
+            semantic.realizationMove,
+            semantic.mechanism,
+          ]
+            .filter(Boolean)
+            .join(":"),
+        )
+      : clean(attentionMove);
+
+  const inferenceSpace = metric(
+    (semantic ? 0.28 : 0.08) +
+      Math.min(1, currentIds.length / 3) * 0.14 +
+      curiosityPressure * 0.18 +
+      contrast * 0.16 +
+      predictionError * 0.14 +
+      (inferenceGap ? 0.1 : 0) +
+      (clean(semantic?.viewerShift) ? 0.1 : 0),
+  );
+
+  const groundingConfidence = metric(
+    (currentIds.length ? 0.32 : 0) +
+      (semantic?.confidence ?? 0.5) * 0.42 +
+      (relationPresence ? 0.14 : 0) +
+      (currentSource ? 0.12 : 0),
+  );
+
   return {
     beforeState,
     afterState,
@@ -144,5 +213,11 @@ export function deriveViewerStateCut(
     stateShift,
     predictionError,
     evidenceEventIds: currentIds,
+    inferenceBefore,
+    inferenceAfter,
+    inferenceGap,
+    reinterpretation,
+    inferenceSpace,
+    groundingConfidence,
   };
 }
