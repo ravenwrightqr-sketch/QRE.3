@@ -172,7 +172,7 @@ function buildEntities(
           realityEventId: event.id,
         },
       });
-    } else if (profile.value) {
+    } else if (profile?.value) {
       addEntity(entities, assetId, "object", profile.value, 0.95, {
         realityRole: "profile_value",
         qreIdentityAnchor: false,
