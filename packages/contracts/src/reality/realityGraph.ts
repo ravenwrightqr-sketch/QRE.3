@@ -76,6 +76,12 @@ export type RealityPattern = {
 };
 
 export type RealityGraph = {
+  /**
+   * Canonical QRE subject supplied by the caller.
+   * Context authority only: downstream cognition must never replace this
+   * identity by guessing a more salient entity from the graph.
+   */
+  subject?: string;
   evidence: RealityEvidence[];
   events: RealityEvent[];
   relations: RealityRelation[];
