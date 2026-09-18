@@ -1,5 +1,5 @@
 import { apiPost } from "./api";
-import type { Experience } from "@qre/contracts";
+import type { AuthorPlayoutMode, Experience } from "@qre/contracts";
 
 export type GeoAnchorRole =
   | "physical_site"
@@ -24,6 +24,8 @@ type ExperienceIntent = {
   prompt: string;
   assetId?: string;
   geo?: GeoAnchor;
+  playoutMode?: AuthorPlayoutMode;
+  /** @deprecated Compatibility only. Prefer playoutMode. */
   movieMode?: boolean;
   lens?: string;
 };
@@ -34,7 +36,11 @@ export async function compileExperience(intent: ExperienceIntent): Promise<Exper
     ...(intent.assetId ? { assetId: intent.assetId } : {}),
     ...(intent.geo ? { geo: intent.geo } : {}),
     ...(intent.lens ? { lens: intent.lens } : {}),
-    movieMode: intent.movieMode !== false,
+    ...(intent.playoutMode ? { playoutMode: intent.playoutMode } : {}),
+    movieMode:
+      intent.playoutMode
+        ? intent.playoutMode === "experience"
+        : intent.movieMode !== false,
   });
 
   if (!result?.experience) {
