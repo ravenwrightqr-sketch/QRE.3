@@ -1446,7 +1446,19 @@ export async function authorBrainCanonical(
   const composedBeats = composeTrajectoryBeats(movie, envelope);
   const authorityBeats = composedBeats.map((beat) => ({
     ...beat,
-    realizationAuthority: buildMouthRealizationAuthority({ beat, envelope }),
+    realizationAuthority: buildMouthRealizationAuthority({
+      beat,
+      envelope,
+      treatment: {
+        label: creativeLensBrief.lens.label,
+        intensity: creativeLensBrief.lens.intensity,
+        framingBias: creativeLensBrief.lens.framingBias,
+        realizationPreferences:
+          creativeLensBrief.lens.realizationPreferences,
+        forbiddenRealityMoves:
+          creativeLensBrief.forbiddenRealityMoves,
+      },
+    }),
   }));
   const beats = authorityBeats.map((beat, index, allBeats) => ({
     ...beat,
