@@ -1748,6 +1748,8 @@ export async function authorBrainCanonical(
           eventStructure: graph.eventStructure ?? [],
         },
         actionMechanics: cognition.actionMechanics,
+        selectedActionMechanics:
+          cognition.selectedActionMechanics,
         semanticCandidates: cognition.latentMovieCandidates.map((candidate) => ({
           id: candidate.id,
           score: candidate.score,
