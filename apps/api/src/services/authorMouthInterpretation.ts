@@ -735,6 +735,89 @@ function closedWorldParticipantViolation(
   return "unsupplied-participant:" + subjectPhrase;
 }
 
+const CLOSED_WORLD_RECURRENCE_LANGUAGE =
+  /\b(?:again|returned|returning|returns|repeated|repeat|previously|used to|once before)\b/i;
+
+const CLOSED_WORLD_SEQUENCE_LANGUAGE =
+  /\b(?:previously|earlier|later|before|afterward|afterwards|after that|next time|the next time|the next day|the day before|yesterday|tomorrow)\b/i;
+
+const CLOSED_WORLD_CONTINUITY_LANGUAGE =
+  /\b(?:still|already|continues?|continued|remains?|remained)\b/i;
+
+function chronologyAuthorityViolation(
+  text: string,
+  beat: MouthCandidateBeat | undefined,
+  envelope: RealityEnvelope,
+): string | undefined {
+  const value = clean(text);
+  if (
+    !value ||
+    (!CLOSED_WORLD_RECURRENCE_LANGUAGE.test(value) &&
+      !CLOSED_WORLD_SEQUENCE_LANGUAGE.test(value) &&
+      !CLOSED_WORLD_CONTINUITY_LANGUAGE.test(value))
+  ) {
+    return undefined;
+  }
+
+  const eventIds = new Set(beat?.eventIds ?? []);
+  const scopedEvents = eventIds.size
+    ? envelope.events.filter((event) => eventIds.has(event.id))
+    : envelope.events;
+  const source = scopedEvents.map((event) => clean(event.label)).join(" ");
+
+  if (
+    (CLOSED_WORLD_RECURRENCE_LANGUAGE.test(value) &&
+      CLOSED_WORLD_RECURRENCE_LANGUAGE.test(source)) ||
+    (CLOSED_WORLD_SEQUENCE_LANGUAGE.test(value) &&
+      CLOSED_WORLD_SEQUENCE_LANGUAGE.test(source)) ||
+    (CLOSED_WORLD_CONTINUITY_LANGUAGE.test(value) &&
+      CLOSED_WORLD_CONTINUITY_LANGUAGE.test(source))
+  ) {
+    return undefined;
+  }
+
+  const structures = envelope.eventStructure.filter((structure) =>
+    eventIds.size ? eventIds.has(structure.eventId) : true,
+  );
+  const hasTemporalMarker = structures.some(
+    (structure) => (structure.temporalMarkers ?? []).length > 0,
+  );
+
+  const semantic = beat?.semanticRealization;
+  const relationKind = clean(semantic?.relation?.kind).toLowerCase();
+  const mechanism = clean(semantic?.mechanism).toLowerCase();
+  const hasBeforeAfter =
+    Boolean(semantic?.beforeEventIds?.length) &&
+    Boolean(semantic?.afterEventIds?.length);
+
+  if (
+    CLOSED_WORLD_RECURRENCE_LANGUAGE.test(value) &&
+    (mechanism === "recurrence" || relationKind === "repeats")
+  ) {
+    return undefined;
+  }
+
+  if (
+    CLOSED_WORLD_CONTINUITY_LANGUAGE.test(value) &&
+    (mechanism === "continuation" ||
+      mechanism === "recurrence" ||
+      relationKind === "repeats")
+  ) {
+    return undefined;
+  }
+
+  if (
+    CLOSED_WORLD_SEQUENCE_LANGUAGE.test(value) &&
+    (hasTemporalMarker ||
+      hasBeforeAfter ||
+      ["before", "after", "changes", "causes"].includes(relationKind))
+  ) {
+    return undefined;
+  }
+
+  return "unsupported-chronology";
+}
+
 function concreteAuthorityViolation(
   text: string,
   beat: MouthCandidateBeat | undefined,
@@ -760,6 +843,16 @@ function concreteAuthorityViolation(
 
   if (participantViolation) {
     return participantViolation;
+  }
+
+  const chronologyViolation = chronologyAuthorityViolation(
+    value,
+    beat,
+    envelope,
+  );
+
+  if (chronologyViolation) {
+    return chronologyViolation;
   }
   const unknownRealityTokens = significant.filter(
     (token) =>
