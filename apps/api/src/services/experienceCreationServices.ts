@@ -10,6 +10,7 @@ import { db, type Prisma } from "@qre/db";
 import { createMemoryRepository } from "../repositories/memoryRepository.js";
 import { compileExperience } from "./experienceService.js";
 import { buildSponsorPolicy } from "@qre/engine";
+import type { AuthorPlayoutMode } from "@qre/contracts";
 import { getCreativeLearningContext, learningContextLines } from "./creativeLearning.js";
 
 export type SponsorInput = {
@@ -30,6 +31,7 @@ export type CreateExperienceInput = {
   prompt: string;
   title?: string;
   userId?: string;
+  playoutMode?: AuthorPlayoutMode;
   sponsor?: SponsorInput;
 };
 
@@ -100,6 +102,7 @@ export async function createExperience(input: CreateExperienceInput) {
     prompt: input.prompt.trim(),
     assetId: input.assetId,
     userId: input.userId,
+    playoutMode: input.playoutMode,
     memoryRepository,
   });
 
