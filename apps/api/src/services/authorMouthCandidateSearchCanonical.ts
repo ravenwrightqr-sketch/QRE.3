@@ -150,6 +150,14 @@ function suppliedIdentity(text: string, envelope: RealityEnvelope): boolean {
   return envelope.suppliedEntities.some((entity) => normalize(entity) === normalize(text));
 }
 
+function isInterrogativeClause(text: string): boolean {
+  const value = clean(text);
+  return (
+    /\?$/.test(value) &&
+    /^(?:what|who|whom|whose|which|where|when|why|how|do|does|did|is|are|was|were|has|have|had|can|could|will|would|should|must|may|might)\b/i.test(value)
+  );
+}
+
 function isFrameOnly(text: string): boolean {
   const value = clean(text);
   if (!value || value.length > 64) return false;
@@ -160,6 +168,7 @@ function isFrameOnly(text: string): boolean {
 function unsupportedConcrete(text: string, beat: MouthCandidateBeat, envelope: RealityEnvelope): number {
   const value = clean(text);
   if (!value) return 1;
+  if (isInterrogativeClause(value)) return 0;
   if (isFrameOnly(value)) return 0;
 
   const substitutionRisk = candidateConcreteSubstitutionRisk(value, beat, envelope);
