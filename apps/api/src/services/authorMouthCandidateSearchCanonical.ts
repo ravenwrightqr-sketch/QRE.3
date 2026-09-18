@@ -302,16 +302,55 @@ function semanticUnitParadeRisk(
       ? 1
       : 0;
 
-  const fragmentCount = clean(text)
+  const fragments = clean(text)
     .split(/[.!?]+/)
     .map(clean)
-    .filter(Boolean)
-    .length;
+    .filter(Boolean);
+
+  const fragmentCount = fragments.length;
+
+  /*
+   * A semantic unit can span several supplied events while a generated line
+   * still enumerates those events one fragment at a time. Local beat overlap
+   * alone misses this when composition has already compressed the evidence
+   * set (for example: "Walks. Bacon. Small dogs.").
+   *
+   * Detect the structural failure directly: how many visible fragments are
+   * substantially recoverable from one supplied current-reality event?
+   * This remains domain-neutral and does not penalize a transformed line just
+   * for preserving one useful source noun.
+   */
+  const currentRealityLabels = envelope.events
+    .map((event) => clean(event.label))
+    .filter(Boolean);
+
+  const sourceShapedFragments = fragments.filter((fragment) => {
+    const fragmentTokens = meaningfulTokens(fragment);
+    if (!fragmentTokens.size) return false;
+
+    return currentRealityLabels.some((label) =>
+      overlap(
+        fragmentTokens,
+        meaningfulTokens(label),
+      ) >= 0.72,
+    );
+  }).length;
+
+  const fragmentParadeRatio = metric(
+    sourceShapedFragments /
+      Math.max(1, fragmentCount),
+  );
 
   const parade = metric(
-    sourceCoverage * 0.72 +
-      (fragmentCount >= Math.min(3, eventCount) ? 0.18 : 0) +
-      trivialProgression * 0.1,
+    Math.max(
+      sourceCoverage * 0.72 +
+        (fragmentCount >= Math.min(3, eventCount) ? 0.18 : 0) +
+        trivialProgression * 0.1,
+      fragmentCount >= 2
+        ? fragmentParadeRatio * 0.82 +
+          (fragmentCount >= Math.min(3, eventCount) ? 0.12 : 0)
+        : 0,
+    ),
   );
 
   return {
