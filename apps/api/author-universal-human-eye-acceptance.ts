@@ -285,6 +285,7 @@ async function runCase(testCase: UniversalCase): Promise<{
   section("PROVENANCE", trace.provenance);
   section("QUALITY SIGNALS", result.diagnostics.qualitySignals);
   section("SOURCE REPLAY", result.diagnostics.sourceReplay);
+  section("AUTHORSHIP / INFERENCE QUALITY", result.diagnostics.authorshipQuality);
   section("FINAL VERDICT", {
     truthSafe: result.diagnostics.truthSafe,
     authored: result.diagnostics.authored,
