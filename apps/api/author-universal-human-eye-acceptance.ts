@@ -337,7 +337,10 @@ async function runCase(testCase: UniversalCase): Promise<{
     `Quality verdict was ${result.diagnostics.qualityStatus}, not ACCEPTED.`,
   );
 
-  if (testCase.id.startsWith("service-")) {
+  if (
+    testCase.id === "service" ||
+    testCase.id.startsWith("service-")
+  ) {
     const visible = result.scenes
       .map((scene) => scene.text)
       .join(" ");
@@ -352,6 +355,8 @@ async function runCase(testCase: UniversalCase): Promise<{
   section("REALITY READOUT", reality);
   section("WHAT QRE NOTICED", {
     actionMechanics: trace.actionMechanics,
+    selectedActionMechanics:
+      trace.selectedActionMechanics,
     unresolvedTensions: reality.unresolvedTensions,
     recurringSignals: reality.recurringSignals,
     sensorySignals: reality.sensorySignals,
