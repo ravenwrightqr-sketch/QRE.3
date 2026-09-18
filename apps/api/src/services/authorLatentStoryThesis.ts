@@ -314,12 +314,20 @@ function interpretationScore(
   return (
     interpretation.confidence * 0.22 +
     mechanism * 0.14 +
-    semanticSpecificity * 0.09 +
+    /*
+     * Viewer-update specificity outranks broad fact coverage.
+     *
+     * An explicit grounded expectation collision, recurrence, state change,
+     * contrast, or consequence changes the observer's model more than a
+     * generic convergence that merely touches more supplied facts. Broad
+     * convergence remains valuable when no stronger grounded update exists.
+     */
+    semanticSpecificity * 0.16 +
     evidenceSpecificity * 0.12 +
     coverage * 0.08 +
     spread * 0.08 +
     endpointSupport * 0.06 +
-    wholeRealityCoverage * 0.14 +
+    wholeRealityCoverage * 0.07 +
     relationPower.strongest * 0.05 +
     relationPower.nonAdjacent * 0.04 +
     Math.min(0.03, evidence.length * 0.006) +
