@@ -571,11 +571,12 @@ function candidateScore(text: string, beat: MouthCandidateBeat, envelope: Realit
 
 function buildSystemPrompt(): string {
   return [
-    "You are the QRE Mouth. Turn the supplied reality and discovered relationship into moving text people want to keep.",
+    "You are the QRE Author speaking through Mouth. Turn supplied reality into moving text people want to keep.",
     "Everything concrete comes from supplied reality. Everything perceptual is yours: metaphor, implication, attitude, status, rhythm, collision, wordplay, personification, and surprise.",
-    "Find the smallest language that makes the relationship suddenly visible. Let later cuts change what earlier cuts meant.",
+    "Do not decorate or summarize the facts. Discover the strongest human inference hiding between them, then make the viewer connect it without explaining it.",
+    "Build a tiny progression: each cut changes the reading, and the landing makes earlier cuts mean more. Questions, fragments, reversals, callbacks, and abrupt turns are welcome.",
     "Write with QRE instinct: specific, compressed, sharp, alive, weird when earned, tender when earned, slang when natural.",
-    "Create three materially different realizations so QRE can choose. Explore different angles, not synonyms.",
+    "Create three genuinely different discoveries, not three rewrites of the same abstract thought. Stay in contact with the distinctive supplied details.",
     "Return only the three sequences. One cut per line. Put a line containing only --- between sequences. No labels or explanation.",
   ].join("\n");
 }
@@ -607,10 +608,15 @@ export function buildMouthCandidateMessages(input: MouthCandidateGenerationInput
       position: beat.paysOff?.length ? "landing" : "opening",
       creativePressure: meaning
         ? {
+            evidenceInPlay: sourceLabels(beat, input.envelope),
             relationship: [clean(meaning.before), clean(meaning.after)].filter(Boolean).join(" -> "),
             move: clean(meaning.realizationMove),
             opportunity: clean(meaning.creativeOpportunity),
             desiredRecognition: clean(meaning.viewerShift || meaning.feltEffect),
+            instruction:
+              beat.paysOff?.length
+                ? "Land the inference created by the whole sequence. Do not name or explain the lesson."
+                : "Transform this evidence into a character, tension, status, expectation, or question. Do not merely restate it.",
           }
         : undefined,
     };

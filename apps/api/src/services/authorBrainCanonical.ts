@@ -336,8 +336,17 @@ function semanticEvidenceUnitGroups(
       return [relevantSteps];
     }
 
+    /*
+     * A convergence needs room for the observer to assemble the pattern.
+     *
+     * Two oversized beats force Mouth to jump from one fact to a generic
+     * summary. Give each participating evidence unit a perceptual cut, then
+     * give the complete constellation one landing cut. This does not require
+     * literal replay: every evidence cut is still scored as an authored
+     * realization, while the final cut owns the joint recognition.
+     */
     return [
-      relevantSteps.slice(0, 1),
+      ...relevantSteps.map((step) => [step]),
       relevantSteps,
     ];
   }
@@ -778,11 +787,20 @@ function makeSequence(
 }
 
 function normalizedTokens(value: string): Set<string> {
+  const normalizeToken = (token: string): string => {
+    if (token.length > 6 && token.endsWith("ing")) return token.slice(0, -3);
+    if (token.length > 5 && token.endsWith("ed")) return token.slice(0, -2);
+    if (token.length > 4 && token.endsWith("es")) return token.slice(0, -2);
+    if (token.length > 4 && token.endsWith("s")) return token.slice(0, -1);
+    return token;
+  };
+
   return new Set(
     clean(value)
       .toLowerCase()
       .split(/[^a-z0-9'-]+/i)
-      .filter((token) => token.length >= 3),
+      .filter((token) => token.length >= 3)
+      .map(normalizeToken),
   );
 }
 
@@ -946,6 +964,17 @@ export function evaluateAuthorAuthorshipQuality(input: {
   const sourceContentCoverage =
     coverage(outputTokens, sourceTokens);
 
+  /*
+   * Authorship may transform source language, but a multi-fact realization
+   * must touch at least one distinctive supplied detail somewhere in the
+   * sequence. Otherwise generic abstraction can inherit excellent upstream
+   * viewer-state scores without making the actual reality newly visible.
+   */
+  const requiresDistinctiveEvidence =
+    (input.movie?.storyThesis?.semanticRealization?.evidenceEventIds.length ?? 0) > 1;
+  const distinctiveEvidencePresent =
+    !requiresDistinctiveEvidence || sourceContentCoverage > 0;
+
   const perCutSourceOverlap = texts.map((text) =>
     Math.max(
       0,
@@ -958,6 +987,31 @@ export function evaluateAuthorAuthorshipQuality(input: {
   const highlySourceShapedCuts = perCutSourceOverlap.filter(
     (value) => value >= 0.58,
   ).length;
+
+  const sourceShapedFragmentMatches = new Set<number>();
+  let sourceShapedFragments = 0;
+  texts
+    .flatMap((text) => text.split(/[.!?]+/).map(clean).filter(Boolean))
+    .forEach((fragment) => {
+      let bestIndex = -1;
+      let bestOverlap = 0;
+      sourceLabels.forEach((label, index) => {
+        const current = tokenOverlapRatio(fragment, label);
+        if (current > bestOverlap) {
+          bestOverlap = current;
+          bestIndex = index;
+        }
+      });
+      if (bestOverlap >= 0.72 && bestIndex >= 0) {
+        sourceShapedFragments += 1;
+        sourceShapedFragmentMatches.add(bestIndex);
+      }
+    });
+
+  const fragmentFactParadeRisk =
+    sourceShapedFragments >= 2 && sourceShapedFragmentMatches.size >= 2
+      ? metric(0.72 + Math.min(0.22, (sourceShapedFragmentMatches.size - 2) * 0.11))
+      : 0;
 
   const candidateFactParadeRisk = input.candidates?.length
     ? metric(
@@ -973,9 +1027,7 @@ export function evaluateAuthorAuthorshipQuality(input: {
       texts.length >= 2
         ? highlySourceShapedCuts / Math.max(1, texts.length)
         : 0,
-      sourceContentCoverage >= 0.72
-        ? sourceContentCoverage * 0.9
-        : 0,
+      fragmentFactParadeRisk,
     ),
   );
 
@@ -1130,6 +1182,9 @@ export function evaluateAuthorAuthorshipQuality(input: {
   if (stagnantCutRisk >= 0.5) {
     reasons.push("viewer-state-stagnation");
   }
+  if (!distinctiveEvidencePresent) {
+    reasons.push("no-distinctive-evidence-contact");
+  }
   if (
     input.movie?.storyThesis?.semanticRealization &&
     viewerUpdateScore < 0.4
@@ -1146,11 +1201,12 @@ export function evaluateAuthorAuthorshipQuality(input: {
   const accepted =
     score >= 0.54 &&
     meaningfulInferenceScore >= 0.5 &&
-    factParadeRisk < 0.78 &&
-    trivialTransformationRisk < 0.78 &&
+    factParadeRisk < 0.68 &&
+    trivialTransformationRisk < 0.72 &&
     semanticUnderRealizationRisk < 0.82 &&
     explanatoryLabelRisk < 0.75 &&
     stagnantCutRisk < 0.75 &&
+    distinctiveEvidencePresent &&
     (
       !input.movie?.storyThesis?.semanticRealization ||
       (
@@ -1586,6 +1642,7 @@ export async function authorBrainCanonical(
     "unknown";
   let modelCalls = 0;
   let pools: MouthCandidatePool[] = [];
+  let authoredVariantPools: MouthCandidatePool[][] = [];
   /*
    * Cognition may approve a single compressed recognition even when the
    * planning trajectory contains supporting beats. That is a valid authored
@@ -1651,9 +1708,40 @@ export async function authorBrainCanonical(
         candidates: (
           parsed.variantsByBeat.find((item) => item.order === beat.order)?.variants ?? []
         )
-          .map((text) => scoreMouthCandidate({ text, beat, envelope }))
+          .map((text, variantIndex) => scoreMouthCandidate({
+            text,
+            beat,
+            envelope,
+            priorTexts: rawSequenceVariants[variantIndex]?.slice(0, beat.order - 1) ?? [],
+          }))
           .filter((candidate) => candidate.text.length > 0),
       }));
+
+      /*
+       * The model authored whole sequences. Preserve their internal setup,
+       * turn, and landing during selection; per-beat transposition remains
+       * available for diagnostics and truth-safe recovery only.
+       */
+      authoredVariantPools = rawSequenceVariants
+        .filter((variant) => variant.length === realizationBeats.length)
+        .map((variant) =>
+          realizationBeats.map((beat, index) => ({
+            order: beat.order,
+            viewerState:
+              beat.viewerState ??
+              deriveViewerStateCut(beat, index, realizationBeats, envelope),
+            nextPromise: clean(beat.next),
+            frontier: clean(beat.frontier),
+            candidates: [
+              scoreMouthCandidate({
+                text: variant[index] ?? "",
+                beat,
+                envelope,
+                priorTexts: variant.slice(0, index),
+              }),
+            ].filter((candidate) => candidate.text.length > 0),
+          })),
+        );
       pools.forEach((pool) => {
         pool.candidates
           .filter((candidate) => !isAuthorizedMouthCandidate(candidate))
@@ -1686,8 +1774,43 @@ export async function authorBrainCanonical(
     });
   }
 
+  const intactVariantSelections = authoredVariantPools
+    .filter((variantPools) =>
+      variantPools.length === realizationBeats.length &&
+      variantPools.every((pool) =>
+        pool.candidates.length === 1 &&
+        pool.candidates.every(isAuthorizedMouthCandidate),
+      ),
+    )
+    .map((variantPools) =>
+      selectBestMouthSequence(variantPools, {
+        width: 1,
+        candidatesPerBeat: 1,
+      }),
+    )
+    .filter((selection) => selection.candidates.length === realizationBeats.length)
+    .sort((left, right) => {
+      const source = authorshipTokens(
+        envelope.events.map((event) => event.label).join(" "),
+        subject,
+      );
+      const leftContact = coverage(
+        authorshipTokens(left.texts.join(" "), subject),
+        source,
+      );
+      const rightContact = coverage(
+        authorshipTokens(right.texts.join(" "), subject),
+        source,
+      );
+      const leftScore = left.score * 0.78 + Math.min(1, leftContact * 2) * 0.22;
+      const rightScore = right.score * 0.78 + Math.min(1, rightContact * 2) * 0.22;
+      return rightScore - leftScore;
+    });
+
   let recoveryUsed = false;
-  const usablePools = realizationBeats.map((beat) => {
+  const usablePools = intactVariantSelections.length
+    ? []
+    : realizationBeats.map((beat) => {
         const generatedPool = pools.find((pool) => pool.order === beat.order);
         const hasAuthorizedCandidate =
           generatedPool?.candidates.some(isAuthorizedMouthCandidate) ?? false;
@@ -1724,6 +1847,7 @@ export async function authorBrainCanonical(
       });
 
   const selected =
+    intactVariantSelections[0] ??
     selectBestMouthSequence(usablePools, {
       width: 12,
       candidatesPerBeat: 8,

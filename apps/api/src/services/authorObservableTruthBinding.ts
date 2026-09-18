@@ -100,6 +100,21 @@ function semanticFrameToken(token: string): boolean {
   return SEMANTIC_FRAME.test(token);
 }
 
+function abstractReference(value: string): boolean {
+  const parts = [...referenceTokens(value)];
+  if (!parts.length) return false;
+
+  /*
+   * Productive abstract morphology is language, not a new world object.
+   * The concrete boundary must reject an invented participant or thing; it
+   * must not require an endless allow-list for every metaphorical noun a
+   * model can coin (smallness, defiance, momentum, friendship, and so on).
+   */
+  return parts.every((token) =>
+    /(?:ness|tion|sion|ment|ity|ship|hood|dom|ance|ence|ism|ure|acy)$/.test(token),
+  );
+}
+
 function referenceMatches(
   value: string,
   authorities: readonly string[],
@@ -295,6 +310,8 @@ function bindReference(input: {
   ) {
     return undefined;
   }
+
+  if (abstractReference(value)) return undefined;
 
   const evidence = referenceMatches(value, input.allowedConcrete);
   if (evidence.length) {

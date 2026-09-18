@@ -543,57 +543,28 @@ const userPayload = JSON.parse(messages[1]?.content ?? "{}") as {
   beats?: Array<Record<string, unknown>>;
 };
 
-const projectedAuthority = userPayload.beats?.[2]?.realizationAuthority as
+const projectedBeat = userPayload.beats?.[2];
+const projectedEvidence = projectedBeat?.evidence as unknown[] | undefined;
+const projectedPressure = projectedBeat?.creativePressure as
   | Record<string, unknown>
   | undefined;
 
-assert(projectedAuthority, "Mouth prompt did not receive realizationAuthority.");
-assert(projectedAuthority.reality, "Projected authority missing reality.");
-assert(projectedAuthority.meaning, "Projected authority missing meaning.");
+assert(projectedBeat, "Mouth prompt did not receive the approved realization beat.");
 assert(
-  projectedAuthority.earnedInterpretations,
-  "Projected authority missing earnedInterpretations.",
+  Array.isArray(projectedEvidence) && projectedEvidence.length > 0,
+  `Mouth prompt lost scoped supplied evidence: ${JSON.stringify(projectedBeat)}`,
 );
 assert(
-  projectedAuthority.permittedRealizationModes,
-  "Projected authority missing permittedRealizationModes.",
-);
-assert(projectedAuthority.inferenceBudget, "Projected authority missing inferenceBudget.");
-assert(projectedAuthority.creativeMoves, "Projected authority missing creativeMoves.");
-assert(projectedAuthority.forbiddenMoves, "Projected authority missing forbiddenMoves.");
-assert(
-  !("metamorphicRelationSet" in projectedAuthority),
-  "Mouth prompt leaked metamorphicRelationSet.",
-);
-
-const projectedReality = projectedAuthority.reality as {
-  entities?: unknown[];
-  actions?: unknown[];
-  objects?: unknown[];
-  states?: unknown[];
-};
-const lowerValues = (values: unknown[] | undefined): string[] =>
-  (values ?? []).map((value) => String(value).toLowerCase());
-const projectedEntities = lowerValues(projectedReality.entities);
-const projectedActions = lowerValues(projectedReality.actions);
-const projectedObjects = lowerValues(projectedReality.objects);
-const projectedStates = lowerValues(projectedReality.states);
-
-assert(
-  projectedEntities.includes("mira"),
-  `Projected payoff authority lost scoped entity: ${JSON.stringify(projectedReality)}`,
+  projectedPressure?.relationship &&
+    projectedPressure?.desiredRecognition &&
+    projectedPressure?.instruction,
+  `Mouth prompt lost positive creative pressure: ${JSON.stringify(projectedBeat)}`,
 );
 assert(
-  projectedActions.includes("arrived") && projectedActions.includes("left"),
-  `Projected payoff authority lost scoped actions: ${JSON.stringify(projectedReality)}`,
-);
-assert(
-  projectedStates.includes("uncertainty") && projectedStates.includes("approval"),
-  `Projected payoff authority lost scoped state/status concepts: ${JSON.stringify(projectedReality)}`,
-);
-assert(
-  projectedObjects.length === 0,
-  `Projected payoff authority invented object authority from state/status evidence: ${JSON.stringify(projectedReality)}`,
+  !("realizationAuthority" in projectedBeat) &&
+    !("forbiddenMoves" in projectedBeat) &&
+    !("metamorphicRelationSet" in projectedBeat),
+  `Mouth prompt leaked the internal rule stack instead of creative material: ${JSON.stringify(projectedBeat)}`,
 );
 
 const neutralProfile = buildAuthorBehaviorProfile([]);
@@ -733,7 +704,7 @@ console.log(
         evidenceEventIds: beat.viewerState?.evidenceEventIds,
         hasRealizationAuthority: Boolean(beat.realizationAuthority),
       })),
-      projectedAuthority,
+      projectedMouthBeat: projectedBeat,
       recoveredInvariants: {
         lensBoundary: {
           heist: heistBrief,

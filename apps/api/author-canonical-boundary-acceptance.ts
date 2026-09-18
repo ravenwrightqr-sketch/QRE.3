@@ -290,8 +290,9 @@ const miloEvidenceIds =
   miloMovie.storyThesis?.semanticRealization?.evidenceEventIds ?? [];
 
 assert(
-  miloBeats.length < miloEvidenceIds.length,
-  `Semantic-unit composition still serialized one visible beat per source fact: ${JSON.stringify(miloBeats)}`,
+  miloBeats.length === miloEvidenceIds.length + 1 &&
+    (miloBeats[miloBeats.length - 1]?.eventIds.length ?? 0) === miloEvidenceIds.length,
+  `Convergence did not provide evidence progression plus a joint-recognition landing: ${JSON.stringify(miloBeats)}`,
 );
 assert(
   miloEvidenceIds.every((id) =>
@@ -378,8 +379,30 @@ const transformedQuality = evaluateAuthorAuthorshipQuality({
 });
 
 assert(
-  transformedQuality.accepted,
-  `Low-replay transformed realization was over-rejected by authorship quality: ${JSON.stringify(transformedQuality)}`,
+  !transformedQuality.accepted &&
+    transformedQuality.reasons.includes("no-distinctive-evidence-contact"),
+  `Generic language passed without establishing which supplied reality earned it: ${JSON.stringify(transformedQuality)}`,
+);
+
+const groundedTransformedQuality = evaluateAuthorAuthorshipQuality({
+  texts: [
+    "Did I hear walk?",
+    "Bacon has standing.",
+    "Small dogs. Obviously.",
+    "Priorities. Specific ones.",
+  ],
+  envelope: miloEnvelope,
+  movie: miloMovie,
+  subject: "Milo",
+  beats: miloBeats.map((item, index, all) => ({
+    ...item,
+    viewerState: deriveViewerStateCut(item, index, all, miloEnvelope),
+  })),
+});
+
+assert(
+  groundedTransformedQuality.accepted,
+  `Grounded progression with an inferential landing was over-rejected: ${JSON.stringify(groundedTransformedQuality)}`,
 );
 
 const miloSemanticBeat = {
@@ -1398,7 +1421,7 @@ const profileBeats = profileComposed.map((item, index, all) => ({
 }));
 
 assert(
-  profileBeats.length < profileEventIds.length && profileBeats.length >= 2,
+  profileBeats.length === profileEventIds.length + 1,
   `Semantic convergence did not become an inference-shaped beat sequence: ${JSON.stringify(profileBeats)}`,
 );
 assert(
@@ -1408,7 +1431,7 @@ assert(
 );
 assert(
   profileBeats.some((item) => (item.eventIds?.length ?? 0) > 1),
-  `Semantic composition still serialized one source fact per cut: ${JSON.stringify(profileBeats)}`,
+  `Semantic composition omitted the joint-recognition landing: ${JSON.stringify(profileBeats)}`,
 );
 
 const profileFactParade = evaluateAuthorAuthorshipQuality({
@@ -1443,12 +1466,30 @@ assert(
   `Subject-prefix source listing incorrectly passed authored quality: ${JSON.stringify(profileSubjectReplay)}`,
 );
 
+const profileGenericAbstraction = evaluateAuthorAuthorshipQuality({
+  texts: [
+    "A devotion.",
+    "Comforts collected.",
+    "A recognizable impression.",
+    "Everything converges.",
+  ],
+  envelope: profileEnvelope,
+  movie: profileMovie,
+  subject: "Milo",
+  beats: profileBeats,
+});
+assert(
+  !profileGenericAbstraction.accepted &&
+    profileGenericAbstraction.reasons.includes("no-distinctive-evidence-contact"),
+  `Generic abstraction inherited upstream quality without touching supplied detail: ${JSON.stringify(profileGenericAbstraction)}`,
+);
+
 cases.push({
   name: "semantic convergence follows viewer inference rather than fact count",
   expected: "allowed",
   actual:
-    profileBeats.length < profileEventIds.length &&
-    profileBeats.length >= 2
+    profileBeats.length === profileEventIds.length + 1 &&
+    (profileBeats[profileBeats.length - 1]?.eventIds.length ?? 0) === profileEventIds.length
       ? "allowed"
       : "rejected",
   text: JSON.stringify(
@@ -1460,6 +1501,15 @@ cases.push({
     })),
   ),
   reasons: [],
+  authorization: undefined,
+});
+
+cases.push({
+  name: "generic abstraction cannot borrow cognition scores",
+  expected: "rejected",
+  actual: profileGenericAbstraction.accepted ? "allowed" : "rejected",
+  text: "A devotion. / Comforts collected. / A recognizable impression. / Everything converges.",
+  reasons: profileGenericAbstraction.reasons,
   authorization: undefined,
 });
 
