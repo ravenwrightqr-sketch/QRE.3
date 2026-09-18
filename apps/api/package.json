@@ -7,7 +7,7 @@
     "build": "tsc -p tsconfig.json",
     "start": "node dist/server.js",
     "lint": "eslint .",
-    "author:fast": "tsx ./author-acceptance.ts"
+    "author:fast": "tsx ./author-universal-human-eye-acceptance.ts milo-profile"
   },
   "dependencies": {
     "@qre/contracts": "workspace:*",
