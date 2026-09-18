@@ -610,6 +610,109 @@ const treatmentInventedRole = scoreMouthCandidate({
   envelope: serviceEnvelope,
 });
 
+const serviceSequenceGraph = buildAuthorRealityGraph({
+  prompt: "Realize only the supplied service sequence.",
+  subject: "Maria",
+  facts: [],
+  sourceMoments: [
+    "9:04 AM Maria started the housekeeping service",
+    "Maria cleaned the kitchen",
+    "Maria cleaned the bathroom",
+    "Maria cleaned the living room",
+    "11:47 AM Maria finished the housekeeping service",
+  ],
+  memoryContext: [],
+  trajectory: [],
+});
+
+const serviceSequenceIds =
+  serviceSequenceGraph.events.map((event) => event.id);
+
+const serviceSequenceMovie: LatentMovieCandidate = {
+  id: "service-sequence-semantic-acceptance",
+  lens: "NONE",
+  anchorEventIds: serviceSequenceIds,
+  supportingRelationKinds: [],
+  trajectory: serviceSequenceIds.map((eventId, index) => ({
+    order: index + 1,
+    operation:
+      index === 0
+        ? "establish"
+        : index === serviceSequenceIds.length - 1
+          ? "payoff"
+          : "reveal",
+    eventIds: [eventId],
+    viewerChange:
+      serviceSequenceGraph.events[index]?.label ?? "",
+    nextQuestion: "",
+  })),
+  payoff:
+    serviceSequenceGraph.events[
+      serviceSequenceGraph.events.length - 1
+    ]?.label ?? "",
+  unresolvedQuestion: "",
+  evidence:
+    serviceSequenceGraph.events.map((event) => event.label),
+  hypothesis: [
+    "The supplied work sequence should be interpreted from its actual events.",
+  ],
+  truthRisk: 0,
+  novelty: 0.5,
+  specificity: 0.8,
+  informationValue: 0.8,
+  uncertainty: 0.4,
+  attentionPotential: 0.7,
+  consequencePotential: 0.5,
+  callbackPotential: 0,
+  compressionPotential: 0.8,
+  repetitionRisk: 0,
+  distinctiveness: 0.7,
+  score: 0.75,
+};
+
+const serviceSequenceThesis =
+  deriveLatentStoryThesis(
+    serviceSequenceGraph,
+    serviceSequenceMovie,
+  );
+
+const serviceSequenceSemantic =
+  serviceSequenceThesis.semanticRealization;
+
+assert(
+  serviceSequenceSemantic,
+  "Service sequence produced no semantic realization.",
+);
+
+assert(
+  serviceSequenceSemantic.mechanism !== "recurrence",
+  `Shared service vocabulary was incorrectly promoted into recurrence: ${JSON.stringify(serviceSequenceSemantic)}`,
+);
+
+assert(
+  serviceSequenceSemantic.evidenceEventIds.length >= 3 &&
+    serviceSequenceSemantic.evidenceEventIds.some(
+      (id) =>
+        id !== serviceSequenceIds[0] &&
+        id !== serviceSequenceIds[serviceSequenceIds.length - 1],
+    ),
+  `Semantic selection dropped legitimate middle service evidence: ${JSON.stringify(serviceSequenceSemantic)}`,
+);
+
+cases.push({
+  name: "shared service noun is not recurrence and middle work remains semantic evidence",
+  expected: "allowed",
+  actual:
+    serviceSequenceSemantic.mechanism !== "recurrence" &&
+    serviceSequenceSemantic.evidenceEventIds.length >= 3
+      ? "allowed"
+      : "rejected",
+  text: JSON.stringify(serviceSequenceSemantic),
+  reasons: [],
+  authorization: undefined,
+});
+
+
 cases.push({
   name: "lens treatment cannot create an unsupplied service relationship",
   expected: "rejected",
