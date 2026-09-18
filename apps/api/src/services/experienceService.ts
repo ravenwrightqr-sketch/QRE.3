@@ -11,6 +11,7 @@ import { createAnalyticsRepository } from "../repositories/analyticsRepository.j
 import type {
   AuthorBrainTruth,
   AuthorDomainContext,
+  AuthorPlayoutMode,
   AuthorExperienceState,
   ExperienceBeat,
   ExperiencePresenceContext,
@@ -70,6 +71,8 @@ export type CompiledExperienceResult = {
   memory?: { entities: number; facts: number; relations: number; events: number } | null;
   geo?: GeoAnchorInput | null;
   presence?: ExperiencePresenceContext | null;
+  playoutMode?: AuthorPlayoutMode;
+  /** @deprecated Compatibility only. Prefer playoutMode. */
   movieMode?: boolean;
   warnings?: string[];
   [key: string]: unknown;
@@ -218,6 +221,8 @@ export async function compileExperience(input: {
   memoryRepository?: MemoryRepository;
   analyticsEvents?: unknown[];
   geoAnchor?: GeoAnchorInput;
+  playoutMode?: AuthorPlayoutMode;
+  /** @deprecated Compatibility only. Prefer playoutMode. */
   movieMode?: boolean;
   lens?: string;
 }): Promise<CompiledExperienceResult> {
@@ -227,7 +232,11 @@ export async function compileExperience(input: {
   `experience:${input.assetId ?? "unknown"}:${input.prompt}`;
   const prompt = clean(input.prompt);
   if (!prompt) throw new Error("Experience prompt required");
-  const requestedMovieMode = input.movieMode !== false;
+  const requestedPlayoutMode: AuthorPlayoutMode =
+    input.playoutMode ??
+    (input.movieMode === false ? "operational" : "experience");
+  const requestedMovieMode =
+    requestedPlayoutMode === "experience";
   const warnings: string[] = [];
  if (input.assetId && input.sessionId) {
   await db.scanSession.upsert({
@@ -349,6 +358,7 @@ const authorInput: AuthorBrainTruth = {
   subject,
   place,
   subjectTruth,
+  playoutMode: requestedPlayoutMode,
   movieMode: requestedMovieMode,
   lens: clean(input.lens),
   domainContext,
@@ -483,6 +493,7 @@ const authorInput: AuthorBrainTruth = {
           author: "qre-author-canonical",
           realizationPath: "authorBrainCanonical",
           lens: canonical.brief.angle,
+          playoutMode: requestedPlayoutMode,
           movieMode: requestedMovieMode,
           diagnostics: authorDiagnostics,
           learnedPreferenceLines: learningLines,
@@ -511,6 +522,7 @@ const authorInput: AuthorBrainTruth = {
     memory,
     geo: input.geoAnchor ?? null,
     presence,
+    playoutMode: requestedPlayoutMode,
     movieMode: requestedMovieMode,
     warnings,
   };
