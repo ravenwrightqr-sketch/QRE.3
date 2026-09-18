@@ -870,6 +870,102 @@ function chronologyAuthorityViolation(
   return `unsupported-chronology:${chronologyClass(value)}`;
 }
 
+function treatmentMetaphorOverSuppliedTarget(
+  text: string,
+  beat: MouthCandidateBeat | undefined,
+  envelope: RealityEnvelope,
+): boolean {
+  const authority = beat?.realizationAuthority;
+  const treatment = authority?.treatment;
+  if (!authority || !treatment || !clean(treatment.label)) return false;
+
+  const value = clean(text);
+  if (!value) return false;
+
+  /*
+   * Genre treatment may personify or status-frame reality that already exists.
+   * It may not create a second participant, possessor, relationship, object,
+   * physical action, sensory fact, or chronology.
+   *
+   * This is intentionally structural rather than vocabulary-specific:
+   * a compact predicate over a supplied target can be figurative even when the
+   * exact metaphor word was never present in source reality.
+   */
+  if (
+    CLOSED_WORLD_PRONOUN.test(value) ||
+    CLOSED_WORLD_POSSESSOR.test(value) ||
+    CLOSED_WORLD_RELATION_TARGET.test(value) ||
+    EXTERNAL_STATE_CLAIM.test(value) ||
+    BODY.test(value)
+  ) {
+    return false;
+  }
+
+  CLOSED_WORLD_POSSESSOR.lastIndex = 0;
+  CLOSED_WORLD_RELATION_TARGET.lastIndex = 0;
+
+  const actors = [
+    envelope.subject,
+    ...envelope.suppliedParticipants,
+    ...authority.reality.entities,
+  ].filter(Boolean);
+  const targets = [
+    ...actors,
+    ...directScopedObjects(beat, envelope),
+    ...scopedPlaces(beat, envelope),
+  ];
+
+  const stripped = value
+    .replace(/[.!?]+$/g, "")
+    .trim();
+
+  const colonIndex = stripped.indexOf(":");
+  let subjectPhrase = "";
+  let predicatePhrase = "";
+
+  if (colonIndex > 0) {
+    subjectPhrase = clean(stripped.slice(0, colonIndex));
+    predicatePhrase = clean(stripped.slice(colonIndex + 1));
+  } else {
+    const subjectMatch = stripped.match(CLOSED_WORLD_LEADING_SUBJECT);
+    if (!subjectMatch) return false;
+    subjectPhrase = clean(subjectMatch[1]);
+    predicatePhrase = clean(stripped.slice(subjectMatch[0].indexOf(subjectPhrase) + subjectPhrase.length));
+  }
+
+  if (
+    !subjectPhrase ||
+    !predicatePhrase ||
+    !referenceMatches(subjectPhrase, targets)
+  ) {
+    return false;
+  }
+
+  const predicateTokens = [
+    ...tokens(predicatePhrase),
+  ].filter((token) => !FUNCTION_WORDS.has(token));
+
+  if (!predicateTokens.length || predicateTokens.length > 4) {
+    return false;
+  }
+
+  const treatmentTokens = tokens(
+    [
+      treatment.label,
+      ...(treatment.framingBias ?? []),
+      ...(treatment.realizationPreferences ?? []),
+      authorityMeaningCorpus(beat),
+    ].join(" "),
+  );
+
+  return predicateTokens.every(
+    (token) =>
+      treatmentTokens.has(token) ||
+      semanticFrameToken(token) ||
+      /(?:ed|ing)$/.test(token),
+  );
+}
+
 function concreteAuthorityViolation(
   text: string,
   beat: MouthCandidateBeat | undefined,
@@ -906,6 +1002,17 @@ function concreteAuthorityViolation(
   if (chronologyViolation) {
     return chronologyViolation;
   }
+
+  if (
+    treatmentMetaphorOverSuppliedTarget(
+      value,
+      beat,
+      envelope,
+    )
+  ) {
+    return undefined;
+  }
+
   const unknownRealityTokens = significant.filter(
     (token) =>
       !allowedReality.has(token) &&
