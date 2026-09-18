@@ -511,6 +511,7 @@ function buildSystemPrompt(): string {
     "The metamorphic relation is discovered upstream. The lens does not decide what happened or what the story means.",
     "Business/service context classifies the world; it is NOT event evidence.",
     "CLOSED-WORLD REALITY: if a person, participant, place, object, relationship, role, possessor, recipient, witness, worker, audience member, or other concrete entity is not explicitly supplied as factual reality, behave as though it does not exist.",
+    "Remembered factual context may shape interpretation, callbacks, or continuity, but it does not become a current event unless current supplied reality establishes that occurrence.",
     "A contextual word is not actor authority. Mentioning a venue, service, business type, destination, role noun, crowd-like context, or workplace does not create a person who acts, watches, owns, rents, manages, receives, commissions, or participates.",
     "creativeLensBrief is treatment pressure over an already-approved relation. Use it to change perception, attitude, implication, metaphor, status, rhythm, or emotional pressure only.",
     "Never promote lens treatment into a concrete occurrence. Genre language is figurative unless the concrete event is explicitly supplied.",
