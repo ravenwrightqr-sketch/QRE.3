@@ -80,6 +80,31 @@ assert(
   "Auto-lens ranking did not use grounded mechanics.",
 );
 
+const profileGraph = buildAuthorRealityGraph({
+  prompt: "Create a QRE experience from supplied profile reality.",
+  subject: "Milo",
+  facts: ["Milo loves walks, bacon, small dogs"],
+  sourceMoments: ["Milo loves walks, bacon, small dogs"],
+  memoryContext: [],
+  trajectory: [],
+});
+
+const profileMechanics = deriveAuthorActionMechanics(
+  profileGraph,
+  "Milo",
+);
+
+assert(
+  !profileMechanics.some(
+    (item) =>
+      item.kind === "sequence" ||
+      item.kind === "accumulation" ||
+      item.kind === "completion",
+  ),
+  "Static profile preferences were incorrectly promoted into action/run mechanics: " +
+    JSON.stringify(profileMechanics),
+);
+
 const unknownGraph = buildAuthorRealityGraph({
   prompt: "Make this supplied reality worth experiencing.",
   subject: "Aster",
@@ -128,6 +153,11 @@ console.log(
           trajectory: candidate.trajectory,
         })),
         lensRanking,
+      },
+      profile: {
+        events: profileGraph.events,
+        eventStructure: profileGraph.eventStructure,
+        mechanics: profileMechanics,
       },
       unknownObject: {
         events: unknownGraph.events,
