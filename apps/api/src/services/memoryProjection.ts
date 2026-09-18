@@ -51,6 +51,22 @@ function eventEntityId(assetId: string, event: RealityEvent): string {
   return entityId(assetId, "event", event.label);
 }
 
+function subjectEntityKind(subjectKind?: string): MemoryEntityKind {
+  const value = clean(subjectKind).toLowerCase();
+  if (/\b(?:dog|cat|pet|animal|horse|bird)\b/.test(value)) return "animal";
+  if (/\b(?:person|human|owner|guest|customer|client|artist)\b/.test(value)) return "person";
+  if (/\b(?:house|home|property|building|room|real estate)\b/.test(value)) return "property";
+  if (/\b(?:business|company|organization|restaurant|hotel|shop|store)\b/.test(value)) return "organization";
+  if (/\b(?:service)\b/.test(value)) return "service";
+  return "object";
+}
+
+function eventHasSubject(event: RealityEvent, subject?: string): boolean {
+  const target = lower(subject);
+  if (!target) return false;
+  return event.entities.some((value) => lower(value) === target);
+}
+
 function addEntity(
   entities: Map<string, MemoryWriteBatch["entities"][number]>,
   assetId: string,
@@ -73,8 +89,22 @@ function addEntity(
   });
 }
 
-function buildEntities(assetId: string, graph: RealityGraph) {
+function buildEntities(
+  assetId: string,
+  graph: RealityGraph,
+  subject?: string,
+  subjectKind?: string,
+) {
   const entities = new Map<string, MemoryWriteBatch["entities"][number]>();
+
+  const subjectName = clean(subject);
+  const subjectKindValue = subjectEntityKind(subjectKind);
+  if (subjectName) {
+    addEntity(entities, assetId, subjectKindValue, subjectName, 1, {
+      realityRole: "identity_anchor",
+      qreIdentityAnchor: true,
+    });
+  }
 
   for (const event of graph.events) {
     const id = eventEntityId(assetId, event);
@@ -92,10 +122,19 @@ function buildEntities(assetId: string, graph: RealityGraph) {
     });
 
     for (const value of event.entities) {
-      addEntity(entities, assetId, "object", value, 0.85, {
-        realityRole: "event_entity",
-        realityEventId: event.id,
-      });
+      const isSubject = Boolean(subjectName) && lower(value) === lower(subjectName);
+      addEntity(
+        entities,
+        assetId,
+        isSubject ? subjectKindValue : "object",
+        value,
+        isSubject ? 1 : 0.85,
+        {
+          realityRole: isSubject ? "identity_anchor" : "event_entity",
+          qreIdentityAnchor: isSubject || undefined,
+          realityEventId: event.id,
+        },
+      );
     }
 
     if (event.place) {
@@ -115,8 +154,31 @@ function buildFacts(
   source: MemorySource,
   observedAt: string,
   sessionId?: string,
+  subject?: string,
+  subjectKind?: string,
 ): MemoryFactWrite[] {
   const facts: MemoryFactWrite[] = [];
+  const subjectName = clean(subject);
+  const subjectKindValue = subjectEntityKind(subjectKind);
+
+  if (subjectName) {
+    facts.push({
+      entityId: entityId(assetId, subjectKindValue, subjectName),
+      kind: "identity",
+      predicate: "qre_identity_anchor",
+      value: subjectName,
+      confidence: 1,
+      source,
+      sourceRef: sessionId,
+      status: "active",
+      observedAt,
+      visibility: VISIBILITY,
+      metadata: {
+        qreIdentityAnchor: true,
+        subjectKind: subjectKindValue,
+      },
+    });
+  }
 
   for (const event of graph.events) {
     facts.push({
@@ -179,8 +241,10 @@ function buildRelations(
   source: MemorySource,
   observedAt: string,
   sessionId?: string,
+  subject?: string,
+  subjectKind?: string,
 ): MemoryRelationWrite[] {
-  return graph.relations.map((relation) => {
+  const relations: MemoryRelationWrite[] = graph.relations.map((relation) => {
     const fromEvent = eventForEndpoint(graph, relation.from);
     const toEvent = eventForEndpoint(graph, relation.to);
     const fromKind = relationKindForEndpoint(graph, relation.from);
@@ -202,6 +266,31 @@ function buildRelations(
       metadata: { realityRelation: relation.kind },
     };
   });
+
+  const subjectName = clean(subject);
+  if (subjectName) {
+    const kind = subjectEntityKind(subjectKind);
+    const subjectId = entityId(assetId, kind, subjectName);
+    for (const event of graph.events) {
+      if (!eventHasSubject(event, subjectName)) continue;
+      relations.push({
+        fromEntityId: subjectId,
+        toEntityId: eventEntityId(assetId, event),
+        relation: "participates_in",
+        confidence: 1,
+        source,
+        sourceRef: sessionId,
+        observedAt,
+        visibility: VISIBILITY,
+        metadata: {
+          qreIdentityAnchor: true,
+          realityEventId: event.id,
+        },
+      });
+    }
+  }
+
+  return relations;
 }
 
 function buildEvents(
@@ -210,6 +299,8 @@ function buildEvents(
   source: MemorySource,
   observedAt: string,
   sessionId?: string,
+  subject?: string,
+  subjectKind?: string,
 ): MemoryEventWrite[] {
   return graph.events.map((event) => ({
     /*
@@ -227,7 +318,15 @@ function buildEvents(
     confidence: 1,
     entityIds: [
       eventEntityId(assetId, event),
-      ...event.entities.map((value) => entityId(assetId, "object", value)),
+      ...event.entities.map((value) =>
+        entityId(
+          assetId,
+          clean(subject) && lower(value) === lower(subject)
+            ? subjectEntityKind(subjectKind)
+            : "object",
+          value,
+        ),
+      ),
       ...(event.place ? [entityId(assetId, "place", event.place)] : []),
     ],
     sessionId,
@@ -249,6 +348,8 @@ export function buildExperienceMemoryBatch(input: {
   sessionId?: string;
   source?: MemorySource;
   observedAt?: string;
+  subject?: string;
+  subjectKind?: string;
 }): MemoryWriteBatch {
   const observedAt = input.observedAt ?? new Date().toISOString();
   const source = input.source ?? "prompt";
@@ -257,10 +358,39 @@ export function buildExperienceMemoryBatch(input: {
     operationId: input.operationId,
     assetId: input.assetId,
     userId: input.userId,
-    entities: buildEntities(input.assetId, input.graph),
-    facts: buildFacts(input.assetId, input.graph, source, observedAt, input.sessionId),
-    relations: buildRelations(input.assetId, input.graph, source, observedAt, input.sessionId),
-    events: buildEvents(input.assetId, input.graph, source, observedAt, input.sessionId),
+    entities: buildEntities(
+      input.assetId,
+      input.graph,
+      input.subject,
+      input.subjectKind,
+    ),
+    facts: buildFacts(
+      input.assetId,
+      input.graph,
+      source,
+      observedAt,
+      input.sessionId,
+      input.subject,
+      input.subjectKind,
+    ),
+    relations: buildRelations(
+      input.assetId,
+      input.graph,
+      source,
+      observedAt,
+      input.sessionId,
+      input.subject,
+      input.subjectKind,
+    ),
+    events: buildEvents(
+      input.assetId,
+      input.graph,
+      source,
+      observedAt,
+      input.sessionId,
+      input.subject,
+      input.subjectKind,
+    ),
   };
 }
 
