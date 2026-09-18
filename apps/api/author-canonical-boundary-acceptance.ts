@@ -691,6 +691,58 @@ const treatmentInventedRole = scoreMouthCandidate({
   envelope: serviceEnvelope,
 });
 
+const treatmentDefeated = scoreMouthCandidate({
+  text: "Kitchen defeated.",
+  beat: treatmentServiceBeat,
+  envelope: serviceEnvelope,
+});
+
+const treatmentSurrendered = scoreMouthCandidate({
+  text: "Bathroom surrendered.",
+  beat: treatmentServiceBeat,
+  envelope: serviceEnvelope,
+});
+
+const treatmentSmuggledActor = scoreMouthCandidate({
+  text: "Kitchen attacked the homeowner.",
+  beat: treatmentServiceBeat,
+  envelope: serviceEnvelope,
+});
+
+cases.push({
+  name: "lens treatment may use a nonliteral predicate over a supplied target",
+  expected: "allowed",
+  actual: isAuthorizedMouthCandidate(treatmentDefeated)
+    ? "allowed"
+    : "rejected",
+  text: treatmentDefeated.text,
+  reasons: treatmentDefeated.reasons,
+  authorization: treatmentDefeated.authorization,
+});
+
+cases.push({
+  name: "lens treatment may personify another supplied target without creating a new fact",
+  expected: "allowed",
+  actual: isAuthorizedMouthCandidate(treatmentSurrendered)
+    ? "allowed"
+    : "rejected",
+  text: treatmentSurrendered.text,
+  reasons: treatmentSurrendered.reasons,
+  authorization: treatmentSurrendered.authorization,
+});
+
+cases.push({
+  name: "fantasy treatment cannot smuggle in an unsupplied participant",
+  expected: "rejected",
+  actual: isAuthorizedMouthCandidate(treatmentSmuggledActor)
+    ? "allowed"
+    : "rejected",
+  text: treatmentSmuggledActor.text,
+  reasons: treatmentSmuggledActor.reasons,
+  authorization: treatmentSmuggledActor.authorization,
+});
+
+
 const serviceSequenceGraph = buildAuthorRealityGraph({
   prompt: "Realize only the supplied service sequence.",
   subject: "Maria",
