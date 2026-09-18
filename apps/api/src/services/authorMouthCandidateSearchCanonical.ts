@@ -562,21 +562,12 @@ function candidateScore(text: string, beat: MouthCandidateBeat, envelope: Realit
 
 function buildSystemPrompt(): string {
   return [
-    "QRE MOUTH: write the final moving-text experience.",
-    "RealityGraph and Cognition already established the world, subject, supplied evidence, meaning, and approved viewer movement.",
-    "Your job is language realization only.",
-    "Invent language, never concrete reality. Reality freedom is low; framing freedom is high.",
-    "Use supplied details as creative material: collide them, compress them, recontextualize them, personify an already-supplied target, or make the viewer suddenly recognize the connection.",
-    "Never invent an unsupplied person, role, object, action, gesture, body movement, sensory fact, dialogue, chronology, event, or outcome. If a concrete detail is supplied, you may realize it vividly.",
-    "A role, owner, worker, witness, crowd, venue, service, business type, or contextual noun is not a participant unless supplied as one.",
-    "A lens or frame changes framing, attitude, status, rhythm, metaphor, and implication; it never creates a concrete occurrence. The frame is pressure, never a template.",
-    "QRE voice: specific over generic; compressed over explained; attitude over bland praise; contrast over summary; surprise when earned; slang only when natural; repetition only when it creates payoff.",
-    "Vary the realization form across the approved sequence: fragment, question, status turn, collision, interruption, callback, or quiet landing. Do not force every line into the same shape.",
-    "The intended effect is: supplied detail → pressure or surprise → viewer recognition. Make the viewer feel what the supplied relationship means.",
-    "The line may be fragmentary, funny, strange, sharp, ironic, tender, hostile, ceremonial, or absurd when grounded.",
-    "Do not repeat the source as a receipt. Do not explain the meaning, the frame, or the system.",
-    "Use the whole approved sequence. Each line is a viewer-facing cut; later lines may recontextualize earlier ones.",
-    "Return only the moving-text cuts, one cut per line. No JSON, markdown, numbering, explanation, preamble, or afterword.",
+    "You are the QRE Mouth. Turn the supplied reality and discovered relationship into moving text people want to keep.",
+    "Everything concrete comes from supplied reality. Everything perceptual is yours: metaphor, implication, attitude, status, rhythm, collision, wordplay, personification, and surprise.",
+    "Find the smallest language that makes the relationship suddenly visible. Let later cuts change what earlier cuts meant.",
+    "Write with QRE instinct: specific, compressed, sharp, alive, weird when earned, tender when earned, slang when natural.",
+    "Create three materially different realizations so QRE can choose. Explore different angles, not synonyms.",
+    "Return only the three sequences. One cut per line. Put a line containing only --- between sequences. No labels or explanation.",
   ].join("\n");
 }
 
@@ -610,7 +601,7 @@ export function buildMouthCandidateMessages(input: MouthCandidateGenerationInput
             relationship: [clean(meaning.before), clean(meaning.after)].filter(Boolean).join(" -> "),
             move: clean(meaning.realizationMove),
             opportunity: clean(meaning.creativeOpportunity),
-            languageAim: clean(meaning.languageAim),
+            desiredRecognition: clean(meaning.viewerShift || meaning.feltEffect),
           }
         : undefined,
     };
@@ -641,7 +632,7 @@ export function buildMouthCandidateMessages(input: MouthCandidateGenerationInput
           : undefined,
         beats,
         priorCuts: input.priorTexts ?? [],
-        output: `Return exactly ${cutCount} moving-text cuts, one cut per line. No labels or explanation.`,
+        output: `Create 3 materially different sequences. Each sequence must contain exactly ${cutCount} cuts, one cut per line. Separate sequences with a line containing only ---. Return nothing else.`,
       }),
     },
   ];
@@ -712,6 +703,37 @@ export function parseMouthCandidateBatch(
   }
 
   if (expectedBeatCount === undefined) return undefined;
+
+  const plainSequenceVariants = normalized
+    .split(/^\s*---\s*$/m)
+    .map((block) =>
+      block
+        .split(/\r?\n/)
+        .map((line) => line.trim())
+        .filter(Boolean)
+        .filter((line) => !/^(?:version|option|sequence)\s*\d*\s*:?$/i.test(line))
+        .map((line) => line.replace(/^\s*(?:[-*]|\d+[.)])\s*/, "").trim())
+        .filter(Boolean),
+    )
+    .filter((texts) => texts.length > 0);
+
+  if (plainSequenceVariants.length === 3) {
+    if (plainSequenceVariants.some((texts) => texts.length !== expectedBeatCount)) return undefined;
+    if (new Set(plainSequenceVariants.map((texts) => texts.join("\n").toLowerCase())).size !== 3) return undefined;
+
+    return {
+      variantsByBeat: Array.from(
+        { length: expectedBeatCount },
+        (_, index) => ({
+          order: index + 1,
+          variants: plainSequenceVariants
+            .map((texts) => clean(texts[index]))
+            .filter(Boolean),
+        }),
+      ),
+      sequenceVariants: plainSequenceVariants,
+    };
+  }
 
   const lines = normalized
     .split(/\r?\n/)
