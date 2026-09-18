@@ -556,6 +556,71 @@ cases.push({
   authorization: suppliedClient.authorization,
 });
 
+const treatmentServiceBeat: MouthCandidateBeat = {
+  ...serviceBeat,
+  realizationAuthority:
+    buildMouthRealizationAuthority({
+      beat: serviceBeat,
+      envelope: serviceEnvelope,
+      treatment: {
+        label: "battle",
+        intensity: 0.84,
+        framingBias: [
+          "opposition",
+          "territory",
+          "clearance",
+          "victory",
+          "aftermath",
+        ],
+        realizationPreferences: [
+          "status_inversion",
+          "compression",
+          "consequence",
+        ],
+        forbiddenRealityMoves: [
+          "invented combat",
+          "invented opponent",
+          "invented weapon",
+          "invented damage",
+        ],
+      },
+    }),
+};
+
+const treatmentStatus = scoreMouthCandidate({
+  text: "Kitchen: victory.",
+  beat: treatmentServiceBeat,
+  envelope: serviceEnvelope,
+});
+
+cases.push({
+  name: "lens treatment may metaphorically frame supplied service reality",
+  expected: "allowed",
+  actual: isAuthorizedMouthCandidate(treatmentStatus)
+    ? "allowed"
+    : "rejected",
+  text: treatmentStatus.text,
+  reasons: treatmentStatus.reasons,
+  authorization: treatmentStatus.authorization,
+});
+
+const treatmentInventedRole = scoreMouthCandidate({
+  text: "Homeowner: victory.",
+  beat: treatmentServiceBeat,
+  envelope: serviceEnvelope,
+});
+
+cases.push({
+  name: "lens treatment cannot create an unsupplied service relationship",
+  expected: "rejected",
+  actual: isAuthorizedMouthCandidate(treatmentInventedRole)
+    ? "allowed"
+    : "rejected",
+  text: treatmentInventedRole.text,
+  reasons: treatmentInventedRole.reasons,
+  authorization: treatmentInventedRole.authorization,
+});
+
 const operational = await authorBrainCanonical({
   prompt: "Maria cleaned the kitchen and bathroom. Done.",
   subject: "Maria",
