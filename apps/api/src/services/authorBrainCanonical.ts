@@ -1591,7 +1591,10 @@ export async function authorBrainCanonical(
      * made a valid creative response look like a generation failure.  The
      * canonical parser and authorization layer remain the contract.
      */
-    const generated = await localModelGenerate(messages, "json", {
+    // Let the model finish its language; JSON is requested in the prompt and
+    // validated canonically after transport. Ollama's JSON decoder can truncate
+    // creative sequence output before the first object is complete.
+    const generated = await localModelGenerate(messages, undefined, {
       numPredict: 2048,
       temperature: 0.7,
     });
