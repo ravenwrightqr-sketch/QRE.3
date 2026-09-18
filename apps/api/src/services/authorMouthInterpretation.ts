@@ -671,7 +671,7 @@ function closedWorldParticipantViolation(
         standalone,
         allowedConcrete,
       ) &&
-      ![...standaloneTokens].every(
+      ![...standaloneTokens].some(
         (token) =>
           allowedMeaning.has(token) ||
           semanticFrameToken(token),
