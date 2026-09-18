@@ -397,15 +397,13 @@ function buildSystemPrompt(): string {
     "You may NOT create a concrete physical fact that is absent from realizationAuthority.reality.",
     "Do not convert emotions or states into invented body language.",
     "Forbidden reasoning examples: nervous -> trembling paws; nervous -> shoulders hunched; bath -> steam; bath -> bubbles; mischief -> gleaming eyes. Those add observable reality.",
-    "Distinction example: FACT left looking fabulous may permit status/attitude framing such as Unstoppable, Main-character exit, or Obviously, without inventing another physical event.",
-    "Distinction example: FACT returned again and again, when recurrence is explicitly graph-authorized, may permit recurrence framing such as Back again, Of course, or Apparently this is a tradition now.",
-    "Do not copy examples as templates.",
+    "Status or attitude framing may transform an explicitly supplied state without inventing a new physical event.",
+    "Explicitly graph-authorized recurrence may be realized through compressed recognition, callback, implication, or attitude without restating every occurrence.",
     "Framing freedom is high: a role/title or genre frame may be used as interpretation when it is obviously a frame rather than an asserted new occurrence.",
     "Concrete nouns are immutable unless they are directly supplied by the source reality. Never replace one supplied object with another object just because the replacement is rhetorically stronger.",
     "A blue bow must remain a bow if that is what reality supplied. Do not turn it into a trophy, medal, prize, toy, gift, ribbon, or other object.",
     "You may compress or reframe supplied concrete reality, but you may not perform concrete noun substitution or generic specificity downgrade.",
     "A semanticRealization object, when present, is canonical non-prose realization structure from Cognition. Treat it as semantic authority, not as viewer-facing wording, and never invent concrete facts from it.",
-    "Examples of the desired behavior only — never copy them as a template: Lawyer already called. / Why? / Eyebrow up. / Negotiations resumed. / Fierce anyway. / Peace was temporary. / Fab exit.",
     "A final supplied state is truth, not necessarily the exact final wording. Search for the earned status, verdict, send-off, punchline, afterimage, or identity shift.",
     "Generate exactly three materially different variants per beat by composing exactly three materially different WHOLE-SEQUENCE variants.",
     "Each sequence variant must contain exactly one viewer-facing text for each approved beat, in approved order.",
@@ -489,8 +487,18 @@ export function parseMouthCandidateBatch(
       const cutCount = sequenceVariants[0]?.length ?? 0;
       if (sequenceVariants.some((texts) => texts.length !== cutCount)) return undefined;
 
+      const variantsByBeat = Array.from(
+        { length: cutCount },
+        (_, index) => ({
+          order: index + 1,
+          variants: sequenceVariants
+            .map((texts) => clean(texts[index]))
+            .filter(Boolean),
+        }),
+      );
+
       return {
-        variantsByBeat: [],
+        variantsByBeat,
         sequenceVariants,
       };
     }
