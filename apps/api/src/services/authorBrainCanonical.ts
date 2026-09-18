@@ -41,6 +41,7 @@ import {
   selectBestMouthSequence,
 } from "./authorMouthSequenceBeamSearch.js";
 import { buildMouthRealizationAuthority } from "./authorMouthRealizationAuthority.js";
+import { buildCreativeLensBrief } from "./authorCreativeLensBrief.js";
 import {
   buildSequenceTransition,
   initialMomentum,
@@ -788,6 +789,11 @@ export async function authorBrainCanonical(
   }
 
   const envelope = buildAuthorRealityEnvelope({ graph, subject });
+  const creativeLensBrief = buildCreativeLensBrief({
+    lens,
+    movie,
+    envelope,
+  });
   const composedBeats = composeTrajectoryBeats(movie, envelope);
   const authorityBeats = composedBeats.map((beat) => ({
     ...beat,
@@ -815,6 +821,7 @@ export async function authorBrainCanonical(
     envelope,
     beats,
     lens,
+    creativeLensBrief,
     domainContext: input.domainContext,
   });
 
@@ -1076,6 +1083,7 @@ export async function authorBrainCanonical(
           })),
         selectedThesis: movie.storyThesis,
         selectedLens: lens,
+        creativeLensBrief,
         composedBeats: beats.map((beat) => ({
           order: beat.order,
           role: beat.role,
