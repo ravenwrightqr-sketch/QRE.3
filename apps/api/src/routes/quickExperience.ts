@@ -13,6 +13,11 @@ router.post("/", requireAuth, async (req: AuthRequest, res) => {
     const prompt = typeof req.body?.prompt === "string" ? req.body.prompt.trim() : "";
     const displayName = typeof req.body?.displayName === "string" ? req.body.displayName.trim() : "Quick Experience";
     const accountId = typeof req.body?.accountId === "string" ? req.body.accountId.trim() : "";
+    const playoutMode =
+      req.body?.playoutMode === "operational" ||
+      req.body?.playoutMode === "receipt"
+        ? "operational"
+        : "experience";
 
     if (!userId || !prompt) return res.status(400).json({ success: false, error: "Prompt required." });
 
@@ -32,6 +37,7 @@ router.post("/", requireAuth, async (req: AuthRequest, res) => {
       prompt,
       title: typeof req.body?.title === "string" ? req.body.title.trim() : undefined,
       userId,
+      playoutMode,
       sponsor: req.body?.sponsor,
     });
 
