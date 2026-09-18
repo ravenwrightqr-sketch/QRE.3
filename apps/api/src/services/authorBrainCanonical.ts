@@ -1239,11 +1239,12 @@ export function buildLiteralRecoveryCandidate(input: {
   };
 }
 
-function operationalAuthorResult(input: {
+function sourceGroundedAuthorResult(input: {
   graph: ReturnType<typeof buildAuthorRealityGraph>;
   subject: string;
   realizationMode: AuthorRealizationMode;
   playoutMode: AuthorPlayoutMode;
+  cognition: ReturnType<typeof buildCognition>;
 }): CanonicalAuthorResult {
   const events = input.graph.events
     .map((event) => ({
@@ -1461,15 +1462,11 @@ export async function authorBrainCanonical(
     movieMode: playoutMode === "experience",
   });
 
-  if (playoutMode === "operational") {
-    return operationalAuthorResult({
-      graph,
-      subject,
-      realizationMode,
-      playoutMode,
-    });
-  }
-
+  /*
+   * One universal Cognition owns every QRE input, including factual service
+   * playout. The render mode may suppress model realization, but it must not
+   * bypass memory, learning, relation discovery, or semantic understanding.
+   */
   const cognition = buildCognition(
     {
       ...input,
@@ -1479,6 +1476,17 @@ export async function authorBrainCanonical(
     },
     graph,
   );
+
+  if (playoutMode === "operational") {
+    return sourceGroundedAuthorResult({
+      graph,
+      subject,
+      realizationMode,
+      playoutMode,
+      cognition,
+    });
+  }
+
   const lens = lensFrom(input, cognition);
   const movie = chooseMovie(input, cognition);
 
