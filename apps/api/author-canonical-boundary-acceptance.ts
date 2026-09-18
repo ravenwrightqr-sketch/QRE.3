@@ -18,6 +18,7 @@ import {
 } from "./src/services/authorMouthSequenceBeamSearch.js";
 import {
   authorBrainCanonical,
+  buildLiteralRecoveryCandidate,
   composeTrajectoryBeats,
   evaluateAuthorAuthorshipQuality,
   evaluateAuthorSourceReplay,
@@ -475,6 +476,54 @@ const inventedHomeowner = scoreMouthCandidate({
   beat: serviceBeat,
   envelope: serviceEnvelope,
 });
+
+const literalServiceRecovery =
+  buildLiteralRecoveryCandidate({
+    beat: serviceBeat,
+    envelope: serviceEnvelope,
+  });
+
+assert(
+  literalServiceRecovery,
+  "Literal recovery did not produce a source-grounded candidate.",
+);
+assert(
+  isAuthorizedMouthCandidate(literalServiceRecovery) &&
+    literalServiceRecovery.authorization.directGrounded === true &&
+    literalServiceRecovery.inventionRisk === 0 &&
+    literalServiceRecovery.forbiddenMoveRisk === 0,
+  `Literal recovery failed the truth-safe floor: ${JSON.stringify(literalServiceRecovery)}`,
+);
+
+const literalRecoveryReplay =
+  evaluateAuthorSourceReplay(
+    {
+      candidates: [literalServiceRecovery],
+      texts: [literalServiceRecovery.text],
+      score: literalServiceRecovery.score,
+    },
+    serviceEnvelope,
+  );
+
+assert(
+  literalRecoveryReplay.truthSafe === true &&
+    literalRecoveryReplay.authored === false,
+  `Literal recovery was not separated from authorship: ${JSON.stringify(literalRecoveryReplay)}`,
+);
+
+cases.push({
+  name: "literal model-failure recovery remains truth-safe but not authored",
+  expected: "allowed",
+  actual:
+    literalRecoveryReplay.truthSafe &&
+    !literalRecoveryReplay.authored
+      ? "allowed"
+      : "rejected",
+  text: literalServiceRecovery.text,
+  reasons: literalServiceRecovery.reasons,
+  authorization: literalServiceRecovery.authorization,
+});
+
 
 cases.push({
   name: "business context cannot invent homeowner relationship",
