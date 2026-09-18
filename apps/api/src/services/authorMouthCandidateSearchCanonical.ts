@@ -664,7 +664,7 @@ export function parseMouthCandidateBatch(
   raw: string,
   expectedBeatCount?: number,
 ): ParsedMouthCandidateBatch | undefined {
-  const normalized = clean(raw)
+  const normalized = String(raw ?? "")
     .replace(/^\s*```(?:json)?\s*/i, "")
     .replace(/\s*```\s*$/i, "")
     .trim();
