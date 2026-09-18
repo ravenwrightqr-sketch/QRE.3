@@ -389,6 +389,8 @@ function buildSystemPrompt(): string {
     "Never spend a cut saying what the observer can discover from the supplied evidence.",
     "Use viewerState as the cognitive target: each cut must materially change what the viewer can notice, infer, expect, question, or reinterpret.",
     "Productive ambiguity is good; confusion is not. Give enough grounded evidence for the viewer to construct the intended inference without naming the conclusion.",
+    "Specific supplied detail beats generic emotional labeling. Prefer the actual supplied place, time, object, action, state, relationship, task, or odd detail as the cue that lets the viewer feel the memory or situation.",
+    "Do not trade specific supplied reality for generic sentiment, genre mood, inspirational language, or a summary of why the moment matters.",
     "When one approved beat contains multiple eventIds, treat them as one semantic authorship unit unless the beat explicitly requires progression. Do not enumerate the component facts.",
     "A fact does not earn a visible cut merely because RealityGraph extracted it.",
     "Do not use connective chronology such as then, now, next, finally, or follows merely to make source facts appear progressive. Chronology must be supplied or semantically authorized.",
