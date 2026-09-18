@@ -1204,18 +1204,40 @@ export async function authorBrainCanonical(
   const subject = clean(input.subject) || "the subject";
   const facts = unique(input.facts);
   const sourceMoments = unique(input.sourceMoments);
+  const playoutMode = playoutModeFor(input);
+
+  /*
+   * Operational playout is a current-job factual readout.
+   * Durable facts and remembered history remain stored context, but they are
+   * not replayed as if they occurred in this service/job/receipt round.
+   */
+  const operationalCurrentReality =
+    sourceMoments.length > 0
+      ? sourceMoments
+      : facts;
 
   const graph = buildAuthorRealityGraph({
     prompt: clean(input.prompt),
     subject,
     place: clean(input.place),
-    facts,
-    sourceMoments,
-    memoryContext: input.memoryContext ?? [],
-    trajectory: input.trajectory ?? [],
+    facts:
+      playoutMode === "operational"
+        ? []
+        : facts,
+    sourceMoments:
+      playoutMode === "operational"
+        ? operationalCurrentReality
+        : sourceMoments,
+    memoryContext:
+      playoutMode === "operational"
+        ? []
+        : input.memoryContext ?? [],
+    trajectory:
+      playoutMode === "operational"
+        ? []
+        : input.trajectory ?? [],
   });
 
-  const playoutMode = playoutModeFor(input);
   const realizationMode = classifyAuthorRealizationMode({
     prompt: clean(input.prompt),
     facts,
