@@ -3,6 +3,7 @@ import type { RealityGraph } from "../reality/realityGraph.js";
 import type { SubjectTruth } from "../reality/subjectTruth.js";
 import type { AuthorExperienceState } from "./authorExperienceState.js";
 export type AuthorRhythm = "hit" | "short" | "standard" | "long";
+export type AuthorPlayoutMode = "operational" | "experience";
 
 export type AuthorDomainContext = {
   category?: string;
@@ -37,7 +38,16 @@ export type AuthorBrainTruth = {
   cognitivePlan?: CognitiveExperiencePlan;
   realityGraph?: RealityGraph;
   domainContext?: AuthorDomainContext;
-  /** User-level production switch: true = discover/render a movie, false = skip cinematic authoring. */
+  /**
+   * User-facing output intent.
+   * operational = factual moving receipt/readout from supplied reality.
+   * experience = semantic discovery + lens treatment + Mouth realization.
+   */
+  playoutMode?: AuthorPlayoutMode;
+  /**
+   * @deprecated Compatibility only. Prefer playoutMode.
+   * true maps to experience; false maps to operational.
+   */
   movieMode?: boolean;
   returning?: boolean;
   visitNumber?: number;
