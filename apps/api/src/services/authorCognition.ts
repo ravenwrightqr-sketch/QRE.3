@@ -326,7 +326,6 @@ function resolveLens(
  */
 function movieFor(
   input: AuthorCognitionInput,
-  lens: string,
   priorExperienceStates: readonly AuthorExperienceState[],
 ): {
   latentMovieCandidates: LatentMovieCandidate[];
@@ -342,13 +341,20 @@ function movieFor(
     };
   }
 
+  /*
+   * Movie/meaning discovery is lens-neutral.
+   * Lens pressure is applied only after Cognition has selected the strongest
+   * grounded movie/metamorphic relation.
+   */
+  const discoveryLens = "NONE";
+
   const worldSimulation =
     buildAuthorWorldSimulation({
       reality:
         input.realityGraph,
       subject:
         input.subject,
-      lens,
+      lens: discoveryLens,
       priorExperienceIds:
         priorExperienceStates
           .map(
@@ -373,7 +379,7 @@ function movieFor(
     searchUniversalMovieCandidates({
       graph: input.realityGraph,
       subject: input.subject,
-      lens,
+      lens: discoveryLens,
       limit: 10,
     });
 
@@ -706,9 +712,6 @@ export function buildAuthorCognitivePlan(
   input: AuthorCognitionInput,
 ): AuthorCognitivePlan {
 
-  const selectedLens =
-  resolveLens(input);
-
 const priorExperienceStates =
   parsePriorExperienceStates(
     input.priorStrategies,
@@ -717,9 +720,16 @@ const priorExperienceStates =
 const movie =
   movieFor(
     input,
-    selectedLens,
     priorExperienceStates,
   );
+
+/*
+ * Lens is treatment pressure, not story authority.
+ * Resolve it only after the strongest grounded movie/metamorphic relation has
+ * been discovered without lens influence.
+ */
+const selectedLens =
+  resolveLens(input);
 
   const experienceState =
     input.realityGraph &&
