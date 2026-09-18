@@ -30,6 +30,48 @@ const facts = [
   "Mira left approved",
 ];
 
+const dayOneMiloGraph = buildAuthorRealityGraph({
+  prompt: "Milo loves walks, bacon, small dogs",
+  subject: "Milo",
+  facts: [],
+  sourceMoments: ["Milo loves walks, bacon, small dogs"],
+});
+
+const dayOneLabels = dayOneMiloGraph.events.map((event) => event.label);
+assert(
+  dayOneLabels.includes("Milo loves walks") &&
+    dayOneLabels.includes("Milo loves bacon") &&
+    dayOneLabels.includes("Milo loves small dogs"),
+  `Day-one profile intake lost the supplied preference relationship: ${JSON.stringify(dayOneLabels)}`,
+);
+
+const dayOneMovies = searchUniversalMovieCandidates({
+  graph: dayOneMiloGraph,
+  subject: "Milo",
+  lens: "NONE",
+  limit: 8,
+});
+assert(dayOneMovies.length > 0, "Day-one profile reality produced no movie candidates.");
+
+const dayOneTheses = dayOneMovies.map((movie) =>
+  deriveLatentStoryThesis(dayOneMiloGraph, movie),
+);
+assert(
+  dayOneTheses.some(
+    (thesis) =>
+      thesis.semanticRealization?.mechanism === "convergence" &&
+      thesis.semanticRealization?.evidenceEventIds.length >= 2 &&
+      /personality|character|profile|preferences/i.test(
+        [
+          thesis.semanticRealization.feltEffect,
+          thesis.semanticRealization.viewerShift,
+          thesis.semanticRealization.languageAim,
+        ].filter(Boolean).join(" "),
+      ),
+  ),
+  `Day-one profile reality did not produce a character-level semantic opportunity: ${JSON.stringify(dayOneTheses)}`,
+);
+
 const graph = buildAuthorRealityGraph({
   prompt: "Write a QRE-style living memory.",
   subject,
