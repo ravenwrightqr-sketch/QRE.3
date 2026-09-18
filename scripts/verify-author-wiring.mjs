@@ -25,7 +25,7 @@ const mouth = "apps/api/src/services/authorMouthCandidateSearchCanonical.ts";
 const mouthImplementation = "apps/api/src/services/authorMouthCandidateSearch.ts";
 const interpretation = "apps/api/src/services/authorMouthInterpretation.ts";
 const beam = "apps/api/src/services/authorMouthSequenceBeamSearch.ts";
-const acceptance = "apps/api/author-acceptance.ts";
+const acceptance = "apps/api/author-universal-human-eye-acceptance.ts";
 const packageJson = "apps/api/package.json";
 
 const forbiddenFiles = [
