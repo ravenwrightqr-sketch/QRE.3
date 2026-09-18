@@ -190,7 +190,23 @@ function evidence(
   };
 }
 
-/** Comma/list order is an input boundary, never a temporal fact. */
+const PROFILE_RELATION =
+  /^(.*?)\b(likes?|loves?|prefers?|enjoys?|hates?|avoids?|needs?|wants?)\b\s+(.+)$/i;
+
+const INDEPENDENT_CLAUSE =
+  /\b(?:arriv(?:e|ed|es|ing)|return(?:ed|s|ing)?|came|come|left|leave|went|go|met|meet|hit|talk(?:ed|s|ing)?|spoke|said|did|made|gave|got|found|lost|clean(?:ed|s|ing)?|finished|started|opened|closed|walk(?:ed|s|ing)?|ran|drove|ate|drank|called|laughed|cried|felt|became|changed|stole|took|saw|heard|was|were|is|are|has|have|had)\b/i;
+
+/**
+ * Comma/list order is an input boundary, never a temporal fact.
+ *
+ * Intake may contain natural list grammar such as:
+ *   "Milo loves walks, bacon, small dogs"
+ *
+ * The trailing nouns are still explicitly governed by the supplied predicate.
+ * Preserve that relationship as structured reality rather than treating them
+ * as unrelated ambient fragments. This is grammatical recovery only: it does
+ * not invent a preference or event that the user did not supply.
+ */
 function splitReality(values: readonly string[]): string[] {
   const fragments: string[] = [];
 
@@ -206,9 +222,37 @@ function splitReality(values: readonly string[]): string[] {
         ? text.split(/[,;\n•]+/g)
         : [text];
 
+    let profilePrefix = "";
+
     for (const part of parts) {
       const candidate = clean(part.replace(/^[-*]\s*/, ""));
-      if (candidate) fragments.push(candidate);
+      if (!candidate) continue;
+
+      const profile = candidate.match(PROFILE_RELATION);
+      if (profile) {
+        const subject = clean(profile[1]);
+        const predicate = clean(profile[2]);
+        profilePrefix = subject && predicate
+          ? `${subject} ${predicate}`
+          : "";
+        fragments.push(candidate);
+        continue;
+      }
+
+      const nominalContinuation =
+        Boolean(profilePrefix) &&
+        candidate.split(/\s+/).length <= 8 &&
+        !INDEPENDENT_CLAUSE.test(candidate);
+
+      fragments.push(
+        nominalContinuation
+          ? `${profilePrefix} ${candidate}`
+          : candidate,
+      );
+
+      if (!nominalContinuation) {
+        profilePrefix = "";
+      }
     }
   }
 
