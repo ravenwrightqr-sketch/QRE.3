@@ -4,6 +4,7 @@ import type {
   AuthorLensProfile,
 } from "@qre/contracts";
 import type { RealityEnvelope } from "./authorRealityEnvelope.js";
+import type { AuthorActionMechanic } from "./authorActionMechanics.js";
 
 /**
  * Canonical QRE creative-treatment registry.
@@ -70,6 +71,25 @@ const RELATION_AFFINITY: Record<string, readonly string[]> = {
   after: ["documentary", "spy", "detective", "noir", "procedural", "thriller", "service", "craft", "hospitality", "transformation"],
   involves: ["procedural", "documentary", "spy", "courtroom", "detective", "service", "hospitality", "craft", "concierge"],
   belongs_to: ["royal", "procedural", "documentary", "romance", "service", "hospitality", "craft", "concierge", "ritual"],
+};
+
+const MECHANIC_AFFINITY: Record<
+  AuthorActionMechanic["kind"],
+  readonly string[]
+> = {
+  sequence: ["game", "procedural", "documentary", "military", "expedition", "service", "craft"],
+  territory: ["game", "military", "expedition", "western", "procedural"],
+  repetition: ["ritual", "game", "deadpan", "comedy", "documentary"],
+  constraint: ["thriller", "game", "procedural", "military", "documentary"],
+  interruption: ["chaos", "comedy", "thriller", "noir", "horror", "detective"],
+  accumulation: ["game", "competition", "dramatic", "procedural", "military"],
+  transformation: ["transformation", "craft", "dramatic", "fairytale", "service"],
+  competition: ["competition", "game", "western", "dramatic", "comedy"],
+  search: ["detective", "spy", "noir", "procedural", "documentary"],
+  recovery: ["survival", "transformation", "craft", "dramatic", "service"],
+  completion: ["game", "military", "procedural", "service", "craft", "documentary"],
+  return: ["ritual", "nostalgia", "romance", "noir", "documentary"],
+  handoff: ["heist", "concierge", "service", "expedition", "spy", "procedural"],
 };
 
 const LEXICAL_CUES: Record<string, readonly RegExp[]> = {
@@ -147,6 +167,25 @@ function relationScore(lens: string, envelope: RealityEnvelope): number {
   return metric(hits / Math.max(1, kinds.length));
 }
 
+function mechanicScore(
+  lens: string,
+  mechanics: readonly AuthorActionMechanic[],
+): number {
+  if (!mechanics.length) return 0;
+
+  let earned = 0;
+  let total = 0;
+
+  for (const mechanic of mechanics) {
+    total += mechanic.strength;
+    if ((MECHANIC_AFFINITY[mechanic.kind] ?? []).includes(lens)) {
+      earned += mechanic.strength;
+    }
+  }
+
+  return metric(earned / Math.max(0.001, total));
+}
+
 function cueScore(lens: string, envelope: RealityEnvelope): number {
   const patterns = LEXICAL_CUES[lens] ?? [];
   if (!patterns.length) return 0;
@@ -193,23 +232,51 @@ function nativeDirectness(envelope: RealityEnvelope): number {
  * Structural relationships and realization mechanisms dominate lexical cues.
  * NONE is always a first-class contender.
  */
-export function rankLensOpportunities(envelope: RealityEnvelope): Array<{ frame: string; reason: string; confidence: number }> {
+export function rankLensOpportunities(
+  envelope: RealityEnvelope,
+  mechanics: readonly AuthorActionMechanic[] = [],
+): Array<{ frame: string; reason: string; confidence: number }> {
   const native = nativeDirectness(envelope);
   const candidates = Object.entries(LENSES).map(([key, lens]) => {
     const relation = relationScore(key, envelope);
     const strategy = strategyScore(lens, envelope);
     const cues = cueScore(key, envelope);
-    const evidenceDensity = Math.min(1, stateSignals(envelope).length / 6);
-    const intensityFit = metric(0.55 + (lens.intensity - 0.65) * evidenceDensity * 0.3);
-    const confidence = metric(
-      relation * 0.4 +
-      strategy * 0.3 +
-      cues * 0.15 +
-      intensityFit * 0.15,
+    const mechanic = mechanicScore(key, mechanics);
+    const evidenceDensity = Math.min(
+      1,
+      (stateSignals(envelope).length + mechanics.length) / 8,
     );
+    const intensityFit = metric(
+      0.55 +
+        (lens.intensity - 0.65) *
+          evidenceDensity *
+          0.3,
+    );
+    const confidence = metric(
+      relation * 0.3 +
+        strategy * 0.22 +
+        mechanic * 0.28 +
+        cues * 0.08 +
+        intensityFit * 0.12,
+    );
+    const mechanicReason = mechanics
+      .filter((item) =>
+        (MECHANIC_AFFINITY[item.kind] ?? []).includes(key),
+      )
+      .slice(0, 3)
+      .map((item) => item.kind)
+      .join(", ");
     return {
       frame: lens.label,
-      reason: `${lens.label} amplifies ${lens.framingBias.slice(0, 4).join(", ")} already present in the supplied world. The treatment can change framing and rhythm, never concrete reality.`,
+      reason:
+        lens.label +
+        " amplifies " +
+        lens.framingBias.slice(0, 4).join(", ") +
+        " already present in supplied reality" +
+        (mechanicReason
+          ? "; grounded mechanics: " + mechanicReason
+          : "") +
+        ". The treatment can change framing and rhythm, never concrete reality.",
       confidence,
     };
   });
