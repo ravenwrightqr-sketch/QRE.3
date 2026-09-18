@@ -306,6 +306,9 @@ function buildCandidate(
       "recognize",
     creativeOpportunity:
       semantic.creativeOpportunity,
+    feltEffect: semantic.feltEffect,
+    viewerShift: semantic.viewerShift,
+    languageAim: semantic.languageAim,
     confidence: metric(
       confidence,
     ),
