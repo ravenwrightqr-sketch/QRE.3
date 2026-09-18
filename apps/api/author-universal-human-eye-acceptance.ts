@@ -16,6 +16,7 @@ type UniversalCase = {
   returning?: boolean;
   visitNumber?: number;
   domainContext?: AuthorDomainContext;
+  forbiddenOutputTerms?: string[];
 };
 
 type RecordValue = Record<string, unknown>;
@@ -177,6 +178,14 @@ const CASES: UniversalCase[] = [
       "Coco came home clean",
       "Coco had a red bow",
     ],
+    forbiddenOutputTerms: [
+      "the groomer smiled",
+      "the groomer laughed",
+      "the groomer watched",
+      "the groomer said",
+      "the groomer handed",
+      "stylist",
+    ],
   },
   {
     id: "rave-minimal",
@@ -186,6 +195,14 @@ const CASES: UniversalCase[] = [
     sourceMoments: [
       "Raven arrived at Neon District",
       "Raven left at 2 AM",
+    ],
+    forbiddenOutputTerms: [
+      "crowd",
+      "bartender",
+      "promoter",
+      "dj",
+      "security",
+      "staff",
     ],
   },
   {
@@ -413,6 +430,21 @@ async function runCase(testCase: UniversalCase): Promise<{
       failures,
       !/\b(?:homeowner|home owner|tenant|renter|landlord|occupant|resident|airbnb host|host|guest|client|customer|owner)\b/i.test(visible),
       `Service playout invented an unsupplied relationship role: ${visible}`,
+    );
+  }
+
+  if (testCase.forbiddenOutputTerms?.length) {
+    const visible = result.scenes
+      .map((scene) => scene.text.toLowerCase())
+      .join(" | ");
+    const invented = testCase.forbiddenOutputTerms.filter((term) =>
+      visible.includes(term.toLowerCase()),
+    );
+
+    check(
+      failures,
+      invented.length === 0,
+      `Context was promoted into unsupplied concrete reality: ${invented.join(", ")} :: ${visible}`,
     );
   }
 
