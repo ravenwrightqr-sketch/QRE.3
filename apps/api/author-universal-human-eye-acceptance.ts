@@ -469,6 +469,7 @@ async function runCase(testCase: UniversalCase): Promise<{
   section("SELECTED LENS", trace.selectedLens);
   section("LENS TREATMENT BRIEF", lensBrief);
   section("COMPOSED BEATS", composedBeats);
+  section("MOUTH GENERATION DIAGNOSTICS", trace.mouthGeneration);
   section("RAW GEMMA SEQUENCE VARIANTS", rawVariants);
   section("SCORED MOUTH CANDIDATES", scoredCandidates);
   section(
