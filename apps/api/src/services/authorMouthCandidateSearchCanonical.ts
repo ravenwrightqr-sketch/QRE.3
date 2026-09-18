@@ -617,6 +617,7 @@ function buildSystemPrompt(): string {
     "Explicitly graph-authorized recurrence may be realized through compressed recognition, callback, implication, or attitude without restating every occurrence.",
     "Framing freedom is high: a role/title or genre frame may be used as interpretation when it is obviously a frame rather than an asserted new occurrence.",
     "Personification is allowed only for an entity, object, place, or other concrete referent that the supplied reality already establishes, and only when the wording is clearly figurative. Personification may not create a new person, owner, tenant, guest, worker, audience member, body action, dialogue, physical event, or relationship.",
+    "A supplied target may receive a compact nonliteral treatment predicate when the lens clearly frames status, conflict, game, noir, cyberpunk, fantasy, ceremony, or another metaphorical mode. The predicate changes perception only; it is never a new factual occurrence and may not introduce a second concrete participant, object, relationship, or action.",
     "Concrete nouns are immutable unless they are directly supplied by the source reality. Never replace one supplied object with another object just because the replacement is rhetorically stronger.",
     "A blue bow must remain a bow if that is what reality supplied. Do not turn it into a trophy, medal, prize, toy, gift, ribbon, or other object.",
     "You may compress or reframe supplied concrete reality, but you may not perform concrete noun substitution or generic specificity downgrade.",
