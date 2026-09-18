@@ -265,6 +265,7 @@ function wholeSourceCorpus(
       ),
       ...envelope.suppliedPhrases,
       ...envelope.suppliedEntities,
+      ...envelope.suppliedPlaces,
       ...envelope.suppliedActions,
       ...envelope.suppliedStates,
       ...envelope.recurringSignals,
@@ -508,6 +509,299 @@ function unsupportedAuthorityConcreteRisk(
   return 0;
 }
 
+
+const CLOSED_WORLD_PRONOUN =
+  /\b(?:he|him|his|she|her|hers)\b/i;
+
+const CLOSED_WORLD_RELATION_TARGET =
+  /\b(?:by|with|for|to|from)\s+(?:(?:the|a|an|this|that|my|your|his|her|our|their)\s+)?([a-z0-9][a-z0-9'’-]*)\b/gi;
+
+const CLOSED_WORLD_DETERMINED_REFERENCE =
+  /\b(?:the|a|an|this|that|my|your|his|her|our|their)\s+([a-z0-9][a-z0-9'’-]*)\b/gi;
+
+const CLOSED_WORLD_POSSESSOR =
+  /\b([a-z0-9][a-z0-9'’-]*)['’]s\b/gi;
+
+const CLOSED_WORLD_LEADING_SUBJECT =
+  /^(?:(?:the|a|an|this|that|my|your|his|her|our|their)\s+)?(.{1,64}?)\s+(?:is|are|was|were|has|have|had|does|do|did|can|could|will|would|should|must|may|might|[a-z][a-z'’-]{2,}(?:ed|ing)|smiles?|laughs?|wins?|loses?|approves?|surrenders?|stands?|sits?|walks?|runs?|enters?|leaves?|returns?|watches?|talks?|speaks?|calls?|cleans?|fixes?|repairs?|owns?|rents?|manages?|lives?|stays?)\b/i;
+
+const CLOSED_WORLD_PREPOSITIONAL_CONTEXT =
+  /\b(?:to|at|from|with|by|for|near|inside|outside|around|through|into|onto|under|over)\s+(?:the\s+)?$/i;
+
+function referenceTokens(value: string): Set<string> {
+  return new Set(
+    [...tokens(value)].filter(
+      (token) =>
+        !FUNCTION_WORDS.has(token),
+    ),
+  );
+}
+
+function referenceMatches(
+  value: string,
+  authorities: readonly string[],
+): boolean {
+  const wanted = referenceTokens(value);
+  if (!wanted.size) return false;
+
+  return authorities.some((authority) => {
+    const allowed = referenceTokens(authority);
+    if (!allowed.size) return false;
+
+    return (
+      [...wanted].every((token) => allowed.has(token)) ||
+      [...allowed].every((token) => wanted.has(token))
+    );
+  });
+}
+
+function scopedPlaces(
+  beat: MouthCandidateBeat | undefined,
+  envelope: RealityEnvelope,
+): string[] {
+  const eventIds = new Set(beat?.eventIds ?? []);
+  const places = eventIds.size
+    ? envelope.events
+        .filter((event) => eventIds.has(event.id))
+        .map((event) => clean(event.place))
+        .filter(Boolean)
+    : envelope.suppliedPlaces;
+
+  return [...new Set(places)];
+}
+
+function directScopedObjects(
+  beat: MouthCandidateBeat | undefined,
+  envelope: RealityEnvelope,
+): string[] {
+  const authority = beat?.realizationAuthority;
+  if (!authority) return [];
+
+  const eventIds = new Set(authority.reality.eventIds);
+  const labels = envelope.events
+    .filter((event) => eventIds.has(event.id))
+    .map((event) => clean(event.label).toLowerCase());
+
+  return authority.reality.objects.filter((object) => {
+    const needle = clean(object).toLowerCase();
+    if (!needle) return false;
+
+    return labels.some((label) => {
+      const index = label.indexOf(needle);
+      if (index < 0) return false;
+
+      const prefix = label
+        .slice(0, index)
+        .slice(-32)
+        .trim();
+
+      return !CLOSED_WORLD_PREPOSITIONAL_CONTEXT.test(prefix);
+    });
+  });
+}
+
+function sourcePronounAuthority(
+  text: string,
+  envelope: RealityEnvelope,
+): boolean {
+  const source = wholeSourceCorpus(envelope).toLowerCase();
+  const pronouns = clean(text)
+    .toLowerCase()
+    .match(/\b(?:he|him|his|she|her|hers)\b/g) ?? [];
+
+  return pronouns.every((pronoun) =>
+    new RegExp(\`\\b\${pronoun}\\b\`, "i").test(source),
+  );
+}
+
+function relationReferenceViolations(input: {
+  text: string;
+  allowedConcrete: readonly string[];
+  allowedMeaning: Set<string>;
+}): string[] {
+  const violations: string[] = [];
+  const seen = new Set<string>();
+
+  const inspect = (raw: string) => {
+    const value = clean(raw);
+    if (!value) return;
+
+    const key = value.toLowerCase();
+    if (seen.has(key)) return;
+    seen.add(key);
+
+    const parts = referenceTokens(value);
+    if (!parts.size) return;
+
+    if (
+      [...parts].every(
+        (token) =>
+          input.allowedMeaning.has(token) ||
+          semanticFrameToken(token),
+      )
+    ) {
+      return;
+    }
+
+    if (!referenceMatches(value, input.allowedConcrete)) {
+      violations.push(value);
+    }
+  };
+
+  for (const match of input.text.matchAll(CLOSED_WORLD_RELATION_TARGET)) {
+    inspect(match[1] ?? "");
+  }
+
+  for (const match of input.text.matchAll(CLOSED_WORLD_DETERMINED_REFERENCE)) {
+    inspect(match[1] ?? "");
+  }
+
+  for (const match of input.text.matchAll(CLOSED_WORLD_POSSESSOR)) {
+    inspect(match[1] ?? "");
+  }
+
+  return violations;
+}
+
+function closedWorldParticipantViolation(
+  text: string,
+  beat: MouthCandidateBeat | undefined,
+  envelope: RealityEnvelope,
+): string | undefined {
+  const authority = beat?.realizationAuthority;
+  if (!authority) return undefined;
+
+  const value = clean(text);
+  if (!value) return undefined;
+
+  if (
+    CLOSED_WORLD_PRONOUN.test(value) &&
+    !sourcePronounAuthority(value, envelope)
+  ) {
+    return "unsupplied-pronoun-participant";
+  }
+
+  const actors = [
+    envelope.subject,
+    ...authority.reality.entities,
+  ].filter(Boolean);
+
+  const directObjects = directScopedObjects(
+    beat,
+    envelope,
+  );
+
+  const places = scopedPlaces(
+    beat,
+    envelope,
+  );
+
+  const allowedConcrete = [
+    ...actors,
+    ...directObjects,
+    ...places,
+  ];
+
+  const allowedMeaning = tokens(
+    authorityMeaningCorpus(beat),
+  );
+
+  const relationViolations =
+    relationReferenceViolations({
+      text: value,
+      allowedConcrete,
+      allowedMeaning,
+    });
+
+  if (relationViolations.length) {
+    return \`unsupplied-concrete-reference:\${relationViolations.join(",")}\`;
+  }
+
+  const subjectMatch =
+    value.match(
+      CLOSED_WORLD_LEADING_SUBJECT,
+    );
+
+  if (!subjectMatch) {
+    const standalone = value
+      .replace(/[.!?]+$/g, "")
+      .trim();
+
+    const standaloneTokens =
+      referenceTokens(standalone);
+
+    if (
+      standaloneTokens.size > 0 &&
+      standaloneTokens.size <= 3 &&
+      /^[A-Z][A-Za-z0-9'’ -]*$/.test(standalone) &&
+      !referenceMatches(
+        standalone,
+        allowedConcrete,
+      ) &&
+      ![...standaloneTokens].every(
+        (token) =>
+          allowedMeaning.has(token) ||
+          semanticFrameToken(token),
+      )
+    ) {
+      return \`unsupplied-concrete-reference:\${standalone}\`;
+    }
+
+    return undefined;
+  }
+
+  const subjectPhrase = clean(
+    subjectMatch[1],
+  );
+
+  if (!subjectPhrase) return undefined;
+
+  if (
+    referenceMatches(
+      subjectPhrase,
+      actors,
+    )
+  ) {
+    return undefined;
+  }
+
+  const metaphoricalConcrete =
+    referenceMatches(
+      subjectPhrase,
+      [
+        ...directObjects,
+        ...places,
+      ],
+    );
+
+  if (metaphoricalConcrete) {
+    const concreteAgency =
+      CONCRETE_CLAIM.test(value) ||
+      EXTERNAL_STATE_CLAIM.test(value) ||
+      BODY.test(value);
+
+    return concreteAgency
+      ? \`context-promoted-to-factual-actor:\${subjectPhrase}\`
+      : undefined;
+  }
+
+  const subjectTokens =
+    referenceTokens(subjectPhrase);
+
+  if (
+    subjectTokens.size &&
+    [...subjectTokens].every(
+      (token) =>
+        allowedMeaning.has(token) ||
+        semanticFrameToken(token),
+    )
+  ) {
+    return undefined;
+  }
+
+  return \`unsupplied-participant:\${subjectPhrase}\`;
+}
+
 function concreteAuthorityViolation(
   text: string,
   beat: MouthCandidateBeat | undefined,
@@ -525,6 +819,15 @@ function concreteAuthorityViolation(
 
   const allowedReality = tokens(authorityRealityCorpus(beat, envelope));
   const allowedMeaning = tokens(authorityMeaningCorpus(beat));
+  const participantViolation = closedWorldParticipantViolation(
+    value,
+    beat,
+    envelope,
+  );
+
+  if (participantViolation) {
+    return participantViolation;
+  }
   const unknownRealityTokens = significant.filter(
     (token) =>
       !allowedReality.has(token) &&
