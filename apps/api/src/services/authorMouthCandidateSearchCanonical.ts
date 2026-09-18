@@ -627,11 +627,11 @@ function buildSystemPrompt(): string {
     "When one approved beat contains several evidence events, realize what those events mean together. Do not serialize them into a checklist just because they were parsed separately.",
     "Do not label the conclusion when the viewer can infer it. Prefer implication, collision, callback, status, rhythm, omission, and recontextualization over explanation.",
     "Use domain/business context as arena vocabulary and capability context only. It never establishes a person, participant, relationship, ownership, tenancy, audience, staff member, recipient, witness, or social role that was not supplied.",
-    "Generate exactly three materially different variants per beat by composing exactly three materially different WHOLE-SEQUENCE variants.",
-    "Each sequence variant must contain exactly one viewer-facing text for each approved beat, in approved order.",
-    "Compose each sequence variant as one connected experience. Later cuts may depend on earlier cuts.",
-    "Do not make three synonym sets. Vary the whole sequence's rhetorical shape, progression, callback, implication, or payoff.",
-    "Return JSON only.",
+    "Return exactly one viewer-facing line for each approved beat, in approved order.",
+    "Each line must realize its beat as language, not a factual report or explanation.",
+    "Compose the lines as one connected experience. Later lines may depend on earlier lines.",
+    "Use the supplied relation and viewer-state arc to make the short sequence feel authored.",
+    "Return plain text only: exactly one line per approved beat, with no JSON, markdown, labels, or numbering.",
   ].join("\n");
 }
 
@@ -708,8 +708,8 @@ export function buildMouthCandidateMessages(input: MouthCandidateGenerationInput
         priorCuts: input.priorTexts ?? [],
         beats,
         output: {
-          sequenceVariants:
-            "exactly 3 whole-sequence variants; each variant has texts containing exactly one viewer-facing cut per approved beat, in order",
+          sequence:
+            `exactly ${input.beats.length} plain-text lines; one viewer-facing line per approved beat, in order`,
         },
       }),
     },
