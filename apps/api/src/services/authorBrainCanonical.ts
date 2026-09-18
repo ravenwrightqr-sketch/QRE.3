@@ -959,8 +959,17 @@ export function evaluateAuthorAuthorshipQuality(input: {
     (value) => value >= 0.58,
   ).length;
 
+  const candidateFactParadeRisk = input.candidates?.length
+    ? metric(
+        input.candidates.filter((candidate) =>
+          candidate.reasons.includes("fact-parade-like"),
+        ).length / Math.max(1, input.candidates.length),
+      )
+    : 0;
+
   const factParadeRisk = metric(
     Math.max(
+      candidateFactParadeRisk,
       texts.length >= 2
         ? highlySourceShapedCuts / Math.max(1, texts.length)
         : 0,
