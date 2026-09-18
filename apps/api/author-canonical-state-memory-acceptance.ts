@@ -136,6 +136,11 @@ const livingMemoryGraph = buildAuthorRealityGraph({
   ],
 });
 
+assert(
+  livingMemoryGraph.subject === "Our relationship",
+  `RealityGraph replaced the explicitly supplied Living Memory subject: ${JSON.stringify(livingMemoryGraph.subject)}`,
+);
+
 const livingMemoryMovies = searchUniversalMovieCandidates({
   graph: livingMemoryGraph,
   subject: "Our relationship",
@@ -147,12 +152,32 @@ const livingMemoryTheses = livingMemoryMovies.map((movie) =>
   deriveLatentStoryThesis(livingMemoryGraph, movie),
 );
 
+const expectationThesis = livingMemoryTheses.find(
+  (thesis) =>
+    thesis.semanticRealization?.mechanism === "expectation_shift",
+);
+
 assert(
-  livingMemoryTheses.some(
-    (thesis) =>
-      thesis.semanticRealization?.mechanism === "expectation_shift",
-  ),
+  expectationThesis,
   `Living Memory intake failed to discover the supplied expectation collision: ${JSON.stringify(livingMemoryTheses)}`,
+);
+
+const expectationEvent = livingMemoryGraph.events.find((event) =>
+  /didn'?t expect/i.test(event.label),
+);
+
+assert(
+  expectationEvent &&
+    expectationThesis.semanticRealization?.afterEventIds.includes(expectationEvent.id),
+  `Narration-final expectation cue did not recontextualize the earlier supplied event: ${JSON.stringify({
+    events: livingMemoryGraph.events,
+    semantic: expectationThesis.semanticRealization,
+  })}`,
+);
+
+assert(
+  expectationThesis.semanticRealization?.subject === "Our relationship",
+  `Semantic discovery guessed a different subject instead of preserving the supplied QRE identity: ${JSON.stringify(expectationThesis.semanticRealization)}`,
 );
 
 const livingMemoryBatch = buildExperienceMemoryBatch({
