@@ -766,21 +766,25 @@ const selectedEvidenceIds = new Set(
 
 const selectedActionMechanics =
   selectedEvidenceIds.size
-    ? actionMechanics
-        .map((mechanic) => {
-          const overlapCount =
-            mechanic.evidenceEventIds.filter((id) =>
-              selectedEvidenceIds.has(id),
-            ).length;
+    ? actionMechanics.flatMap((mechanic) => {
+        const overlapCount =
+          mechanic.evidenceEventIds.filter((id) =>
+            selectedEvidenceIds.has(id),
+          ).length;
 
-          const evidenceSupport =
-            overlapCount /
-            Math.max(
-              1,
-              mechanic.evidenceEventIds.length,
-            );
+        const evidenceSupport =
+          overlapCount /
+          Math.max(
+            1,
+            mechanic.evidenceEventIds.length,
+          );
 
-          return {
+        if (evidenceSupport < 0.5) {
+          return [];
+        }
+
+        return [
+          {
             ...mechanic,
             strength: metric(
               mechanic.strength *
@@ -791,19 +795,9 @@ const selectedActionMechanics =
               "selected-evidence-support:" +
                 evidenceSupport.toFixed(2),
             ],
-            evidenceSupport,
-          };
-        })
-        .filter(
-          (mechanic) =>
-            mechanic.evidenceSupport >= 0.5,
-        )
-        .map(
-          ({
-            evidenceSupport: _evidenceSupport,
-            ...mechanic
-          }) => mechanic,
-        )
+          },
+        ];
+      })
     : actionMechanics;
 
 const treatmentMechanics =
