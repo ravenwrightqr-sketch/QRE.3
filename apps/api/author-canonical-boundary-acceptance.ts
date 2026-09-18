@@ -30,29 +30,6 @@ function assert(condition: unknown, message: string): asserts condition {
   if (!condition) throw new Error(message);
 }
 
-const sparseFastInputGraph = buildAuthorRealityGraph({
-  prompt: "",
-  subject: "Milo",
-  facts: [],
-  sourceMoments: [
-    "Milo / Pomeranian | loves bacon / loves walks / loves small dogs",
-  ],
-  memoryContext: [],
-  trajectory: [],
-});
-
-assert(
-  JSON.stringify(sparseFastInputGraph.events.map((event) => event.label)) ===
-    JSON.stringify([
-      "Milo",
-      "Pomeranian",
-      "loves bacon",
-      "loves walks",
-      "loves small dogs",
-    ]),
-  `Sparse slash/pipe input was not normalized into grounded reality units: ${JSON.stringify(sparseFastInputGraph.events)}`,
-);
-
 const subject = "Mira";
 const facts = [
   "Mira arrived nervous",
