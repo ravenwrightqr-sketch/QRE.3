@@ -502,6 +502,10 @@ async function runCase(testCase: UniversalCase): Promise<{
   section("FINAL SCENES", result.scenes);
   section("PROVENANCE", trace.provenance);
   section("QUALITY SIGNALS", result.diagnostics.qualitySignals);
+  section(
+    "AUTHORSHIP QUALITY / VIEWER INFERENCE",
+    result.diagnostics.authorshipQuality,
+  );
   section("SOURCE REPLAY", result.diagnostics.sourceReplay);
   section("AUTHORSHIP / INFERENCE QUALITY", result.diagnostics.authorshipQuality);
   section("FINAL VERDICT", {
