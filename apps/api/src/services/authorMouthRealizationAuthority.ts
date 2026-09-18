@@ -43,7 +43,9 @@ const STATE_STATUS_TAGS = new Set([
 const STATE_STATUS_ACTION = /\b(?:approv(?:e|ed|es|ing)|accept(?:ed|s|ing)?|confirm(?:ed|s|ing)?|finish(?:ed|es|ing)?|complete(?:d|s|ing)?|fix(?:ed|es|ing)?|repair(?:ed|s|ing)?|restore(?:d|s|ing)?|renew(?:ed|s|ing)?|change(?:d|s|ing)?)\b/i;
 
 const DEFAULT_FORBIDDEN_MOVES = [
-  "Do not invent concrete physical facts, actions, body behavior, sensory details, environment, dialogue, entities, objects, chronology, or events.",
+  "Do not invent concrete physical facts, actions, body behavior, sensory details, environment, dialogue, entities, objects, chronology, events, participants, or relationships.",
+  "A contextual noun, venue, service, business type, destination, or role word does not become a participant or actor unless supplied as one.",
+  "Do not invent possessors, owners, occupants, recipients, witnesses, workers, audience members, staff, or social/commercial roles that were not supplied.",
   "Do not substitute supplied concrete objects with different concrete objects.",
   "Do not downgrade supplied concrete specificity into generic object language.",
   "Do not treat lens, genre, status, attitude, or implication as new source evidence.",
