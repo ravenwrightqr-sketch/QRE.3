@@ -5,6 +5,7 @@ import type {
   RealityRelation,
   RealityPattern,
 } from "@qre/contracts";
+import type { AuthorActionMechanic } from "./authorActionMechanics.js";
 
 /**
  * ONE universal movie search.
@@ -1061,14 +1062,40 @@ function addTrajectoryCandidate(
   ids: readonly string[],
   lens?: string,
   subject?: string,
+  mechanic?: AuthorActionMechanic,
 ): void {
   const built = buildTrajectory(graph, ids);
   if (!built.length) return;
+
+  const scored = scoreCandidate(
+    graph,
+    built,
+    lens,
+    subject,
+  );
+
   candidates.push({
     id,
     lens: clean(lens) || "NONE",
     distinctiveness: 0,
-    ...scoreCandidate(graph, built, lens, subject),
+    ...scored,
+    hypothesis: mechanic
+      ? [
+          ...scored.hypothesis,
+          "Grounded action mechanic: " +
+            mechanic.kind +
+            ". " +
+            mechanic.reason,
+          "Mechanic evidence: " +
+            mechanic.evidenceEventIds.join(", "),
+        ].slice(0, 8)
+      : scored.hypothesis,
+    score: mechanic
+      ? metric(
+          scored.score * 0.86 +
+            mechanic.strength * 0.14,
+        )
+      : scored.score,
   });
 }
 
@@ -1077,6 +1104,7 @@ export function searchUniversalMovieCandidates(input: {
   subject?: string;
   lens?: string;
   limit?: number;
+  mechanics?: readonly AuthorActionMechanic[];
 }): LatentMovieCandidate[] {
   const limit = Math.max(3, Math.min(12, input.limit ?? 8));
   const sourceIds = input.graph.events
@@ -1108,6 +1136,29 @@ export function searchUniversalMovieCandidates(input: {
       input.subject,
     );
   }
+
+  /*
+   * Mechanics are evidence-backed ways of organizing supplied reality.
+   * They compete as candidate trajectories before any creative lens is
+   * applied. A mechanic may change how the events are experienced, never
+   * which events occurred.
+   */
+  (input.mechanics ?? [])
+    .slice(0, 8)
+    .forEach((mechanic, index) => {
+      addTrajectoryCandidate(
+        candidates,
+        input.graph,
+        "movie-mechanic-" +
+          mechanic.kind +
+          "-" +
+          String(index + 1),
+        mechanic.evidenceEventIds,
+        input.lens,
+        input.subject,
+        mechanic,
+      );
+    });
 
   const stateIds = connectedIds.length >= 1 ? connectedIds : sourceIds;
   const state = statePair(input.graph, stateIds);
