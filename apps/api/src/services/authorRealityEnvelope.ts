@@ -254,9 +254,14 @@ export function buildAuthorRealityEnvelope(input: {
    */
   const suppliedParticipants = unique([
     subject,
-    ...(graph.eventStructure ?? []).flatMap(
-      (structure) => structure.subjects ?? [],
-    ),
+    /*
+     * Do not inherit participant authority from generic entity extraction or
+     * capitalization. A venue, business, destination, object, or contextual
+     * noun may be present in reality without becoming an actor.
+     *
+     * Participant authority comes only from the configured QRE subject or an
+     * explicitly acting phrase in the supplied event wording.
+     */
     ...eventLabels
       .map(explicitParticipantPhrase)
       .filter(Boolean),
