@@ -19,6 +19,10 @@ import {
   rankLensOpportunities,
 } from "./authorCharacterLensEngine.js";
 import { buildAuthorWorldSimulation } from "./authorWorldSimulation.js";
+import {
+  deriveAuthorActionMechanics,
+  type AuthorActionMechanic,
+} from "./authorActionMechanics.js";
 
 export type AuthorCognitionInput = {
   prompt: string;
@@ -67,6 +71,7 @@ export type AuthorCognitivePlan = {
   chosenAttentionStrategy: string;
   attentionCandidates: AttentionCandidate[];
   characterRead: CharacterRead;
+  actionMechanics: AuthorActionMechanic[];
   latentMovieCandidates: LatentMovieCandidate[];
   selectedMovie?: LatentMovieCandidate;
   experienceState?: AuthorExperienceState;
@@ -271,6 +276,7 @@ function enrichMovieCandidate(
  */
 function autoLensCandidates(
   input: AuthorCognitionInput,
+  mechanics: readonly AuthorActionMechanic[] = [],
 ): CharacterFrameCandidate[] {
   if (!input.realityGraph) {
     return [
@@ -291,6 +297,7 @@ function autoLensCandidates(
 
   return rankLensOpportunities(
     envelope,
+    mechanics,
   ).map((candidate) => ({
     frame: candidate.frame,
     reason: candidate.reason,
@@ -300,6 +307,7 @@ function autoLensCandidates(
 
 function resolveLens(
   input: AuthorCognitionInput,
+  mechanics: readonly AuthorActionMechanic[] = [],
 ): string {
   const explicit =
     clean(input.lens);
@@ -313,7 +321,7 @@ function resolveLens(
   }
 
   return (
-    autoLensCandidates(input)[0]
+    autoLensCandidates(input, mechanics)[0]
       ?.frame ?? "NONE"
   );
 }
@@ -335,6 +343,7 @@ function resolveLens(
 function movieFor(
   input: AuthorCognitionInput,
   priorExperienceStates: readonly AuthorExperienceState[],
+  mechanics: readonly AuthorActionMechanic[],
 ): {
   latentMovieCandidates: LatentMovieCandidate[];
   selectedMovie?: LatentMovieCandidate;
@@ -390,6 +399,7 @@ function movieFor(
       subject: input.subject,
       lens: discoveryLens,
       limit: 10,
+      mechanics,
     });
 
   const enriched =
@@ -494,6 +504,7 @@ function frames(
     | LatentMovieCandidate
     | undefined,
   selectedLens: string,
+  mechanics: readonly AuthorActionMechanic[],
 ): CharacterFrameCandidate[] {
   const explicit =
     clean(input.lens);
@@ -514,7 +525,10 @@ function frames(
   }
 
   const automatic =
-    autoLensCandidates(input);
+    autoLensCandidates(
+      input,
+      mechanics,
+    );
 
   if (
     automatic[0]?.frame ===
@@ -726,10 +740,19 @@ const priorExperienceStates =
     input.priorStrategies,
   );
 
+const actionMechanics =
+  input.realityGraph
+    ? deriveAuthorActionMechanics(
+        input.realityGraph,
+        input.subject,
+      )
+    : [];
+
 const movie =
   movieFor(
     input,
     priorExperienceStates,
+    actionMechanics,
   );
 
 /*
@@ -738,7 +761,10 @@ const movie =
  * been discovered without lens influence.
  */
 const selectedLens =
-  resolveLens(input);
+  resolveLens(
+    input,
+    actionMechanics,
+  );
 
   const experienceState =
     input.realityGraph &&
@@ -826,6 +852,7 @@ const selectedLens =
         input,
         selectedMovie,
         selectedLens,
+        actionMechanics,
       ),
 
     allowedMoves: [
@@ -927,6 +954,24 @@ const selectedLens =
       `MODE: ${chosen}`,
       frameSummary,
       graphSummary,
+      ...(actionMechanics.length
+        ? [
+            "ACTION MECHANICS (INTERPRETIVE, NOT FACTS): " +
+              actionMechanics
+                .slice(0, 8)
+                .map(
+                  (item) =>
+                    item.kind +
+                    "=" +
+                    item.strength.toFixed(2) +
+                    "[" +
+                    item.evidenceEventIds.join(",") +
+                    "]",
+                )
+                .join(" | "),
+            "Mechanics may shape movie search and treatment only. They never become concrete-world claims.",
+          ]
+        : []),
       ...(domainContext.length
         ? [
             `DOMAIN CONTEXT (CONTEXT ONLY, NOT OCCURRENCE EVIDENCE): ${domainContext.join(" | ")}`,
@@ -954,6 +999,8 @@ const selectedLens =
     attentionCandidates,
 
     characterRead,
+
+    actionMechanics,
 
     latentMovieCandidates:
       movie.latentMovieCandidates,
