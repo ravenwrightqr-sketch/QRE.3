@@ -299,6 +299,13 @@ function relationSetFor(beat: MouthCandidateBeat): AuthorMetamorphicRelationSet 
 export function buildMouthRealizationAuthority(input: {
   beat: MouthCandidateBeat;
   envelope: RealityEnvelope;
+  treatment?: {
+    label?: string;
+    intensity?: number;
+    framingBias?: readonly string[];
+    realizationPreferences?: readonly string[];
+    forbiddenRealityMoves?: readonly string[];
+  };
 }): MouthRealizationAuthority {
   const { beat, envelope } = input;
   const eventIds = beatEventIds(beat);
@@ -349,8 +356,22 @@ export function buildMouthRealizationAuthority(input: {
     permittedRealizationModes,
     inferenceBudget: inferenceBudgetFor(beat),
     creativeMoves: permittedRealizationModes,
+    treatment: input.treatment
+      ? {
+          label: clean(input.treatment.label) || "NONE",
+          intensity: Number(input.treatment.intensity ?? 0),
+          framingBias: unique(input.treatment.framingBias ?? []),
+          realizationPreferences: unique(
+            input.treatment.realizationPreferences ?? [],
+          ),
+          forbiddenRealityMoves: unique(
+            input.treatment.forbiddenRealityMoves ?? [],
+          ),
+        }
+      : undefined,
     forbiddenMoves: unique([
       ...(beat.forbiddenMoves ?? []),
+      ...(input.treatment?.forbiddenRealityMoves ?? []),
       ...DEFAULT_FORBIDDEN_MOVES,
     ]),
     evidenceEventIds: unique([
