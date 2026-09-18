@@ -179,6 +179,47 @@ assert(
   `The supplied expectation was incorrectly treated as an occurrence or lost: ${JSON.stringify(livingMemoryBatch.facts)}`,
 );
 
+const openWorldGraph = buildAuthorRealityGraph({
+  prompt:
+    "Aster found the zenthra coil, the zenthra coil was broken, Aster fixed the zenthra coil",
+  subject: "Aster",
+  facts: [],
+  sourceMoments: [
+    "Aster found the zenthra coil",
+    "the zenthra coil was broken",
+    "Aster fixed the zenthra coil",
+  ],
+});
+
+assert(
+  openWorldGraph.eventStructure?.some(
+    (item) =>
+      item.objects.some((value) =>
+        /zenthra|coil/i.test(value),
+      ),
+  ),
+  `Open-world object extraction failed for an unknown noun: ${JSON.stringify(openWorldGraph.eventStructure)}`,
+);
+
+const openWorldMovies = searchUniversalMovieCandidates({
+  graph: openWorldGraph,
+  subject: "Aster",
+  lens: "NONE",
+  limit: 8,
+});
+
+const openWorldTheses = openWorldMovies.map((movie) =>
+  deriveLatentStoryThesis(openWorldGraph, movie),
+);
+
+assert(
+  openWorldTheses.some(
+    (thesis) =>
+      (thesis.semanticRealization?.evidenceEventIds.length ?? 0) >= 2,
+  ),
+  `Unknown real-world nouns could not participate in semantic discovery: ${JSON.stringify(openWorldTheses)}`,
+);
+
 const graph = buildAuthorRealityGraph({
   prompt: "Write a QRE-style living memory.",
   subject,
