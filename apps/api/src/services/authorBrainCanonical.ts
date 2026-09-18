@@ -878,6 +878,7 @@ export type AuthorAuthorshipQuality = {
   sourceContentCoverage: number;
   semanticRealizationCoverage: number;
   viewerUpdateScore: number;
+  inferenceSpaceScore: number;
   stagnantCutRisk: number;
   factParadeRisk: number;
   trivialTransformationRisk: number;
@@ -1061,6 +1062,20 @@ export function evaluateAuthorAuthorshipQuality(input: {
           : 0.3,
       );
 
+  const inferenceSpaceScore = viewerStates.length
+    ? metric(
+        viewerStates.reduce(
+          (sum, state) =>
+            sum + Number(state.inferenceSpace ?? 0),
+          0,
+        ) / viewerStates.length,
+      )
+    : metric(
+        input.movie?.storyThesis?.semanticRealization
+          ? 0.52
+          : 0.28,
+      );
+
   const stagnantCutRisk = viewerStates.length
     ? metric(
         viewerStates.filter(
@@ -1079,13 +1094,14 @@ export function evaluateAuthorAuthorshipQuality(input: {
    * restating or connecting facts.
    */
   const meaningfulInferenceScore = metric(
-    semanticRealizationCoverage * 0.34 +
-    viewerUpdateScore * 0.24 +
-    (1 - stagnantCutRisk) * 0.08 +
-    (1 - factParadeRisk) * 0.12 +
-    (1 - trivialTransformationRisk) * 0.08 +
-    (1 - semanticUnderRealizationRisk) * 0.08 +
-    (1 - explanatoryLabelRisk) * 0.06,
+    semanticRealizationCoverage * 0.3 +
+    viewerUpdateScore * 0.22 +
+    inferenceSpaceScore * 0.14 +
+    (1 - stagnantCutRisk) * 0.07 +
+    (1 - factParadeRisk) * 0.1 +
+    (1 - trivialTransformationRisk) * 0.06 +
+    (1 - semanticUnderRealizationRisk) * 0.06 +
+    (1 - explanatoryLabelRisk) * 0.05,
   );
 
   const score = metric(
@@ -1122,6 +1138,12 @@ export function evaluateAuthorAuthorshipQuality(input: {
   ) {
     reasons.push("weak-viewer-update");
   }
+  if (
+    input.movie?.storyThesis?.semanticRealization &&
+    inferenceSpaceScore < 0.34
+  ) {
+    reasons.push("weak-inference-space");
+  }
 
   const accepted =
     score >= 0.54 &&
@@ -1133,7 +1155,10 @@ export function evaluateAuthorAuthorshipQuality(input: {
     stagnantCutRisk < 0.75 &&
     (
       !input.movie?.storyThesis?.semanticRealization ||
-      viewerUpdateScore >= 0.4
+      (
+        viewerUpdateScore >= 0.4 &&
+        inferenceSpaceScore >= 0.34
+      )
     );
 
   return {
@@ -1141,6 +1166,7 @@ export function evaluateAuthorAuthorshipQuality(input: {
     sourceContentCoverage,
     semanticRealizationCoverage,
     viewerUpdateScore,
+    inferenceSpaceScore,
     stagnantCutRisk,
     factParadeRisk,
     trivialTransformationRisk,
@@ -1844,6 +1870,7 @@ export async function authorBrainCanonical(
         subjectPrefixRisk: authorshipQuality.subjectPrefixRisk,
         semanticRealizationCoverage: authorshipQuality.semanticRealizationCoverage,
         viewerUpdateScore: authorshipQuality.viewerUpdateScore,
+        inferenceSpaceScore: authorshipQuality.inferenceSpaceScore,
         stagnantCutRisk: authorshipQuality.stagnantCutRisk,
         semanticUnderRealizationRisk: authorshipQuality.semanticUnderRealizationRisk,
         explanatoryLabelRisk: authorshipQuality.explanatoryLabelRisk,
