@@ -1586,6 +1586,12 @@ export async function authorBrainCanonical(
     "unknown";
   let modelCalls = 0;
   let pools: MouthCandidatePool[] = [];
+  /*
+   * Cognition may approve a single compressed recognition even when the
+   * planning trajectory contains supporting beats. That is a valid authored
+   * realization, not a missing-cut failure.
+   */
+  let realizationBeats: MouthCandidateBeat[] = beats;
   let rawSequenceVariants: string[][] = [];
   let rawMouthOutput = "";
   let mouthParseAccepted = false;
@@ -1625,7 +1631,19 @@ export async function authorBrainCanonical(
 
     if (parsed) {
       rawSequenceVariants = parsed.sequenceVariants ?? [];
-      pools = beats.map((beat) => ({
+      if (rawSequenceVariants[0]?.length === 1 && beats.length > 1) {
+        const terminal = beats[beats.length - 1];
+        realizationBeats = [{
+          ...terminal,
+          order: 1,
+          role: "payoff",
+          eventIds: [...new Set(beats.flatMap((beat) => beat.eventIds ?? []))],
+          change: clean(terminal.change) || "the approved meaning lands",
+          next: clean(terminal.next),
+          frontier: clean(terminal.frontier),
+        }];
+      }
+      pools = realizationBeats.map((beat) => ({
         order: beat.order,
         viewerState: beat.viewerState,
         nextPromise: clean(beat.next),
@@ -1669,7 +1687,7 @@ export async function authorBrainCanonical(
   }
 
   let recoveryUsed = false;
-  const usablePools = beats.map((beat) => {
+  const usablePools = realizationBeats.map((beat) => {
         const generatedPool = pools.find((pool) => pool.order === beat.order);
         const hasAuthorizedCandidate =
           generatedPool?.candidates.some(isAuthorizedMouthCandidate) ?? false;
@@ -1711,18 +1729,18 @@ export async function authorBrainCanonical(
       candidatesPerBeat: 8,
     });
 
-  const sequence = makeSequence(selected, beats, subject, movie);
+  const sequence = makeSequence(selected, realizationBeats, subject, movie);
 
   const attention = editAttentionSequence({
     beats: selected.candidates.map((candidate, index) => ({
       order: index + 1,
-      role: beats[index]?.role,
-      gainKind: gainKindForBeat(beatAt(beats, index), index, selected.candidates.length),
+      role: realizationBeats[index]?.role,
+      gainKind: gainKindForBeat(beatAt(realizationBeats, index), index, selected.candidates.length),
       text: candidate.text,
-      sourceIds: [...(beats[index]?.eventIds ?? [])],
-      attentionFunction: beats[index]?.attentionFunction,
-      next: beats[index]?.next,
-      frontier: beats[index]?.frontier,
+      sourceIds: [...(realizationBeats[index]?.eventIds ?? [])],
+      attentionFunction: realizationBeats[index]?.attentionFunction,
+      next: realizationBeats[index]?.next,
+      frontier: realizationBeats[index]?.frontier,
       setsUp: [],
       paysOff:
         index === selected.candidates.length - 1 ? [movie.payoff] : [],
@@ -1735,13 +1753,13 @@ export async function authorBrainCanonical(
       ? evaluateSequenceArc(
           selected.candidates.map((candidate, index) => ({
             order: index + 1,
-            role: beats[index]?.role,
-            attentionFunction: beats[index]?.attentionFunction,
-            creativeMove: beats[index]?.creativeMove,
+            role: realizationBeats[index]?.role,
+            attentionFunction: realizationBeats[index]?.attentionFunction,
+            creativeMove: realizationBeats[index]?.creativeMove,
             text: candidate.text,
-            change: beats[index]?.change,
-            next: beats[index]?.next,
-            frontier: beats[index]?.frontier,
+            change: realizationBeats[index]?.change,
+            next: realizationBeats[index]?.next,
+            frontier: realizationBeats[index]?.frontier,
             setsUp: [],
             paysOff:
               index === selected.candidates.length - 1 ? [movie.payoff] : [],
@@ -1766,7 +1784,7 @@ export async function authorBrainCanonical(
     movie,
     subject,
     candidates: selected.candidates,
-    beats,
+    beats: realizationBeats,
   });
 
   /*
@@ -1778,7 +1796,7 @@ export async function authorBrainCanonical(
   );
   const complete =
     scenes.length >= 1 &&
-    scenes.length === beats.length &&
+    scenes.length === realizationBeats.length &&
     scenes.length === sequence.cuts.length &&
     sequenceSourcesComplete &&
     attention.accepted === true &&
@@ -1799,6 +1817,7 @@ export async function authorBrainCanonical(
   if (process.env.QRE_AUTHOR_DEBUG_MOVIE === "true") {
     console.log("\n--- QRE AUTHOR COMPLETENESS ---");
     console.log(`semanticBeatCount=${beats.length}`);
+    console.log(`realizationBeatCount=${realizationBeats.length}`);
     console.log(`sceneCount=${scenes.length}`);
     console.log(`sequenceCutCount=${sequence.cuts.length}`);
     console.log(`sequenceSourcesComplete=${sequenceSourcesComplete}`);
