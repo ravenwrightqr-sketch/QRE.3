@@ -296,12 +296,16 @@ function semanticUnitParadeRisk(
     const fragmentTokens = meaningfulTokens(fragment);
     if (!fragmentTokens.size) return false;
 
-    return currentRealityLabels.some((label) =>
-      overlap(
-        fragmentTokens,
-        meaningfulTokens(label),
-      ) >= 0.72,
-    );
+    return currentRealityLabels.some((label) => {
+      const labelTokens = meaningfulTokens(label);
+      if (!labelTokens.size) return false;
+
+      const contained = [...fragmentTokens].filter((token) =>
+        labelTokens.has(token),
+      ).length / Math.max(1, fragmentTokens.size);
+
+      return contained >= 0.72;
+    });
   }).length;
 
   const fragmentParadeRatio = metric(
