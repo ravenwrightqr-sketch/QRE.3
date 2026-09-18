@@ -305,6 +305,37 @@ assert(
   })}`,
 );
 
+const miloViewerStates = miloBeats.map(
+  (candidateBeat, index, allBeats) =>
+    deriveViewerStateCut(
+      candidateBeat,
+      index,
+      allBeats,
+      miloEnvelope,
+    ),
+);
+
+assert(
+  miloViewerStates.every(
+    (state) =>
+      Boolean(state.inferenceBefore) &&
+      Boolean(state.inferenceAfter) &&
+      Number(state.inferenceSpace ?? 0) > 0 &&
+      Number(state.groundingConfidence ?? 0) > 0,
+  ),
+  `Viewer inference state was not derived from grounded semantic evidence: ${JSON.stringify(miloViewerStates)}`,
+);
+
+assert(
+  miloViewerStates.every(
+    (state) =>
+      state.evidenceEventIds.every((id) =>
+        miloGraph.events.some((event) => event.id === id),
+      ),
+  ),
+  `Viewer inference state escaped supplied event authority: ${JSON.stringify(miloViewerStates)}`,
+);
+
 const factParadeQuality = evaluateAuthorAuthorshipQuality({
   texts: [
     "Walks. Bacon. Small dogs.",
@@ -353,6 +384,7 @@ assert(
 
 const miloSemanticBeat = {
   ...miloBeats[0]!,
+  viewerState: miloViewerStates[0],
 };
 miloSemanticBeat.realizationAuthority =
   buildMouthRealizationAuthority({
