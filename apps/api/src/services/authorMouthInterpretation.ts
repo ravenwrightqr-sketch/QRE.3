@@ -1571,12 +1571,6 @@ if (authorityConcreteRisk > 0 || concreteAuthorityFailure) {
     );
   }
 
-  if (unsupportedRelationRoles.length > 0) {
-    reasons.push(
-      `unsupplied-concrete-relationship-role:${unsupportedRelationRoles.join(",")}`,
-    );
-  }
-
   if (
     authorityConcreteRisk > 0
   ) {
