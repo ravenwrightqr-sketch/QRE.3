@@ -413,7 +413,19 @@ assert(
   "Universal movie search invented event IDs.",
 );
 
-const selectedMovie = movieCandidates[0]!;
+const selectedMovieBase = movieCandidates[0]!;
+const selectedMovie = {
+  ...selectedMovieBase,
+  storyThesis: deriveLatentStoryThesis(
+    graph,
+    selectedMovieBase,
+  ),
+};
+
+assert(
+  selectedMovie.storyThesis.semanticRealization,
+  "Canonical movie enrichment did not attach semantic realization before persistence.",
+);
 
 const heistBrief = buildCreativeLensBrief({
   lens: "heist",
