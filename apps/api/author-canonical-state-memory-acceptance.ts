@@ -126,6 +126,59 @@ assert(
   "Late lens treatment was not preserved after lens-neutral movie discovery.",
 );
 
+const livingMemoryGraph = buildAuthorRealityGraph({
+  prompt:
+    "We met at The Underground, hit it off right away, didn't expect it",
+  subject: "Our relationship",
+  facts: [],
+  sourceMoments: [
+    "We met at The Underground, hit it off right away, didn't expect it",
+  ],
+});
+
+const livingMemoryMovies = searchUniversalMovieCandidates({
+  graph: livingMemoryGraph,
+  subject: "Our relationship",
+  lens: "NONE",
+  limit: 8,
+});
+
+const livingMemoryTheses = livingMemoryMovies.map((movie) =>
+  deriveLatentStoryThesis(livingMemoryGraph, movie),
+);
+
+assert(
+  livingMemoryTheses.some(
+    (thesis) =>
+      thesis.semanticRealization?.mechanism === "expectation_shift",
+  ),
+  `Living Memory intake failed to discover the supplied expectation collision: ${JSON.stringify(livingMemoryTheses)}`,
+);
+
+const livingMemoryBatch = buildExperienceMemoryBatch({
+  operationId: "living-memory-day-one",
+  assetId: "asset-living-memory",
+  graph: livingMemoryGraph,
+  subject: "Our relationship",
+  subjectKind: "relationship",
+  source: "prompt",
+  observedAt: "2026-09-17T12:00:00.000Z",
+});
+
+assert(
+  livingMemoryBatch.events.some((event) => /met at The Underground/i.test(event.summary)),
+  "The supplied meeting occurrence was not persisted as history.",
+);
+
+assert(
+  livingMemoryBatch.facts.some(
+    (fact) =>
+      fact.predicate === "supplied_context" &&
+      /didn'?t expect/i.test(fact.value),
+  ),
+  `The supplied expectation was incorrectly treated as an occurrence or lost: ${JSON.stringify(livingMemoryBatch.facts)}`,
+);
+
 const graph = buildAuthorRealityGraph({
   prompt: "Write a QRE-style living memory.",
   subject,
