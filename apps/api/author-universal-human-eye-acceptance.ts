@@ -1,4 +1,7 @@
-import type { AuthorDomainContext } from "@qre/contracts";
+import type {
+  AuthorDomainContext,
+  AuthorPlayoutMode,
+} from "@qre/contracts";
 import { authorBrainCanonical } from "./src/services/authorBrainCanonical.js";
 
 type UniversalCase = {
@@ -9,6 +12,7 @@ type UniversalCase = {
   sourceMoments: string[];
   memoryContext?: string[];
   lens?: string;
+  playoutMode?: AuthorPlayoutMode;
   returning?: boolean;
   visitNumber?: number;
   domainContext?: AuthorDomainContext;
@@ -60,6 +64,45 @@ const CASES: UniversalCase[] = [
       contextualSignals: [
         "service completion can be sent as a moving receipt or QRE experience",
       ],
+    },
+  },
+  {
+    id: "service-receipt",
+    label: "HOUSEKEEPING OPERATIONAL RECEIPT",
+    subject: "Current housekeeping service",
+    facts: [],
+    sourceMoments: [
+      "cleaned kitchen",
+      "cleaned bathrooms",
+      "done",
+    ],
+    playoutMode: "operational",
+    domainContext: {
+      category: "business",
+      businessType: "housekeeping",
+      serviceType: "housekeeping",
+      serviceName: "cleaning service",
+      subjectKind: "service job",
+    },
+  },
+  {
+    id: "service-noir",
+    label: "HOUSEKEEPING EXPERIENCE FROM SAME REALITY",
+    subject: "Current housekeeping service",
+    facts: [],
+    sourceMoments: [
+      "cleaned kitchen",
+      "cleaned bathrooms",
+      "done",
+    ],
+    playoutMode: "experience",
+    lens: "noir",
+    domainContext: {
+      category: "business",
+      businessType: "housekeeping",
+      serviceType: "housekeeping",
+      serviceName: "cleaning service",
+      subjectKind: "service job",
     },
   },
   {
@@ -181,13 +224,13 @@ async function runCase(testCase: UniversalCase): Promise<{
     prompt: PROMPT,
     lens: testCase.lens ?? "let qre decide",
     subject: testCase.subject,
-    movieMode: true,
+    movieMode: testCase.playoutMode === "operational" ? false : true,
     returning: testCase.returning,
     visitNumber: testCase.visitNumber,
     facts: testCase.facts,
     sourceMoments: testCase.sourceMoments,
     domainContext: testCase.domainContext,
-    playoutMode: "experience",
+    playoutMode: testCase.playoutMode ?? "experience",
     memoryContext: testCase.memoryContext ?? [],
     trajectory: [],
     creativeLearningContext: [
@@ -208,10 +251,17 @@ async function runCase(testCase: UniversalCase): Promise<{
   const composedBeats = list(trace.composedBeats);
   const failures: string[] = [];
 
+  const operational =
+    (testCase.playoutMode ?? "experience") === "operational";
+
   check(
     failures,
-    result.diagnostics.modelCalls === 1,
-    `Expected exactly one Mouth model call; got ${result.diagnostics.modelCalls}.`,
+    operational
+      ? result.diagnostics.modelCalls === 0
+      : result.diagnostics.modelCalls === 1,
+    operational
+      ? `Operational receipt should use zero model calls; got ${result.diagnostics.modelCalls}.`
+      : `Expected exactly one Mouth model call; got ${result.diagnostics.modelCalls}.`,
   );
   check(failures, Object.keys(trace).length > 0, "Missing canonical diagnostics trace.");
   check(
@@ -219,41 +269,43 @@ async function runCase(testCase: UniversalCase): Promise<{
     list(reality.events).length > 0,
     "RealityGraph produced no usable reality.",
   );
-  check(
-    failures,
-    Object.keys(selectedThesis).length > 0,
-    "No selected story thesis / meaning.",
-  );
-  check(
-    failures,
-    Object.keys(semanticRealization).length > 0,
-    "Selected thesis has no semantic realization.",
-  );
-  check(
-    failures,
-    semanticEvidenceCount(trace) > 0,
-    "Semantic realization has no grounded evidence IDs.",
-  );
-  check(
-    failures,
-    Object.keys(lensBrief).length > 0,
-    "No downstream Creative Lens Brief.",
-  );
-  check(
-    failures,
-    composedBeats.length > 0,
-    "No composed semantic beats.",
-  );
-  check(
-    failures,
-    rawVariants.length > 0,
-    "Mouth returned no whole-sequence variants.",
-  );
-  check(
-    failures,
-    scoredCandidates.length > 0,
-    "No Mouth candidates were scored.",
-  );
+  if (!operational) {
+    check(
+      failures,
+      Object.keys(selectedThesis).length > 0,
+      "No selected story thesis / meaning.",
+    );
+    check(
+      failures,
+      Object.keys(semanticRealization).length > 0,
+      "Selected thesis has no semantic realization.",
+    );
+    check(
+      failures,
+      semanticEvidenceCount(trace) > 0,
+      "Semantic realization has no grounded evidence IDs.",
+    );
+    check(
+      failures,
+      Object.keys(lensBrief).length > 0,
+      "No downstream Creative Lens Brief.",
+    );
+    check(
+      failures,
+      composedBeats.length > 0,
+      "No composed semantic beats.",
+    );
+    check(
+      failures,
+      rawVariants.length > 0,
+      "Mouth returned no whole-sequence variants.",
+    );
+    check(
+      failures,
+      scoredCandidates.length > 0,
+      "No Mouth candidates were scored.",
+    );
+  }
   check(
     failures,
     result.scenes.length > 0,
@@ -266,14 +318,29 @@ async function runCase(testCase: UniversalCase): Promise<{
   );
   check(
     failures,
-    result.diagnostics.authored === true,
-    "Final experience is truth-safe but materially source replay / not authored.",
+    operational
+      ? result.diagnostics.authored === false
+      : result.diagnostics.authored === true,
+    operational
+      ? "Operational receipt must remain factual rather than claim creative authorship."
+      : "Final experience is truth-safe but materially source replay / not authored.",
   );
   check(
     failures,
     result.diagnostics.qualityStatus === "ACCEPTED",
     `Quality verdict was ${result.diagnostics.qualityStatus}, not ACCEPTED.`,
   );
+
+  if (testCase.id.startsWith("service-")) {
+    const visible = result.scenes
+      .map((scene) => scene.text)
+      .join(" ");
+    check(
+      failures,
+      !/\b(?:homeowner|home owner|tenant|renter|landlord|occupant|resident|airbnb host|host|guest|client|customer|owner)\b/i.test(visible),
+      `Service playout invented an unsupplied relationship role: ${visible}`,
+    );
+  }
 
   section("INPUT", trace.input);
   section("REALITY READOUT", reality);
