@@ -347,6 +347,48 @@ assert(
   `Low-replay transformed realization was over-rejected by authorship quality: ${JSON.stringify(transformedQuality)}`,
 );
 
+const miloSemanticBeat = {
+  ...miloBeats[0]!,
+};
+miloSemanticBeat.realizationAuthority =
+  buildMouthRealizationAuthority({
+    beat: miloSemanticBeat,
+    envelope: miloEnvelope,
+  });
+
+const miloParadeCandidate = scoreMouthCandidate({
+  text: "Walks. Bacon. Small dogs.",
+  beat: miloSemanticBeat,
+  envelope: miloEnvelope,
+});
+const miloTransformedCandidate = scoreMouthCandidate({
+  text: "Priorities. Specific ones.",
+  beat: miloSemanticBeat,
+  envelope: miloEnvelope,
+});
+const miloInventedCandidate = scoreMouthCandidate({
+  text: "Milo winked.",
+  beat: miloSemanticBeat,
+  envelope: miloEnvelope,
+});
+
+assert(
+  miloParadeCandidate.reasons.includes("fact-parade-like"),
+  `Multi-evidence enumeration was not recognized as a fact parade: ${JSON.stringify(miloParadeCandidate)}`,
+);
+assert(
+  isAuthorizedMouthCandidate(miloTransformedCandidate) &&
+    miloTransformedCandidate.score > miloParadeCandidate.score,
+  `Semantic transformation did not outrank fact parade wording: ${JSON.stringify({
+    parade: miloParadeCandidate,
+    transformed: miloTransformedCandidate,
+  })}`,
+);
+assert(
+  !isAuthorizedMouthCandidate(miloInventedCandidate),
+  `Semantic compression widened concrete reality authority: ${JSON.stringify(miloInventedCandidate)}`,
+);
+
 const parsedWholeSequences = parseMouthCandidateBatch(
   JSON.stringify({
     sequenceVariants: [
