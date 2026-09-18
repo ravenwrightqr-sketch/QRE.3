@@ -17,7 +17,7 @@ const warnings = [];
 
 const canonical = "apps/api/src/services/authorBrainCanonical.ts";
 const cognition = "apps/api/src/services/authorCognition.ts";
-const acceptance = "apps/api/author-acceptance.ts";
+const acceptance = "apps/api/author-universal-human-eye-acceptance.ts";
 const mouth = "apps/api/src/services/authorMouthCandidateSearchCanonical.ts";
 const legacyMouth = "apps/api/src/services/authorMouthCandidateSearch.ts";
 const beam = "apps/api/src/services/authorMouthSequenceBeamSearch.ts";
