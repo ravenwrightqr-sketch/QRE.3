@@ -8,6 +8,7 @@ import type {
 import type { RealityEnvelope } from "./authorRealityEnvelope.js";
 import { classifyLens } from "./authorCharacterLensEngine.js";
 import { evaluateMouthInterpretation } from "./authorMouthInterpretation.js";
+import type { CreativeLensBrief } from "./authorCreativeLensBrief.js";
 
 /**
  * ONE PRODUCTION MOUTH.
@@ -34,6 +35,7 @@ export type MouthCandidateGenerationInput = {
   beats: readonly MouthCandidateBeat[];
   priorTexts?: readonly string[];
   lens?: string;
+  creativeLensBrief?: CreativeLensBrief;
   domainContext?: AuthorDomainContext;
 };
 
@@ -376,6 +378,9 @@ function buildSystemPrompt(): string {
     "The supplied reality is the factual boundary, not the desired wording.",
     "Invent language, not reality.",
     "Use realizationAuthority, not generic imagination, to determine what transformations are earned.",
+    "The metamorphic relation is discovered upstream. The lens does not decide what happened or what the story means.",
+    "creativeLensBrief is treatment pressure over an already-approved relation. Use it to change perception, attitude, implication, metaphor, status, rhythm, or emotional pressure only.",
+    "Never promote lens treatment into a concrete occurrence. Genre language is figurative unless the concrete event is explicitly supplied.",
     "READ THE WHOLE APPROVED SEQUENCE before writing any cut.",
     "Each cut sits inside the full experience: what has already landed, what is changing now, and what the next cut needs.",
     "FEEL IT. DO NOT EXPLAIN IT.",
@@ -450,6 +455,7 @@ export function buildMouthCandidateMessages(input: MouthCandidateGenerationInput
         subject: input.envelope.subject,
         lens: clean(input.lens) || "NONE",
         lensFrame: lens.label,
+        creativeLensBrief: input.creativeLensBrief,
         suppliedReality: evidence,
         priorCuts: input.priorTexts ?? [],
         beats,
