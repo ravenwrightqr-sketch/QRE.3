@@ -390,6 +390,14 @@ function hasExplicitSemanticAuthority(
   );
 }
 
+function isInterrogativeClause(text: string): boolean {
+  const value = clean(text);
+  return (
+    /\?$/.test(value) &&
+    /^(?:what|who|whom|whose|which|where|when|why|how|do|does|did|is|are|was|were|has|have|had|can|could|will|would|should|must|may|might)\b/i.test(value)
+  );
+}
+
 function unsupportedAuthorityConcreteRisk(
   text: string,
   beat: MouthCandidateBeat | undefined,
@@ -399,7 +407,7 @@ function unsupportedAuthorityConcreteRisk(
   if (!authority) return 0;
 
   const value = clean(text);
-  if (!value || SOFT_FIRST_PERSON.test(value)) return 0;
+  if (!value || SOFT_FIRST_PERSON.test(value) || isInterrogativeClause(value)) return 0;
   if (!CONCRETE_CLAIM.test(value) && !EXTERNAL_STATE_CLAIM.test(value) && !BODY.test(value)) {
     return 0;
   }
@@ -684,11 +692,14 @@ function concreteAuthorityViolation(
 
   const clauseSubject = CLAUSE_SUBJECT_MARKER.test(value);
   const observableSignal =
-    CONCRETE_CLAIM.test(value) ||
-    EXTERNAL_STATE_CLAIM.test(value) ||
-    BODY.test(value) ||
-    introducesUnsupportedPhysicalRelation(value, envelope) ||
-    observableClaimShape(value);
+    !isInterrogativeClause(value) &&
+    (
+      CONCRETE_CLAIM.test(value) ||
+      EXTERNAL_STATE_CLAIM.test(value) ||
+      BODY.test(value) ||
+      introducesUnsupportedPhysicalRelation(value, envelope) ||
+      observableClaimShape(value)
+    );
 
   if (observableSignal) {
     return `outside-realization-authority:${unknownRealityTokens.join(",")}`;
@@ -1177,8 +1188,11 @@ export function evaluateMouthInterpretation(input: {
    * maintain a domain-specific forbidden-word list.
    */
   const concreteOrExternalClaim =
-    concreteClaim ||
-    externalStateClaim;
+    !isInterrogativeClause(text) &&
+    (
+      concreteClaim ||
+      externalStateClaim
+    );
 
   const concreteActionSupport =
     !concreteClaim ||
