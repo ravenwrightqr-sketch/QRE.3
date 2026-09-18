@@ -58,8 +58,6 @@ const FRAME_VERB = /\b(?:called|resumed|approved|cleared|secured|completed|start
 const STATUS = /\b(?:fab|fabulous|dapper|fierce|cool|sharp|ready|done|cleared|approved|complete|finished|upgrade|victory|win|winner|exit|peace|temporary|temporarily|resumed|made it|level|mission|operation|case|verdict|negotiations?|final|reset|legend|perfect|apparently|anyway|for now)\b/i;
 const PHYSICAL_VERB = /\b(?:smiled|smile|laughed|laugh|walked|walk|moved|move|looked|look|watched|watch|stared|stare|blinked|blink|winked|wink|nodded|nod|shrugged|shrug|touched|touch|held|hold|reached|reach|stood|stand|sat|sit|ran|run|jumped|jump|wagged|wag|barked|bark|kissed|kiss|hugged|hug|grabbed|grab|opened|open|closed|close|entered|enter|returned|return|called|call|talked|talk|spoke|speak|heard|hear|saw|see|breathed|breathe)\b/i;
 const BODY = /\b(?:eye|eyes|face|mouth|shoulder|shoulders|hand|hands|head|tail|fur|coat|body|room|door|window|floor|wall|table|chair|car|road|street|sky|shadow|light|sound|scent|voice|water|phone|screen)\b/i;
-const DETERMINED_ROLE = /^(?:the|a|an)\s+(?:groomer|barber|mechanic|housekeeper|cleaner|waiter|waitress|server|chef|driver|photographer|planner|officiant|vendor|host|manager|employee|staff|worker|therapist|doctor|nurse|teacher|agent|lawyer|judge|witness|detective|captain|boss)\b/i;
-const RELATIONSHIP_ROLE = /\b(?:homeowner|home owner|tenant|renter|landlord|occupant|resident|airbnb host|host|guest|client|customer|owner)\b/i;
 const SOFT_FIRST_PERSON = /^(?:I|we|my|our)\b/i;
 
 const SAFE_FRAMING = new Set([
@@ -133,6 +131,7 @@ function worldEvidence(envelope: RealityEnvelope): string[] {
     ...envelope.events.map((event) => event.label),
     ...envelope.suppliedPhrases,
     ...envelope.suppliedEntities,
+    ...envelope.suppliedPlaces,
     ...envelope.suppliedActions,
     ...envelope.suppliedStates,
     ...envelope.recurringSignals,
@@ -147,33 +146,9 @@ function suppliedIdentity(text: string, envelope: RealityEnvelope): boolean {
   return envelope.suppliedEntities.some((entity) => normalize(entity) === normalize(text));
 }
 
-function roleIsActuallySupplied(role: string, envelope: RealityEnvelope): boolean {
-  const normalizedRole = normalize(role);
-  return worldEvidence(envelope).some((item) => normalize(item).includes(normalizedRole));
-}
-
-function relationshipRoleIsActuallySupplied(
-  text: string,
-  envelope: RealityEnvelope,
-): boolean {
-  const value = clean(text);
-  if (!RELATIONSHIP_ROLE.test(value)) return true;
-
-  const supplied = worldEvidence(envelope)
-    .map((item) => normalize(item))
-    .join(" ");
-
-  const matches = value
-    .toLowerCase()
-    .match(/(?:homeowner|home owner|tenant|renter|landlord|occupant|resident|airbnb host|host|guest|client|customer|owner)/g) ?? [];
-
-  return matches.every((role) => supplied.includes(normalize(role)));
-}
-
 function isFrameOnly(text: string): boolean {
   const value = clean(text);
   if (!value || value.length > 64) return false;
-  if (DETERMINED_ROLE.test(value)) return false;
   if (FRAME_NOUN.test(value) && (FRAME_VERB.test(value) || STATUS.test(value))) return true;
   return words(value).length <= 5 && STATUS.test(value) && !PHYSICAL_VERB.test(value) && !BODY.test(value);
 }
@@ -182,14 +157,6 @@ function unsupportedConcrete(text: string, beat: MouthCandidateBeat, envelope: R
   const value = clean(text);
   if (!value) return 1;
   if (INTERNAL.test(value) || EXPLANATION.test(value)) return 1;
-  if (
-    DETERMINED_ROLE.test(value) &&
-    !roleIsActuallySupplied(
-      value.replace(/^(?:the|a|an)\s+/i, ""),
-      envelope,
-    )
-  ) return 1;
-  if (!relationshipRoleIsActuallySupplied(value, envelope)) return 1;
   if (isFrameOnly(value)) return 0;
 
   const substitutionRisk = candidateConcreteSubstitutionRisk(value, beat, envelope);
@@ -235,7 +202,7 @@ function formScore(text: string): number {
   const count = words(value).length;
   let score = count <= 2 ? 0.62 : count <= 4 ? 0.82 : count <= 8 ? 1 : count <= 12 ? 0.96 : count <= 18 ? 0.78 : 0.5;
   if (STATUS.test(value)) score += 0.18;
-  if (FRAME_NOUN.test(value) && !DETERMINED_ROLE.test(value)) score += 0.14;
+  if (FRAME_NOUN.test(value)) score += 0.14;
   if (/\?$/.test(value)) score += 0.15;
   if (/\b(?:but|yet|still|until|finally|again|already|apparently|anyway|for now|temporary|temporarily)\b/i.test(value)) score += 0.12;
   if (/^(?:a|an|the)\s+/i.test(value) && ABSTRACT_NOUN.test(value)) score -= 0.4;
@@ -538,8 +505,8 @@ function buildSystemPrompt(): string {
     "Use realizationAuthority, not generic imagination, to determine what transformations are earned.",
     "The metamorphic relation is discovered upstream. The lens does not decide what happened or what the story means.",
     "Business/service context classifies the world; it is NOT event evidence.",
-    "A business type or service type never proves who owns, rents, occupies, manages, commissioned, received, or requested a service.",
-    "Do not invent homeowner, tenant, landlord, host, guest, owner, resident, renter, client, customer, or other relationship roles unless that relationship is explicitly supplied.",
+    "CLOSED-WORLD REALITY: if a person, participant, place, object, relationship, role, possessor, recipient, witness, worker, audience member, or other concrete entity is not explicitly supplied as factual reality, behave as though it does not exist.",
+    "A contextual word is not actor authority. Mentioning a venue, service, business type, destination, role noun, crowd-like context, or workplace does not create a person who acts, watches, owns, rents, manages, receives, commissions, or participates.",
     "creativeLensBrief is treatment pressure over an already-approved relation. Use it to change perception, attitude, implication, metaphor, status, rhythm, or emotional pressure only.",
     "Never promote lens treatment into a concrete occurrence. Genre language is figurative unless the concrete event is explicitly supplied.",
     "READ THE WHOLE APPROVED SEQUENCE before writing any cut.",
@@ -574,7 +541,7 @@ function buildSystemPrompt(): string {
     "Internal planning questions are not viewer copy. Never output phrases such as \"What connects...\", \"What becomes newly meaningful?\", \"What remains when...\", \"What happens next?\", \"Let us continue\", or other commentary about connecting, advancing, analyzing, or planning unless that exact language is supplied reality.",
     "Write the cut itself from the supplied evidence. Do not answer, paraphrase, or turn an internal next-question into a viewer-facing line.",
     "WORLD SIMULATION IS INTERNAL REASONING: its questions, hypotheses, expectations, prediction errors, and labels guide attention but are never viewer-facing copy. Never quote or paraphrase a World Simulation question unless that exact wording is supplied reality.",
-    "A role inside source evidence is not automatically a character. 'groomer cleaned him up' does not authorize 'the groomer...' or a new action by that person.",
+    "A contextual noun is not automatically a character. A destination, venue, service, business type, workplace, or contextual role may not be promoted into a participant or actor unless the supplied reality explicitly establishes that participation.",
     "Do not invent a smile, shrug, eyebrow, walk, touch, breath, voice, room detail, object, weather, lighting, dialogue, motive, chronology, or physical event unless supplied.",
     "You may NOT create a concrete physical fact that is absent from realizationAuthority.reality.",
     "Do not convert emotions or states into invented body language.",
@@ -592,7 +559,7 @@ function buildSystemPrompt(): string {
     "The movie is the sequence of viewer updates caused by facts, not the sequence of facts themselves.",
     "When one approved beat contains several evidence events, realize what those events mean together. Do not serialize them into a checklist just because they were parsed separately.",
     "Do not label the conclusion when the viewer can infer it. Prefer implication, collision, callback, status, rhythm, omission, and recontextualization over explanation.",
-    "Use domain/business context as legitimate arena vocabulary and capability context only. Never infer owner, tenant, guest, client, host, resident, relationship, or participant unless supplied.",
+    "Use domain/business context as arena vocabulary and capability context only. It never establishes a person, participant, relationship, ownership, tenancy, audience, staff member, recipient, witness, or social role that was not supplied.",
     "Generate exactly three materially different variants per beat by composing exactly three materially different WHOLE-SEQUENCE variants.",
     "Each sequence variant must contain exactly one viewer-facing text for each approved beat, in approved order.",
     "Compose each sequence variant as one connected experience. Later cuts may depend on earlier cuts.",
