@@ -40,6 +40,16 @@ const CASES: UniversalCase[] = [
     sourceMoments: [
       "We met at The Underground, hit it off right away, didn't expect it",
     ],
+    forbiddenOutputTerms: [
+      "bartender",
+      "staff",
+      "crowd",
+      "dj",
+      "security",
+      "promoter",
+      "waiter",
+      "waitress",
+    ],
   },
   {
     id: "service",
@@ -226,6 +236,18 @@ const CASES: UniversalCase[] = [
     ],
     sourceMoments: [
       "101 Elm was renovated in 2014",
+    ],
+    forbiddenOutputTerms: [
+      "homeowner",
+      "home owner",
+      "tenant",
+      "renter",
+      "landlord",
+      "host",
+      "guest",
+      "client",
+      "owner",
+      "occupant",
     ],
   },
   {
