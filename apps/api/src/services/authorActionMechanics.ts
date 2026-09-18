@@ -108,14 +108,21 @@ function add(
   }
 }
 
-function actionable(
+function dynamicEvent(
   structure: RealityEventStructure | undefined,
 ): boolean {
+  if (!structure) return false;
+
+  /*
+   * Mechanics describe movement already present in supplied reality.
+   * Static profile/object/state facts remain excellent semantic material, but
+   * they are not a run/campaign merely because they contain structured nouns.
+   */
   return Boolean(
-    structure?.actions.length ||
-      structure?.objects.length ||
-      structure?.states.length ||
-      structure?.semanticTags.length,
+    structure.actions.length ||
+      structure.temporalMarkers.length ||
+      structure.transitionScore >= 0.55 ||
+      structure.recurrenceScore >= 0.65,
   );
 }
 
@@ -140,7 +147,7 @@ export function deriveAuthorActionMechanics(
     );
 
   const actionableIds = eventIds.filter((eventId) =>
-    actionable(structureFor(graph, eventId)),
+    dynamicEvent(structureFor(graph, eventId)),
   );
 
   if (actionableIds.length >= 2) {
