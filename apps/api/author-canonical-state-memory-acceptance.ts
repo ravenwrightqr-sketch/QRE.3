@@ -220,6 +220,82 @@ assert(
   `Unknown real-world nouns could not participate in semantic discovery: ${JSON.stringify(openWorldTheses)}`,
 );
 
+const sparseOneGraph = buildAuthorRealityGraph({
+  prompt: "Aster keeps the zenthra coil",
+  subject: "Aster",
+  facts: [],
+  sourceMoments: ["Aster keeps the zenthra coil"],
+});
+
+const sparseOneMovies = searchUniversalMovieCandidates({
+  graph: sparseOneGraph,
+  subject: "Aster",
+  lens: "NONE",
+  limit: 8,
+});
+
+assert(
+  sparseOneMovies.length > 0,
+  "A single supplied truth failed to wake up movie discovery.",
+);
+
+const sparseOneThesis = deriveLatentStoryThesis(
+  sparseOneGraph,
+  sparseOneMovies[0]!,
+);
+
+assert(
+  sparseOneThesis.semanticRealization?.evidenceEventIds.length === 1 &&
+    /information to significance|supplied detail/i.test(
+      [
+        sparseOneThesis.semanticRealization.feltEffect,
+        sparseOneThesis.semanticRealization.viewerShift,
+        sparseOneThesis.semanticRealization.languageAim,
+      ].filter(Boolean).join(" "),
+    ),
+  `Single-detail reality did not receive bounded semantic authority: ${JSON.stringify(sparseOneThesis)}`,
+);
+
+const sparseTwoGraph = buildAuthorRealityGraph({
+  prompt: "Aster keeps the zenthra coil, Aster avoids the north room",
+  subject: "Aster",
+  facts: [],
+  sourceMoments: [
+    "Aster keeps the zenthra coil",
+    "Aster avoids the north room",
+  ],
+});
+
+const sparseTwoMovies = searchUniversalMovieCandidates({
+  graph: sparseTwoGraph,
+  subject: "Aster",
+  lens: "NONE",
+  limit: 8,
+});
+
+assert(
+  sparseTwoMovies.length > 0,
+  "Two supplied truths failed to produce a movie candidate.",
+);
+
+const sparseTwoThesis = deriveLatentStoryThesis(
+  sparseTwoGraph,
+  sparseTwoMovies[0]!,
+);
+
+assert(
+  sparseTwoThesis.semanticRealization?.mechanism === "convergence" &&
+    sparseTwoThesis.semanticRealization.evidenceEventIds.length === 2 &&
+    /juxtaposition|do not invent causality/i.test(
+      [
+        sparseTwoThesis.semanticRealization.feltEffect,
+        sparseTwoThesis.semanticRealization.viewerShift,
+        sparseTwoThesis.semanticRealization.languageAim,
+      ].filter(Boolean).join(" "),
+    ),
+  `Two-detail reality did not receive non-causal juxtaposition authority: ${JSON.stringify(sparseTwoThesis)}`,
+);
+
 const graph = buildAuthorRealityGraph({
   prompt: "Write a QRE-style living memory.",
   subject,
