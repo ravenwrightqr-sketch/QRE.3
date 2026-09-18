@@ -70,16 +70,12 @@ function interpretationEvidenceSpecificity(
   graph: RealityGraph,
   evidenceEventIds: readonly string[],
 ): number {
-  const structures = evidenceEventIds
-    .map((id) =>
-      graph.eventStructure?.find((item) => item.eventId === id),
-    )
-    .filter(
-      (
-        value,
-      ): value is NonNullable<RealityGraph["eventStructure"]>[number] =>
-        Boolean(value),
-    );
+  const structures = evidenceEventIds.flatMap((id) => {
+    const structure =
+      graph.eventStructure?.find((item) => item.eventId === id);
+
+    return structure ? [structure] : [];
+  });
 
   if (!structures.length) {
     return 0;
