@@ -597,26 +597,34 @@ function projectedRealizationAuthority(beat: MouthCandidateBeat) {
 export function buildMouthCandidateMessages(input: MouthCandidateGenerationInput): Array<{ role: "system" | "user"; content: string }> {
   const lens = classifyLens(input.lens);
   const evidence = worldEvidence(input.envelope);
-  const beats = input.beats.map((beat) => ({
-    order: beat.order,
-    supplied: sourceLabels(beat, input.envelope),
-    purpose: clean(beat.attentionFunction || beat.role),
-    realizationAuthority: projectedRealizationAuthority(beat),
-    viewerState: beat.viewerState
-      ? {
-          before: clean(beat.viewerState.beforeState),
-          after: clean(beat.viewerState.afterState),
-          move: clean(beat.viewerState.attentionMove),
-          inferenceBefore: clean(beat.viewerState.inferenceBefore),
-          inferenceAfter: clean(beat.viewerState.inferenceAfter),
-          inferenceGap: clean(beat.viewerState.inferenceGap),
-          reinterpretation: clean(beat.viewerState.reinterpretation),
-          inferenceSpace: beat.viewerState.inferenceSpace,
-          groundingConfidence: beat.viewerState.groundingConfidence,
-        }
-      : undefined,
-    terminal: Boolean(beat.paysOff?.length),
-  }));
+  const beats = input.beats.map((beat) => {
+    const meaning = beat.realizationAuthority?.meaning;
+    return {
+      order: beat.order,
+      supplied: sourceLabels(beat, input.envelope),
+      purpose: clean(beat.change || beat.attentionFunction || beat.role),
+      next: clean(beat.next || beat.frontier),
+      semantic: meaning
+        ? {
+            before: clean(meaning.before),
+            after: clean(meaning.after),
+            relationKind: clean(meaning.relationKind),
+            realizationMove: clean(meaning.realizationMove),
+            creativeOpportunity: clean(meaning.creativeOpportunity),
+            languageAim: clean(meaning.languageAim),
+          }
+        : undefined,
+      viewerMovement: beat.viewerState
+        ? {
+            before: clean(beat.viewerState.inferenceBefore),
+            after: clean(beat.viewerState.inferenceAfter),
+            gap: clean(beat.viewerState.inferenceGap),
+            move: clean(beat.viewerState.attentionMove),
+          }
+        : undefined,
+      terminal: Boolean(beat.paysOff?.length),
+    };
+  });
 
   return [
     { role: "system", content: buildSystemPrompt() },
@@ -624,36 +632,25 @@ export function buildMouthCandidateMessages(input: MouthCandidateGenerationInput
       role: "user",
       content: JSON.stringify({
         subject: input.envelope.subject,
-        lens: clean(input.lens) || "NONE",
-        lensFrame: lens.label,
-        creativeLensBrief: input.creativeLensBrief,
-        domainContext: input.domainContext
+        suppliedReality: evidence,
+        lens: {
+          label: lens.label,
+          framing: lens.framingBias,
+          preferences: lens.realizationPreferences,
+        },
+        context: input.domainContext
           ? {
               category: clean(input.domainContext.category),
               businessType: clean(input.domainContext.businessType),
-              businessName: clean(input.domainContext.businessName),
-              businessDescription: clean(input.domainContext.businessDescription),
               serviceType: clean(input.domainContext.serviceType),
-              serviceName: clean(input.domainContext.serviceName),
               subjectKind: clean(input.domainContext.subjectKind),
-              services: input.domainContext.services ?? [],
-              differentiators: input.domainContext.differentiators ?? [],
-              signals: input.domainContext.signals ?? [],
-              subjectKinds: input.domainContext.subjectKinds ?? [],
-              importantFacts: input.domainContext.importantFacts ?? [],
               knownCapabilities: input.domainContext.knownCapabilities ?? [],
               contextualSignals: input.domainContext.contextualSignals ?? [],
-              authority:
-                "Context only. It may shape framing and legitimate domain vocabulary but may not create a concrete event, person, ownership/tenancy/client relationship, place, object, action, or chronology.",
             }
           : undefined,
-        suppliedReality: evidence,
-        priorCuts: input.priorTexts ?? [],
         beats,
-        output: {
-          sequence:
-            "a compact sequence of viewer-facing cuts; choose the number of lines needed for the recognition to land",
-        },
+        priorCuts: input.priorTexts ?? [],
+        output: "Return only the moving-text cuts, one cut per line. No explanation.",
       }),
     },
   ];
