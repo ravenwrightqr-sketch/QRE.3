@@ -182,11 +182,17 @@ function buildEntities(
 
     for (const value of event.entities) {
       const isSubject = Boolean(subjectName) && lower(value) === lower(subjectName);
+
+      /*
+       * The asset-level subject is the canonical identity authority.
+       * Event extraction may normalize casing or surface alternate textual
+       * forms, but it must never overwrite the durable QRE identity name.
+       */
       addEntity(
         entities,
         assetId,
         isSubject ? subjectKindValue : "object",
-        value,
+        isSubject ? subjectName : value,
         isSubject ? 1 : 0.85,
         {
           realityRole: isSubject ? "identity_anchor" : "event_entity",
