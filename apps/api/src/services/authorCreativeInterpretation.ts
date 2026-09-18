@@ -1371,24 +1371,40 @@ function buildExpectationCandidate(
       },
     );
 
-  if (!laterInteresting) {
+  const qualifyingEvent =
+    laterInteresting ??
+    [...orderedEventIds]
+      .slice(0, expectationIndex)
+      .reverse()
+      .find((id) => {
+        const label = labelFor(graph, id);
+        return (
+          isState(label) ||
+          ACTION.test(label) ||
+          OBJECT.test(label)
+        );
+      });
+
+  if (!qualifyingEvent) {
     return undefined;
   }
 
   return buildCandidate(
-    "The later supplied material changes what the earlier expectation means.",
+    laterInteresting
+      ? "The later supplied material changes what the earlier expectation means."
+      : "A supplied expectation changes how an already-supplied event is perceived, even when the human told the expectation afterward.",
     "expectation_shift",
     [
       expectationId,
-      laterInteresting,
+      qualifyingEvent,
     ],
-    0.82,
+    laterInteresting ? 0.82 : 0.84,
     {
       beforeEventIds: [
         expectationId,
       ],
       afterEventIds: [
-        laterInteresting,
+        qualifyingEvent,
       ],
       before:
         labelFor(
@@ -1398,12 +1414,18 @@ function buildExpectationCandidate(
       after:
         labelFor(
           graph,
-          laterInteresting,
+          qualifyingEvent,
         ),
       realizationMove:
         "recognize",
       creativeOpportunity:
         "recognition",
+      feltEffect:
+        "The viewer should feel the collision between what was expected and what actually happened without being told the lesson.",
+      viewerShift:
+        "An ordinary supplied event becomes surprising because the supplied expectation did not predict it.",
+      languageAim:
+        "Compress expectation versus reality into implication; do not explain the relationship.",
     },
   );
 }
