@@ -7,6 +7,7 @@ import { buildAuthorRealityEnvelope } from "./src/services/authorRealityEnvelope
 import { buildAuthorRealityGraph } from "./src/services/authorRealityGraph.js";
 import { buildMouthRealizationAuthority } from "./src/services/authorMouthRealizationAuthority.js";
 import {
+  parseMouthCandidateBatch,
   scoreMouthCandidate,
 } from "./src/services/authorMouthCandidateSearchCanonical.js";
 import {
@@ -237,6 +238,45 @@ cases.push({
   text: replayCandidate.text,
   reasons: [replayCheck.reason],
   authorization: replayCandidate.authorization,
+});
+
+const parsedWholeSequences = parseMouthCandidateBatch(
+  JSON.stringify({
+    sequenceVariants: [
+      { texts: ["A1", "A2", "A3"] },
+      { texts: ["B1", "B2", "B3"] },
+      { texts: ["C1", "C2", "C3"] },
+    ],
+  }),
+  3,
+);
+
+assert(parsedWholeSequences, "Whole-sequence Mouth output failed to parse.");
+assert(
+  parsedWholeSequences.variantsByBeat.length === 3,
+  `Whole-sequence variants were not transposed into 3 beat pools: ${JSON.stringify(parsedWholeSequences)}`,
+);
+assert(
+  JSON.stringify(parsedWholeSequences.variantsByBeat.map((item) => item.variants)) ===
+    JSON.stringify([
+      ["A1", "B1", "C1"],
+      ["A2", "B2", "C2"],
+      ["A3", "B3", "C3"],
+    ]),
+  `Whole-sequence variants did not preserve cross-variant beat candidates: ${JSON.stringify(parsedWholeSequences.variantsByBeat)}`,
+);
+
+cases.push({
+  name: "whole-sequence generation transposes into independent beat pools",
+  expected: "allowed",
+  actual:
+    parsedWholeSequences.variantsByBeat[1]?.variants.includes("B2") &&
+    parsedWholeSequences.variantsByBeat[1]?.variants.includes("C2")
+      ? "allowed"
+      : "rejected",
+  text: JSON.stringify(parsedWholeSequences.variantsByBeat),
+  reasons: [],
+  authorization: undefined,
 });
 
 const mismatches = cases.filter((item) => item.expected !== item.actual);
