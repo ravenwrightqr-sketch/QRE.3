@@ -7,6 +7,7 @@ import type {
 import { buildAuthorRealityEnvelope } from "./src/services/authorRealityEnvelope.js";
 import { buildAuthorRealityGraph } from "./src/services/authorRealityGraph.js";
 import { buildMouthRealizationAuthority } from "./src/services/authorMouthRealizationAuthority.js";
+import { deriveViewerStateCut } from "./src/services/authorMouthCandidateSearch.js";
 import {
   parseMouthCandidateBatch,
   scoreMouthCandidate,
