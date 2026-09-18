@@ -15,6 +15,7 @@ import {
   selectBestMouthSequence,
 } from "./src/services/authorMouthSequenceBeamSearch.js";
 import {
+  authorBrainCanonical,
   composeTrajectoryBeats,
   evaluateAuthorAuthorshipQuality,
   evaluateAuthorSourceReplay,
@@ -428,6 +429,126 @@ cases.push({
   authorization: undefined,
 });
 
+
+const serviceGraph = buildAuthorRealityGraph({
+  prompt: "Maria cleaned the kitchen and bathroom. Done.",
+  subject: "Maria",
+  facts: [],
+  sourceMoments: [
+    "Maria cleaned the kitchen",
+    "Maria cleaned the bathroom",
+    "Service done",
+  ],
+  memoryContext: [],
+  trajectory: [],
+});
+
+const serviceEnvelope = buildAuthorRealityEnvelope({
+  graph: serviceGraph,
+  subject: "Maria",
+});
+
+const serviceBeat: MouthCandidateBeat = {
+  order: 1,
+  role: "payoff",
+  attentionFunction:
+    "Realize the supplied service completion without inventing relationships.",
+  eventIds: serviceGraph.events.map((event) => event.id),
+  change: "service work completed",
+  next: "",
+  frontier: "",
+  relationKinds: [],
+};
+
+serviceBeat.realizationAuthority =
+  buildMouthRealizationAuthority({
+    beat: serviceBeat,
+    envelope: serviceEnvelope,
+  });
+
+const inventedHomeowner = scoreMouthCandidate({
+  text: "The homeowner's kitchen surrendered.",
+  beat: serviceBeat,
+  envelope: serviceEnvelope,
+});
+
+cases.push({
+  name: "business context cannot invent homeowner relationship",
+  expected: "rejected",
+  actual: isAuthorizedMouthCandidate(inventedHomeowner)
+    ? "allowed"
+    : "rejected",
+  text: inventedHomeowner.text,
+  reasons: inventedHomeowner.reasons,
+  authorization: inventedHomeowner.authorization,
+});
+
+const operational = await authorBrainCanonical({
+  prompt: "Maria cleaned the kitchen and bathroom. Done.",
+  subject: "Maria",
+  facts: [],
+  sourceMoments: [
+    "Maria cleaned the kitchen",
+    "Maria cleaned the bathroom",
+    "Service done",
+  ],
+  domainContext: {
+    category: "business",
+    businessType: "housekeeping",
+    serviceType: "housekeeping",
+    serviceName: "home cleaning",
+    knownCapabilities: [
+      "clean kitchens",
+      "clean bathrooms",
+    ],
+  },
+  playoutMode: "operational",
+  lens: "battle",
+  movieMode: false,
+  memoryContext: [],
+  trajectory: [],
+});
+
+assert(
+  operational.diagnostics.modelCalls === 0,
+  `Operational receipt playout called the model: ${JSON.stringify(operational.diagnostics)}`,
+);
+assert(
+  operational.diagnostics.truthSafe === true &&
+    operational.diagnostics.renderable === true &&
+    operational.diagnostics.qualityStatus === "ACCEPTED",
+  `Operational receipt playout was not accepted as factual renderable output: ${JSON.stringify(operational.diagnostics)}`,
+);
+assert(
+  operational.diagnostics.authored === false,
+  "Operational receipt playout was incorrectly classified as creative authorship.",
+);
+assert(
+  operational.scenes.every((scene) =>
+    !/homeowner|tenant|landlord|occupant|guest|client|owner/i.test(scene.text),
+  ),
+  `Operational receipt invented an unsupplied relationship: ${JSON.stringify(operational.scenes)}`,
+);
+
+cases.push({
+  name: "operational playout is factual sequence data with zero model calls",
+  expected: "allowed",
+  actual:
+    operational.diagnostics.modelCalls === 0 &&
+    operational.diagnostics.truthSafe === true &&
+    operational.diagnostics.renderable === true
+      ? "allowed"
+      : "rejected",
+  text: JSON.stringify(operational.scenes.map((scene) => scene.text)),
+  reasons: [],
+  authorization: {
+    playoutMode: "operational",
+    modelCalls: operational.diagnostics.modelCalls,
+    truthSafe: operational.diagnostics.truthSafe,
+    authored: operational.diagnostics.authored,
+  },
+});
+
 const mismatches = cases.filter((item) => item.expected !== item.actual);
 const status = mismatches.length ? "FAIL" : "PASS";
 
@@ -439,6 +560,10 @@ console.log(
       mismatches,
       beamWinner: beam.candidates[0],
       sourceReplay: replayCheck,
+      operationalPlayout: {
+        scenes: operational.scenes,
+        diagnostics: operational.diagnostics,
+      },
       status,
     },
     null,
