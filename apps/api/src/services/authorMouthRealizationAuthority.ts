@@ -43,6 +43,8 @@ const STATE_STATUS_TAGS = new Set([
 const STATE_STATUS_ACTION = /\b(?:approv(?:e|ed|es|ing)|accept(?:ed|s|ing)?|confirm(?:ed|s|ing)?|finish(?:ed|es|ing)?|complete(?:d|s|ing)?|fix(?:ed|es|ing)?|repair(?:ed|s|ing)?|restore(?:d|s|ing)?|renew(?:ed|s|ing)?|change(?:d|s|ing)?)\b/i;
 
 const DEFAULT_FORBIDDEN_MOVES = [
+  "Concrete reality is closed to supplied evidence. Any concrete participant, relationship, role, place, object, action, event, sensory detail, possessor, recipient, witness, worker, audience member, or chronology not established by this beat's factual evidence is unavailable to this realization.",
+  "Remembered factual context may change interpretation or continuity, but it does not become a current occurrence unless current supplied evidence establishes that occurrence.",
   "Do not invent concrete physical facts, actions, body behavior, sensory details, environment, dialogue, entities, objects, chronology, events, participants, or relationships.",
   "A contextual noun, venue, service, business type, destination, or role word does not become a participant or actor unless supplied as one.",
   "Do not invent possessors, owners, occupants, recipients, witnesses, workers, audience members, staff, or social/commercial roles that were not supplied.",
