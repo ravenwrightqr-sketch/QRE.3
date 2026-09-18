@@ -9,6 +9,7 @@
 import type {
   AuthorBrainTruth,
   AuthorCreativeBrief,
+  AuthorPlayoutMode,
   AuthorScene,
   LatentMovieCandidate,
   LatentMovieTrajectoryStep,
@@ -81,6 +82,13 @@ function looksLikeIdentityAssertion(text: string): boolean {
   );
 }
 
+function playoutModeFor(
+  input: AuthorBrainTruth,
+): AuthorPlayoutMode {
+  if (input.playoutMode) return input.playoutMode;
+  return input.movieMode === false ? "operational" : "experience";
+}
+
 function lensFrom(
   input: AuthorBrainTruth,
   cognition: ReturnType<typeof buildAuthorCognitivePlan>,
@@ -111,6 +119,7 @@ function buildCognition(
     domainContext: input.domainContext,
     priorScenes: input.trajectory ?? [],
     priorStrategies: input.creativeLearningContext ?? [],
+    playoutMode: input.playoutMode,
     movieMode: input.movieMode,
   });
 }
@@ -1015,6 +1024,154 @@ export function evaluateAuthorAuthorshipQuality(input: {
   };
 }
 
+function operationalAuthorResult(input: {
+  graph: ReturnType<typeof buildAuthorRealityGraph>;
+  subject: string;
+  realizationMode: AuthorRealizationMode;
+  playoutMode: AuthorPlayoutMode;
+}): CanonicalAuthorResult {
+  const events = input.graph.events
+    .map((event) => ({
+      id: event.id,
+      text: clean(event.label),
+    }))
+    .filter((event) => Boolean(event.text));
+
+  const scenes: AuthorScene[] = events.map((event, index) => ({
+    text: event.text,
+    kind:
+      index === events.length - 1
+        ? "payoff"
+        : index === 0
+          ? "hook"
+          : "movement",
+  }));
+
+  const cuts: SequenceCut[] = events.map((event, index) => {
+    const prior = events.slice(0, index).map((item) => item.text);
+    const known = [...prior, event.text];
+
+    return {
+      id: `sequence-cut-${index + 1}`,
+      order: index + 1,
+      role:
+        index === events.length - 1
+          ? "payoff"
+          : index === 0
+            ? "arrival"
+            : "discovery",
+      gainKind:
+        index === events.length - 1
+          ? "payoff"
+          : "new_fact",
+      sourceIds: [event.id],
+      informationGain: event.text,
+      attentionDelta: event.text,
+      viewerBefore: {
+        known: prior,
+      },
+      viewerAfter: {
+        known,
+        recentChange: event.text,
+      },
+      confidence: 1,
+    };
+  });
+
+  const sequence: SequencePlay = {
+    subject: input.subject,
+    premise: events[0]?.text ?? "",
+    openingState: { known: [] },
+    baselineFacts: [],
+    cuts,
+    closingState: {
+      known: events.map((event) => event.text),
+      recentChange: events[events.length - 1]?.text,
+    },
+    continuity: [
+      "Operational playout preserves supplied reality in source order.",
+      "No creative interpretation is promoted into factual output.",
+    ],
+    antiCrutch: [
+      "Do not invent unsupplied people, roles, ownership, tenancy, clients, objects, actions, places, or chronology.",
+    ],
+  };
+
+  const complete = scenes.length > 0 && scenes.length === cuts.length;
+
+  return {
+    scenes,
+    sequence,
+    realizationMode: input.realizationMode,
+    brief: {
+      angle: "operational",
+      engine: "source reality → factual sequence play",
+      question: "What was actually supplied?",
+      strongestImage: events[0]?.text ?? "",
+      tension: "none",
+      payoff: events[events.length - 1]?.text ?? "",
+      callback: "none",
+      rhythm: scenes.map(() => "short"),
+      avoid: [
+        "invented event",
+        "invented relationship",
+        "creative interpretation presented as fact",
+      ],
+    },
+    diagnostics: {
+      model: "none",
+      modelCalls: 0,
+      candidateSequences: 0,
+      acceptedCandidates: scenes.length,
+      recoveryUsed: false,
+      qualityStatus: complete ? "ACCEPTED" : "REJECTED",
+      renderable: complete,
+      complete,
+      selectedScore: complete ? 1 : 0,
+      rejectedCandidates: [],
+      truthSafe: true,
+      authored: false,
+      sourceReplay: {
+        truthSafe: true,
+        authored: false,
+        sourceReplayScore: 1,
+        replayedCuts: scenes.length,
+        reason:
+          "operational playout intentionally preserves supplied factual reality",
+      },
+      authorshipQuality: {
+        mode: input.playoutMode,
+        required: false,
+        accepted: true,
+        reason:
+          "operational playout is evaluated for factual fidelity, not creative authorship",
+      },
+      qualitySignals: {
+        playoutMode: input.playoutMode,
+        operational: true,
+        sequenceSourcesComplete: cuts.every((cut) => cut.sourceIds.length > 0),
+      },
+      trace: {
+        playoutMode: input.playoutMode,
+        input: {
+          subject: input.subject,
+        },
+        realityReadout: {
+          events: input.graph.events,
+          relations: input.graph.relations,
+          eventStructure: input.graph.eventStructure ?? [],
+        },
+        finalSequence: sequence,
+        finalScenes: scenes,
+        provenance: cuts.map((cut) => ({
+          order: cut.order,
+          sourceIds: cut.sourceIds,
+        })),
+      },
+    },
+  };
+}
+
 export type CanonicalAuthorResult = {
   scenes: AuthorScene[];
   sequence: SequencePlay;
@@ -1058,14 +1215,33 @@ export async function authorBrainCanonical(
     trajectory: input.trajectory ?? [],
   });
 
-  const cognition = buildCognition({ ...input, facts, sourceMoments }, graph);
+  const playoutMode = playoutModeFor(input);
   const realizationMode = classifyAuthorRealizationMode({
     prompt: clean(input.prompt),
     facts,
     sourceMoments,
     relationKinds: graph.relations.map((relation) => relation.kind),
-    movieMode: input.movieMode,
+    movieMode: playoutMode === "experience",
   });
+
+  if (playoutMode === "operational") {
+    return operationalAuthorResult({
+      graph,
+      subject,
+      realizationMode,
+      playoutMode,
+    });
+  }
+
+  const cognition = buildCognition(
+    {
+      ...input,
+      facts,
+      sourceMoments,
+      playoutMode,
+    },
+    graph,
+  );
   const lens = lensFrom(input, cognition);
   const movie = chooseMovie(input, cognition);
 
@@ -1382,6 +1558,7 @@ export async function authorBrainCanonical(
       sourceReplay,
       authorshipQuality,
       qualitySignals: {
+        playoutMode,
         attentionAccepted: attention.accepted,
         arcAccepted: arc.accepted,
         sequenceSourcesComplete,
@@ -1401,10 +1578,12 @@ export async function authorBrainCanonical(
       trace: {
         input: {
           prompt: clean(input.prompt),
+          playoutMode,
           lens,
           subject,
           facts,
           sourceMoments,
+          domainContext: input.domainContext,
         },
         realityReadout: {
           events: graph.events,
