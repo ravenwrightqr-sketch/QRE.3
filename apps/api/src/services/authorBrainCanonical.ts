@@ -322,35 +322,24 @@ function semanticEvidenceUnitGroups(
 
   if (semantic.mechanism === "convergence") {
     /*
-     * Convergence is one approved meaning, but not necessarily one visible
-     * line. Preserve enough staging for the observer to form and revise a
-     * hypothesis. Playback follows inference progression, not parser fact
-     * count and not a forced one-line collapse.
+     * Convergence is a viewer-recognition problem, not a batching problem.
+     *
+     * Do not hand Mouth a first cut containing several source facts: that
+     * structurally invites a fact parade ("walks. bacon. small dogs.").
+     *
+     * Stage one grounded anchor first. Then give the landing beat the complete
+     * approved evidence set so it can realize what the details mean together.
+     * Evidence may therefore participate in more than one viewer-update beat;
+     * concrete truth remains unchanged and provenance remains explicit.
      */
-    if (relevantSteps.length <= 2) {
+    if (relevantSteps.length === 1) {
       return [relevantSteps];
     }
 
-    if (relevantSteps.length === 3) {
-      return [
-        relevantSteps.slice(0, 2),
-        relevantSteps.slice(2),
-      ];
-    }
-
-    const groupCount = Math.min(3, relevantSteps.length);
-    const groups: LatentMovieTrajectoryStep[][] = [];
-    let cursor = 0;
-
-    for (let groupIndex = 0; groupIndex < groupCount; groupIndex += 1) {
-      const remaining = relevantSteps.length - cursor;
-      const remainingGroups = groupCount - groupIndex;
-      const take = Math.ceil(remaining / remainingGroups);
-      groups.push(relevantSteps.slice(cursor, cursor + take));
-      cursor += take;
-    }
-
-    return groups.filter((group) => group.length > 0);
+    return [
+      relevantSteps.slice(0, 1),
+      relevantSteps,
+    ];
   }
 
   const before = new Set(unique(semantic.beforeEventIds ?? []));
