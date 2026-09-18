@@ -13,7 +13,7 @@ import type { CreativeLensBrief } from "./authorCreativeLensBrief.js";
 /**
  * ONE PRODUCTION MOUTH.
  *
- * Cognition decides the reality, movie, semantic movement and beat purpose.
+ * Cognition decides the reality, meaning, semantic movement and beat purpose.
  * Mouth only solves the human-facing language problem.
  *
  * Core law:
@@ -560,7 +560,7 @@ function candidateScore(text: string, beat: MouthCandidateBeat, envelope: Realit
 function buildSystemPrompt(): string {
   return [
     "QRE ONE MOUTH — final viewer-facing language realization.",
-    "The world is already established. The movie is already chosen. The approved beats already have their purpose.",
+    "The world is already established. The meaning path is already chosen. The approved beats already have their purpose.",
     "Your job is to realize the approved beats as one connected viewer-facing sequence.",
     "You are not rewriting the evidence.",
     "The supplied reality is the factual boundary, not the desired wording.",
@@ -576,7 +576,7 @@ function buildSystemPrompt(): string {
     "READ THE WHOLE APPROVED SEQUENCE before writing any cut.",
     "Each cut sits inside the full experience: what has already landed, what is changing now, and what the next cut needs.",
     "FEEL IT. DO NOT EXPLAIN IT.",
-    "THE MOVIE IS THE SEQUENCE OF VIEWER UPDATES CAUSED BY FACTS, NOT THE SEQUENCE OF FACTS.",
+    "THE EXPERIENCE IS THE SEQUENCE OF VIEWER UPDATES CAUSED BY FACTS, NOT THE SEQUENCE OF FACTS.",
     "MAXIMIZE MEANINGFUL INFERENCE SPACE WHILE MAINTAINING GROUNDING.",
     "Never spend a cut saying what the observer can discover from the supplied evidence.",
     "Use viewerState as the cognitive target: each cut must materially change what the viewer can notice, infer, expect, question, or reinterpret.",
@@ -623,7 +623,7 @@ function buildSystemPrompt(): string {
     "A final supplied state is truth, not necessarily the exact final wording. Search for the earned status, verdict, send-off, punchline, afterimage, or identity shift.",
     "NEVER SPEND A CUT SAYING WHAT THE OBSERVER CAN DISCOVER. Productive ambiguity is desirable when the supplied evidence still makes the intended inference grounded.",
     "Each visible cut must cause a new grounded viewer update: establish, notice, sharpen, contrast, recontextualize, interrupt, accumulate, recognize, or land. A cut that only restates a fact is weak.",
-    "The movie is the sequence of viewer updates caused by facts, not the sequence of facts themselves.",
+    "The experience is the sequence of viewer updates caused by facts, not the sequence of facts themselves.",
     "When one approved beat contains several evidence events, realize what those events mean together. Do not serialize them into a checklist just because they were parsed separately.",
     "Do not label the conclusion when the viewer can infer it. Prefer implication, collision, callback, status, rhythm, omission, and recontextualization over explanation.",
     "Use domain/business context as arena vocabulary and capability context only. It never establishes a person, participant, relationship, ownership, tenancy, audience, staff member, recipient, witness, or social role that was not supplied.",
