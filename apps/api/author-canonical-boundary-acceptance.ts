@@ -467,6 +467,21 @@ assert(
   `Plain-text parser silently truncated extra model output: ${JSON.stringify(extraLinePlainText)}`,
 );
 
+const parsedPlainSequenceVariants = parseMouthCandidateBatch(
+  "A1\nA2\n---\nB1\nB2\n---\nC1\nC2",
+  2,
+);
+
+assert(
+  parsedPlainSequenceVariants &&
+    JSON.stringify(parsedPlainSequenceVariants.variantsByBeat.map((item) => item.variants)) ===
+      JSON.stringify([
+        ["A1", "B1", "C1"],
+        ["A2", "B2", "C2"],
+      ]),
+  `Plain-text creative alternatives did not become three candidate paths: ${JSON.stringify(parsedPlainSequenceVariants)}`,
+);
+
 const parsedWholeSequences = parseMouthCandidateBatch(
   JSON.stringify({
     sequenceVariants: [
