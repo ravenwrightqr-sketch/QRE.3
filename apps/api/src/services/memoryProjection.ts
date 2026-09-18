@@ -73,6 +73,13 @@ type ProfileAssertion = {
   kind: "preference" | "attribute";
 };
 
+const OCCURRENCE_ACTION =
+  /\b(?:arriv(?:e|ed|es|ing)|return(?:ed|s|ing)?|came|come|left|leave|went|go|met|meet|talk(?:ed|s|ing)?|spoke|said|did|made|gave|got|found|lost|clean(?:ed|s|ing)?|finished|started|opened|closed|walk(?:ed|s|ing)?|ran|drove|ate|drank|kiss(?:ed|es|ing)?|married|celebrated|played|worked|visited|bought|sold|built|fixed|painted|wore|used|shook|chewed|connected|stayed|waited|called|laughed|cried|changed|repaired|tested|selected|cut|shaped|polished|delivered|welcomed|checked|booked|arranged|recommended|guided|updated|reserved|approved|groomed|dyed|tailored|installed|picked|stole|took)\b/i;
+
+function isConcreteOccurrence(event: RealityEvent): boolean {
+  return OCCURRENCE_ACTION.test(clean(event.label));
+}
+
 function profileAssertion(
   event: RealityEvent,
   subject?: string,
@@ -151,7 +158,7 @@ function buildEntities(
   for (const event of graph.events) {
     const profile = profileAssertion(event, subject);
 
-    if (!profile) {
+    if (!profile && isConcreteOccurrence(event)) {
       const id = eventEntityId(assetId, event);
       entities.set(id, {
         id,
@@ -254,7 +261,7 @@ function buildFacts(
           qreProfileAssertion: true,
         },
       });
-    } else {
+    } else if (isConcreteOccurrence(event)) {
       facts.push({
         entityId: eventEntityId(assetId, event),
         kind: "event",
@@ -275,9 +282,30 @@ function buildFacts(
           provenance: event.provenance,
         },
       });
+    } else {
+      facts.push({
+        entityId: subjectName
+          ? entityId(assetId, subjectKindValue, subjectName)
+          : undefined,
+        kind: "context",
+        predicate: "supplied_context",
+        value: event.label,
+        confidence: 1,
+        source,
+        sourceRef: sessionId,
+        status: "active",
+        observedAt,
+        visibility: VISIBILITY,
+        metadata: {
+          realityEventId: event.id,
+          sourceIds: event.sourceIds,
+          provenance: event.provenance,
+          qreNonOccurrenceContext: true,
+        },
+      });
     }
 
-    if (!profile && event.place) {
+    if (!profile && isConcreteOccurrence(event) && event.place) {
       facts.push({
         entityId: entityId(assetId, "place", event.place),
         kind: "context",
@@ -324,8 +352,12 @@ function buildRelations(
       const fromEvent = eventForEndpoint(graph, relation.from);
       const toEvent = eventForEndpoint(graph, relation.to);
       return !(
-        (fromEvent && profileAssertion(fromEvent, subject)) ||
-        (toEvent && profileAssertion(toEvent, subject))
+        (fromEvent &&
+          (profileAssertion(fromEvent, subject) ||
+            !isConcreteOccurrence(fromEvent))) ||
+        (toEvent &&
+          (profileAssertion(toEvent, subject) ||
+            !isConcreteOccurrence(toEvent)))
       );
     })
     .map((relation) => {
@@ -379,6 +411,10 @@ function buildRelations(
         continue;
       }
 
+      if (!isConcreteOccurrence(event)) {
+        continue;
+      }
+
       relations.push({
         fromEntityId: subjectId,
         toEntityId: eventEntityId(assetId, event),
@@ -409,7 +445,11 @@ function buildEvents(
   subjectKind?: string,
 ): MemoryEventWrite[] {
   return graph.events
-    .filter((event) => !profileAssertion(event, subject))
+    .filter(
+      (event) =>
+        !profileAssertion(event, subject) &&
+        isConcreteOccurrence(event),
+    )
     .map((event) => ({
     /*
      * Deliberately omit an explicit ID.
