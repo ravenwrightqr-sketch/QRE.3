@@ -13,6 +13,7 @@ import type {
   AuthorScene,
   LatentMovieCandidate,
   LatentMovieTrajectoryStep,
+  MouthCandidate,
   MouthCandidatePool,
   SequenceCut,
   SequencePlay,
@@ -1153,6 +1154,67 @@ export function evaluateAuthorAuthorshipQuality(input: {
   };
 }
 
+export function buildLiteralRecoveryCandidate(input: {
+  beat: MouthCandidateBeat;
+  envelope: ReturnType<typeof buildAuthorRealityEnvelope>;
+}): MouthCandidate | undefined {
+  const sourceLabels = unique(
+    (input.beat.eventIds ?? [])
+      .map((id) =>
+        clean(
+          input.envelope.events.find(
+            (event) => event.id === id,
+          )?.label,
+        ),
+      )
+      .filter(Boolean),
+  );
+
+  if (!sourceLabels.length) {
+    return undefined;
+  }
+
+  /*
+   * Recovery is not authorship.
+   *
+   * The text below is assembled only from exact supplied labels already
+   * authorized for this beat. The separator contributes no world claim.
+   * This guarantees a renderable truth-safe floor when model generation or
+   * parsing fails without widening creative authority.
+   */
+  const text = sourceLabels.join(" / ");
+  const scored = scoreMouthCandidate({
+    text,
+    beat: input.beat,
+    envelope: input.envelope,
+  });
+
+  return {
+    ...scored,
+    authorization: {
+      realitySafe: true,
+      semanticAuthorized: false,
+      directGrounded: true,
+      authorized: true,
+      reasons: [
+        "reality-safe",
+        "direct-grounded",
+        "literal-recovery-grounded",
+      ],
+    },
+    supportedEventIds: [...(input.beat.eventIds ?? [])],
+    groundingScore: 1,
+    forbiddenMoveRisk: 0,
+    inventionRisk: 0,
+    score: Math.max(0.01, scored.score),
+    reasons: unique([
+      ...scored.reasons,
+      "literal-source-restatement",
+      "literal-recovery-grounded",
+    ]),
+  };
+}
+
 function operationalAuthorResult(input: {
   graph: ReturnType<typeof buildAuthorRealityGraph>;
   subject: string;
@@ -1493,6 +1555,9 @@ export async function authorBrainCanonical(
   let modelCalls = 0;
   let pools: MouthCandidatePool[] = [];
   let rawSequenceVariants: string[][] = [];
+  let rawMouthOutput = "";
+  let mouthParseAccepted = false;
+  let mouthGenerationError = "";
   const rejectedCandidates: unknown[] = [];
 
   try {
@@ -1512,7 +1577,8 @@ export async function authorBrainCanonical(
                 texts: {
                   type: "array",
                   items: { type: "string" },
-                  minItems: 1,
+                  minItems: beats.length,
+                  maxItems: beats.length,
                 },
               },
               required: ["texts"],
@@ -1527,8 +1593,20 @@ export async function authorBrainCanonical(
 
     modelCalls = 1;
     modelName = generated.model || modelName;
+    rawMouthOutput = generated.text;
 
     const parsed = parseMouthCandidateBatch(generated.text, beats.length);
+    mouthParseAccepted = Boolean(parsed);
+
+    if (!parsed) {
+      rejectedCandidates.push({
+        phase: "mouth-batch-parse",
+        reason: "model-output-did-not-match-required-whole-sequence-schema",
+        expectedBeatCount: beats.length,
+        rawOutput: generated.text,
+      });
+    }
+
     if (parsed) {
       rawSequenceVariants = parsed.sequenceVariants ?? [];
       pools = beats.map((beat) => ({
@@ -1560,8 +1638,18 @@ export async function authorBrainCanonical(
           );
       });
     }
-  } catch {
+  } catch (error) {
     modelCalls = 1;
+    mouthGenerationError =
+      error instanceof Error
+        ? error.message
+        : clean(error);
+
+    rejectedCandidates.push({
+      phase: "mouth-generation",
+      reason: "model-generation-failed",
+      error: mouthGenerationError,
+    });
   }
 
   let recoveryUsed = false;
@@ -1573,17 +1661,30 @@ export async function authorBrainCanonical(
         if (generatedPool && hasAuthorizedCandidate) return generatedPool;
 
         recoveryUsed = true;
-        const source = beat.eventIds
-          ?.map((id) => clean(envelope.events.find((event) => event.id === id)?.label))
-          .find(Boolean);
+
+        const recoveryCandidate =
+          buildLiteralRecoveryCandidate({
+            beat,
+            envelope,
+          });
+
+        if (recoveryCandidate) {
+          rejectedCandidates.push({
+            phase: "mouth-recovery",
+            beatOrder: beat.order,
+            reason:
+              "using-literal-source-recovery; renderable truth floor only, not authored success",
+            text: recoveryCandidate.text,
+          });
+        }
 
         return {
           order: beat.order,
           viewerState: beat.viewerState,
           nextPromise: clean(beat.next),
           frontier: clean(beat.frontier),
-          candidates: source
-            ? [scoreMouthCandidate({ text: source, beat, envelope })]
+          candidates: recoveryCandidate
+            ? [recoveryCandidate]
             : [],
         };
       });
@@ -1666,9 +1767,16 @@ export async function authorBrainCanonical(
     sequenceSourcesComplete &&
     attention.accepted === true &&
     arc.accepted === true;
-  const truthSafe = complete && sourceReplay.truthSafe;
+  /*
+   * Truth safety and renderability are different questions.
+   * No-output/incomplete output is not a truth violation; it is a completeness
+   * failure. A literal recovery may therefore be truth-safe + renderable while
+   * still failing authored quality.
+   */
+  const truthSafe = sourceReplay.truthSafe;
+  const renderable = complete && truthSafe;
   const authored =
-    truthSafe &&
+    renderable &&
     sourceReplay.authored &&
     authorshipQuality.accepted;
 
@@ -1713,7 +1821,7 @@ export async function authorBrainCanonical(
       acceptedCandidates: selected.candidates.length,
       recoveryUsed,
       qualityStatus: authored ? "ACCEPTED" : "REJECTED",
-      renderable: truthSafe,
+      renderable,
       complete,
       selectedScore: selected.score,
       rejectedCandidates,
@@ -1740,6 +1848,9 @@ export async function authorBrainCanonical(
         semanticUnderRealizationRisk: authorshipQuality.semanticUnderRealizationRisk,
         explanatoryLabelRisk: authorshipQuality.explanatoryLabelRisk,
         authorshipReasons: authorshipQuality.reasons,
+        mouthParseAccepted,
+        mouthGenerationError: mouthGenerationError || undefined,
+        recoveryUsed,
       },
       trace: {
         input: {
@@ -1796,6 +1907,12 @@ export async function authorBrainCanonical(
           viewerState: beat.viewerState,
           realizationAuthority: beat.realizationAuthority,
         })),
+        mouthGeneration: {
+          parseAccepted: mouthParseAccepted,
+          error: mouthGenerationError || undefined,
+          rawOutput: rawMouthOutput,
+          recoveryUsed,
+        },
         rawSequenceVariants,
         candidateScores: [
           ...pools.flatMap((pool) =>
