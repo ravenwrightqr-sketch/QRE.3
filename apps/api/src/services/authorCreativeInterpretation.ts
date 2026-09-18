@@ -131,7 +131,7 @@ function isSemanticallyMaterial(
     hasState(graph, eventId) ||
     hasObject(graph, eventId) ||
     structure?.semanticTags.length ||
-    structure?.salienceScore >= 0.45,
+    (structure?.salienceScore ?? 0) >= 0.45,
   );
 }
 
@@ -440,11 +440,9 @@ function bestConcreteCallback(
       orderedEventIds[i]!;
 
     const earlierObjects =
-      concreteTokens(
-        labelFor(
-          graph,
-          earlierId,
-        ),
+      objectsFor(
+        graph,
+        earlierId,
       );
 
     if (
@@ -469,8 +467,9 @@ function bestConcreteCallback(
         );
 
       const laterObjects =
-        concreteTokens(
-          laterLabel,
+        objectsFor(
+          graph,
+          laterId,
         );
 
       const shared =
