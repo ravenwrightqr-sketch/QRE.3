@@ -11,6 +11,7 @@ export type RealityEnvelopeEvent = {
   label: string;
   sourceIds: string[];
   entities: string[];
+  place?: string;
 };
 
 export type RealityEnvelopeRelation = {
@@ -27,6 +28,7 @@ export type RealityEnvelope = {
   suppliedTerms: string[];
   suppliedPhrases: string[];
   suppliedEntities: string[];
+  suppliedPlaces: string[];
   suppliedActions: string[];
   suppliedStates: string[];
   openingEventIds: string[];
@@ -192,11 +194,24 @@ export function buildAuthorRealityEnvelope(input: {
     ),
   );
 
+  /*
+   * Places remain a distinct kind of concrete authority.
+   * A supplied place may be framed or personified metaphorically, but its
+   * existence never authorizes unsupplied people who might plausibly work,
+   * live, gather, own, rent, manage, or otherwise participate there.
+   */
+  const suppliedPlaces = unique(
+    events
+      .map((event) => clean(event.place))
+      .filter(Boolean),
+  );
+
   /* suppliedTerms is the canonical concrete vocabulary used by the Mouth. */
   const suppliedTerms = tokens([
     subject,
     ...eventLabels,
     ...suppliedEntities,
+    ...suppliedPlaces,
     ...graph.recurringSignals,
     ...graph.sensorySignals,
   ]);
@@ -210,6 +225,7 @@ export function buildAuthorRealityEnvelope(input: {
       label: event.label,
       sourceIds: event.sourceIds ?? [],
       entities: event.entities ?? [],
+      place: clean(event.place) || undefined,
     })),
     relations: graph.relations.map((relation) => ({
       from: relation.from,
@@ -220,6 +236,7 @@ export function buildAuthorRealityEnvelope(input: {
     suppliedTerms,
     suppliedPhrases,
     suppliedEntities,
+    suppliedPlaces,
     suppliedActions: actionTerms(eventLabels),
     suppliedStates: stateTerms([
       ...eventLabels,
