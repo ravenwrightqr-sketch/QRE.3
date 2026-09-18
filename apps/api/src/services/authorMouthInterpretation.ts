@@ -653,7 +653,21 @@ function zeroOverlapApprovedRealizationShape(
       .toLowerCase()
       .match(/[a-z0-9'-]+/g) ?? [];
 
+  /*
+   * Once Cognition has approved the beat's semantic territory, a compact
+   * viewer-facing fragment does not need to reuse source or taxonomy words.
+   *
+   * This is language freedom, not reality freedom. Observable/concrete claim
+   * shapes were rejected above and are still checked by the concrete
+   * realization-authority veto. This path only permits non-observable
+   * interpretation, status, implication, attitude, metaphor, or recognition.
+   */
+  const compactInterpretiveFragment =
+    words.length <= 6 &&
+    compactRhetoricalShape(text);
+
   return (
+    compactInterpretiveFragment ||
     words.length === 1 ||
     words.some(semanticFrameToken)
   );
