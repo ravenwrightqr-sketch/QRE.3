@@ -1,6 +1,7 @@
 import type {
   AuthorDomainContext,
   AuthorExperienceState,
+  AuthorPlayoutMode,
   LatentMovieCandidate,
   RealityGraph,
 } from "@qre/contracts";
@@ -32,6 +33,8 @@ export type AuthorCognitionInput = {
   priorScenes?: string[];
   priorStrategies?: string[];
   round?: number;
+  playoutMode?: AuthorPlayoutMode;
+  /** @deprecated Compatibility only. Prefer playoutMode. */
   movieMode?: boolean;
 };
 
@@ -333,6 +336,7 @@ function movieFor(
   worldSimulation?: ReturnType<typeof buildAuthorWorldSimulation>;
 } {
   if (
+    input.playoutMode === "operational" ||
     input.movieMode === false ||
     !input.realityGraph
   ) {
@@ -755,6 +759,11 @@ const selectedLens =
         )
       : undefined;
 
+  const domainContext =
+    domainContextText(
+      input.domainContext,
+    );
+
   const permanentTruths =
     uniq(
       [
@@ -913,6 +922,12 @@ const selectedLens =
       `MODE: ${chosen}`,
       frameSummary,
       graphSummary,
+      ...(domainContext.length
+        ? [
+            `DOMAIN CONTEXT (CONTEXT ONLY, NOT OCCURRENCE EVIDENCE): ${domainContext.join(" | ")}`,
+            "Domain context may classify the world and legitimate service/business capabilities. It may not invent a person, ownership, tenancy, client relationship, location, action, or event.",
+          ]
+        : []),
       movieSummary,
       ...(experienceState
         ? summarizeAuthorExperienceState(
