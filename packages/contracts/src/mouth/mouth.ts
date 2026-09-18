@@ -22,6 +22,20 @@ export type ViewerStateCut = {
   stateShift: number;
   predictionError: number;
   evidenceEventIds: string[];
+
+  /**
+   * Interpretive observer-state metadata only.
+   *
+   * These fields describe what the supplied evidence can let the viewer infer.
+   * They are never concrete-world truth and must never be persisted as an
+   * occurrence, participant, relationship, or other factual claim.
+   */
+  inferenceBefore?: string;
+  inferenceAfter?: string;
+  inferenceGap?: string;
+  reinterpretation?: string;
+  inferenceSpace?: number;
+  groundingConfidence?: number;
 };
 
 export type MouthObserverExperienceObjective = {
