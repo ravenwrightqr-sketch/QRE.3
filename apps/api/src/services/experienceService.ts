@@ -302,7 +302,12 @@ export async function compileExperience(input: {
   const place = clean(input.geoAnchor?.label) || clean(presence?.places?.[0]);
   const subjectTruth = resolveSubjectTruth(subject, prompt, memoryContext);
   const priorScenes = priorAuthorStates.flatMap((state) => state.chapter.semanticTurns);
-  const sourceMoments = unique([prompt, ...(memoryContext?.events ?? []).map((event) => clean(event.summary))]).slice(0, 40);
+  /*
+   * Current reality and remembered reality are distinct authorities.
+   * Historical events remain available through memoryContext; they must not be
+   * replayed as if they occurred in the current authoring round.
+   */
+  const sourceMoments = unique([prompt]).slice(0, 40);
   const facts = unique([...(memoryContext?.facts ?? []).filter((fact) => fact.status === "active" && fact.confidence >= 0.7).map((fact) => `${clean(fact.predicate)}: ${clean(fact.value)}`)]).slice(0, 80);
   const trajectory = unique([...priorScenes, ...(presence?.summary ?? [])]).slice(0, 40);
   const presenceSummary = unique(presence?.summary ?? []).slice(0, 24);
@@ -374,7 +379,16 @@ const authorInput: AuthorBrainTruth = {
 
   if (input.assetId && input.memoryRepository) {
     try {
-      const batch = buildExperienceMemoryBatch({ operationId, assetId: input.assetId, userId: input.userId, graph, sessionId: input.sessionId, source: "prompt" });
+      const batch = buildExperienceMemoryBatch({
+        operationId,
+        assetId: input.assetId,
+        userId: input.userId,
+        graph,
+        sessionId: input.sessionId,
+        source: "prompt",
+        subject,
+        subjectKind: domainContext?.subjectKind,
+      });
       await input.memoryRepository.writeBatch(batch);
       memory = { entities: batch.entities.length, facts: batch.facts.length, relations: batch.relations.length, events: batch.events.length };
     } catch (error) {
