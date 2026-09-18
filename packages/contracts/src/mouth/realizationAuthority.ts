@@ -35,6 +35,13 @@ export type MouthRealizationAuthority = {
   permittedRealizationModes: string[];
   inferenceBudget: MouthInferenceBudget;
   creativeMoves: string[];
+  treatment?: {
+    label: string;
+    intensity: number;
+    framingBias: string[];
+    realizationPreferences: string[];
+    forbiddenRealityMoves: string[];
+  };
   forbiddenMoves: string[];
   evidenceEventIds: string[];
 };
