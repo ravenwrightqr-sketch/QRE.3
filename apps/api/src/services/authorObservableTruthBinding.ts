@@ -334,10 +334,6 @@ function chronologyClaim(
   const semantic = beat?.semanticRealization;
   const relationKind = clean(semantic?.relation?.kind).toLowerCase();
   const mechanism = clean(semantic?.mechanism).toLowerCase();
-  const hasBeforeAfter =
-    Boolean(semantic?.beforeEventIds?.length) &&
-    Boolean(semantic?.afterEventIds?.length);
-
   const semanticallyBound =
     (RECURRENCE_LANGUAGE.test(value) &&
       (mechanism === "recurrence" || relationKind === "repeats")) ||
@@ -346,7 +342,7 @@ function chronologyClaim(
         mechanism === "recurrence" ||
         relationKind === "repeats")) ||
     (SEQUENCE_LANGUAGE.test(value) &&
-      (hasBeforeAfter || ["before", "after", "changes", "causes"].includes(relationKind)));
+      ["before", "after", "changes", "causes"].includes(relationKind));
 
   if (semanticallyBound) {
     return {
