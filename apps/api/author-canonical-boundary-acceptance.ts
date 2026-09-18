@@ -791,6 +791,55 @@ cases.push({
   authorization: inventedBartender.authorization,
 });
 
+
+const arbitraryGroomerActor = scoreMouthCandidate({
+  text: "The stylist celebrated.",
+  beat: groomerContextBeat,
+  envelope: groomerContextEnvelope,
+});
+cases.push({
+  name: "arbitrary unsupplied role cannot become an actor",
+  expected: "rejected",
+  actual: isAuthorizedMouthCandidate(arbitraryGroomerActor)
+    ? "allowed"
+    : "rejected",
+  text: arbitraryGroomerActor.text,
+  reasons: arbitraryGroomerActor.reasons,
+  authorization: arbitraryGroomerActor.authorization,
+});
+
+const contextNounPromotedThroughObject = scoreMouthCandidate({
+  text: "Coco made the groomer laugh.",
+  beat: groomerContextBeat,
+  envelope: groomerContextEnvelope,
+});
+cases.push({
+  name: "context noun cannot become a participating person through another actor",
+  expected: "rejected",
+  actual: isAuthorizedMouthCandidate(contextNounPromotedThroughObject)
+    ? "allowed"
+    : "rejected",
+  text: contextNounPromotedThroughObject.text,
+  reasons: contextNounPromotedThroughObject.reasons,
+  authorization: contextNounPromotedThroughObject.authorization,
+});
+
+const arbitraryVenueActor = scoreMouthCandidate({
+  text: "The promoter waved.",
+  beat: raveBeat,
+  envelope: raveEnvelope,
+});
+cases.push({
+  name: "arbitrary venue-associated person cannot be invented",
+  expected: "rejected",
+  actual: isAuthorizedMouthCandidate(arbitraryVenueActor)
+    ? "allowed"
+    : "rejected",
+  text: arbitraryVenueActor.text,
+  reasons: arbitraryVenueActor.reasons,
+  authorization: arbitraryVenueActor.authorization,
+});
+
 const inventedRecipient = scoreMouthCandidate({
   text: "Sent to client.",
   beat: serviceBeat,
