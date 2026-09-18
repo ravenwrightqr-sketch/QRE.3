@@ -789,9 +789,12 @@ export function parseMouthCandidateBatch(
     .map((line) => line.replace(/^\s*(?:[-*]|\d+[.)])\s*/, "").trim())
     .filter(Boolean);
 
-  if (lines.length < expectedBeatCount) return undefined;
+  if (lines.length < expectedBeatCount && lines.length !== 1) return undefined;
 
-  const texts = lines.slice(0, expectedBeatCount);
+  const texts =
+    lines.length === 1
+      ? lines
+      : lines.slice(0, expectedBeatCount);
   return {
     variantsByBeat: texts.map((text, index) => ({
       order: index + 1,
