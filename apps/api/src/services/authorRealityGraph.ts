@@ -1771,6 +1771,9 @@ export function buildAuthorRealityGraph(input: {
     );
 
   return {
+    subject:
+      clean(input.subject) ||
+      undefined,
     evidence:
       sourceEvidence,
     events,
