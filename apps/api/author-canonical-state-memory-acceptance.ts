@@ -396,6 +396,25 @@ assert(
   `Payoff beat did not land viewer state: ${JSON.stringify(enrichedBeats[2]?.viewerState)}`,
 );
 
+const movieCandidates = searchUniversalMovieCandidates({
+  graph,
+  subject,
+  lens: "status comedy",
+  limit: 8,
+});
+const graphEventIds = new Set(graph.events.map((event) => event.id));
+assert(movieCandidates.length >= 1, "Universal movie search did not produce a current candidate.");
+assert(
+  movieCandidates.every((candidate) =>
+    candidate.trajectory
+      .flatMap((step) => step.eventIds)
+      .every((id) => graphEventIds.has(id)),
+  ),
+  "Universal movie search invented event IDs.",
+);
+
+const selectedMovie = movieCandidates[0]!;
+
 const heistBrief = buildCreativeLensBrief({
   lens: "heist",
   movie: selectedMovie,
@@ -575,24 +594,6 @@ assert(
   `Lens ranking stopped preserving the reality boundary: ${JSON.stringify(lensRanking)}`,
 );
 
-const movieCandidates = searchUniversalMovieCandidates({
-  graph,
-  subject,
-  lens: "status comedy",
-  limit: 8,
-});
-const graphEventIds = new Set(graph.events.map((event) => event.id));
-assert(movieCandidates.length >= 1, "Universal movie search did not produce a current candidate.");
-assert(
-  movieCandidates.every((candidate) =>
-    candidate.trajectory
-      .flatMap((step) => step.eventIds)
-      .every((id) => graphEventIds.has(id)),
-  ),
-  "Universal movie search invented event IDs.",
-);
-
-const selectedMovie = movieCandidates[0]!;
 const roundOneState = buildAuthorExperienceState({
   graph,
   movie: selectedMovie,
