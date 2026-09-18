@@ -407,6 +407,11 @@ const miloInventedCandidate = scoreMouthCandidate({
   beat: miloSemanticBeat,
   envelope: miloEnvelope,
 });
+const miloRhetoricalCandidate = scoreMouthCandidate({
+  text: "Did I hear walk?",
+  beat: miloSemanticBeat,
+  envelope: miloEnvelope,
+});
 
 assert(
   miloParadeCandidate.reasons.includes("fact-parade-like"),
@@ -423,6 +428,20 @@ assert(
 assert(
   !isAuthorizedMouthCandidate(miloInventedCandidate),
   `Semantic compression widened concrete reality authority: ${JSON.stringify(miloInventedCandidate)}`,
+);
+assert(
+  isAuthorizedMouthCandidate(miloRhetoricalCandidate),
+  `Rhetorical question was misclassified as an unsupplied concrete referent: ${JSON.stringify(miloRhetoricalCandidate)}`,
+);
+
+const extraLinePlainText = parseMouthCandidateBatch(
+  "First cut.\nSecond cut.\nPlanner explanation.",
+  2,
+);
+
+assert(
+  !extraLinePlainText,
+  `Plain-text parser silently truncated extra model output: ${JSON.stringify(extraLinePlainText)}`,
 );
 
 const parsedWholeSequences = parseMouthCandidateBatch(
