@@ -95,7 +95,9 @@ export function buildCreativeLensBrief(input: {
       "RealityGraph remains the only concrete-world authority.",
       "The metamorphic relation is discovered upstream of the lens.",
       "Lens pressure may change perception, framing, attitude, implication, metaphor, status, rhythm, or emotional pressure.",
-      "Lens pressure may never create a concrete fact, event, entity, object, place, action, sensory detail, motive, or chronology.",
+      "Lens pressure may never create a concrete fact, event, entity, object, place, action, sensory detail, motive, chronology, participant, or relationship.",
+      "If a participant, relationship, possessor, recipient, audience member, worker, witness, owner, occupant, or other concrete role was not supplied, it does not exist for Author purposes.",
+      "A contextual noun, venue, business type, service type, or destination never becomes actor authority merely because it was mentioned.",
       "Mouth may realize only the supplied reality plus the approved metamorphic relation under this treatment pressure.",
     ],
   };
