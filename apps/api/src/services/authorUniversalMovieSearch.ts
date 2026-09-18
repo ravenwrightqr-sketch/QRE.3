@@ -541,7 +541,7 @@ function buildTrajectory(
   graph: RealityGraph,
   ids: readonly string[],
 ): LatentMovieTrajectoryStep[] {
-  if (ids.length < 3) return [];
+  if (!ids.length) return [];
 
   const selected = [...ids]
     .sort(
@@ -1063,7 +1063,7 @@ function addTrajectoryCandidate(
   subject?: string,
 ): void {
   const built = buildTrajectory(graph, ids);
-  if (built.length < 3) return;
+  if (!built.length) return;
   candidates.push({
     id,
     lens: clean(lens) || "NONE",
@@ -1082,7 +1082,7 @@ export function searchUniversalMovieCandidates(input: {
   const sourceIds = input.graph.events
     .filter((item) => clean(item.label))
     .map((item) => item.id);
-  if (sourceIds.length < 3) return [];
+  if (!sourceIds.length) return [];
 
   const connectedIds = subjectConnectedIds(input.graph, input.subject);
   const candidates: LatentMovieCandidate[] = [];
@@ -1098,7 +1098,7 @@ export function searchUniversalMovieCandidates(input: {
     input.subject,
   );
 
-  if (connectedIds.length >= 3 && connectedIds.length < sourceIds.length) {
+  if (connectedIds.length >= 1 && connectedIds.length < sourceIds.length) {
     addTrajectoryCandidate(
       candidates,
       input.graph,
@@ -1109,7 +1109,7 @@ export function searchUniversalMovieCandidates(input: {
     );
   }
 
-  const stateIds = connectedIds.length >= 3 ? connectedIds : sourceIds;
+  const stateIds = connectedIds.length >= 1 ? connectedIds : sourceIds;
   const state = statePair(input.graph, stateIds);
   if (state) {
     const start = position(input.graph, state.from);
