@@ -194,8 +194,46 @@ function abstractPenalty(text: string): number {
   return 0.2;
 }
 
-function explanationPenalty(text: string): number {
-  return EXPLANATION.test(clean(text)) || INTERNAL.test(clean(text)) ? 1 : 0;
+function authorityLicensesViewerLanguage(
+  text: string,
+  beat: MouthCandidateBeat,
+): boolean {
+  const authority = beat.realizationAuthority;
+  if (!authority) return false;
+
+  const candidate = meaningfulTokens(text);
+  if (!candidate.size) return false;
+
+  const licensed = meaningfulTokens(
+    [
+      ...Object.values(authority.meaning).map((value) => String(value ?? "")),
+      ...authority.earnedInterpretations,
+      ...authority.permittedRealizationModes,
+      ...authority.creativeMoves,
+      authority.treatment?.label ?? "",
+      ...(authority.treatment?.framingBias ?? []),
+      ...(authority.treatment?.realizationPreferences ?? []),
+    ].join(" "),
+  );
+
+  return [...candidate].every((token) => licensed.has(token));
+}
+
+function explanationPenalty(
+  text: string,
+  beat?: MouthCandidateBeat,
+): number {
+  const value = clean(text);
+  if (EXPLANATION.test(value)) return 1;
+
+  if (
+    INTERNAL.test(value) &&
+    !(beat && authorityLicensesViewerLanguage(value, beat))
+  ) {
+    return 1;
+  }
+
+  return 0;
 }
 
 function formScore(text: string): number {
@@ -249,17 +287,10 @@ function semanticUnitParadeRisk(
   trivialProgression: number;
   sourceCoverage: number;
 } {
-  const eventCount = beat.eventIds?.length ?? 0;
-  if (eventCount < 2) {
-    return {
-      parade: 0,
-      trivialProgression: 0,
-      sourceCoverage: 0,
-    };
-  }
-
   const labels = sourceLabels(beat, envelope);
-  const source = meaningfulTokens(labels.join(" "));
+  const source = meaningfulTokens(
+    (labels.length ? labels : envelope.events.map((event) => event.label)).join(" "),
+  );
   const candidate = meaningfulTokens(text);
   const sourceCoverage = overlap(source, candidate);
 
@@ -275,52 +306,71 @@ function semanticUnitParadeRisk(
     .map(clean)
     .filter(Boolean);
 
-  const fragmentCount = fragments.length;
-
-  /*
-   * A semantic unit can span several supplied events while a generated line
-   * still enumerates those events one fragment at a time. Local beat overlap
-   * alone misses this when composition has already compressed the evidence
-   * set (for example: "Walks. Bacon. Small dogs.").
-   *
-   * Detect the structural failure directly: how many visible fragments are
-   * substantially recoverable from one supplied current-reality event?
-   * This remains domain-neutral and does not penalize a transformed line just
-   * for preserving one useful source noun.
-   */
   const currentRealityLabels = envelope.events
     .map((event) => clean(event.label))
     .filter(Boolean);
 
-  const sourceShapedFragments = fragments.filter((fragment) => {
-    const fragmentTokens = meaningfulTokens(fragment);
-    if (!fragmentTokens.size) return false;
+  /*
+   * Fact-parade detection is intentionally world-aware rather than beat-count
+   * aware. A semantic trajectory may stage only one local event in an anchor
+   * beat while a bad Mouth candidate illegally enumerates several supplied
+   * facts from the larger current world. That is still a fact parade.
+   */
+  const matchedRealityIndexes = new Set<number>();
+  let sourceShapedFragments = 0;
 
-    return currentRealityLabels.some((label) => {
+  fragments.forEach((fragment) => {
+    const fragmentTokens = meaningfulTokens(fragment);
+    if (!fragmentTokens.size) return;
+
+    let bestIndex = -1;
+    let bestCoverage = 0;
+
+    currentRealityLabels.forEach((label, index) => {
       const labelTokens = meaningfulTokens(label);
-      if (!labelTokens.size) return false;
+      if (!labelTokens.size) return;
 
       const contained = [...fragmentTokens].filter((token) =>
         labelTokens.has(token),
       ).length / Math.max(1, fragmentTokens.size);
 
-      return contained >= 0.72;
+      if (contained > bestCoverage) {
+        bestCoverage = contained;
+        bestIndex = index;
+      }
     });
-  }).length;
 
+    if (bestCoverage >= 0.72 && bestIndex >= 0) {
+      sourceShapedFragments += 1;
+      matchedRealityIndexes.add(bestIndex);
+    }
+  });
+
+  const fragmentCount = fragments.length;
   const fragmentParadeRatio = metric(
-    sourceShapedFragments /
-      Math.max(1, fragmentCount),
+    sourceShapedFragments / Math.max(1, fragmentCount),
   );
+  const distinctSourceFacts = matchedRealityIndexes.size;
 
+  const crossFactEnumeration =
+    distinctSourceFacts >= 2 && sourceShapedFragments >= 2
+      ? metric(
+          0.72 +
+          Math.min(0.2, (distinctSourceFacts - 2) * 0.1) +
+          Math.min(0.08, Math.max(0, fragmentCount - 2) * 0.04),
+        )
+      : 0;
+
+  const localEvidenceCount = beat.eventIds?.length ?? 0;
   const parade = metric(
     Math.max(
-      sourceCoverage * 0.72 +
-        (fragmentCount >= Math.min(3, eventCount) ? 0.18 : 0) +
-        trivialProgression * 0.1,
+      crossFactEnumeration,
+      sourceCoverage * 0.62 +
+        (fragmentCount >= 2 && localEvidenceCount >= 2 ? 0.16 : 0) +
+        trivialProgression * 0.12,
       fragmentCount >= 2
-        ? fragmentParadeRatio * 0.82 +
-          (fragmentCount >= Math.min(3, eventCount) ? 0.12 : 0)
+        ? fragmentParadeRatio * 0.78 +
+          (distinctSourceFacts >= 2 ? 0.18 : 0)
         : 0,
     ),
   );
@@ -346,7 +396,7 @@ function candidateScore(text: string, beat: MouthCandidateBeat, envelope: Realit
     unsupportedConcrete(value, beat, envelope),
     interpretation.unsupportedConcreteRisk,
   );
-  const explain = explanationPenalty(value);
+  const explain = explanationPenalty(value, beat);
   const abstract = abstractPenalty(value);
   const form = formScore(value);
   const payoff = payoffScore(value, beat);
