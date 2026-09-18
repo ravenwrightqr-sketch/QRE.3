@@ -1,4 +1,5 @@
 import type {
+  LatentMovieCandidate,
   LatentSemanticRealization,
   MouthCandidateBeat,
 } from "@qre/contracts";
@@ -560,6 +561,186 @@ cases.push({
     truthSafe: operational.diagnostics.truthSafe,
     authored: operational.diagnostics.authored,
   },
+});
+
+
+const profileSource = ["Milo loves walks, bacon, small dogs"];
+const profileGraph = buildAuthorRealityGraph({
+  prompt: "Create a QRE experience from supplied reality.",
+  subject: "Milo",
+  facts: profileSource,
+  sourceMoments: profileSource,
+  memoryContext: [],
+  trajectory: [],
+});
+const profileEnvelope = buildAuthorRealityEnvelope({
+  graph: profileGraph,
+  subject: "Milo",
+});
+const profileEventIds = profileGraph.events.map((event) => event.id);
+
+assert(
+  profileEventIds.length === 3,
+  `Profile list recovery did not preserve three supplied preference facts: ${JSON.stringify(profileGraph.events)}`,
+);
+
+const profileMovie: LatentMovieCandidate = {
+  id: "profile-convergence-acceptance",
+  lens: "NONE",
+  anchorEventIds: profileEventIds,
+  supportingRelationKinds: ["convergence"],
+  trajectory: profileEventIds.map((eventId, index) => ({
+    order: index + 1,
+    operation:
+      index === 0
+        ? "establish"
+        : index === profileEventIds.length - 1
+          ? "payoff"
+          : "reveal",
+    eventIds: [eventId],
+    viewerChange: profileGraph.events[index]?.label ?? "",
+    nextQuestion: "",
+  })),
+  payoff: "recognition",
+  unresolvedQuestion: "",
+  evidence: profileGraph.events.map((event) => event.label),
+  hypothesis: ["Supplied preferences converge into one character reading."],
+  storyThesis: {
+    initialReading: "Several preferences are supplied.",
+    semanticTurn: "The supplied preferences form one recognizable character impression.",
+    semanticRealization: {
+      mechanism: "convergence",
+      evidenceEventIds: profileEventIds,
+      beforeEventIds: [profileEventIds[0]!],
+      afterEventIds: [profileEventIds[profileEventIds.length - 1]!],
+      before: profileGraph.events[0]?.label,
+      after: profileGraph.events[profileGraph.events.length - 1]?.label,
+      subject: "Milo",
+      realizationMove: "recognize",
+      creativeOpportunity: "recognition",
+      feltEffect:
+        "The viewer recognizes character from the supplied preferences without receiving a personality summary.",
+      viewerShift:
+        "Separate supplied preferences become one recognizable character impression.",
+      languageAim:
+        "Use implication and compression; do not enumerate the source facts or invent behavior.",
+      confidence: 0.9,
+    },
+    beforeMeaning: ["separate preferences"],
+    afterMeaning: ["one character impression"],
+    beforeEventIds: [profileEventIds[0]!],
+    afterEventIds: [profileEventIds[profileEventIds.length - 1]!],
+    relationKind: "convergence",
+    carrierEventIds: profileEventIds,
+    sealingEventIds: [profileEventIds[profileEventIds.length - 1]!],
+    payoffDependency: "The final supplied preference changes how the preference set is read.",
+    counterfactualDependency: 0.8,
+  },
+  truthRisk: 0,
+  novelty: 0.7,
+  specificity: 0.8,
+  informationValue: 0.8,
+  uncertainty: 0.5,
+  attentionPotential: 0.8,
+  consequencePotential: 0.4,
+  callbackPotential: 0.4,
+  compressionPotential: 0.9,
+  repetitionRisk: 0.1,
+  distinctiveness: 0.8,
+  score: 0.82,
+};
+
+const profileComposed = composeTrajectoryBeats(
+  profileMovie,
+  profileEnvelope,
+);
+const profileBeats = profileComposed.map((item, index, all) => ({
+  ...item,
+  viewerState: deriveViewerStateCut(item, index, all, profileEnvelope),
+}));
+
+assert(
+  profileBeats.length < profileEventIds.length && profileBeats.length >= 2,
+  `Semantic convergence did not become an inference-shaped beat sequence: ${JSON.stringify(profileBeats)}`,
+);
+assert(
+  new Set(profileBeats.flatMap((item) => item.eventIds ?? [])).size ===
+    profileEventIds.length,
+  `Semantic beat compression dropped supplied evidence provenance: ${JSON.stringify(profileBeats)}`,
+);
+assert(
+  profileBeats.some((item) => (item.eventIds?.length ?? 0) > 1),
+  `Semantic composition still serialized one source fact per cut: ${JSON.stringify(profileBeats)}`,
+);
+
+const profileFactParade = evaluateAuthorAuthorshipQuality({
+  texts: [
+    "Walks. Bacon. Small dogs.",
+    "Then bacon.",
+    "Small dogs complete it.",
+  ],
+  envelope: profileEnvelope,
+  movie: profileMovie,
+  subject: "Milo",
+  beats: profileBeats,
+});
+assert(
+  !profileFactParade.accepted,
+  `Fact parade incorrectly passed authored quality: ${JSON.stringify(profileFactParade)}`,
+);
+
+const profileSubjectReplay = evaluateAuthorAuthorshipQuality({
+  texts: [
+    "Milo loves walks.",
+    "Milo loves bacon.",
+    "Milo loves small dogs.",
+  ],
+  envelope: profileEnvelope,
+  movie: profileMovie,
+  subject: "Milo",
+  beats: profileBeats,
+});
+assert(
+  !profileSubjectReplay.accepted,
+  `Subject-prefix source listing incorrectly passed authored quality: ${JSON.stringify(profileSubjectReplay)}`,
+);
+
+cases.push({
+  name: "semantic convergence follows viewer inference rather than fact count",
+  expected: "allowed",
+  actual:
+    profileBeats.length < profileEventIds.length &&
+    profileBeats.length >= 2
+      ? "allowed"
+      : "rejected",
+  text: JSON.stringify(
+    profileBeats.map((item) => ({
+      order: item.order,
+      eventIds: item.eventIds,
+      change: item.change,
+      viewerState: item.viewerState,
+    })),
+  ),
+  reasons: [],
+  authorization: undefined,
+});
+
+cases.push({
+  name: "fact parade cannot qualify as authored",
+  expected: "rejected",
+  actual: profileFactParade.accepted ? "allowed" : "rejected",
+  text: "Walks. Bacon. Small dogs. / Then bacon. / Small dogs complete it.",
+  reasons: profileFactParade.reasons,
+  authorization: undefined,
+});
+
+cases.push({
+  name: "subject-prefix source listing cannot qualify as authored",
+  expected: "rejected",
+  actual: profileSubjectReplay.accepted ? "allowed" : "rejected",
+  text: "Milo loves walks. / Milo loves bacon. / Milo loves small dogs.",
+  reasons: profileSubjectReplay.reasons,
+  authorization: undefined,
 });
 
 const mismatches = cases.filter((item) => item.expected !== item.actual);
