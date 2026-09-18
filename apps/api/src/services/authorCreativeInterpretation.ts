@@ -172,6 +172,13 @@ function overlap(
 function subjectName(
   graph: RealityGraph,
 ): string {
+  const explicitSubject =
+    clean(graph.subject);
+
+  if (explicitSubject) {
+    return explicitSubject;
+  }
+
   const continuity = [
     ...(graph.entityContinuity ?? []),
   ]
