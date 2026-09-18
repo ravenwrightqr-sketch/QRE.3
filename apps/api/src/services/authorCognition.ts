@@ -72,6 +72,7 @@ export type AuthorCognitivePlan = {
   attentionCandidates: AttentionCandidate[];
   characterRead: CharacterRead;
   actionMechanics: AuthorActionMechanic[];
+  selectedActionMechanics: AuthorActionMechanic[];
   latentMovieCandidates: LatentMovieCandidate[];
   selectedMovie?: LatentMovieCandidate;
   experienceState?: AuthorExperienceState;
@@ -755,15 +756,38 @@ const movie =
     actionMechanics,
   );
 
+const selectedEvidenceIds = new Set(
+  movie.selectedMovie?.storyThesis
+    ?.semanticRealization
+    ?.evidenceEventIds ??
+    movie.selectedMovie?.anchorEventIds ??
+    [],
+);
+
+const selectedActionMechanics =
+  selectedEvidenceIds.size
+    ? actionMechanics.filter((mechanic) =>
+        mechanic.evidenceEventIds.some((id) =>
+          selectedEvidenceIds.has(id),
+        ),
+      )
+    : actionMechanics;
+
+const treatmentMechanics =
+  selectedActionMechanics.length
+    ? selectedActionMechanics
+    : actionMechanics;
+
 /*
  * Lens is treatment pressure, not story authority.
  * Resolve it only after the strongest grounded movie/metamorphic relation has
- * been discovered without lens influence.
+ * been discovered without lens influence. Auto-lens receives only mechanics
+ * that overlap the winning interpretation when such evidence exists.
  */
 const selectedLens =
   resolveLens(
     input,
-    actionMechanics,
+    treatmentMechanics,
   );
 
   const experienceState =
@@ -852,7 +876,7 @@ const selectedLens =
         input,
         selectedMovie,
         selectedLens,
-        actionMechanics,
+        treatmentMechanics,
       ),
 
     allowedMoves: [
@@ -969,6 +993,11 @@ const selectedLens =
                     "]",
                 )
                 .join(" | "),
+            "SELECTED-MEANING MECHANICS: " +
+              treatmentMechanics
+                .slice(0, 6)
+                .map((item) => item.kind)
+                .join(", "),
             "Mechanics may shape movie search and treatment only. They never become concrete-world claims.",
           ]
         : []),
@@ -1001,6 +1030,9 @@ const selectedLens =
     characterRead,
 
     actionMechanics,
+
+    selectedActionMechanics:
+      treatmentMechanics,
 
     latentMovieCandidates:
       movie.latentMovieCandidates,
