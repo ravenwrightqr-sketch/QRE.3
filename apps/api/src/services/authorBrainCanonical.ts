@@ -1645,7 +1645,7 @@ export async function authorBrainCanonical(
       }
       pools = realizationBeats.map((beat) => ({
         order: beat.order,
-        viewerState: beat.viewerState,
+        viewerState: beat.viewerState ?? deriveViewerStateCut(beat, 0, realizationBeats, envelope),
         nextPromise: clean(beat.next),
         frontier: clean(beat.frontier),
         candidates: (
@@ -1714,7 +1714,7 @@ export async function authorBrainCanonical(
 
         return {
           order: beat.order,
-          viewerState: beat.viewerState,
+          viewerState: beat.viewerState ?? deriveViewerStateCut(beat, 0, realizationBeats, envelope),
           nextPromise: clean(beat.next),
           frontier: clean(beat.frontier),
           candidates: recoveryCandidate
