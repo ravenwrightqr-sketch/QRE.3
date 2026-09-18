@@ -15,6 +15,8 @@ import { scoreViewerStateTrajectory } from "./src/services/authorViewerState.js"
 import { deriveViewerStateCut } from "./src/services/authorViewerStateCut.js";
 import { buildMouthRealizationAuthority } from "./src/services/authorMouthRealizationAuthority.js";
 import { buildMouthCandidateMessages } from "./src/services/authorMouthCandidateSearchCanonical.js";
+import { buildCreativeLensBrief } from "./src/services/authorCreativeLensBrief.js";
+import { buildExperienceMemoryBatch } from "./src/services/memoryProjection.js";
 
 function assert(condition: unknown, message: string): asserts condition {
   if (!condition) throw new Error(message);
@@ -127,10 +129,82 @@ assert(
   `Payoff beat did not land viewer state: ${JSON.stringify(enrichedBeats[2]?.viewerState)}`,
 );
 
+const heistBrief = buildCreativeLensBrief({
+  lens: "heist",
+  movie: selectedMovie,
+  envelope,
+});
+const gameBrief = buildCreativeLensBrief({
+  lens: "game",
+  movie: selectedMovie,
+  envelope,
+});
+
+assert(
+  heistBrief.metamorphic.relationKind === gameBrief.metamorphic.relationKind &&
+    JSON.stringify(heistBrief.metamorphic.evidenceEventIds) ===
+      JSON.stringify(gameBrief.metamorphic.evidenceEventIds),
+  `Lens changed the discovered metamorphic relation: ${JSON.stringify({
+    heist: heistBrief.metamorphic,
+    game: gameBrief.metamorphic,
+  })}`,
+);
+assert(
+  heistBrief.lens.label !== gameBrief.lens.label &&
+    JSON.stringify(heistBrief.treatmentMoves) !== JSON.stringify(gameBrief.treatmentMoves),
+  "Different lenses did not create different treatment pressure.",
+);
+assert(
+  heistBrief.realityInvariants.some((value) =>
+    /only concrete-world authority/i.test(value),
+  ),
+  "Creative Lens Brief lost RealityGraph sovereignty.",
+);
+
+const identityBatch = buildExperienceMemoryBatch({
+  operationId: "identity-anchor-test",
+  assetId: "asset-identity-test",
+  graph,
+  subject,
+  subjectKind: "person",
+  source: "prompt",
+  observedAt: "2026-09-17T12:00:00.000Z",
+});
+
+const identityEntity = identityBatch.entities.find(
+  (entity) =>
+    entity.name === subject &&
+    entity.kind === "person" &&
+    entity.metadata?.qreIdentityAnchor === true,
+);
+assert(identityEntity, "Durable memory did not persist the QRE subject identity anchor.");
+assert(
+  identityBatch.facts.some(
+    (fact) =>
+      fact.entityId === identityEntity.id &&
+      fact.predicate === "qre_identity_anchor" &&
+      fact.value === subject,
+  ),
+  "Durable memory did not persist the identity-anchor fact.",
+);
+assert(
+  identityBatch.relations.some(
+    (relation) =>
+      relation.fromEntityId === identityEntity.id &&
+      relation.relation === "participates_in",
+  ),
+  "Durable identity anchor was not linked to supplied world events.",
+);
+
 const messages = buildMouthCandidateMessages({
   envelope,
   beats: enrichedBeats,
   lens: "status comedy",
+  creativeLensBrief: buildCreativeLensBrief({
+    lens: "status comedy",
+    movie: selectedMovie,
+    envelope,
+  }),
 });
 
 const userPayload = JSON.parse(messages[1]?.content ?? "{}") as {
@@ -312,6 +386,18 @@ console.log(
       })),
       projectedAuthority,
       recoveredInvariants: {
+        lensBoundary: {
+          heist: heistBrief,
+          game: gameBrief,
+        },
+        identityAnchor: {
+          entity: identityEntity,
+          relationCount: identityBatch.relations.filter(
+            (relation) =>
+              relation.fromEntityId === identityEntity.id &&
+              relation.relation === "participates_in",
+          ).length,
+        },
         learnedProfile,
         realizationModes: ["collection", "sequence-film"],
         lensRanking: lensRanking.slice(0, 3),
