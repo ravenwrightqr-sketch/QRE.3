@@ -611,7 +611,7 @@ function sourcePronounAuthority(
     .match(/\b(?:he|him|his|she|her|hers)\b/g) ?? [];
 
   return pronouns.every((pronoun) =>
-    new RegExp(\`\\b\${pronoun}\\b\`, "i").test(source),
+    new RegExp("\\b" + pronoun + "\\b", "i").test(source),
   );
 }
 
@@ -716,7 +716,7 @@ function closedWorldParticipantViolation(
     });
 
   if (relationViolations.length) {
-    return \`unsupplied-concrete-reference:\${relationViolations.join(",")}\`;
+    return "unsupplied-concrete-reference:" + relationViolations.join(",");
   }
 
   const subjectMatch =
@@ -746,7 +746,7 @@ function closedWorldParticipantViolation(
           semanticFrameToken(token),
       )
     ) {
-      return \`unsupplied-concrete-reference:\${standalone}\`;
+      return "unsupplied-concrete-reference:" + standalone;
     }
 
     return undefined;
@@ -783,7 +783,7 @@ function closedWorldParticipantViolation(
       BODY.test(value);
 
     return concreteAgency
-      ? \`context-promoted-to-factual-actor:\${subjectPhrase}\`
+      ? "context-promoted-to-factual-actor:" + subjectPhrase
       : undefined;
   }
 
@@ -801,7 +801,7 @@ function closedWorldParticipantViolation(
     return undefined;
   }
 
-  return \`unsupplied-participant:\${subjectPhrase}\`;
+  return "unsupplied-participant:" + subjectPhrase;
 }
 
 function concreteAuthorityViolation(
