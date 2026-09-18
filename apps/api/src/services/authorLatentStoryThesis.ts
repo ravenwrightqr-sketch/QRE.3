@@ -440,6 +440,9 @@ function buildSemanticRealization(
       realizationMove: interpretation.realizationMove,
       creativeOpportunity:
         interpretation.creativeOpportunity,
+      feltEffect: interpretation.feltEffect,
+      viewerShift: interpretation.viewerShift,
+      languageAim: interpretation.languageAim,
       confidence: interpretation.confidence,
     };
   }
