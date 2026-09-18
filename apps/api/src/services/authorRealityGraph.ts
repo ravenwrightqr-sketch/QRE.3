@@ -214,17 +214,13 @@ function splitReality(values: readonly string[]): string[] {
     const text = clean(value);
     if (!text) continue;
 
-    const hasFastInputDelimiter =
+    const parts =
       text.includes(",") ||
       text.includes(";") ||
       text.includes("\n") ||
-      text.includes("•") ||
-      text.includes("|") ||
-      /\s\/\s/.test(text);
-
-    const parts = hasFastInputDelimiter
-      ? text.split(/[,;\n•|]+|\s+\/\s+/g)
-      : [text];
+      text.includes("•")
+        ? text.split(/[,;\n•]+/g)
+        : [text];
 
     let profilePrefix = "";
 
