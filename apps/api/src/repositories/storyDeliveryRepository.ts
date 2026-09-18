@@ -66,8 +66,8 @@ export function createStoryDeliveryRepository(): StoryDeliveryRepository {
       geoStory:
         input.geoStory,
 
-      cinematicScenes:
-        input.cinematicScenes,
+     sequence:
+  input.sequence,
     })
   );
 

@@ -1,13 +1,4 @@
-/**
- * QRE LATENT STORY THESIS · UNIVERSAL DISCOVERY EXTRACTOR
- *
- * Converts an already-selected LatentMovieCandidate into one compact,
- * graph-backed semantic thesis. It never creates facts or viewer prose.
- *
- * Creative compression law:
- *   DO NOT SUMMARIZE THE EVENTS.
- *   COMPRESS THE RELATIONSHIP THAT MAKES THE EVENTS FEEL DIFFERENT TOGETHER.
- */
+
 import type {
   LatentMovieCandidate,
   LatentSemanticRealization,
@@ -173,40 +164,45 @@ function interpretationRelationPower(
   nonAdjacent: number;
   count: number;
 } {
-  const ids = orderedIds(candidate);
-  const evidenceIds = new Set(interpretation.evidenceEventIds);
+  const authority = interpretation.relation;
+  if (!authority) {
+    return {
+      strongest: 0,
+      nonAdjacent: 0,
+      count: 0,
+    };
+  }
 
-  let strongest = 0;
-  let nonAdjacent = 0;
-  let count = 0;
+  const ids = orderedIds(candidate);
 
   for (const entry of rankedRelations(graph, candidate)) {
     if (
-      !evidenceIds.has(entry.from) ||
-      !evidenceIds.has(entry.to)
+      entry.relation.kind !== authority.kind ||
+      entry.relation.from !== authority.fromEventId ||
+      entry.relation.to !== authority.toEventId
     ) {
       continue;
     }
 
-    count += 1;
-    strongest = Math.max(strongest, entry.relation.strength);
+    const fromIndex = ids.indexOf(entry.relation.from);
+    const toIndex = ids.indexOf(entry.relation.to);
 
-    const fromIndex = ids.indexOf(entry.from);
-    const toIndex = ids.indexOf(entry.to);
-
-    if (
-      fromIndex >= 0 &&
-      toIndex >= 0 &&
-      Math.abs(fromIndex - toIndex) > 1
-    ) {
-      nonAdjacent = Math.max(nonAdjacent, entry.relation.strength);
-    }
+    return {
+      strongest: entry.relation.strength,
+      nonAdjacent:
+        fromIndex >= 0 &&
+        toIndex >= 0 &&
+        Math.abs(fromIndex - toIndex) > 1
+          ? entry.relation.strength
+          : 0,
+      count: 1,
+    };
   }
 
   return {
-    strongest,
-    nonAdjacent,
-    count,
+    strongest: 0,
+    nonAdjacent: 0,
+    count: 0,
   };
 }
 
@@ -555,18 +551,7 @@ export function deriveLatentStoryThesis(
     interpretation?.afterEventIds[0] ??
     fallbackRelation?.to ??
     endpoint;
-
-  const semanticTurn =
-    clean(interpretation?.statement) ||
-    (fallbackRelation
-      ? `${eventLabel(
-          graph,
-          fallbackRelation.from,
-        )} changes the reading of ${eventLabel(
-          graph,
-          fallbackRelation.to,
-        )} through ${fallbackRelation.relation.kind}.`
-      : "");
+    const semanticTurn = "";
 
   const carrierEventIds = unique([
     ...(interpretation?.evidenceEventIds ?? []),

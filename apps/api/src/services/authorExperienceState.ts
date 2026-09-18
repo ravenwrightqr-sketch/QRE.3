@@ -1,6 +1,7 @@
 import type {
   AuthorExperienceState,
   AuthorTempo,
+  WorldSimulation,
   LatentMovieCandidate,
   RealityGraph,
   RealityRelation,
@@ -82,6 +83,7 @@ export function buildAuthorExperienceState(input: {
   memoryContext?: string[];
   priorExperienceStates?: AuthorExperienceState[];
   round?: number;
+  worldSimulation?: WorldSimulation;
 }): AuthorExperienceState {
   const { graph, movie } = input;
   const trajectory = movie?.trajectory ?? [];
@@ -168,6 +170,7 @@ export function buildAuthorExperienceState(input: {
   return {
     version: 1,
     realityAnchors,
+    worldSimulation: input.worldSimulation,
     establishedEventIds,
     changedEventIds,
     carrierEventIds,
@@ -220,3 +223,4 @@ export function summarizeAuthorExperienceState(state: AuthorExperienceState): st
     `CONTINUATION=${state.continuationValue} LOOKAHEAD=${state.lookaheadValue} ATTENTION=${state.attentionPotential}`,
   ];
 }
+

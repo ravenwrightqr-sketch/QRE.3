@@ -226,13 +226,6 @@ function enrichMovieCandidate(
               "Let the supplied relationship create the realization.",
             explanationForbidden: true,
           }),
-          ...(worldSimulation
-            ? {
-                simulation:
-                  worldSimulation,
-              }
-            : {}),
-          explanationForbidden: true,
         }
       : undefined;
 
@@ -338,6 +331,7 @@ function movieFor(
 ): {
   latentMovieCandidates: LatentMovieCandidate[];
   selectedMovie?: LatentMovieCandidate;
+  worldSimulation?: ReturnType<typeof buildAuthorWorldSimulation>;
 } {
   if (
     input.movieMode === false ||
@@ -407,6 +401,7 @@ function movieFor(
   return {
     latentMovieCandidates: candidates,
     selectedMovie: candidates[0],
+    worldSimulation,
   };
 }
 
@@ -744,6 +739,8 @@ const movie =
             priorExperienceStates,
             round:
               input.round,
+            worldSimulation:
+              movie.worldSimulation,
           },
         )
       : undefined;
@@ -959,3 +956,6 @@ const movie =
     frameSummary,
   };
 }
+
+
+

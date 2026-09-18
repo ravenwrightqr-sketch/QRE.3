@@ -59,9 +59,18 @@ export type MouthCandidateBeat = {
   forbiddenMoves?: readonly string[];
 };
 
+export type MouthCandidateAuthorization = {
+  realitySafe: boolean;
+  semanticAuthorized: boolean;
+  directGrounded: boolean;
+  authorized: boolean;
+  reasons: string[];
+};
+
 export type MouthCandidate = {
   text: string;
   beatOrder: number;
+  authorization: MouthCandidateAuthorization;
   supportedEventIds: string[];
   supportedRelationPairs: string[];
   groundingScore: number;

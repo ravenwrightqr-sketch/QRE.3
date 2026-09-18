@@ -89,7 +89,7 @@ export interface StoryDeliveryRepository {
     sessionId: string;
     moments: unknown;
     geoStory: unknown;
-    cinematicScenes: unknown;
+    sequence: unknown;
   }): Promise<{ id: string }>;
 }
 

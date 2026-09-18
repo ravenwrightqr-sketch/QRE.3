@@ -1,0 +1,336 @@
+import type {
+  LatentSemanticRealization,
+  MouthCandidateBeat,
+} from "@qre/contracts";
+
+import { buildAuthorRealityEnvelope } from "./src/services/authorRealityEnvelope.js";
+import { buildAuthorRealityGraph } from "./src/services/authorRealityGraph.js";
+import { buildAuthorBehaviorProfile } from "./src/services/authorBehaviorProfile.js";
+import { rankLensOpportunities } from "./src/services/authorCharacterLensEngine.js";
+import { buildAuthorExperienceState } from "./src/services/authorExperienceState.js";
+import { buildAuthorReadout } from "./src/services/authorReadout.js";
+import { classifyAuthorRealizationMode } from "./src/services/authorRealizationMode.js";
+import { searchUniversalMovieCandidates } from "./src/services/authorUniversalMovieSearch.js";
+import { scoreViewerStateTrajectory } from "./src/services/authorViewerState.js";
+import { deriveViewerStateCut } from "./src/services/authorViewerStateCut.js";
+import { buildMouthRealizationAuthority } from "./src/services/authorMouthRealizationAuthority.js";
+import { buildMouthCandidateMessages } from "./src/services/authorMouthCandidateSearchCanonical.js";
+
+function assert(condition: unknown, message: string): asserts condition {
+  if (!condition) throw new Error(message);
+}
+
+const subject = "Mira";
+const facts = [
+  "Mira arrived uncertain",
+  "Mira selected the red ticket",
+  "Mira left approved",
+];
+
+const graph = buildAuthorRealityGraph({
+  prompt: "Write a QRE-style living memory.",
+  subject,
+  facts,
+  sourceMoments: facts,
+  memoryContext: ["Mira had visited before"],
+  trajectory: [],
+});
+
+const envelope = buildAuthorRealityEnvelope({ graph, subject });
+
+const semanticRealization: LatentSemanticRealization = {
+  mechanism: "state_change",
+  evidenceEventIds: ["event-1", "event-3"],
+  beforeEventIds: ["event-1"],
+  afterEventIds: ["event-3"],
+  before: "uncertain arrival",
+  after: "approved exit",
+  subject,
+  relation: {
+    kind: "changes",
+    fromEventId: "event-1",
+    toEventId: "event-3",
+  },
+  realizationMove: "feel_state_transition",
+  creativeOpportunity: "status_turn",
+  feltEffect: "approval lands as status",
+  viewerShift: "from uncertainty to approval",
+  languageAim: "state progression without source replay",
+  confidence: 0.9,
+};
+
+const baseBeats: MouthCandidateBeat[] = [
+  {
+    order: 1,
+    role: "establishing",
+    eventIds: ["event-1"],
+    change: "uncertain arrival",
+    next: "What changes?",
+    frontier: "What changes?",
+    relationKinds: [],
+  },
+  {
+    order: 2,
+    role: "reveal",
+    eventIds: ["event-2"],
+    change: "red ticket selected",
+    next: "What does the selection become?",
+    frontier: "What does the selection become?",
+    relationKinds: [],
+  },
+  {
+    order: 3,
+    role: "payoff",
+    eventIds: ["event-1", "event-3"],
+    change: "uncertainty becomes approval",
+    next: "",
+    frontier: "",
+    paysOff: ["approved exit"],
+    relationKinds: ["changes"],
+    semanticRealization,
+    observerExperience: {
+      objective: "Track the viewer from uncertainty to approval.",
+      surprise: "The last state changes the first one.",
+      curiosity: "What did the arrival become?",
+      attention: ["arrival", "selection", "approval"],
+      landing: "approved exit",
+      explanationForbidden: true,
+      feltEffect: "approval lands",
+      viewerShift: "uncertainty resolves",
+      realizationDirection: "compress to viewer-state payoff",
+    },
+  },
+];
+
+const authorityBeats = baseBeats.map((beat) => ({
+  ...beat,
+  realizationAuthority: buildMouthRealizationAuthority({ beat, envelope }),
+}));
+
+const enrichedBeats = authorityBeats.map((beat, index, allBeats) => ({
+  ...beat,
+  viewerState: deriveViewerStateCut(beat, index, allBeats, envelope),
+}));
+
+assert(
+  enrichedBeats.every((beat) => beat.realizationAuthority),
+  "Viewer-state enrichment dropped realizationAuthority.",
+);
+
+assert(
+  enrichedBeats[1]?.viewerState?.beforeState === enrichedBeats[0]?.change,
+  `Beat 2 viewer state did not remember beat 1 meaning: ${JSON.stringify(enrichedBeats[1]?.viewerState)}`,
+);
+
+assert(
+  enrichedBeats[2]?.viewerState?.attentionMove === "land",
+  `Payoff beat did not land viewer state: ${JSON.stringify(enrichedBeats[2]?.viewerState)}`,
+);
+
+const messages = buildMouthCandidateMessages({
+  envelope,
+  beats: enrichedBeats,
+  lens: "status comedy",
+});
+
+const userPayload = JSON.parse(messages[1]?.content ?? "{}") as {
+  beats?: Array<Record<string, unknown>>;
+};
+
+const projectedAuthority = userPayload.beats?.[2]?.realizationAuthority as
+  | Record<string, unknown>
+  | undefined;
+
+assert(projectedAuthority, "Mouth prompt did not receive realizationAuthority.");
+assert(projectedAuthority.reality, "Projected authority missing reality.");
+assert(projectedAuthority.meaning, "Projected authority missing meaning.");
+assert(
+  projectedAuthority.earnedInterpretations,
+  "Projected authority missing earnedInterpretations.",
+);
+assert(
+  projectedAuthority.permittedRealizationModes,
+  "Projected authority missing permittedRealizationModes.",
+);
+assert(projectedAuthority.inferenceBudget, "Projected authority missing inferenceBudget.");
+assert(projectedAuthority.creativeMoves, "Projected authority missing creativeMoves.");
+assert(projectedAuthority.forbiddenMoves, "Projected authority missing forbiddenMoves.");
+assert(
+  !("metamorphicRelationSet" in projectedAuthority),
+  "Mouth prompt leaked metamorphicRelationSet.",
+);
+
+const projectedReality = projectedAuthority.reality as {
+  entities?: unknown[];
+  actions?: unknown[];
+  objects?: unknown[];
+  states?: unknown[];
+};
+const lowerValues = (values: unknown[] | undefined): string[] =>
+  (values ?? []).map((value) => String(value).toLowerCase());
+const projectedEntities = lowerValues(projectedReality.entities);
+const projectedActions = lowerValues(projectedReality.actions);
+const projectedObjects = lowerValues(projectedReality.objects);
+const projectedStates = lowerValues(projectedReality.states);
+
+assert(
+  projectedEntities.includes("mira"),
+  `Projected payoff authority lost scoped entity: ${JSON.stringify(projectedReality)}`,
+);
+assert(
+  projectedActions.includes("arrived") && projectedActions.includes("left"),
+  `Projected payoff authority lost scoped actions: ${JSON.stringify(projectedReality)}`,
+);
+assert(
+  projectedStates.includes("uncertainty") && projectedStates.includes("approval"),
+  `Projected payoff authority lost scoped state/status concepts: ${JSON.stringify(projectedReality)}`,
+);
+assert(
+  projectedObjects.length === 0,
+  `Projected payoff authority invented object authority from state/status evidence: ${JSON.stringify(projectedReality)}`,
+);
+
+const neutralProfile = buildAuthorBehaviorProfile([]);
+assert(neutralProfile.confidence === 0, "Empty behavior profile invented confidence.");
+assert(neutralProfile.learnedSignals.length === 0, "Empty behavior profile invented learned signals.");
+
+const learnedProfile = buildAuthorBehaviorProfile([
+  "accepted:short punchy callback",
+  "accepted:sharp reveal",
+  "rejected:explanatory longform",
+  "engagement:0.9",
+  "revisit:returning continuity",
+]);
+assert(learnedProfile.confidence > 0, "Behavior profile ignored supplied learning evidence.");
+assert(
+  learnedProfile.learnedSignals.some((signal) => /SHORT|EXPLANATORY|CALLBACK|SURPRISE|REVISIT/i.test(signal)),
+  `Behavior profile did not expose learned signals: ${JSON.stringify(learnedProfile)}`,
+);
+
+assert(
+  classifyAuthorRealizationMode({
+    prompt: "Summarize the profile.",
+    facts: ["Mira likes red tickets"],
+    sourceMoments: [],
+    relationKinds: [],
+  }) === "collection",
+  "Stable profile facts became sequence-film evidence.",
+);
+assert(
+  classifyAuthorRealizationMode({
+    prompt: "Write a QRE-style living memory.",
+    facts,
+    sourceMoments: facts,
+    relationKinds: graph.relations.map((relation) => relation.kind),
+    movieMode: true,
+  }) === "sequence-film",
+  "Episode evidence did not select sequence-film realization mode.",
+);
+
+const lensRanking = rankLensOpportunities(envelope);
+assert(lensRanking.length > 0, "Lens ranking produced no current production candidates.");
+assert(
+  lensRanking.every((lens) => /never concrete reality/i.test(lens.reason) || lens.frame === "NONE"),
+  `Lens ranking stopped preserving the reality boundary: ${JSON.stringify(lensRanking)}`,
+);
+
+const movieCandidates = searchUniversalMovieCandidates({
+  graph,
+  subject,
+  lens: "status comedy",
+  limit: 8,
+});
+const graphEventIds = new Set(graph.events.map((event) => event.id));
+assert(movieCandidates.length >= 1, "Universal movie search did not produce a current candidate.");
+assert(
+  movieCandidates.every((candidate) =>
+    candidate.trajectory
+      .flatMap((step) => step.eventIds)
+      .every((id) => graphEventIds.has(id)),
+  ),
+  "Universal movie search invented event IDs.",
+);
+
+const selectedMovie = movieCandidates[0]!;
+const roundOneState = buildAuthorExperienceState({
+  graph,
+  movie: selectedMovie,
+  lens: "status comedy",
+  memoryContext: [],
+  round: 1,
+});
+const roundTwoState = buildAuthorExperienceState({
+  graph,
+  movie: selectedMovie,
+  lens: "status comedy",
+  memoryContext: ["carry: red ticket"],
+  priorExperienceStates: [roundOneState],
+  round: 2,
+});
+assert(
+  roundTwoState.realityAnchors.length >= roundOneState.realityAnchors.length,
+  "Experience-state rehydration dropped prior reality anchors.",
+);
+assert(
+  roundTwoState.carryThreads.some((thread) => /red ticket/i.test(thread)),
+  "Experience-state rehydration dropped memory carry thread.",
+);
+
+const viewerDynamics = scoreViewerStateTrajectory(graph, selectedMovie);
+assert(
+  viewerDynamics.score > 0 && viewerDynamics.payoff > 0,
+  `Viewer-state trajectory failed to score current movie: ${JSON.stringify(viewerDynamics)}`,
+);
+
+const readout = buildAuthorReadout({
+  subject,
+  graph,
+  learnedProfile,
+  movieCandidates,
+  selectedMovie,
+  experienceState: roundTwoState,
+  mouthLines: ["Official."],
+  finalScenes: ["Official."],
+});
+assert(readout.invariants.truthPreserved, "Readout did not preserve source truth invariant.");
+assert(readout.invariants.learnedPreferenceOnly, "Readout allowed learned profile outside preference bounds.");
+assert(readout.invariants.movieSelectedBeforeMouth, "Readout lost selected movie before Mouth.");
+assert(readout.invariants.noPlannerLanguage, "Readout detected planner language in final output.");
+assert(readout.invariants.noPartialSuccess, "Readout accepted a partial gate failure.");
+
+console.log("AUTHOR CANONICAL STATE MEMORY ACCEPTANCE");
+console.log(
+  JSON.stringify(
+    {
+      viewerStateProgression: enrichedBeats.map((beat) => ({
+        order: beat.order,
+        before: beat.viewerState?.beforeState,
+        after: beat.viewerState?.afterState,
+        move: beat.viewerState?.attentionMove,
+        evidenceEventIds: beat.viewerState?.evidenceEventIds,
+        hasRealizationAuthority: Boolean(beat.realizationAuthority),
+      })),
+      projectedAuthority,
+      recoveredInvariants: {
+        learnedProfile,
+        realizationModes: ["collection", "sequence-film"],
+        lensRanking: lensRanking.slice(0, 3),
+        movieCandidateCount: movieCandidates.length,
+        roundOneState: {
+          anchors: roundOneState.realityAnchors.length,
+          tempo: roundOneState.tempo.mode,
+        },
+        roundTwoState: {
+          anchors: roundTwoState.realityAnchors.length,
+          carryThreads: roundTwoState.carryThreads,
+          tempo: roundTwoState.tempo.mode,
+        },
+        viewerDynamics,
+        readoutInvariants: readout.invariants,
+      },
+      status: "PASS",
+    },
+    null,
+    2,
+  ),
+);

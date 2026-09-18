@@ -514,6 +514,29 @@ function structuralViewerChange(
     ? `Land on the supplied endpoint: ${currentLabel}.`
     : `Advance through the supplied evidence: ${currentLabel}.`;
 }
+function strongestRelationToEarlier(
+  graph: RealityGraph,
+  selected: readonly string[],
+  index: number,
+): RealityRelation | undefined {
+  const currentId = selected[index];
+  if (!currentId || index <= 0) return undefined;
+
+  const candidates = selected
+    .slice(0, index)
+    .map((earlierId) => relationBetween(graph, earlierId, currentId))
+    .filter((relation): relation is RealityRelation => Boolean(relation))
+    .filter((relation) =>
+      !["before", "after", "involves", "belongs_to"].includes(relation.kind),
+    )
+    .sort(
+      (left, right) =>
+        right.strength - left.strength ||
+        Number(callbackRelation(right)) - Number(callbackRelation(left)),
+    );
+
+  return candidates[0];
+}
 function buildTrajectory(
   graph: RealityGraph,
   ids: readonly string[],
@@ -568,13 +591,18 @@ function buildTrajectory(
       return "payoff";
     }
 
-    const relation =
-      previousId
-        ? strongRelation(
-            previousId,
-            currentId,
-          )
-        : undefined;
+  const relation =
+  strongestRelationToEarlier(
+    graph,
+    selected,
+    index,
+  ) ??
+  (previousId
+    ? strongRelation(
+        previousId,
+        currentId,
+      )
+    : undefined);
 
     if (relation) {
       const explicit =

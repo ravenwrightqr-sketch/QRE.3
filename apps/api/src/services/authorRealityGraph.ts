@@ -170,6 +170,14 @@ const SEMANTIC_TAGS: readonly [RegExp, string][] = [
   ],
 ];
 
+const STATE_STATUS_SEMANTIC_TAGS = new Set([
+  "approval",
+  "completion",
+  "repair",
+  "transformation",
+  "uncertainty",
+]);
+
 function evidence(
   kind: RealityEvidence["kind"],
   text: string,
@@ -343,6 +351,37 @@ function semanticTags(label: string): string[] {
     SEMANTIC_TAGS.filter(
       ([pattern]) => pattern.test(label),
     ).map(([, tag]) => tag),
+  );
+}
+
+function semanticStateSurfaces(
+  label: string,
+  semantic: readonly string[],
+): string[] {
+  const active = new Set(
+    semantic.filter((tag) =>
+      STATE_STATUS_SEMANTIC_TAGS.has(tag),
+    ),
+  );
+
+  if (!active.size) return [];
+
+  return unique(
+    SEMANTIC_TAGS.filter(([, tag]) =>
+      active.has(tag),
+    ).flatMap(([pattern]) =>
+      [
+        ...label.matchAll(
+          new RegExp(
+            pattern.source,
+            "gi",
+          ),
+        ),
+      ].flatMap((match) => [
+        lower(match[0]),
+        ...contentTokens(match[0]),
+      ]),
+    ),
   );
 }
 
@@ -872,6 +911,20 @@ function buildEventStructure(
           event.label,
         );
 
+      const semantic =
+        semanticTags(
+          event.label,
+        );
+
+      const stateSurfaces =
+        new Set([
+          ...states.map(lower),
+          ...semanticStateSurfaces(
+            event.label,
+            semantic,
+          ),
+        ]);
+
       const objects =
         unique([
           ...extractObjects(
@@ -882,12 +935,14 @@ function buildEventStructure(
             event.label,
             subject,
           ),
-        ]).slice(0, 8);
-
-      const semantic =
-        semanticTags(
-          event.label,
-        );
+        ])
+          .filter(
+            (object) =>
+              !stateSurfaces.has(
+                lower(object),
+              ),
+          )
+          .slice(0, 8);
 
       const recurrenceScore =
         Math.min(

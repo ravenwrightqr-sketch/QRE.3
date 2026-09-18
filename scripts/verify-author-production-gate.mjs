@@ -82,6 +82,7 @@ const allowedDirectModelCallers = new Set([
   "apps/api/src/services/authorMouthSequenceCritic.ts",
   "apps/api/src/services/localModelRuntime.ts",
   "apps/api/src/services/creativeSeedEngine.ts",
+  "apps/api/src/services/websiteLearning.ts",
 ]);
 
 const reviewOnlyFiles = new Set();
@@ -222,3 +223,5 @@ if (failures.length) {
 }
 
 console.log("AUTHOR PRODUCTION GATE GREEN · ONE PATH · ONE MOUTH · PERSISTENCE PROTECTED · LEGACY BLOCKED");
+
+

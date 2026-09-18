@@ -136,7 +136,7 @@ router.post("/create", requireAuth, async (req, res) => {
       recipient: recipientFrom(recipient),
       moments: experience.moments as any,
       geoStory: experience.geoStory as any,
-      cinematicScenes: experience.cinematicScenes as any,
+      sequence: experience.sequence as any,
     }, createStoryDeliveryRepository());
 
     await db.scanSession.update({
@@ -146,7 +146,6 @@ router.post("/create", requireAuth, async (req, res) => {
         endedAt: new Date(),
         moments: toJson(experience.moments) as any,
         geoStory: toJson(experience.geoStory) as any,
-        cinematicScenes: toJson(experience.cinematicScenes) as any,
         memorySnapshot: toJson(experience.memorySnapshot) as any,
         receipt: toJson(receipt) as any,
       },

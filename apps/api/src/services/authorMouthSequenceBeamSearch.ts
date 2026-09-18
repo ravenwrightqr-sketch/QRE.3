@@ -285,48 +285,7 @@ export function isAuthorizedMouthCandidate(
     return false;
   }
 
-  const hasGrounding =
-    candidate.groundingScore >=
-    0.5;
-
-  const hasSupportedEvents =
-    candidate.supportedEventIds
-      .length >
-    0;
-
-  const hasEndpoint =
-    candidate.endpointExactness >=
-    0.999;
-
-  const hasSemanticAuthorization =
-    candidate.reasons.includes(
-      "semantic-turn-grounded",
-    );
-
-  const hasCreativeAuthorization =
-    candidate.reasons.includes(
-      "bounded-creative-bet",
-    );
-
-  const hasExperientialAuthorization =
-    candidate.reasons.includes(
-      "experiential-realization",
-    );
-
-  const hasApprovedSemanticRealization =
-    candidate.reasons.includes(
-      "approved-semantic-realization",
-    );
-
-  return Boolean(
-    hasGrounding ||
-    hasSupportedEvents ||
-    hasEndpoint ||
-    hasSemanticAuthorization ||
-    hasCreativeAuthorization ||
-    hasExperientialAuthorization ||
-    hasApprovedSemanticRealization,
-  );
+  return candidate.authorization?.authorized === true;
 }
 
 function isSafe(
@@ -591,19 +550,8 @@ function viewerStateFit(
       : candidate.transitionScore * 0.52 +
         candidate.meaningScore * 0.28;
 
-  const approvedSemantic =
-    candidate.reasons.includes(
-      "approved-semantic-realization",
-    ) ||
-    candidate.reasons.includes(
-      "semantic-turn-grounded",
-    ) ||
-    candidate.reasons.includes(
-      "bounded-creative-bet",
-    );
-
   const semanticAuthorization =
-    approvedSemantic
+    candidate.authorization?.semanticAuthorized
       ? 0.14
       : 0;
 
@@ -1139,21 +1087,13 @@ function localAuthority(
     );
 
   const authorization =
-    candidate.supportedEventIds.length >
-    0
-      ? 1
-      : candidate.endpointExactness >=
-          0.999
-        ? 0.92
-        : candidate.reasons.includes(
-              "semantic-turn-grounded",
-            )
+    candidate.authorization?.authorized
+      ? candidate.authorization.directGrounded
+        ? 1
+        : candidate.authorization.semanticAuthorized
           ? 0.88
-          : candidate.reasons.includes(
-                "approved-semantic-realization",
-              )
-            ? 0.84
-            : 0.70;
+          : 0.76
+      : 0;
 
   return metric(
     safety * 0.34 +

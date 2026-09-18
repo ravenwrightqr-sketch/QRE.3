@@ -205,7 +205,7 @@ function explanationPenalty(text: string): number {
 function formScore(text: string): number {
   const value = clean(text);
   const count = words(value).length;
-  let score = count <= 2 ? 1 : count <= 5 ? 0.95 : count <= 8 ? 0.8 : count <= 12 ? 0.6 : 0.35;
+  let score = count <= 2 ? 0.62 : count <= 4 ? 0.82 : count <= 8 ? 1 : count <= 12 ? 0.96 : count <= 18 ? 0.78 : 0.5;
   if (STATUS.test(value)) score += 0.18;
   if (FRAME_NOUN.test(value) && !DETERMINED_ROLE.test(value)) score += 0.14;
   if (/\?$/.test(value)) score += 0.15;
@@ -220,15 +220,19 @@ function payoffScore(text: string, beat: MouthCandidateBeat): number {
   if (attention !== "payoff" && role !== "payoff" && attention !== "release" && role !== "release") return 0;
   const value = clean(text);
   const count = words(value).length;
-  let score = count <= 2 ? 1 : count <= 5 ? 0.92 : count <= 8 ? 0.72 : 0.42;
+  let score = count <= 2 ? 0.62 : count <= 4 ? 0.82 : count <= 8 ? 1 : count <= 12 ? 0.96 : count <= 18 ? 0.78 : 0.5;
   if (STATUS.test(value)) score += 0.25;
   if (/\b(?:peace|for now|temporary|temporarily|exit|fab|fabulous|dapper|done|made it|win|winner|finished|approved|cleared)\b/i.test(value)) score += 0.25;
   return metric(score);
 }
 
-function semanticScore(text: string, beat: MouthCandidateBeat, envelope: RealityEnvelope): number {
+function semanticScore(
+  text: string,
+  beat: MouthCandidateBeat,
+  envelope: RealityEnvelope,
+  interpretation: ReturnType<typeof evaluateMouthInterpretation>,
+): number {
   const labels = sourceLabels(beat, envelope);
-  const interpretation = evaluateMouthInterpretation({ text: clean(text), sourceLabels: labels, envelope, beat });
   const local = overlap(meaningfulTokens(text), meaningfulTokens(labels.join(" ")));
   const whole = overlap(meaningfulTokens(text), meaningfulTokens(worldEvidence(envelope).join(" ")));
   return metric(
@@ -242,8 +246,18 @@ function semanticScore(text: string, beat: MouthCandidateBeat, envelope: Reality
 
 function candidateScore(text: string, beat: MouthCandidateBeat, envelope: RealityEnvelope, priorTexts: readonly string[]): MouthCandidate {
   const value = clean(text);
-  const baseSemantic = semanticScore(value, beat, envelope);
-  const forbidden = unsupportedConcrete(value, beat, envelope);
+  const labels = sourceLabels(beat, envelope);
+  const interpretation = evaluateMouthInterpretation({
+    text: value,
+    sourceLabels: labels,
+    envelope,
+    beat,
+  });
+  const baseSemantic = semanticScore(value, beat, envelope, interpretation);
+  const forbidden = Math.max(
+    unsupportedConcrete(value, beat, envelope),
+    interpretation.unsupportedConcreteRisk,
+  );
   const explain = explanationPenalty(value);
   const abstract = abstractPenalty(value);
   const form = formScore(value);
@@ -251,11 +265,32 @@ function candidateScore(text: string, beat: MouthCandidateBeat, envelope: Realit
   const novelty = priorTexts.length
     ? metric(1 - Math.max(...priorTexts.map((prior) => overlap(meaningfulTokens(value), meaningfulTokens(prior))), 0))
     : 1;
+  const authorizationRealitySafe =
+    interpretation.authorization.realitySafe &&
+    forbidden < 0.9 &&
+    explain < 0.95;
+  const authorization = {
+    ...interpretation.authorization,
+    realitySafe: authorizationRealitySafe,
+    authorized:
+      authorizationRealitySafe &&
+      interpretation.authorization.authorized,
+    reasons: [
+      ...interpretation.authorization.reasons,
+      ...(forbidden >= 0.9 ? ["candidate-concrete-veto"] : []),
+      ...(explain >= 0.95 ? ["candidate-explanation-veto"] : []),
+    ],
+  };
 
   if (forbidden >= 0.9 || explain >= 0.95) {
     return {
       text: value,
       beatOrder: beat.order,
+      authorization: {
+        ...authorization,
+        authorized: false,
+        realitySafe: false,
+      },
       supportedEventIds: [],
       supportedRelationPairs: [],
       groundingScore: 0,
@@ -277,7 +312,6 @@ function candidateScore(text: string, beat: MouthCandidateBeat, envelope: Realit
     };
   }
 
-  const labels = sourceLabels(beat, envelope);
   const exact = labels.some((label) => normalize(label) === normalize(value));
   const sourceOverlap = overlap(meaningfulTokens(value), meaningfulTokens(labels.join(" ")));
   const worldOverlap = overlap(meaningfulTokens(value), meaningfulTokens(worldEvidence(envelope).join(" ")));
@@ -286,19 +320,22 @@ function candidateScore(text: string, beat: MouthCandidateBeat, envelope: Realit
   const grounding = metric(sourceOverlap * 0.46 + worldOverlap * 0.18 + (exact ? 0.36 : 0));
   const obligation = metric((beat.eventIds?.length ? 0.45 : 0.25) * 0.42 + baseSemantic * 0.38 + (supportedEventIds.length ? 0.2 : 0));
   const transition = metric(Number(beat.viewerState?.stateShift) || 0.45);
-  const meaning = metric(baseSemantic * 0.5 + form * 0.16 + (STATUS.test(value) ? 0.08 : 0) + payoff * 0.26 - abstract * 0.18);
-  const distinctive = metric(form * 0.28 + meaning * 0.28 + novelty * 0.18 + (isFrameOnly(value) ? 0.14 : 0) + payoff * 0.12 + (sourceOverlap < 0.65 ? 0.08 : 0));
+  const meaning = metric(baseSemantic * 0.5 + (STATUS.test(value) ? 0.08 : 0) + payoff * 0.26 - abstract * 0.18,);
+  const distinctive = metric(form * 0.42 + meaning * 0.28 + novelty * 0.22 + (isFrameOnly(value) ? 0.14 : 0) + payoff * 0.14 + (sourceOverlap < 0.65 ? 0.08 : 0));
   const discovery = metric(meaning * 0.38 + transition * 0.24 + distinctive * 0.2 + novelty * 0.1 + (isFrameOnly(value) ? 0.08 : 0));
   const score = metric(
-    grounding * 0.1 + obligation * 0.1 + meaning * 0.22 + transition * 0.12 + novelty * 0.1 + form * 0.1 + discovery * 0.12 + distinctive * 0.08 + payoff * 0.12 - abstract * 0.16,
+    grounding * 0.1 + obligation * 0.1 + meaning * 0.25 + transition * 0.12 + novelty * 0.1 + form * 0.1 + discovery * 0.13 + distinctive * 0.08 + payoff * 0.12 - abstract * 0.16,
   );
 
   const reasons: string[] = [];
+  reasons.push(...interpretation.reasons);
+  if (exact) reasons.push("literal-source-restatement");
   if (supportedEventIds.length) reasons.push("event-grounded");
   if (supportedRelationPairs.length) reasons.push("relation-grounded");
   if (grounding >= 0.45) reasons.push("beat-grounded");
-  if (baseSemantic >= 0.5) reasons.push("approved-semantic-realization");
-  if (isFrameOnly(value)) reasons.push("bounded-creative-bet");
+  if (authorization.directGrounded) reasons.push("direct-source-grounded");
+  if (authorization.semanticAuthorized) reasons.push("approved-semantic-realization");
+  if (interpretation.reasons.includes("bounded-creative-bet")) reasons.push("bounded-creative-bet");
   if (distinctive >= 0.64) reasons.push("distinctive-realization");
   if (discovery >= 0.62) reasons.push("observer-discovery");
   if (payoff >= 0.62) reasons.push("viewer-reward");
@@ -308,6 +345,7 @@ function candidateScore(text: string, beat: MouthCandidateBeat, envelope: Realit
   return {
     text: value,
     beatOrder: beat.order,
+    authorization,
     supportedEventIds,
     supportedRelationPairs,
     groundingScore: grounding,
@@ -332,18 +370,36 @@ function candidateScore(text: string, beat: MouthCandidateBeat, envelope: Realit
 function buildSystemPrompt(): string {
   return [
     "QRE ONE MOUTH — final viewer-facing language realization.",
-    "The world is already established. The movie is already chosen. The beat already has a purpose.",
-    "Your only job is to find the strongest CUT for the viewer.",
+    "The world is already established. The movie is already chosen. The approved beats already have their purpose.",
+    "Your job is to realize the approved beats as one connected viewer-facing sequence.",
+    "You are not rewriting the evidence.",
+    "The supplied reality is the factual boundary, not the desired wording.",
+    "Invent language, not reality.",
+    "Use realizationAuthority, not generic imagination, to determine what transformations are earned.",
+    "READ THE WHOLE APPROVED SEQUENCE before writing any cut.",
+    "Each cut sits inside the full experience: what has already landed, what is changing now, and what the next cut needs.",
     "FEEL IT. DO NOT EXPLAIN IT.",
+    "Use concise, specific, surprising, grounded language. Do not collapse a realization into fragments merely to make it shorter.",
     "The viewer should think: WHAT? WHY? WAIT. OH. WHAT HAPPENS NEXT?",
-    "Use short, specific, surprising, grounded language.",
-    "Prefer attitude, status, implication, contrast, recognition, interruption, consequence, callback, and compressed payoff.",
+    "Express authorized meaning, status, attitude, implication, contrast, recurrence, consequence, viewer shift, and compressed payoff.",
+    "You may radically change wording and sentence form.",
+    "You may omit source wording.",
+    "You may use compressed, surprising, fragmentary, declarative, ironic, status-driven, or attitude-driven language when authority permits it.",
     "Do not turn every emotion into an abstract noun.",
     "Avoid a/an/the + abstract noun unless it is genuinely specific and earned.",
     "Do not produce poetry soup: lightness, stillness, softness, resonance, contentment, a quiet bloom, the weight lifted, etc. unless the supplied material specifically earns that exact image.",
     "Do not narrate the machine. Never mention cognition, beats, candidates, viewer states, semantics, trajectories, planning, or meaning.",
+    "Internal planning questions are not viewer copy. Never output phrases such as \"What connects...\", \"What becomes newly meaningful?\", \"What remains when...\", \"What happens next?\", \"Let us continue\", or other commentary about connecting, advancing, analyzing, or planning unless that exact language is supplied reality.",
+    "Write the cut itself from the supplied evidence. Do not answer, paraphrase, or turn an internal next-question into a viewer-facing line.",
+    "WORLD SIMULATION IS INTERNAL REASONING: its questions, hypotheses, expectations, prediction errors, and labels guide attention but are never viewer-facing copy. Never quote or paraphrase a World Simulation question unless that exact wording is supplied reality.",
     "A role inside source evidence is not automatically a character. 'groomer cleaned him up' does not authorize 'the groomer...' or a new action by that person.",
     "Do not invent a smile, shrug, eyebrow, walk, touch, breath, voice, room detail, object, weather, lighting, dialogue, motive, chronology, or physical event unless supplied.",
+    "You may NOT create a concrete physical fact that is absent from realizationAuthority.reality.",
+    "Do not convert emotions or states into invented body language.",
+    "Forbidden reasoning examples: nervous -> trembling paws; nervous -> shoulders hunched; bath -> steam; bath -> bubbles; mischief -> gleaming eyes. Those add observable reality.",
+    "Distinction example: FACT left looking fabulous may permit status/attitude framing such as Unstoppable, Main-character exit, or Obviously, without inventing another physical event.",
+    "Distinction example: FACT returned again and again, when recurrence is explicitly graph-authorized, may permit recurrence framing such as Back again, Of course, or Apparently this is a tradition now.",
+    "Do not copy examples as templates.",
     "Framing freedom is high: a role/title or genre frame may be used as interpretation when it is obviously a frame rather than an asserted new occurrence.",
     "Concrete nouns are immutable unless they are directly supplied by the source reality. Never replace one supplied object with another object just because the replacement is rhetorically stronger.",
     "A blue bow must remain a bow if that is what reality supplied. Do not turn it into a trophy, medal, prize, toy, gift, ribbon, or other object.",
@@ -351,11 +407,27 @@ function buildSystemPrompt(): string {
     "A semanticRealization object, when present, is canonical non-prose realization structure from Cognition. Treat it as semantic authority, not as viewer-facing wording, and never invent concrete facts from it.",
     "Examples of the desired behavior only — never copy them as a template: Lawyer already called. / Why? / Eyebrow up. / Negotiations resumed. / Fierce anyway. / Peace was temporary. / Fab exit.",
     "A final supplied state is truth, not necessarily the exact final wording. Search for the earned status, verdict, send-off, punchline, afterimage, or identity shift.",
-    "Generate exactly three materially different variants per beat.",
-    "Do not make three synonyms. Vary the semantic move or rhetorical shape.",
-    "The overall sequence is a miniature film. Earlier cuts may establish an unresolved expectation so a later cut can pay it off. Do not independently summarize each beat.",
+    "Generate exactly three materially different variants per beat by composing exactly three materially different WHOLE-SEQUENCE variants.",
+    "Each sequence variant must contain exactly one viewer-facing text for each approved beat, in approved order.",
+    "Compose each sequence variant as one connected experience. Later cuts may depend on earlier cuts.",
+    "Do not make three synonym sets. Vary the whole sequence's rhetorical shape, progression, callback, implication, or payoff.",
     "Return JSON only.",
   ].join("\n");
+}
+
+function projectedRealizationAuthority(beat: MouthCandidateBeat) {
+  const authority = beat.realizationAuthority;
+  if (!authority) return undefined;
+
+  return {
+    reality: authority.reality,
+    meaning: authority.meaning,
+    earnedInterpretations: authority.earnedInterpretations,
+    permittedRealizationModes: authority.permittedRealizationModes,
+    inferenceBudget: authority.inferenceBudget,
+    creativeMoves: authority.creativeMoves,
+    forbiddenMoves: authority.forbiddenMoves,
+  };
 }
 
 export function buildMouthCandidateMessages(input: MouthCandidateGenerationInput): Array<{ role: "system" | "user"; content: string }> {
@@ -365,13 +437,10 @@ export function buildMouthCandidateMessages(input: MouthCandidateGenerationInput
     order: beat.order,
     supplied: sourceLabels(beat, input.envelope),
     purpose: clean(beat.attentionFunction || beat.role),
-    meaning: clean(beat.change),
-    semanticRealization: beat.semanticRealization,
+    realizationAuthority: projectedRealizationAuthority(beat),
     viewerState: beat.viewerState
       ? { before: clean(beat.viewerState.beforeState), after: clean(beat.viewerState.afterState), move: clean(beat.viewerState.attentionMove) }
       : undefined,
-    next: clean(beat.next),
-    relationKinds: beat.relationKinds ?? [],
     terminal: Boolean(beat.paysOff?.length),
   }));
 
@@ -386,15 +455,46 @@ export function buildMouthCandidateMessages(input: MouthCandidateGenerationInput
         suppliedReality: evidence,
         priorCuts: input.priorTexts ?? [],
         beats,
-        output: { variantsByBeat: "exactly 3 viewer-facing variants for every beat, in order" },
+        output: {
+          sequenceVariants:
+            "exactly 3 whole-sequence variants; each variant has texts containing exactly one viewer-facing cut per approved beat, in order",
+        },
       }),
     },
   ];
 }
 
-export function parseMouthCandidateBatch(raw: string): MouthCandidateBatch | undefined {
+type ParsedMouthCandidateBatch = MouthCandidateBatch & {
+  sequenceVariants?: string[][];
+};
+
+export function parseMouthCandidateBatch(
+  raw: string,
+  expectedBeatCount?: number,
+): ParsedMouthCandidateBatch | undefined {
   try {
-    const parsed = JSON.parse(clean(raw)) as { variantsByBeat?: unknown };
+    const parsed = JSON.parse(clean(raw)) as { sequenceVariants?: unknown; variantsByBeat?: unknown };
+    if (Array.isArray(parsed?.sequenceVariants)) {
+      const sequenceVariants = parsed.sequenceVariants
+        .filter((item): item is Record<string, unknown> => Boolean(item) && typeof item === "object")
+        .map((item) =>
+          Array.isArray(item.texts)
+            ? item.texts.map(String).map(clean).filter(Boolean)
+            : [],
+        );
+
+      if (sequenceVariants.length !== 3) return undefined;
+      if (sequenceVariants.some((texts) => texts.length < 1)) return undefined;
+      if (expectedBeatCount !== undefined && sequenceVariants.some((texts) => texts.length !== expectedBeatCount)) return undefined;
+      const cutCount = sequenceVariants[0]?.length ?? 0;
+      if (sequenceVariants.some((texts) => texts.length !== cutCount)) return undefined;
+
+      return {
+        variantsByBeat: [],
+        sequenceVariants,
+      };
+    }
+
     if (!Array.isArray(parsed?.variantsByBeat) || parsed.variantsByBeat.length === 0) return undefined;
     const variantsByBeat = parsed.variantsByBeat
       .filter((item): item is Record<string, unknown> => Boolean(item) && typeof item === "object")
@@ -405,6 +505,7 @@ export function parseMouthCandidateBatch(raw: string): MouthCandidateBatch | und
     if (variantsByBeat.some((item) => !Number.isInteger(item.order) || item.variants.length !== 3)) return undefined;
     const orders = [...variantsByBeat.map((item) => item.order)].sort((a, b) => a - b);
     if (orders.some((order, index) => order !== index + 1)) return undefined;
+    if (expectedBeatCount !== undefined && variantsByBeat.length !== expectedBeatCount) return undefined;
     if (variantsByBeat.some((item) => new Set(item.variants.map((value) => value.toLowerCase())).size !== 3)) return undefined;
     return { variantsByBeat: variantsByBeat.sort((a, b) => a.order - b.order) };
   } catch {

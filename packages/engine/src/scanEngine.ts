@@ -14,7 +14,6 @@ import { purchaseMoments } from "./moments/purchaseMoments.js";
 import { buildGeoStory } from "./geo/geoStoryCompiler.js";
 import { buildMemorySnapshot } from "./geo/buildMemorySnapshot.js";
 import { cinematicRuntime } from "./runtime/cinematic/cinematicRuntime.js";
-import { createStoryDelivery } from "./delivery/StoryDeliveryEngine.js";
 import { getScanInsights } from "./analytics/analyticsService.js";
 import { runFlowActions } from "./flowOrchestrator.js";
 import { buildServiceReceipt } from "./receiptBuilder.js";
@@ -337,31 +336,6 @@ try {
     });
   }
 
-  if (access.state === "UNLOCKED") {
-    try {
-      await createStoryDelivery(
-        {
-          assetId: asset.id,
-          sessionId: session.id,
-          userId: input.userId ?? null,
-          moments,
-          geoStory,
-          cinematicScenes,
-        },
-        repos.storyDeliveryRepository,
-      );
-    } catch (err) {
-      console.warn(
-        "[STORY DELIVERY FAILED]",
-        err,
-      );
-
-      await track("ERROR", {
-        stage: "story-delivery",
-        error: String(err),
-      });
-    }
-  }
 
   const hasServiceCompletion = moments.some(
     (moment) =>

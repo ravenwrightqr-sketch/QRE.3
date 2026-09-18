@@ -88,6 +88,12 @@ const CONCRETE_CLAIM =
 
 const EXTERNAL_STATE_CLAIM =
   /\b(?:smell(?:s|ed|ing)?|sound(?:s|ed|ing)?|taste(?:s|d|ing)?|new\s+(?:scent|sound|look))\b/i;
+
+const BODY =
+  /\b(?:eye|eyes|face|mouth|shoulder|shoulders|hand|hands|head|tail|fur|coat|body|room|door|window|floor|wall|table|chair|car|road|street|sky|shadow|light|sound|scent|voice|water|phone|screen)\b/i;
+
+const SOFT_FIRST_PERSON =
+  /^(?:I|we|my|our)\b/i;
   
 const CLAUSE_SUBJECT_MARKER =
   /^(?:she|he|they|it|we|you|i|someone|someone's|this|that|the\s+dog|the\s+girl|the\s+boy)\b/i;
@@ -160,6 +166,13 @@ export type MouthInterpretationEvaluation = {
   literalRestatement: number;
   creativeFraming: number;
   unsupportedConcreteRisk: number;
+  authorization: {
+    realitySafe: boolean;
+    semanticAuthorized: boolean;
+    directGrounded: boolean;
+    authorized: boolean;
+    reasons: string[];
+  };
   accepted: boolean;
   reasons: string[];
 };
@@ -315,6 +328,336 @@ function introducesUnsupportedPhysicalRelation(
     0.5
   );
 }
+
+function authorityRealityCorpus(
+  beat: MouthCandidateBeat | undefined,
+  envelope: RealityEnvelope,
+): string {
+  const authority = beat?.realizationAuthority;
+  if (!authority) return wholeSourceCorpus(envelope);
+
+  const eventLabels = envelope.events
+    .filter((event) => authority.reality.eventIds.includes(event.id))
+    .map((event) => event.label);
+
+  return clean(
+    [
+      envelope.subject,
+      ...eventLabels,
+      ...authority.reality.entities,
+      ...authority.reality.actions,
+      ...authority.reality.objects,
+      ...authority.reality.states,
+    ].join(" "),
+  );
+}
+
+function authorityMeaningCorpus(
+  beat: MouthCandidateBeat | undefined,
+): string {
+  const authority = beat?.realizationAuthority;
+  if (!authority) return "";
+
+  return clean(
+    [
+      ...Object.values(authority.meaning).map(clean),
+      ...authority.earnedInterpretations,
+      ...authority.permittedRealizationModes,
+      ...authority.creativeMoves,
+      authority.inferenceBudget,
+    ].join(" "),
+  );
+}
+
+function hasExplicitSemanticAuthority(
+  beat: MouthCandidateBeat | undefined,
+): boolean {
+  const authority = beat?.realizationAuthority;
+  if (!authority) return false;
+
+  return Boolean(
+    Object.values(authority.meaning).some((value) => clean(value)) ||
+      authority.earnedInterpretations.length ||
+      authority.permittedRealizationModes.length ||
+      authority.creativeMoves.length ||
+      authority.inferenceBudget !== "direct",
+  );
+}
+
+function unsupportedAuthorityConcreteRisk(
+  text: string,
+  beat: MouthCandidateBeat | undefined,
+  envelope: RealityEnvelope,
+): number {
+  const authority = beat?.realizationAuthority;
+  if (!authority) return 0;
+
+  const value = clean(text);
+  if (!value || SOFT_FIRST_PERSON.test(value)) return 0;
+  if (!CONCRETE_CLAIM.test(value) && !EXTERNAL_STATE_CLAIM.test(value) && !BODY.test(value)) {
+    return 0;
+  }
+
+  const allowed = tokens(authorityRealityCorpus(beat, envelope));
+  const current = tokens(value);
+  const significant = [...current].filter((token) => !FUNCTION_WORDS.has(token));
+  const grounded = significant.filter((token) => allowed.has(token)).length;
+  const groundedRatio = grounded / Math.max(1, significant.length);
+
+  if (BODY.test(value) && ![...allowed].some((token) => BODY.test(token))) {
+    return 1;
+  }
+
+  if (CONCRETE_CLAIM.test(value)) {
+    const authorizedAction = authority.reality.actions.some((action) =>
+      overlap(tokens(action), current) >= 0.45,
+    );
+    const authorizedEventWording = authority.reality.eventIds
+      .map((id) => envelope.events.find((event) => event.id === id)?.label ?? "")
+      .some((label) => CONCRETE_CLAIM.test(label) && overlap(tokens(label), current) >= 0.35);
+
+    if (!authorizedAction && !authorizedEventWording && groundedRatio < 0.45) {
+      return 1;
+    }
+  }
+
+  if (EXTERNAL_STATE_CLAIM.test(value) && groundedRatio < 0.45) {
+    return 1;
+  }
+
+  return 0;
+}
+
+function concreteAuthorityViolation(
+  text: string,
+  beat: MouthCandidateBeat | undefined,
+  envelope: RealityEnvelope,
+): string | undefined {
+  const authority = beat?.realizationAuthority;
+  if (!authority) return undefined;
+
+  const value = clean(text);
+  if (!value) return "empty-candidate";
+
+  const current = tokens(value);
+  const significant = [...current].filter((token) => !FUNCTION_WORDS.has(token));
+  if (!significant.length) return undefined;
+
+  const allowedReality = tokens(authorityRealityCorpus(beat, envelope));
+  const allowedMeaning = tokens(authorityMeaningCorpus(beat));
+  const unknownRealityTokens = significant.filter(
+    (token) =>
+      !allowedReality.has(token) &&
+      !allowedMeaning.has(token) &&
+      !semanticFrameToken(token),
+  );
+
+  if (!unknownRealityTokens.length) return undefined;
+
+  const clauseSubject = CLAUSE_SUBJECT_MARKER.test(value);
+  const observableSignal =
+    CONCRETE_CLAIM.test(value) ||
+    EXTERNAL_STATE_CLAIM.test(value) ||
+    BODY.test(value) ||
+    introducesUnsupportedPhysicalRelation(value, envelope) ||
+    observableClaimShape(value);
+
+  if (observableSignal) {
+    return `outside-realization-authority:${unknownRealityTokens.join(",")}`;
+  }
+
+  /*
+   * A subject plus unknown predicate is an asserted event/state unless the
+   * unknown language is already covered by earned meaning.
+   */
+  if (clauseSubject && unknownRealityTokens.length > 0) {
+    return `outside-realization-authority:${unknownRealityTokens.join(",")}`;
+  }
+
+  return undefined;
+}
+
+function hasApprovedBeatAuthority(
+  beat?: MouthCandidateBeat,
+): boolean {
+  return hasExplicitSemanticAuthority(beat);
+}
+
+function semanticFrameToken(
+  token: string,
+): boolean {
+  if (ABSTRACT_FRAMING.test(token)) {
+    return true;
+  }
+
+  if (token.endsWith("ous")) {
+    return ABSTRACT_FRAMING.test(
+      token.slice(0, -3),
+    );
+  }
+
+  return false;
+}
+
+function sourceHasObservableEventAuthority(
+  sourceLabels: readonly string[],
+  beat: MouthCandidateBeat | undefined,
+  envelope: RealityEnvelope,
+): boolean {
+  const beatEventIds =
+    new Set(beat?.eventIds ?? []);
+
+  const structures =
+    beatEventIds.size
+      ? envelope.eventStructure.filter((item) =>
+          beatEventIds.has(item.eventId),
+        )
+      : [];
+
+  if (
+    structures.some(
+      (item) =>
+        item.actions.length > 0 ||
+        item.objects.length > 0 ||
+        item.sensoryMarkers.length > 0,
+    )
+  ) {
+    return true;
+  }
+
+  /*
+   * Fallback for source fragments that predate complete eventStructure action
+   * extraction. A supplied physical relation is observable authority; it is
+   * not a candidate-side vocabulary exception.
+   */
+  return sourceLabels.some((label) =>
+    /\b(?:in|on|onto|under|inside|within|through|across|against|around|between|near|outside|into|out\s+of|from|with|at)\b/i.test(
+      label,
+    ),
+  );
+}
+
+function compactSuppliedEventCompression(
+  text: string,
+  sourceLabels: readonly string[],
+  beat: MouthCandidateBeat | undefined,
+  envelope: RealityEnvelope,
+): boolean {
+  if (
+    !sourceHasObservableEventAuthority(
+      sourceLabels,
+      beat,
+      envelope,
+    )
+  ) {
+    return false;
+  }
+
+  const words =
+    clean(text)
+      .replace(/[.!?]+$/g, "")
+      .toLowerCase()
+      .match(/[a-z0-9'-]+/g) ?? [];
+
+  if (
+    words.length < 2 ||
+    words.length > 4
+  ) {
+    return false;
+  }
+
+  if (
+    !/^(?:a|an|the)\b/i.test(text)
+  ) {
+    return false;
+  }
+
+  return words
+    .slice(1, -1)
+    .some(semanticFrameToken);
+}
+
+function observableClaimShape(
+  text: string,
+): boolean {
+  const value = clean(text);
+
+  const words =
+    value
+      .replace(/[.!?]+$/g, "")
+      .toLowerCase()
+      .match(/[a-z0-9'-]+/g) ?? [];
+
+  if (!words.length) {
+    return false;
+  }
+
+  const participialObservation =
+    words.some((word) =>
+      /(?:ing|ed)$/.test(word) &&
+      !SEMANTIC_COMPRESSION_VERBS.has(word),
+    );
+
+  if (participialObservation) {
+    return true;
+  }
+
+  const conjunctionInventory =
+    /\b[a-z][a-z0-9'-]*\s+and\s+[a-z][a-z0-9'-]*\b/i.test(value) &&
+    !words.some(semanticFrameToken);
+
+  if (conjunctionInventory) {
+    return true;
+  }
+
+  const articleNominal =
+    /^(?:a|an|the)\s+[a-z][a-z0-9'-]*(?:\s+[a-z][a-z0-9'-]*){0,2}\.?$/i.test(
+      value,
+    );
+
+  return (
+    articleNominal &&
+    !words.slice(1, -1).some(semanticFrameToken)
+  );
+}
+
+function zeroOverlapApprovedRealizationShape(
+  text: string,
+  sourceLabels: readonly string[],
+  beat: MouthCandidateBeat | undefined,
+  envelope: RealityEnvelope,
+  compressionVerb: boolean,
+): boolean {
+  if (compressionVerb) {
+    return true;
+  }
+
+  if (
+    compactSuppliedEventCompression(
+      text,
+      sourceLabels,
+      beat,
+      envelope,
+    )
+  ) {
+    return true;
+  }
+
+  if (observableClaimShape(text)) {
+    return false;
+  }
+
+  const words =
+    clean(text)
+      .replace(/[.!?]+$/g, "")
+      .toLowerCase()
+      .match(/[a-z0-9'-]+/g) ?? [];
+
+  return (
+    words.length === 1 ||
+    words.some(semanticFrameToken)
+  );
+}
 /**
  * Semantic realization is not lexical substitution.
  *
@@ -332,6 +675,7 @@ function introducesUnsupportedPhysicalRelation(
 function semanticCompressionShape(
   text: string,
   sourceLabels: readonly string[],
+  envelope: RealityEnvelope,
   beat?: MouthCandidateBeat,
 ): boolean {
   const wordCount = text
@@ -444,16 +788,7 @@ if (
    * it shares no literal vocabulary with the beat.
    */
   const hasApprovedBeat =
-    Boolean(
-      beat &&
-      (
-        beat.eventIds?.length ||
-        beat.attentionFunction ||
-        beat.change ||
-        beat.role ||
-        beat.relationKinds?.length
-      ),
-    );
+    hasApprovedBeatAuthority(beat);
 
   if (
     !hasApprovedBeat
@@ -464,19 +799,10 @@ if (
   /*
    * Machine-like abstract labels remain disallowed.
    *
-   * Human-facing fragments remain allowed.
-   *
-   * Examples of valid expression:
-   *   "The pull."
-   *   "A familiar tremor."
-   *   "Almost."
-   *   "Love."
-   *
-   * Examples of machine residue:
-   *   "The tightening."
-   *   "The deepening."
-   *   "The afterglow."
-   *   "Oriented."
+   * Human-facing fragments remain allowed when their claim shape stays
+   * semantic/status/interpretive, or when they compact a supplied observable
+   * event. A supplied state alone does not authorize a new body, sensory,
+   * environment, dialogue, entity, or event claim.
    */
   const bareNominalLabel =
     /^(?:the|a|an)\s+[a-z][a-z'-]*(?:\s+[a-z][a-z'-]*){0,2}\.?$/i.test(
@@ -495,19 +821,13 @@ if (
     return false;
   }
 
-  /*
-   * Approved beats may authorize:
-   *
-   *   "Nerves. Then..."
-   *   "A dangerous current."
-   *   "Felt the pull towards us."
-   *   "Almost."
-   *   "Love."
-   *   "Nothing happened. Everything changed."
-   *
-   * without requiring those lines to reuse source vocabulary.
-   */
-  return true;
+  return zeroOverlapApprovedRealizationShape(
+    text,
+    sourceLabels,
+    beat,
+    envelope,
+    compressionVerb,
+  );
 }
 
 export function evaluateMouthInterpretation(input: {
@@ -596,7 +916,7 @@ export function evaluateMouthInterpretation(input: {
     EXTERNAL_STATE_CLAIM.test(
       text,
     );
-   const unsupportedPhysicalRelation =
+  const unsupportedPhysicalRelation =
   introducesUnsupportedPhysicalRelation(
     text,
     input.envelope,
@@ -618,9 +938,17 @@ export function evaluateMouthInterpretation(input: {
     concreteClaim ||
     externalStateClaim;
 
+  const concreteActionSupport =
+    !concreteClaim ||
+    sourceAnchor >= 0.45 ||
+    input.sourceLabels.some((label) =>
+      CONCRETE_CLAIM.test(label),
+    );
+
   const concreteSourceSupport =
     concreteOrExternalClaim &&
-    wholeSourceAnchor >= 0.45;
+    wholeSourceAnchor >= 0.45 &&
+    concreteActionSupport;
 
   let unsupportedConcreteRisk =
   concreteOrExternalClaim &&
@@ -635,6 +963,29 @@ if (
     Math.max(
       unsupportedConcreteRisk,
       1,
+    );
+}
+
+const authorityConcreteRisk =
+  unsupportedAuthorityConcreteRisk(
+    text,
+    input.beat,
+    input.envelope,
+  );
+
+const concreteAuthorityFailure =
+  concreteAuthorityViolation(
+    text,
+    input.beat,
+    input.envelope,
+  );
+
+if (authorityConcreteRisk > 0 || concreteAuthorityFailure) {
+  unsupportedConcreteRisk =
+    Math.max(
+      unsupportedConcreteRisk,
+      authorityConcreteRisk,
+      concreteAuthorityFailure ? 1 : 0,
     );
 }
 
@@ -676,6 +1027,7 @@ if (
     semanticCompressionShape(
       text,
       input.sourceLabels,
+      input.envelope,
       input.beat,
     );
 
@@ -685,33 +1037,31 @@ if (
    * overlap with the supplied wording.
    */
   const approvedSemanticBeat =
-    Boolean(
-      input.beat &&
-      (
-        input.beat.eventIds?.length ||
-        input.beat.attentionFunction ||
-        input.beat.change ||
-        input.beat.role ||
-        input.beat.relationKinds?.length
-      ),
+    hasApprovedBeatAuthority(input.beat);
+
+  const authorityMeaningAnchor =
+    overlap(
+      current,
+      tokens(authorityMeaningCorpus(input.beat)),
+    );
+
+  const directGrounded =
+    literalRestatement === 1 ||
+    (
+      hasBeatSource &&
+      sourceAnchor >= 0.55
+    );
+
+  const semanticAuthorized =
+    approvedSemanticBeat &&
+    (
+      semanticCompression ||
+      authorityMeaningAnchor >= 0.08
     );
 
   const semanticBeatSupport =
-    hasBeatSource
-      ? (
-          beatTouchesLanguage ||
-          literalRestatement === 1 ||
-          semanticCompression ||
-          (
-            approvedSemanticBeat &&
-            frameSignal &&
-            unsupportedConcreteRisk === 0
-          )
-        )
-      : (
-          wholeSourceAnchor >= 0.08 ||
-          frameSignal
-        );
+    directGrounded ||
+    semanticAuthorized;
 
   const associativeWorldSupport =
     Math.max(
@@ -729,13 +1079,7 @@ if (
     literalRestatement === 0 &&
     shortCreativeForm &&
     sourceExists &&
-    semanticBeatSupport &&
-    (
-      hasBeatSource
-        ? true
-        : associativeWorldSupport >= 0.08 ||
-          frameSignal
-    );
+    semanticBeatSupport;
 
   const groundingContribution =
     hasBeatSource
@@ -868,7 +1212,7 @@ if (
     approvedSemanticBeat
   ) {
     reasons.push(
-      "approved-beat-authority",
+      "explicit-realization-authority",
     );
   }
 
@@ -906,6 +1250,30 @@ if (
   }
 
   if (
+    authorityConcreteRisk > 0
+  ) {
+    reasons.push(
+      "outside-realization-authority-reality",
+    );
+  }
+
+  if (
+    concreteAuthorityFailure
+  ) {
+    reasons.push(
+      concreteAuthorityFailure,
+    );
+  }
+
+  if (
+    authorityMeaningAnchor >= 0.08
+  ) {
+    reasons.push(
+      "realization-authority-meaning",
+    );
+  }
+
+  if (
     interpretive >= 0.45 &&
     !literalRestatement
   ) {
@@ -913,6 +1281,23 @@ if (
       "grounded-creative-interpretation",
     );
   }
+
+  const realitySafe =
+    unsupportedConcreteRisk < 0.9;
+
+  const authorizationReasons = [
+    ...(realitySafe ? ["reality-safe"] : ["concrete-reality-veto"]),
+    ...(directGrounded ? ["direct-grounded"] : []),
+    ...(semanticAuthorized ? ["semantic-authorized-by-realization-authority"] : []),
+  ];
+
+  const authorized =
+    Boolean(text) &&
+    realitySafe &&
+    (
+      directGrounded ||
+      semanticAuthorized
+    );
 
   return {
     interpretive,
@@ -942,20 +1327,15 @@ if (
 
     unsupportedConcreteRisk,
 
-    accepted:
-      Boolean(text) &&
-      unsupportedConcreteRisk < 0.9 &&
-      (
-        literalRestatement === 1 ||
-        safeCreativeBet ||
-        (
-          !hasBeatSource &&
-          (
-            frameSignal ||
-            wholeSourceAnchor >= 0.08
-          )
-        )
-      ),
+    authorization: {
+      realitySafe,
+      semanticAuthorized,
+      directGrounded,
+      authorized,
+      reasons: authorizationReasons,
+    },
+
+    accepted: authorized,
 
     reasons,
   };
