@@ -1747,6 +1747,7 @@ export async function authorBrainCanonical(
           sensorySignals: graph.sensorySignals,
           eventStructure: graph.eventStructure ?? [],
         },
+        actionMechanics: cognition.actionMechanics,
         semanticCandidates: cognition.latentMovieCandidates.map((candidate) => ({
           id: candidate.id,
           score: candidate.score,
