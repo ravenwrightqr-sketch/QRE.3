@@ -824,7 +824,6 @@ export async function authorBrainCanonical(
     "unknown";
   let modelCalls = 0;
   let pools: MouthCandidatePool[] = [];
-  let familySelected: ReturnType<typeof selectBestMouthSequence> | undefined;
   let rawSequenceVariants: string[][] = [];
   const rejectedCandidates: unknown[] = [];
 
@@ -864,85 +863,41 @@ export async function authorBrainCanonical(
     const parsed = parseMouthCandidateBatch(generated.text, beats.length);
     if (parsed) {
       rawSequenceVariants = parsed.sequenceVariants ?? [];
-      const familySelections = (parsed.sequenceVariants ?? [])
-        .map((texts, variantIndex) => {
-          const familyPools: MouthCandidatePool[] = beats.map((beat, index) => ({
-            order: beat.order,
-            viewerState: beat.viewerState,
-            nextPromise: clean(beat.next),
-            frontier: clean(beat.frontier),
-            candidates: [texts[index] ?? ""]
-              .map((text) => scoreMouthCandidate({ text, beat, envelope }))
-              .filter((candidate) => candidate.text.length > 0),
-          }));
-
-          familyPools.forEach((pool) => {
-            pool.candidates
-              .filter((candidate) => !isAuthorizedMouthCandidate(candidate))
-              .forEach((candidate) =>
-                rejectedCandidates.push({
-                  phase: "mouth-candidate-authorization",
-                  variant: variantIndex + 1,
-                  beatOrder: pool.order,
-                  text: candidate.text,
-                  reasons: candidate.reasons,
-                  inventionRisk: candidate.inventionRisk,
-                  forbiddenMoveRisk: candidate.forbiddenMoveRisk,
-                  authorization: candidate.authorization,
-                  groundingScore: candidate.groundingScore,
-                  meaningScore: candidate.meaningScore,
-                }),
-              );
-          });
-
-          return selectBestMouthSequence(familyPools, {
-            width: 12,
-            candidatesPerBeat: 8,
-          });
-        })
-        .filter((selection) => selection.candidates.length === beats.length);
-
-      familySelected = familySelections.sort((a, b) => b.score - a.score)[0];
-
-      if (!familySelected) {
-        pools = beats.map((beat) => ({
-          order: beat.order,
-          viewerState: beat.viewerState,
-          nextPromise: clean(beat.next),
-          frontier: clean(beat.frontier),
-          candidates: (
-            parsed.variantsByBeat.find((item) => item.order === beat.order)?.variants ?? []
-          )
-            .map((text) => scoreMouthCandidate({ text, beat, envelope }))
-            .filter((candidate) => candidate.text.length > 0),
-        }));
-        pools.forEach((pool) => {
-          pool.candidates
-            .filter((candidate) => !isAuthorizedMouthCandidate(candidate))
-            .forEach((candidate) =>
-              rejectedCandidates.push({
-                phase: "mouth-candidate-authorization",
-                beatOrder: pool.order,
-                text: candidate.text,
-                reasons: candidate.reasons,
-                inventionRisk: candidate.inventionRisk,
-                forbiddenMoveRisk: candidate.forbiddenMoveRisk,
-                authorization: candidate.authorization,
-                groundingScore: candidate.groundingScore,
-                meaningScore: candidate.meaningScore,
-              }),
-            );
-        });
-      }
+      pools = beats.map((beat) => ({
+        order: beat.order,
+        viewerState: beat.viewerState,
+        nextPromise: clean(beat.next),
+        frontier: clean(beat.frontier),
+        candidates: (
+          parsed.variantsByBeat.find((item) => item.order === beat.order)?.variants ?? []
+        )
+          .map((text) => scoreMouthCandidate({ text, beat, envelope }))
+          .filter((candidate) => candidate.text.length > 0),
+      }));
+      pools.forEach((pool) => {
+        pool.candidates
+          .filter((candidate) => !isAuthorizedMouthCandidate(candidate))
+          .forEach((candidate) =>
+            rejectedCandidates.push({
+              phase: "mouth-candidate-authorization",
+              beatOrder: pool.order,
+              text: candidate.text,
+              reasons: candidate.reasons,
+              inventionRisk: candidate.inventionRisk,
+              forbiddenMoveRisk: candidate.forbiddenMoveRisk,
+              authorization: candidate.authorization,
+              groundingScore: candidate.groundingScore,
+              meaningScore: candidate.meaningScore,
+            }),
+          );
+      });
     }
   } catch {
     modelCalls = 1;
   }
 
   let recoveryUsed = false;
-  const usablePools = familySelected
-    ? []
-    : beats.map((beat) => {
+  const usablePools = beats.map((beat) => {
         const generatedPool = pools.find((pool) => pool.order === beat.order);
         const hasAuthorizedCandidate =
           generatedPool?.candidates.some(isAuthorizedMouthCandidate) ?? false;
@@ -966,7 +921,6 @@ export async function authorBrainCanonical(
       });
 
   const selected =
-    familySelected ??
     selectBestMouthSequence(usablePools, {
       width: 12,
       candidatesPerBeat: 8,
