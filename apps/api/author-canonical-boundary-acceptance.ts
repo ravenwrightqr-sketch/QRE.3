@@ -487,6 +487,75 @@ cases.push({
   authorization: inventedHomeowner.authorization,
 });
 
+const inventedClient = scoreMouthCandidate({
+  text: "The client approved.",
+  beat: serviceBeat,
+  envelope: serviceEnvelope,
+});
+
+cases.push({
+  name: "business context cannot invent client relationship",
+  expected: "rejected",
+  actual: isAuthorizedMouthCandidate(inventedClient)
+    ? "allowed"
+    : "rejected",
+  text: inventedClient.text,
+  reasons: inventedClient.reasons,
+  authorization: inventedClient.authorization,
+});
+
+const suppliedRoleGraph = buildAuthorRealityGraph({
+  prompt: "Record the supplied service result.",
+  subject: "Maria",
+  facts: [],
+  sourceMoments: [
+    "Maria cleaned the kitchen",
+    "Client approved the service",
+  ],
+  memoryContext: [],
+  trajectory: [],
+});
+
+const suppliedRoleEnvelope = buildAuthorRealityEnvelope({
+  graph: suppliedRoleGraph,
+  subject: "Maria",
+});
+
+const suppliedRoleBeat: MouthCandidateBeat = {
+  order: 1,
+  role: "payoff",
+  attentionFunction:
+    "Realize only the supplied service result and supplied relationship roles.",
+  eventIds: suppliedRoleGraph.events.map((event) => event.id),
+  change: "supplied service result",
+  next: "",
+  frontier: "",
+  relationKinds: [],
+};
+
+suppliedRoleBeat.realizationAuthority =
+  buildMouthRealizationAuthority({
+    beat: suppliedRoleBeat,
+    envelope: suppliedRoleEnvelope,
+  });
+
+const suppliedClient = scoreMouthCandidate({
+  text: "Client approved the service.",
+  beat: suppliedRoleBeat,
+  envelope: suppliedRoleEnvelope,
+});
+
+cases.push({
+  name: "supplied business relationship role remains available",
+  expected: "allowed",
+  actual: isAuthorizedMouthCandidate(suppliedClient)
+    ? "allowed"
+    : "rejected",
+  text: suppliedClient.text,
+  reasons: suppliedClient.reasons,
+  authorization: suppliedClient.authorization,
+});
+
 const operational = await authorBrainCanonical({
   prompt: "Maria cleaned the kitchen and bathroom. Done.",
   subject: "Maria",
