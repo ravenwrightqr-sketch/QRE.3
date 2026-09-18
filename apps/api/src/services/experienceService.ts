@@ -102,6 +102,18 @@ function stringList(value: unknown): string[] {
 function buildAssetDomainContext(asset: any): AuthorDomainContext | undefined {
   if (!asset) return undefined;
   const data = asRecord(asset.templateData);
+  const services = unique([
+    ...stringList(data?.services),
+    ...stringList(data?.capabilities),
+    ...stringList(data?.offerings),
+    ...stringList(data?.serviceNames),
+  ]).slice(0, 24);
+
+  const signals = unique([
+    ...stringList(data?.signals),
+    ...stringList(data?.contextualSignals),
+  ]).slice(0, 24);
+
   const context: AuthorDomainContext = {
     category: clean(asset.category || data?.category),
     businessType: clean(data?.businessType || asset.account?.type),
@@ -110,16 +122,24 @@ function buildAssetDomainContext(asset: any): AuthorDomainContext | undefined {
     serviceType: clean(data?.serviceType || data?.service_type),
     serviceName: clean(data?.serviceName || data?.service || data?.offering),
     subjectKind: clean(data?.subjectKind || data?.subject_kind),
-    knownCapabilities: unique([
-      ...stringList(data?.services),
-      ...stringList(data?.capabilities),
-      ...stringList(data?.offerings),
-      ...stringList(data?.serviceNames),
+    services,
+    differentiators: unique([
+      ...stringList(data?.differentiators),
+      ...stringList(data?.advantages),
+      ...stringList(data?.strengths),
     ]).slice(0, 24),
-    contextualSignals: unique([
-      ...stringList(data?.contextualSignals),
-      ...stringList(data?.signals),
+    signals,
+    subjectKinds: unique([
+      ...stringList(data?.subjectKinds),
+      ...stringList(data?.subject_kinds),
     ]).slice(0, 24),
+    importantFacts: unique([
+      ...stringList(data?.importantFacts),
+      ...stringList(data?.important_facts),
+      ...stringList(data?.facts),
+    ]).slice(0, 32),
+    knownCapabilities: services,
+    contextualSignals: signals,
   };
   return Object.values(context).some((value) => Array.isArray(value) ? value.length > 0 : Boolean(value)) ? context : undefined;
 }
