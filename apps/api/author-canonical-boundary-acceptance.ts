@@ -433,7 +433,9 @@ cases.push({
 const serviceGraph = buildAuthorRealityGraph({
   prompt: "Maria cleaned the kitchen and bathroom. Done.",
   subject: "Maria",
-  facts: [],
+  facts: [
+    "Maria cleaned the bedroom last week",
+  ],
   sourceMoments: [
     "Maria cleaned the kitchen",
     "Maria cleaned the bathroom",
@@ -505,8 +507,13 @@ const operational = await authorBrainCanonical({
   playoutMode: "operational",
   lens: "battle",
   movieMode: false,
-  memoryContext: [],
-  trajectory: [],
+  memoryContext: [
+    "prior service: bedroom cleaned",
+    "prior service: garage cleaned",
+  ],
+  trajectory: [
+    "prior service completed",
+  ],
 });
 
 assert(
@@ -528,6 +535,12 @@ assert(
     !/homeowner|tenant|landlord|occupant|guest|client|owner/i.test(scene.text),
   ),
   `Operational receipt invented an unsupplied relationship: ${JSON.stringify(operational.scenes)}`,
+);
+assert(
+  operational.scenes.every((scene) =>
+    !/bedroom|garage|last week|prior service/i.test(scene.text),
+  ),
+  `Operational receipt replayed remembered or prior-job reality as current: ${JSON.stringify(operational.scenes)}`,
 );
 
 cases.push({
