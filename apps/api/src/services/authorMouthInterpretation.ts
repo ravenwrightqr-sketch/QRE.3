@@ -577,6 +577,14 @@ function relationReferenceViolations(input: {
   }
 
   for (const match of input.text.matchAll(CLOSED_WORLD_DETERMINED_REFERENCE)) {
+    const matchEnd = (match.index ?? 0) + match[0].length;
+    const trailing = input.text.slice(matchEnd).trimStart();
+    const firstTrailing = trailing[0] ?? "";
+
+    if (firstTrailing && /[A-Za-z0-9]/.test(firstTrailing)) {
+      continue;
+    }
+
     inspect(match[1] ?? "");
   }
 
