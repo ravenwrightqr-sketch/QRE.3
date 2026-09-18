@@ -426,14 +426,19 @@ const authorInput: AuthorBrainTruth = {
   const renderedMoments = moments(authoredScenes, sourceIds);
   const renderedScenes = cinematicScenes(authoredScenes, sourceIds);
 
+  /*
+   * Persistence projects only the reality supplied in this authoring round.
+   * Durable facts/history may inform Cognition above, but must never be
+   * replayed into the current write batch as if they happened again.
+   */
   const graph = buildAuthorRealityGraph({
     prompt,
     subject,
     place,
-    facts,
-    sourceMoments: [prompt, ...sourceMoments],
+    facts: [],
+    sourceMoments: [prompt],
     memoryContext: memorySummary.slice(0, 80),
-    trajectory,
+    trajectory: [],
   });
 
   let authorExperienceState: AuthorExperienceState | undefined = mergedPriorAuthorState;
