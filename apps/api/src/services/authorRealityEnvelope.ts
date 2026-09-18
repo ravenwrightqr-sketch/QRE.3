@@ -28,6 +28,7 @@ export type RealityEnvelope = {
   suppliedTerms: string[];
   suppliedPhrases: string[];
   suppliedEntities: string[];
+  suppliedParticipants: string[];
   suppliedPlaces: string[];
   suppliedActions: string[];
   suppliedStates: string[];
@@ -108,6 +109,45 @@ function stateTerms(values: readonly string[]): string[] {
         .filter((word) => STATE_RE.test(word)),
     ),
   );
+}
+
+
+const EXPLICIT_PARTICIPANT_PREDICATE =
+  /\b(?:is|are|was|were|has|have|had|does|do|did|can|could|will|would|should|must|may|might|arrive|arrived|return|returned|came|come|left|leave|went|go|met|meet|talk|talked|spoke|said|made|gave|got|found|lost|clean|cleaned|finished|started|opened|closed|walked|ran|drove|ate|drank|called|laughed|cried|felt|became|changed|stole|took|saw|heard|smile|smiled|watch|watched|wave|waved|look|looked|approve|approved|fix|fixed|repair|repaired|groom|groomed|[a-z][a-z'’-]{2,}(?:ed|ing))\b/i;
+
+function explicitParticipantPhrase(
+  label: string,
+): string {
+  const text = clean(label);
+  if (!text) return "";
+
+  const match =
+    EXPLICIT_PARTICIPANT_PREDICATE.exec(
+      text,
+    );
+
+  if (!match || match.index <= 0) {
+    return "";
+  }
+
+  const prefix = clean(
+    text.slice(0, match.index),
+  )
+    .replace(
+      /^(?:then|now|later|earlier|finally|again)\s+/i,
+      "",
+    )
+    .replace(/[,:;]+$/g, "")
+    .trim();
+
+  if (
+    !prefix ||
+    prefix.split(/\s+/).length > 6
+  ) {
+    return "";
+  }
+
+  return prefix;
 }
 
 function endpointEventId(graph: RealityGraph): string {
@@ -206,11 +246,28 @@ export function buildAuthorRealityEnvelope(input: {
       .filter(Boolean),
   );
 
+  /*
+   * Participant authority is stricter than lexical mention.
+   * Subjects extracted from structure and explicit leading actors are factual
+   * participants. Objects, destinations, venues, service types, and role
+   * words elsewhere in a sentence do not become actors merely by appearing.
+   */
+  const suppliedParticipants = unique([
+    subject,
+    ...(graph.eventStructure ?? []).flatMap(
+      (structure) => structure.subjects ?? [],
+    ),
+    ...eventLabels
+      .map(explicitParticipantPhrase)
+      .filter(Boolean),
+  ]);
+
   /* suppliedTerms is the canonical concrete vocabulary used by the Mouth. */
   const suppliedTerms = tokens([
     subject,
     ...eventLabels,
     ...suppliedEntities,
+    ...suppliedParticipants,
     ...suppliedPlaces,
     ...graph.recurringSignals,
     ...graph.sensorySignals,
@@ -236,6 +293,7 @@ export function buildAuthorRealityEnvelope(input: {
     suppliedTerms,
     suppliedPhrases,
     suppliedEntities,
+    suppliedParticipants,
     suppliedPlaces,
     suppliedActions: actionTerms(eventLabels),
     suppliedStates: stateTerms([
