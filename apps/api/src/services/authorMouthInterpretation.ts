@@ -736,13 +736,61 @@ function closedWorldParticipantViolation(
 }
 
 const CLOSED_WORLD_RECURRENCE_LANGUAGE =
-  /\b(?:again|returned|returning|returns|repeated|repeat|previously|used to|once before)\b/i;
+  /\b(?:again|returned?|returning|returns|repeated|repeat|once\s+more|another\s+time|used to|once before|back)\b/i;
 
 const CLOSED_WORLD_SEQUENCE_LANGUAGE =
-  /\b(?:previously|earlier|later|before|afterward|afterwards|after that|next time|the next time|the next day|the day before|yesterday|tomorrow)\b/i;
+  /\b(?:previously|prior|earlier|later|before|afterward|afterwards|after that|next time|the next time|the next day|the day before|yesterday|tomorrow)\b/i;
 
 const CLOSED_WORLD_CONTINUITY_LANGUAGE =
   /\b(?:still|already|continues?|continued|remains?|remained)\b/i;
+
+function chronologyClass(value: string): string {
+  if (CLOSED_WORLD_RECURRENCE_LANGUAGE.test(value)) {
+    return "recurrence";
+  }
+
+  if (CLOSED_WORLD_CONTINUITY_LANGUAGE.test(value)) {
+    return "continuity";
+  }
+
+  if (CLOSED_WORLD_SEQUENCE_LANGUAGE.test(value)) {
+    return "sequence";
+  }
+
+  return "chronology";
+}
+
+function chronologyAuthorityCorpus(
+  beat: MouthCandidateBeat | undefined,
+  envelope: RealityEnvelope,
+): string {
+  const eventIds = new Set(
+    beat?.realizationAuthority?.reality.eventIds ??
+      beat?.eventIds ??
+      [],
+  );
+
+  const scopedEvents = eventIds.size
+    ? envelope.events.filter((event) =>
+        eventIds.has(event.id),
+      )
+    : envelope.events;
+
+  const structures = eventIds.size
+    ? envelope.eventStructure.filter((structure) =>
+        eventIds.has(structure.eventId),
+      )
+    : envelope.eventStructure;
+
+  return clean(
+    [
+      ...scopedEvents.map((event) => event.label),
+      ...structures.flatMap((structure) => structure.temporalMarkers ?? []),
+      ...envelope.recurringSignals,
+      authorityMeaningCorpus(beat),
+    ].join(" "),
+  );
+}
 
 function chronologyAuthorityViolation(
   text: string,
@@ -759,11 +807,15 @@ function chronologyAuthorityViolation(
     return undefined;
   }
 
-  const eventIds = new Set(beat?.eventIds ?? []);
-  const scopedEvents = eventIds.size
-    ? envelope.events.filter((event) => eventIds.has(event.id))
-    : envelope.events;
-  const source = scopedEvents.map((event) => clean(event.label)).join(" ");
+  const eventIds = new Set(
+    beat?.realizationAuthority?.reality.eventIds ??
+      beat?.eventIds ??
+      [],
+  );
+  const source = chronologyAuthorityCorpus(
+    beat,
+    envelope,
+  );
 
   if (
     (CLOSED_WORLD_RECURRENCE_LANGUAGE.test(value) &&
@@ -815,7 +867,7 @@ function chronologyAuthorityViolation(
     return undefined;
   }
 
-  return "unsupported-chronology";
+  return `unsupported-chronology:${chronologyClass(value)}`;
 }
 
 function concreteAuthorityViolation(
