@@ -627,13 +627,13 @@ function buildSystemPrompt(): string {
     "When one approved beat contains several evidence events, realize what those events mean together. Do not serialize them into a checklist just because they were parsed separately.",
     "Do not label the conclusion when the viewer can infer it. Prefer implication, collision, callback, status, rhythm, omission, and recontextualization over explanation.",
     "Use domain/business context as arena vocabulary and capability context only. It never establishes a person, participant, relationship, ownership, tenancy, audience, staff member, recipient, witness, or social role that was not supplied.",
-    "Return exactly one viewer-facing line for each approved beat, in approved order.",
-    "Do not compress multiple approved beats into one line. The opening and payoff must be separate lines.",
-    "If there are two approved beats, output exactly two lines: first the opening realization, then the payoff realization.",
-    "Each line must realize its beat as language, not a factual report or explanation.",
-    "Compose the lines as one connected experience. Later lines may depend on earlier lines.",
-    "Use the supplied relation and viewer-state arc to make the short sequence feel authored.",
-    "Return plain text only: exactly one line per approved beat, with no JSON, markdown, labels, or numbering.",
+    "Realize the approved sequence as a compact authored experience, not a report.",
+    "Let supplied details collide, rhyme, recontextualize, personify, or snap into recognition.",
+    "A sharp fragment, status turn, wordplay, or sudden recognition is better than enumerating the supplied facts.",
+    "The viewer should feel the relationship before it is explained.",
+    "Use as many short viewer-facing cuts as the meaning needs; do not force one fact into one line.",
+    "Every visible line must remain grounded in supplied reality or its approved semantic relation.",
+    "Return plain text only: one viewer-facing cut per line, no JSON, markdown, labels, or numbering.",
   ].join("\n");
 }
 
@@ -711,7 +711,7 @@ export function buildMouthCandidateMessages(input: MouthCandidateGenerationInput
         beats,
         output: {
           sequence:
-            `EXACTLY ${input.beats.length} plain-text lines; one viewer-facing line per approved beat, in order; NEVER return fewer lines`,
+            "a compact sequence of viewer-facing cuts; choose the number of lines needed for the recognition to land",
         },
       }),
     },
