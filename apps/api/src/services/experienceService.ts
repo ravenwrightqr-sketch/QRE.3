@@ -122,13 +122,36 @@ function buildAssetDomainContext(asset: any): AuthorDomainContext | undefined {
 }
 
 
-function inferSubject(prompt: string, context?: MemoryContext): string {
+function inferSubject(
+  prompt: string,
+  context?: MemoryContext,
+  fallbackIdentity?: string,
+): string {
+  const anchoredEntity = context?.entities.find(
+    (entity) =>
+      entity.metadata?.qreIdentityAnchor === true &&
+      entity.confidence >= 0.8,
+  );
+  if (anchoredEntity?.name) return clean(anchoredEntity.name);
+
+  const anchoredFact = context?.facts.find(
+    (fact) =>
+      fact.status === "active" &&
+      fact.confidence >= 0.8 &&
+      fact.predicate === "qre_identity_anchor",
+  );
+  if (anchoredFact?.value) return clean(anchoredFact.value);
+
+  const fallback = clean(fallbackIdentity);
+  if (fallback) return fallback;
+
   const normalizedPrompt = prompt.toLowerCase();
   const candidate = context?.entities
     .map((entity) => clean(entity.name))
     .filter(Boolean)
     .sort((a, b) => b.length - a.length)
     .find((name) => normalizedPrompt.includes(name.toLowerCase()));
+
   return candidate ?? "the subject";
 }
 
@@ -221,6 +244,7 @@ export async function compileExperience(input: {
   });
 }
   let domainContext: AuthorDomainContext | undefined;
+  let assetIdentity = "";
   if (input.assetId) {
     try {
       const asset = await db.asset.findUnique({
@@ -233,6 +257,14 @@ export async function compileExperience(input: {
         },
       });
       domainContext = buildAssetDomainContext(asset);
+      const assetData = asRecord(asset?.templateData);
+      assetIdentity = clean(
+        assetData?.subjectName ||
+        assetData?.subject ||
+        assetData?.petName ||
+        assetData?.identityName ||
+        asset?.displayName,
+      );
     } catch (error) {
       console.warn("[QRE][AUTHORING] Domain context unavailable.", error);
       warnings.push("domain_context_unavailable");
@@ -298,7 +330,7 @@ export async function compileExperience(input: {
 
   const learningLines = learningContext ? learningContextLines(learningContext) : [];
   const learnedProfile = buildAuthorBehaviorProfile(learningLines);
-  const subject = inferSubject(prompt, memoryContext);
+  const subject = inferSubject(prompt, memoryContext, assetIdentity);
   const place = clean(input.geoAnchor?.label) || clean(presence?.places?.[0]);
   const subjectTruth = resolveSubjectTruth(subject, prompt, memoryContext);
   const priorScenes = priorAuthorStates.flatMap((state) => state.chapter.semanticTurns);
