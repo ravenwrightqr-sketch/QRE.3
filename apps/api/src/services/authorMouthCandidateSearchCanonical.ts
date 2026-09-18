@@ -603,30 +603,19 @@ export function buildMouthCandidateMessages(input: MouthCandidateGenerationInput
     const meaning = beat.realizationAuthority?.meaning;
     return {
       order: beat.order,
-      supplied: sourceLabels(beat, input.envelope),
-      purpose: clean(beat.change || beat.attentionFunction || beat.role),
-      next: clean(beat.next || beat.frontier),
-      semantic: meaning
+      evidence: sourceLabels(beat, input.envelope),
+      position: beat.paysOff?.length ? "landing" : "opening",
+      creativePressure: meaning
         ? {
-            before: clean(meaning.before),
-            after: clean(meaning.after),
-            relationKind: clean(meaning.relationKind),
-            realizationMove: clean(meaning.realizationMove),
-            creativeOpportunity: clean(meaning.creativeOpportunity),
+            relationship: [clean(meaning.before), clean(meaning.after)].filter(Boolean).join(" -> "),
+            move: clean(meaning.realizationMove),
+            opportunity: clean(meaning.creativeOpportunity),
             languageAim: clean(meaning.languageAim),
           }
         : undefined,
-      viewerMovement: beat.viewerState
-        ? {
-            before: clean(beat.viewerState.inferenceBefore),
-            after: clean(beat.viewerState.inferenceAfter),
-            gap: clean(beat.viewerState.inferenceGap),
-            move: clean(beat.viewerState.attentionMove),
-          }
-        : undefined,
-      terminal: Boolean(beat.paysOff?.length),
     };
   });
+  const cutCount = input.beats.length;
 
   return [
     { role: "system", content: buildSystemPrompt() },
@@ -652,7 +641,7 @@ export function buildMouthCandidateMessages(input: MouthCandidateGenerationInput
           : undefined,
         beats,
         priorCuts: input.priorTexts ?? [],
-        output: "Return only the moving-text cuts, one cut per line. No explanation.",
+        output: `Return exactly ${cutCount} moving-text cuts, one cut per line. No labels or explanation.`,
       }),
     },
   ];
@@ -729,12 +718,9 @@ export function parseMouthCandidateBatch(
     .map((line) => line.replace(/^\s*(?:[-*]|\d+[.)])\s*/, "").trim())
     .filter(Boolean);
 
-  if (lines.length < expectedBeatCount && lines.length !== 1) return undefined;
+  if (lines.length !== expectedBeatCount && lines.length !== 1) return undefined;
 
-  const texts =
-    lines.length === 1
-      ? lines
-      : lines.slice(0, expectedBeatCount);
+  const texts = lines;
   return {
     variantsByBeat: texts.map((text, index) => ({
       order: index + 1,
