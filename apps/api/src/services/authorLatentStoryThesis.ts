@@ -66,6 +66,33 @@ function mechanismPriority(kind: CreativeInterpretation["mechanism"]): number {
   }
 }
 
+function mechanismSpecificity(
+  kind: CreativeInterpretation["mechanism"],
+): number {
+  switch (kind) {
+    case "expectation_shift":
+    case "recurrence":
+      return 1;
+    case "state_change":
+      return 0.98;
+    case "contrast":
+      return 0.96;
+    case "consequence":
+      return 0.9;
+    case "convergence":
+      return 0.35;
+    case "continuation":
+      return 0.2;
+    default:
+      return 0;
+  }
+}
+
+/**
+ * A broad interpretation should not beat a more informative supplied relation
+ * merely because it touches more events. Specific semantic mechanisms encode
+ * a stronger viewer update while remaining bounded by their evidence IDs.
+ */
 function interpretationEvidenceSpecificity(
   graph: RealityGraph,
   evidenceEventIds: readonly string[],
@@ -261,6 +288,10 @@ function interpretationScore(
   );
 
   const mechanism = mechanismPriority(interpretation.mechanism);
+  const semanticSpecificity =
+    mechanismSpecificity(
+      interpretation.mechanism,
+    );
   const evidenceSpecificity =
     interpretationEvidenceSpecificity(
       graph,
@@ -283,11 +314,12 @@ function interpretationScore(
   return (
     interpretation.confidence * 0.22 +
     mechanism * 0.14 +
+    semanticSpecificity * 0.09 +
     evidenceSpecificity * 0.12 +
     coverage * 0.08 +
     spread * 0.08 +
     endpointSupport * 0.06 +
-    wholeRealityCoverage * 0.18 +
+    wholeRealityCoverage * 0.14 +
     relationPower.strongest * 0.05 +
     relationPower.nonAdjacent * 0.04 +
     Math.min(0.03, evidence.length * 0.006) +
