@@ -150,83 +150,6 @@ const FUNCTION_WORDS = new Set([
 ]);
 
 /*
- * Concrete social / legal / commercial roles are facts about relationships,
- * not stylistic framing. QRE may use one only when that role was supplied in
- * the reality corpus. This is truth-boundary vocabulary, not domain authoring.
- */
-const CONCRETE_RELATION_ROLES = [
-  "homeowner",
-  "home owner",
-  "owner",
-  "tenant",
-  "renter",
-  "landlord",
-  "occupant",
-  "resident",
-  "host",
-  "guest",
-  "client",
-  "customer",
-  "manager",
-  "employee",
-  "employer",
-  "contractor",
-  "patient",
-  "doctor",
-  "nurse",
-  "teacher",
-  "student",
-  "parent",
-  "guardian",
-  "spouse",
-  "husband",
-  "wife",
-  "boyfriend",
-  "girlfriend",
-] as const;
-
-function normalizedRoleText(
-  value: string,
-): string {
-  return ` ${clean(value)
-    .toLowerCase()
-    .replace(/['’]s\b/g, "")
-    .replace(/[^a-z0-9]+/g, " ")
-    .replace(/\s+/g, " ")
-    .trim()} `;
-}
-
-function containsRolePhrase(
-  value: string,
-  role: string,
-): boolean {
-  const normalized =
-    normalizedRoleText(value);
-  const singular = ` ${role} `;
-  const plural = ` ${role}s `;
-
-  return (
-    normalized.includes(singular) ||
-    normalized.includes(plural)
-  );
-}
-
-function unsupportedConcreteRelationRoles(
-  text: string,
-  envelope: RealityEnvelope,
-): string[] {
-  const source =
-    wholeSourceCorpus(envelope);
-
-  return CONCRETE_RELATION_ROLES.filter(
-    (role) =>
-      containsRolePhrase(text, role) &&
-      !containsRolePhrase(source, role),
-  );
-}
-
-
-/*
  * These are not "bad words" in the ordinary sense.
  *
  * They are machine-facing concepts that must never leak into the
@@ -1320,11 +1243,6 @@ export function evaluateMouthInterpretation(input: {
     text,
     input.envelope,
   );
-  const unsupportedRelationRoles =
-    unsupportedConcreteRelationRoles(
-      text,
-      input.envelope,
-    );
   const groundedConcreteFragment =
     wordCount <= 5 &&
     concreteClaim &&
@@ -1363,14 +1281,6 @@ export function evaluateMouthInterpretation(input: {
 if (
   unsupportedPhysicalRelation
 ) {
-  unsupportedConcreteRisk =
-    Math.max(
-      unsupportedConcreteRisk,
-      1,
-    );
-}
-
-if (unsupportedRelationRoles.length > 0) {
   unsupportedConcreteRisk =
     Math.max(
       unsupportedConcreteRisk,
