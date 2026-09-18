@@ -59,6 +59,7 @@ const STATUS = /\b(?:fab|fabulous|dapper|fierce|cool|sharp|ready|done|cleared|ap
 const PHYSICAL_VERB = /\b(?:smiled|smile|laughed|laugh|walked|walk|moved|move|looked|look|watched|watch|stared|stare|blinked|blink|winked|wink|nodded|nod|shrugged|shrug|touched|touch|held|hold|reached|reach|stood|stand|sat|sit|ran|run|jumped|jump|wagged|wag|barked|bark|kissed|kiss|hugged|hug|grabbed|grab|opened|open|closed|close|entered|enter|returned|return|called|call|talked|talk|spoke|speak|heard|hear|saw|see|breathed|breathe)\b/i;
 const BODY = /\b(?:eye|eyes|face|mouth|shoulder|shoulders|hand|hands|head|tail|fur|coat|body|room|door|window|floor|wall|table|chair|car|road|street|sky|shadow|light|sound|scent|voice|water|phone|screen)\b/i;
 const DETERMINED_ROLE = /^(?:the|a|an)\s+(?:groomer|barber|mechanic|housekeeper|cleaner|waiter|waitress|server|chef|driver|photographer|planner|officiant|vendor|host|manager|employee|staff|worker|therapist|doctor|nurse|teacher|agent|lawyer|judge|witness|detective|captain|boss)\b/i;
+const RELATIONSHIP_ROLE = /\b(?:homeowner|home owner|tenant|renter|landlord|occupant|resident|airbnb host|host|guest|client|customer|owner)\b/i;
 const SOFT_FIRST_PERSON = /^(?:I|we|my|our)\b/i;
 
 const SAFE_FRAMING = new Set([
@@ -151,6 +152,24 @@ function roleIsActuallySupplied(role: string, envelope: RealityEnvelope): boolea
   return worldEvidence(envelope).some((item) => normalize(item).includes(normalizedRole));
 }
 
+function relationshipRoleIsActuallySupplied(
+  text: string,
+  envelope: RealityEnvelope,
+): boolean {
+  const value = clean(text);
+  if (!RELATIONSHIP_ROLE.test(value)) return true;
+
+  const supplied = worldEvidence(envelope)
+    .map((item) => normalize(item))
+    .join(" ");
+
+  const matches = value
+    .toLowerCase()
+    .match(/(?:homeowner|home owner|tenant|renter|landlord|occupant|resident|airbnb host|host|guest|client|customer|owner)/g) ?? [];
+
+  return matches.every((role) => supplied.includes(normalize(role)));
+}
+
 function isFrameOnly(text: string): boolean {
   const value = clean(text);
   if (!value || value.length > 64) return false;
@@ -163,7 +182,14 @@ function unsupportedConcrete(text: string, beat: MouthCandidateBeat, envelope: R
   const value = clean(text);
   if (!value) return 1;
   if (INTERNAL.test(value) || EXPLANATION.test(value)) return 1;
-  if (DETERMINED_ROLE.test(value) && !roleIsActuallySupplied(value.replace(/^(?:the|a|an)\s+/i, ""), envelope)) return 1;
+  if (
+    DETERMINED_ROLE.test(value) &&
+    !roleIsActuallySupplied(
+      value.replace(/^(?:the|a|an)\s+/i, ""),
+      envelope,
+    )
+  ) return 1;
+  if (!relationshipRoleIsActuallySupplied(value, envelope)) return 1;
   if (isFrameOnly(value)) return 0;
 
   const substitutionRisk = candidateConcreteSubstitutionRisk(value, beat, envelope);
@@ -472,6 +498,9 @@ function buildSystemPrompt(): string {
     "Invent language, not reality.",
     "Use realizationAuthority, not generic imagination, to determine what transformations are earned.",
     "The metamorphic relation is discovered upstream. The lens does not decide what happened or what the story means.",
+    "Business/service context classifies the world; it is NOT event evidence.",
+    "A business type or service type never proves who owns, rents, occupies, manages, commissioned, received, or requested a service.",
+    "Do not invent homeowner, tenant, landlord, host, guest, owner, resident, renter, client, customer, or other relationship roles unless that relationship is explicitly supplied.",
     "creativeLensBrief is treatment pressure over an already-approved relation. Use it to change perception, attitude, implication, metaphor, status, rhythm, or emotional pressure only.",
     "Never promote lens treatment into a concrete occurrence. Genre language is figurative unless the concrete event is explicitly supplied.",
     "READ THE WHOLE APPROVED SEQUENCE before writing any cut.",
@@ -565,6 +594,21 @@ export function buildMouthCandidateMessages(input: MouthCandidateGenerationInput
         lens: clean(input.lens) || "NONE",
         lensFrame: lens.label,
         creativeLensBrief: input.creativeLensBrief,
+        domainContext: input.domainContext
+          ? {
+              category: clean(input.domainContext.category),
+              businessType: clean(input.domainContext.businessType),
+              businessName: clean(input.domainContext.businessName),
+              businessDescription: clean(input.domainContext.businessDescription),
+              serviceType: clean(input.domainContext.serviceType),
+              serviceName: clean(input.domainContext.serviceName),
+              subjectKind: clean(input.domainContext.subjectKind),
+              knownCapabilities: input.domainContext.knownCapabilities ?? [],
+              contextualSignals: input.domainContext.contextualSignals ?? [],
+              authority:
+                "Context only. It may shape framing and legitimate domain vocabulary but may not create a concrete event, person, ownership/tenancy/client relationship, place, object, action, or chronology.",
+            }
+          : undefined,
         suppliedReality: evidence,
         priorCuts: input.priorTexts ?? [],
         beats,
