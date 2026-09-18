@@ -124,8 +124,52 @@ export function buildAuthorExperienceState(input: {
     ...continuityHooks,
     ...(input.memoryContext ?? []).filter((value) => clean(value).length > 2),
   ], 24);
-  const semanticTurnKeys = uniq([...prior("semanticTurnKeys"), ...relations.map(relationKey)]);
-  const relationKinds = uniq([...prior("relationKinds"), ...relations.map((relation) => relation.kind)]);
+
+  /*
+   * Semantic continuity is not limited to explicit RealityGraph edge pairs.
+   * The selected movie may have a grounded semantic realization (for example
+   * convergence/recognition) whose authority is carried by its cited evidence
+   * even when no single trajectory step maps to one concrete graph relation.
+   *
+   * Persist that approved interpretation as semantic memory only. It never
+   * becomes concrete-world truth.
+   */
+  const selectedSemantic =
+    movie?.storyThesis?.semanticRealization;
+
+  const selectedSemanticKey = selectedSemantic
+    ? clean(
+        selectedSemantic.relation
+          ? [
+              selectedSemantic.relation.kind,
+              selectedSemantic.relation.fromEventId,
+              selectedSemantic.relation.toEventId,
+            ].join(":")
+          : [
+              selectedSemantic.mechanism,
+              ...selectedSemantic.evidenceEventIds,
+            ].join(":"),
+      )
+    : "";
+
+  const selectedRelationKind = clean(
+    selectedSemantic?.relation?.kind ??
+      movie?.storyThesis?.relationKind ??
+      selectedSemantic?.mechanism,
+  );
+
+  const semanticTurnKeys = uniq([
+    ...prior("semanticTurnKeys"),
+    ...relations.map(relationKey),
+    ...(selectedSemanticKey ? [selectedSemanticKey] : []),
+  ]);
+
+  const relationKinds = uniq([
+    ...prior("relationKinds"),
+    ...relations.map((relation) => relation.kind),
+    ...(selectedRelationKind ? [selectedRelationKind] : []),
+  ]);
+
   const operations = uniq(trajectory.map((step) => step.operation));
   const semanticTurns = semanticSteps.map((step) => clean(step.viewerChange)).filter(Boolean);
 
