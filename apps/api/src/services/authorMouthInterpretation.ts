@@ -891,18 +891,26 @@ function treatmentMetaphorOverSuppliedTarget(
    * a compact predicate over a supplied target can be figurative even when the
    * exact metaphor word was never present in source reality.
    */
+  CLOSED_WORLD_POSSESSOR.lastIndex = 0;
+  CLOSED_WORLD_RELATION_TARGET.lastIndex = 0;
+
+  const hasPossessor =
+    CLOSED_WORLD_POSSESSOR.exec(value) !== null;
+  CLOSED_WORLD_POSSESSOR.lastIndex = 0;
+
+  const hasRelationTarget =
+    CLOSED_WORLD_RELATION_TARGET.exec(value) !== null;
+  CLOSED_WORLD_RELATION_TARGET.lastIndex = 0;
+
   if (
     CLOSED_WORLD_PRONOUN.test(value) ||
-    CLOSED_WORLD_POSSESSOR.test(value) ||
-    CLOSED_WORLD_RELATION_TARGET.test(value) ||
+    hasPossessor ||
+    hasRelationTarget ||
     EXTERNAL_STATE_CLAIM.test(value) ||
     BODY.test(value)
   ) {
     return false;
   }
-
-  CLOSED_WORLD_POSSESSOR.lastIndex = 0;
-  CLOSED_WORLD_RELATION_TARGET.lastIndex = 0;
 
   const actors = [
     envelope.subject,
