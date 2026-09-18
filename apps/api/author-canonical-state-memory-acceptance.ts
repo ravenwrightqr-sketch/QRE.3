@@ -11,6 +11,8 @@ import { buildAuthorExperienceState } from "./src/services/authorExperienceState
 import { buildAuthorReadout } from "./src/services/authorReadout.js";
 import { classifyAuthorRealizationMode } from "./src/services/authorRealizationMode.js";
 import { searchUniversalMovieCandidates } from "./src/services/authorUniversalMovieSearch.js";
+import { deriveLatentStoryThesis } from "./src/services/authorLatentStoryThesis.js";
+import { buildAuthorCognitivePlan } from "./src/services/authorCognition.js";
 import { scoreViewerStateTrajectory } from "./src/services/authorViewerState.js";
 import { deriveViewerStateCut } from "./src/services/authorViewerStateCut.js";
 import { buildMouthRealizationAuthority } from "./src/services/authorMouthRealizationAuthority.js";
@@ -70,6 +72,58 @@ assert(
       ),
   ),
   `Day-one profile reality did not produce a character-level semantic opportunity: ${JSON.stringify(dayOneTheses)}`,
+);
+
+const dayOneMemoryBatch = buildExperienceMemoryBatch({
+  operationId: "day-one-profile-memory",
+  assetId: "asset-milo",
+  graph: dayOneMiloGraph,
+  subject: "Milo",
+  subjectKind: "dog",
+  source: "prompt",
+  observedAt: "2026-09-17T12:00:00.000Z",
+});
+
+assert(
+  dayOneMemoryBatch.events.length === 0,
+  `Stable profile assertions were incorrectly persisted as occurrences: ${JSON.stringify(dayOneMemoryBatch.events)}`,
+);
+
+assert(
+  dayOneMemoryBatch.facts.filter((fact) => fact.kind === "preference").length >= 3,
+  `Day-one preferences were not persisted as durable subject facts: ${JSON.stringify(dayOneMemoryBatch.facts)}`,
+);
+
+const heistPlan = buildAuthorCognitivePlan({
+  prompt: "Milo loves walks, bacon, small dogs",
+  subject: "Milo",
+  lens: "heist",
+  facts: [],
+  sourceMoments: ["Milo loves walks, bacon, small dogs"],
+  realityGraph: dayOneMiloGraph,
+});
+
+const romancePlan = buildAuthorCognitivePlan({
+  prompt: "Milo loves walks, bacon, small dogs",
+  subject: "Milo",
+  lens: "romance",
+  facts: [],
+  sourceMoments: ["Milo loves walks, bacon, small dogs"],
+  realityGraph: dayOneMiloGraph,
+});
+
+assert(
+  heistPlan.selectedMovie?.id === romancePlan.selectedMovie?.id,
+  `Lens changed movie discovery instead of only treatment pressure: ${JSON.stringify({
+    heist: heistPlan.selectedMovie?.id,
+    romance: romancePlan.selectedMovie?.id,
+  })}`,
+);
+
+assert(
+  heistPlan.selectedFrame === "heist" &&
+    romancePlan.selectedFrame === "romance",
+  "Late lens treatment was not preserved after lens-neutral movie discovery.",
 );
 
 const graph = buildAuthorRealityGraph({
