@@ -876,6 +876,8 @@ export type AuthorAuthorshipQuality = {
   score: number;
   sourceContentCoverage: number;
   semanticRealizationCoverage: number;
+  viewerUpdateScore: number;
+  stagnantCutRisk: number;
   factParadeRisk: number;
   trivialTransformationRisk: number;
   predicateEnumerationRisk: number;
@@ -934,6 +936,7 @@ export function evaluateAuthorAuthorshipQuality(input: {
   movie?: LatentMovieCandidate;
   subject?: string;
   candidates?: ReturnType<typeof selectBestMouthSequence>["candidates"];
+  beats?: readonly MouthCandidateBeat[];
 }): AuthorAuthorshipQuality {
   const texts = input.texts.map(clean).filter(Boolean);
   const sourceLabels = input.envelope.events
@@ -1031,16 +1034,57 @@ export function evaluateAuthorAuthorshipQuality(input: {
       : 0,
   );
 
+  const viewerStates = (input.beats ?? [])
+    .map((beat) => beat.viewerState)
+    .filter(
+      (state): state is NonNullable<MouthCandidateBeat["viewerState"]> =>
+        Boolean(state),
+    );
+
+  const viewerUpdateScore = viewerStates.length
+    ? metric(
+        viewerStates.reduce(
+          (sum, state) =>
+            sum +
+            state.stateShift * 0.32 +
+            state.predictionError * 0.24 +
+            state.contrast * 0.18 +
+            state.curiosityPressure * 0.14 +
+            state.payoffPressure * 0.12,
+          0,
+        ) / viewerStates.length,
+      )
+    : metric(
+        input.movie?.storyThesis?.semanticRealization
+          ? 0.5
+          : 0.3,
+      );
+
+  const stagnantCutRisk = viewerStates.length
+    ? metric(
+        viewerStates.filter(
+          (state) =>
+            state.stateShift < 0.4 &&
+            state.predictionError < 0.35 &&
+            state.contrast < 0.35,
+        ).length / viewerStates.length,
+      )
+    : 0;
+
   /*
-   * Meaningful inference rewards semantic realization that is not simply
-   * equivalent to replaying all supplied content nouns.
+   * Meaningful inference rewards a grounded semantic realization that
+   * materially changes the observer's model. Source vocabulary may remain;
+   * what matters is that the sequence causes recognition rather than merely
+   * restating or connecting facts.
    */
   const meaningfulInferenceScore = metric(
-    semanticRealizationCoverage * 0.5 +
-    (1 - factParadeRisk) * 0.16 +
-    (1 - trivialTransformationRisk) * 0.12 +
-    (1 - semanticUnderRealizationRisk) * 0.12 +
-    (1 - explanatoryLabelRisk) * 0.1,
+    semanticRealizationCoverage * 0.34 +
+    viewerUpdateScore * 0.24 +
+    (1 - stagnantCutRisk) * 0.08 +
+    (1 - factParadeRisk) * 0.12 +
+    (1 - trivialTransformationRisk) * 0.08 +
+    (1 - semanticUnderRealizationRisk) * 0.08 +
+    (1 - explanatoryLabelRisk) * 0.06,
   );
 
   const score = metric(
@@ -1068,18 +1112,35 @@ export function evaluateAuthorAuthorshipQuality(input: {
   if (explanatoryLabelRisk >= 0.5) {
     reasons.push("explanatory-labeling");
   }
+  if (stagnantCutRisk >= 0.5) {
+    reasons.push("viewer-state-stagnation");
+  }
+  if (
+    input.movie?.storyThesis?.semanticRealization &&
+    viewerUpdateScore < 0.4
+  ) {
+    reasons.push("weak-viewer-update");
+  }
 
   const accepted =
     score >= 0.54 &&
+    meaningfulInferenceScore >= 0.5 &&
     factParadeRisk < 0.78 &&
     trivialTransformationRisk < 0.78 &&
     semanticUnderRealizationRisk < 0.82 &&
-    explanatoryLabelRisk < 0.75;
+    explanatoryLabelRisk < 0.75 &&
+    stagnantCutRisk < 0.75 &&
+    (
+      !input.movie?.storyThesis?.semanticRealization ||
+      viewerUpdateScore >= 0.4
+    );
 
   return {
     score,
     sourceContentCoverage,
     semanticRealizationCoverage,
+    viewerUpdateScore,
+    stagnantCutRisk,
     factParadeRisk,
     trivialTransformationRisk,
     predicateEnumerationRisk,
@@ -1576,6 +1637,7 @@ export async function authorBrainCanonical(
     movie,
     subject,
     candidates: selected.candidates,
+    beats,
   });
 
   /*
@@ -1661,6 +1723,8 @@ export async function authorBrainCanonical(
         predicateEnumerationRisk: authorshipQuality.predicateEnumerationRisk,
         subjectPrefixRisk: authorshipQuality.subjectPrefixRisk,
         semanticRealizationCoverage: authorshipQuality.semanticRealizationCoverage,
+        viewerUpdateScore: authorshipQuality.viewerUpdateScore,
+        stagnantCutRisk: authorshipQuality.stagnantCutRisk,
         semanticUnderRealizationRisk: authorshipQuality.semanticUnderRealizationRisk,
         explanatoryLabelRisk: authorshipQuality.explanatoryLabelRisk,
         authorshipReasons: authorshipQuality.reasons,
