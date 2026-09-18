@@ -1321,6 +1321,7 @@ export async function authorBrainCanonical(
   );
   const complete =
     scenes.length >= 1 &&
+    scenes.length === beats.length &&
     scenes.length === sequence.cuts.length &&
     sequenceSourcesComplete &&
     attention.accepted === true &&
@@ -1333,7 +1334,7 @@ export async function authorBrainCanonical(
 
   if (process.env.QRE_AUTHOR_DEBUG_MOVIE === "true") {
     console.log("\n--- QRE AUTHOR COMPLETENESS ---");
-    console.log(`minimumCuts=${minimumCuts}`);
+    console.log(`semanticBeatCount=${beats.length}`);
     console.log(`sceneCount=${scenes.length}`);
     console.log(`sequenceCutCount=${sequence.cuts.length}`);
     console.log(`sequenceSourcesComplete=${sequenceSourcesComplete}`);
