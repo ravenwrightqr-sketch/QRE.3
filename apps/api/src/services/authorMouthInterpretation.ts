@@ -265,6 +265,7 @@ function wholeSourceCorpus(
       ),
       ...envelope.suppliedPhrases,
       ...envelope.suppliedEntities,
+      ...envelope.suppliedParticipants,
       ...envelope.suppliedPlaces,
       ...envelope.suppliedActions,
       ...envelope.suppliedStates,
@@ -683,6 +684,7 @@ function closedWorldParticipantViolation(
 
   const actors = [
     envelope.subject,
+    ...envelope.suppliedParticipants,
     ...authority.reality.entities,
   ].filter(Boolean);
 
