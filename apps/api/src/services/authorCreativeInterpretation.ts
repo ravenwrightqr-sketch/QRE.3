@@ -74,6 +74,67 @@ function labelFor(
   );
 }
 
+function structureFor(
+  graph: RealityGraph,
+  eventId: string,
+) {
+  return graph.eventStructure?.find(
+    (item) => item.eventId === eventId,
+  );
+}
+
+function hasAction(
+  graph: RealityGraph,
+  eventId: string,
+): boolean {
+  const structure = structureFor(graph, eventId);
+  return Boolean(
+    structure?.actions.length ||
+    ACTION.test(labelFor(graph, eventId)),
+  );
+}
+
+function hasState(
+  graph: RealityGraph,
+  eventId: string,
+): boolean {
+  const structure = structureFor(graph, eventId);
+  return Boolean(
+    structure?.states.length ||
+    isState(labelFor(graph, eventId)),
+  );
+}
+
+function objectsFor(
+  graph: RealityGraph,
+  eventId: string,
+): string[] {
+  return unique(
+    structureFor(graph, eventId)?.objects ?? [],
+  );
+}
+
+function hasObject(
+  graph: RealityGraph,
+  eventId: string,
+): boolean {
+  return objectsFor(graph, eventId).length > 0;
+}
+
+function isSemanticallyMaterial(
+  graph: RealityGraph,
+  eventId: string,
+): boolean {
+  const structure = structureFor(graph, eventId);
+  return Boolean(
+    hasAction(graph, eventId) ||
+    hasState(graph, eventId) ||
+    hasObject(graph, eventId) ||
+    structure?.semanticTags.length ||
+    structure?.salienceScore >= 0.45,
+  );
+}
+
 function tokens(value: string): Set<string> {
   return new Set(
     clean(value)
@@ -152,56 +213,6 @@ const CONTRAST =
 const ACTION =
   /\b(?:arrived|arrive|visited|started|called|texted|messaged|talked|spoke|worked|played|danced|went|came|left|returned|watched|looked|chose|chosen|selected|picked|remembered|met|made|gave|found|lost|fixed|repaired|groomed|dyed|tailored|installed|built|bought|sold|celebrated|stole|steal|stolen|took|take|taken|grabbed|snatched|borrowed|carried|used|changed|finished)\b/i;
 
-const OBJECT =
-  /\b(?:bow|collar|tag|mirror|photo|picture|gift|key|keys|ring|flower|flowers|coat|dress|shirt|shoe|shoes|ticket|receipt|book|letter|phone|screen|car|room|bathroom|house|home|table|door|window|box|bag|cake|towel|towels|leash|tool|tools|food|drink|coffee|music|water)\b/i;
-
-const CONCRETE_OBJECTS = new Set([
-  "bow",
-  "collar",
-  "tag",
-  "mirror",
-  "photo",
-  "picture",
-  "gift",
-  "key",
-  "keys",
-  "ring",
-  "flower",
-  "flowers",
-  "coat",
-  "dress",
-  "shirt",
-  "shoe",
-  "shoes",
-  "ticket",
-  "receipt",
-  "book",
-  "letter",
-  "phone",
-  "screen",
-  "car",
-  "room",
-  "bathroom",
-  "house",
-  "home",
-  "table",
-  "door",
-  "window",
-  "box",
-  "bag",
-  "cake",
-  "towel",
-  "towels",
-  "leash",
-  "tool",
-  "tools",
-  "food",
-  "drink",
-  "coffee",
-  "music",
-  "water",
-]);
-
 function isState(
   label: string,
 ): boolean {
@@ -224,16 +235,6 @@ function stateKind(
   }
 
   return "other";
-}
-
-function concreteTokens(
-  label: string,
-): string[] {
-  return [
-    ...tokens(label),
-  ].filter((token) =>
-    CONCRETE_OBJECTS.has(token),
-  );
 }
 
 function orderedEventIds(
@@ -671,7 +672,7 @@ function strongestActionObjectPair(
       ),
     }))
     .filter((item) =>
-      ACTION.test(item.label),
+      hasAction(graph, item.id),
     );
 
   let best:
@@ -707,8 +708,9 @@ function strongestActionObjectPair(
         );
 
       const objects =
-        concreteTokens(
-          objectLabel,
+        objectsFor(
+          graph,
+          objectId,
         );
 
       if (!objects.length) {
@@ -797,7 +799,7 @@ function strongestActionStatePair(
       ),
     }))
     .filter((item) =>
-      ACTION.test(item.label),
+      hasAction(graph, item.id),
     );
 
   const states = orderedEventIds
@@ -810,7 +812,7 @@ function strongestActionStatePair(
       ),
     }))
     .filter((item) =>
-      isState(item.label),
+      hasState(graph, item.id),
     );
 
   let best:
@@ -914,10 +916,9 @@ function buildAccumulation(
             id,
           );
 
-        return (
-          isState(label) ||
-          ACTION.test(label) ||
-          OBJECT.test(label)
+        return isSemanticallyMaterial(
+          graph,
+          id,
         );
       },
     );
@@ -928,23 +929,17 @@ function buildAccumulation(
 
   const stateCount =
     ids.filter((id) =>
-      isState(
-        labelFor(graph, id),
-      ),
+      hasState(graph, id),
     ).length;
 
   const actionCount =
     ids.filter((id) =>
-      ACTION.test(
-        labelFor(graph, id),
-      ),
+      hasAction(graph, id),
     ).length;
 
   const objectCount =
     ids.filter((id) =>
-      OBJECT.test(
-        labelFor(graph, id),
-      ),
+      hasObject(graph, id),
     ).length;
 
   const spanValue =
@@ -1366,10 +1361,9 @@ function buildExpectationCandidate(
             id,
           );
 
-        return (
-          isState(label) ||
-          ACTION.test(label) ||
-          OBJECT.test(label)
+        return isSemanticallyMaterial(
+          graph,
+          id,
         );
       },
     );
@@ -1381,10 +1375,9 @@ function buildExpectationCandidate(
       .reverse()
       .find((id) => {
         const label = labelFor(graph, id);
-        return (
-          isState(label) ||
-          ACTION.test(label) ||
-          OBJECT.test(label)
+        return isSemanticallyMaterial(
+          graph,
+          id,
         );
       });
 
