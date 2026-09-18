@@ -157,13 +157,6 @@ function isFrameOnly(text: string): boolean {
 function unsupportedConcrete(text: string, beat: MouthCandidateBeat, envelope: RealityEnvelope): number {
   const value = clean(text);
   if (!value) return 1;
-  if (EXPLANATION.test(value)) return 1;
-  if (
-    INTERNAL.test(value) &&
-    !authorityLicensesViewerLanguage(value, beat)
-  ) {
-    return 1;
-  }
   if (isFrameOnly(value)) return 0;
 
   const substitutionRisk = candidateConcreteSubstitutionRisk(value, beat, envelope);
@@ -416,8 +409,7 @@ function candidateScore(text: string, beat: MouthCandidateBeat, envelope: Realit
     : 1;
   const authorizationRealitySafe =
     interpretation.authorization.realitySafe &&
-    forbidden < 0.9 &&
-    explain < 0.95;
+    forbidden < 0.9;
   const authorization = {
     ...interpretation.authorization,
     realitySafe: authorizationRealitySafe,
@@ -427,11 +419,10 @@ function candidateScore(text: string, beat: MouthCandidateBeat, envelope: Realit
     reasons: [
       ...interpretation.authorization.reasons,
       ...(forbidden >= 0.9 ? ["candidate-concrete-veto"] : []),
-      ...(explain >= 0.95 ? ["candidate-explanation-veto"] : []),
     ],
   };
 
-  if (forbidden >= 0.9 || explain >= 0.95) {
+  if (forbidden >= 0.9) {
     return {
       text: value,
       beatOrder: beat.order,
@@ -457,7 +448,10 @@ function candidateScore(text: string, beat: MouthCandidateBeat, envelope: Realit
       collageRisk: 0,
       endpointExactness: 0,
       score: 0,
-      reasons: ["unsafe-realization", ...(explain ? ["meaning-explained-instead-of-felt"] : [])],
+      reasons: [
+        "unsafe-realization",
+        ...interpretation.reasons,
+      ],
     };
   }
 
@@ -501,6 +495,7 @@ function candidateScore(text: string, beat: MouthCandidateBeat, envelope: Realit
       distinctive * 0.08 +
       payoff * 0.12 -
       abstract * 0.16 -
+      explain * 0.14 -
       semanticUnitRisk.parade * 0.22 -
       semanticUnitRisk.trivialProgression * 0.08,
   );
@@ -523,6 +518,9 @@ function candidateScore(text: string, beat: MouthCandidateBeat, envelope: Realit
   }
   if (semanticUnitRisk.trivialProgression >= 0.9) {
     reasons.push("trivial-connective-transformation");
+  }
+  if (explain >= 0.95) {
+    reasons.push("meaning-explained-instead-of-felt");
   }
   if (
     (beat.eventIds?.length ?? 0) > 1 &&

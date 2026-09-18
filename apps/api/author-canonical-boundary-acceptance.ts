@@ -691,6 +691,24 @@ const treatmentInventedRole = scoreMouthCandidate({
   envelope: serviceEnvelope,
 });
 
+const treatmentInventedTenant = scoreMouthCandidate({
+  text: "Tenant: cleared.",
+  beat: treatmentServiceBeat,
+  envelope: serviceEnvelope,
+});
+
+const treatmentInventedClientCompact = scoreMouthCandidate({
+  text: "Client: approved.",
+  beat: treatmentServiceBeat,
+  envelope: serviceEnvelope,
+});
+
+const treatmentInventedCrowdCompact = scoreMouthCandidate({
+  text: "Crowd: witness.",
+  beat: treatmentServiceBeat,
+  envelope: serviceEnvelope,
+});
+
 const treatmentDefeated = scoreMouthCandidate({
   text: "Kitchen defeated.",
   beat: treatmentServiceBeat,
@@ -857,6 +875,39 @@ cases.push({
   authorization: treatmentInventedRole.authorization,
 });
 
+cases.push({
+  name: "compact treatment label cannot create unsupplied tenant",
+  expected: "rejected",
+  actual: isAuthorizedMouthCandidate(treatmentInventedTenant)
+    ? "allowed"
+    : "rejected",
+  text: treatmentInventedTenant.text,
+  reasons: treatmentInventedTenant.reasons,
+  authorization: treatmentInventedTenant.authorization,
+});
+
+cases.push({
+  name: "compact treatment label cannot create unsupplied client",
+  expected: "rejected",
+  actual: isAuthorizedMouthCandidate(treatmentInventedClientCompact)
+    ? "allowed"
+    : "rejected",
+  text: treatmentInventedClientCompact.text,
+  reasons: treatmentInventedClientCompact.reasons,
+  authorization: treatmentInventedClientCompact.authorization,
+});
+
+cases.push({
+  name: "compact treatment label cannot create unsupplied crowd",
+  expected: "rejected",
+  actual: isAuthorizedMouthCandidate(treatmentInventedCrowdCompact)
+    ? "allowed"
+    : "rejected",
+  text: treatmentInventedCrowdCompact.text,
+  reasons: treatmentInventedCrowdCompact.reasons,
+  authorization: treatmentInventedCrowdCompact.authorization,
+});
+
 
 function scopedRealityBeat(input: {
   envelope: ReturnType<typeof buildAuthorRealityEnvelope>;
@@ -954,6 +1005,53 @@ cases.push({
   text: suppliedGroomerActor.text,
   reasons: suppliedGroomerActor.reasons,
   authorization: suppliedGroomerActor.authorization,
+});
+
+const explicitGroomerEventIds =
+  explicitGroomerGraph.events.map((event) => event.id);
+const explicitGroomerCompactBeat: MouthCandidateBeat = {
+  ...explicitGroomerBeat,
+  relationKinds: ["converges"],
+  semanticRealization: {
+    mechanism: "convergence",
+    evidenceEventIds: explicitGroomerEventIds,
+    beforeEventIds: explicitGroomerEventIds.slice(0, 1),
+    afterEventIds: explicitGroomerEventIds.slice(-1),
+    subject: "Coco",
+    realizationMove: "status_inversion",
+    creativeOpportunity: "status_turn",
+    feltEffect: "the supplied secondary actor can carry treatment framing",
+    viewerShift: "from supplied action to compact status frame",
+    languageAim: "compact supplied-actor label, no invented participant",
+    confidence: 0.9,
+  },
+};
+explicitGroomerCompactBeat.realizationAuthority =
+  buildMouthRealizationAuthority({
+    beat: explicitGroomerCompactBeat,
+    envelope: explicitGroomerEnvelope,
+    treatment: {
+      label: "battle",
+      intensity: 0.8,
+      framingBias: ["victory", "approval"],
+      realizationPreferences: ["status_inversion"],
+      forbiddenRealityMoves: [],
+    },
+  });
+const compactSuppliedGroomerActor = scoreMouthCandidate({
+  text: "Groomer: victory.",
+  beat: explicitGroomerCompactBeat,
+  envelope: explicitGroomerEnvelope,
+});
+cases.push({
+  name: "compact label may bind to explicitly supplied secondary actor",
+  expected: "allowed",
+  actual: isAuthorizedMouthCandidate(compactSuppliedGroomerActor)
+    ? "allowed"
+    : "rejected",
+  text: compactSuppliedGroomerActor.text,
+  reasons: compactSuppliedGroomerActor.reasons,
+  authorization: compactSuppliedGroomerActor.authorization,
 });
 
 const raveGraph = buildAuthorRealityGraph({
