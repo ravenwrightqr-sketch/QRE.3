@@ -280,6 +280,43 @@ function eventDistance(
   );
 }
 
+function defaultSemanticGuidance(
+  mechanism: CreativeInterpretationMechanism,
+): {
+  feltEffect: string;
+  viewerShift: string;
+  languageAim: string;
+} {
+  const viewerShiftByMechanism: Record<
+    CreativeInterpretationMechanism,
+    string
+  > = {
+    expectation_shift:
+      "The supplied expectation and supplied outcome become one recognizable mismatch.",
+    continuation:
+      "A supplied detail moves from isolated information to significance.",
+    state_change:
+      "The supplied before and after become one felt change in state or status.",
+    recurrence:
+      "A repeated supplied detail stops feeling isolated and begins to feel like a pattern.",
+    convergence:
+      "Separate supplied details become one recognizable reading when held together.",
+    contrast:
+      "The later supplied contrast changes how the earlier supplied material is read.",
+    consequence:
+      "A supplied consequence changes the significance of the supplied material that earned it.",
+  };
+
+  return {
+    feltEffect:
+      "The viewer should recognize the approved relationship before QRE explains it.",
+    viewerShift:
+      viewerShiftByMechanism[mechanism],
+    languageAim:
+      "Realize the approved relationship through implication, compression, status, rhythm, juxtaposition, callback, or recontextualization. Do not summarize the relationship and do not invent concrete reality.",
+  };
+}
+
 function buildCandidate(
   statement: string,
   mechanism: CreativeInterpretationMechanism,
@@ -287,6 +324,11 @@ function buildCandidate(
   confidence: number,
   semantic: Partial<LatentSemanticRealization> = {},
 ): CreativeInterpretation {
+  const guidance =
+    defaultSemanticGuidance(
+      mechanism,
+    );
+
   return {
     statement: clean(statement),
     mechanism,
@@ -307,9 +349,15 @@ function buildCandidate(
       "recognize",
     creativeOpportunity:
       semantic.creativeOpportunity,
-    feltEffect: semantic.feltEffect,
-    viewerShift: semantic.viewerShift,
-    languageAim: semantic.languageAim,
+    feltEffect:
+      clean(semantic.feltEffect) ||
+      guidance.feltEffect,
+    viewerShift:
+      clean(semantic.viewerShift) ||
+      guidance.viewerShift,
+    languageAim:
+      clean(semantic.languageAim) ||
+      guidance.languageAim,
     confidence: metric(
       confidence,
     ),
