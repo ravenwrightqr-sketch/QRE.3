@@ -157,7 +157,13 @@ function isFrameOnly(text: string): boolean {
 function unsupportedConcrete(text: string, beat: MouthCandidateBeat, envelope: RealityEnvelope): number {
   const value = clean(text);
   if (!value) return 1;
-  if (INTERNAL.test(value) || EXPLANATION.test(value)) return 1;
+  if (EXPLANATION.test(value)) return 1;
+  if (
+    INTERNAL.test(value) &&
+    !authorityLicensesViewerLanguage(value, beat)
+  ) {
+    return 1;
+  }
   if (isFrameOnly(value)) return 0;
 
   const substitutionRisk = candidateConcreteSubstitutionRisk(value, beat, envelope);
