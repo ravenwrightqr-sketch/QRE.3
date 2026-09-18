@@ -168,6 +168,27 @@ const CASES: UniversalCase[] = [
     ],
   },
   {
+    id: "groomer-context",
+    label: "PET MEMORY · CONTEXT IS NOT A CHARACTER",
+    subject: "Coco",
+    facts: [],
+    sourceMoments: [
+      "Coco went to the groomer",
+      "Coco came home clean",
+      "Coco had a red bow",
+    ],
+  },
+  {
+    id: "rave-minimal",
+    label: "RAVE MEMORY · NO UNSUPPLIED PEOPLE",
+    subject: "Raven",
+    facts: [],
+    sourceMoments: [
+      "Raven arrived at Neon District",
+      "Raven left at 2 AM",
+    ],
+  },
+  {
     id: "unknown-object",
     label: "OPEN-WORLD UNKNOWN OBJECT",
     subject: "Aster",
