@@ -1927,6 +1927,75 @@ function buildSubjectReturnCandidate(
   );
 }
 
+function buildSparseRealityInterpretations(
+  graph: RealityGraph,
+  orderedIds: readonly string[],
+): CreativeInterpretation[] {
+  if (!orderedIds.length) return [];
+
+  const subject = subjectName(graph);
+
+  if (orderedIds.length === 1) {
+    const id = orderedIds[0]!;
+    const label = labelFor(graph, id);
+
+    return [
+      buildCandidate(
+        "A single supplied truth can become an identity, status, attitude, or significance signal without changing what happened.",
+        "continuation",
+        [id],
+        0.74,
+        {
+          subject,
+          beforeEventIds: [id],
+          afterEventIds: [id],
+          before: label,
+          after: label,
+          realizationMove: "recognize",
+          creativeOpportunity: "recognition",
+          feltEffect:
+            "The viewer should feel that the supplied detail says something about this thing without receiving an explanatory summary.",
+          viewerShift:
+            "One fact moves from information to significance.",
+          languageAim:
+            "Reframe the supplied detail through implication, attitude, status, metaphor, or compression. Do not add a concrete action, object, state, motive, place, chronology, or event.",
+        },
+      ),
+    ];
+  }
+
+  if (orderedIds.length === 2) {
+    const first = orderedIds[0]!;
+    const second = orderedIds[1]!;
+
+    return [
+      buildCandidate(
+        "Two supplied truths can create recognition through juxtaposition even when no causal relationship is claimed.",
+        "convergence",
+        [first, second],
+        0.7,
+        {
+          subject,
+          beforeEventIds: [first],
+          afterEventIds: [second],
+          before: labelFor(graph, first),
+          after: labelFor(graph, second),
+          realizationMove: "recognize",
+          creativeOpportunity: "recognition",
+          feltEffect:
+            "The viewer should notice what the two supplied details feel like together without being told a conclusion.",
+          viewerShift:
+            "Separate supplied details become one perceptual impression.",
+          languageAim:
+            "Use juxtaposition, implication, status, contrast of wording, or compression. Do not invent causality or any new concrete fact.",
+        },
+      ),
+    ];
+  }
+
+  return [];
+}
+
 export function deriveSequenceBackedCreativeInterpretations(
   graph: RealityGraph,
   candidate: LatentMovieCandidate,
@@ -1936,8 +2005,11 @@ export function deriveSequenceBackedCreativeInterpretations(
       candidate,
     );
 
-  if (orderedEventIds.length < 2) {
-    return [];
+  if (orderedEventIds.length < 3) {
+    return buildSparseRealityInterpretations(
+      graph,
+      orderedEventIds,
+    );
   }
 
   const labels = orderedEventIds
