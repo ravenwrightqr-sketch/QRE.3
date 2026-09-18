@@ -441,6 +441,9 @@ function authorityMeaningCorpus(
       ...authority.earnedInterpretations,
       ...authority.permittedRealizationModes,
       ...authority.creativeMoves,
+      authority.treatment?.label,
+      ...(authority.treatment?.framingBias ?? []),
+      ...(authority.treatment?.realizationPreferences ?? []),
       authority.inferenceBudget,
     ].join(" "),
   );
