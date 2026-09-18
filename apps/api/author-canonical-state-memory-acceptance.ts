@@ -453,6 +453,15 @@ assert(
   "Different lenses did not create different treatment pressure.",
 );
 assert(
+  Boolean(
+    heistBrief.metamorphic.feltEffect &&
+      heistBrief.metamorphic.viewerShift &&
+      heistBrief.metamorphic.languageAim,
+  ),
+  `Approved semantic realization reached Lens without a perceptual objective: ${JSON.stringify(heistBrief.metamorphic)}`,
+);
+
+assert(
   heistBrief.realityInvariants.some((value) =>
     /only concrete-world authority/i.test(value),
   ),
