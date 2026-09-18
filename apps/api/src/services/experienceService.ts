@@ -369,7 +369,19 @@ export async function compileExperience(input: {
    * replayed as if they occurred in the current authoring round.
    */
   const sourceMoments = unique([prompt]).slice(0, 40);
-  const facts = unique([...(memoryContext?.facts ?? []).filter((fact) => fact.status === "active" && fact.confidence >= 0.7).map((fact) => `${clean(fact.predicate)}: ${clean(fact.value)}`)]).slice(0, 80);
+
+  /*
+   * CLOSED-WORLD CURRENT-REALITY LAW
+   *
+   * Durable memory is context, never a new occurrence.
+   * memorySummary already carries active facts/entities/events/relations into
+   * Cognition with explicit MEMORY provenance. Do not duplicate those facts
+   * into AuthorBrainTruth.facts, because RealityGraph treats facts as current
+   * supplied reality and would otherwise replay remembered truth as though it
+   * happened in this authoring round.
+   */
+  const facts: string[] = [];
+
   const trajectory = unique([...priorScenes, ...(presence?.summary ?? [])]).slice(0, 40);
   const presenceSummary = unique(presence?.summary ?? []).slice(0, 24);
 
