@@ -58,34 +58,52 @@ function mechanismPriority(kind: CreativeInterpretation["mechanism"]): number {
     case "consequence":
       return 0.9;
     case "convergence":
-      return 0.58;
+      return 0.82;
     case "continuation":
-      return 0.52;
+      return 0.68;
     default:
       return 0.4;
   }
 }
 
-function statementSpecificity(statement: string): number {
-  const value = clean(statement);
-  const concrete =
-    /\b(?:bow|collar|tag|mirror|photo|picture|gift|key|keys|ring|flower|flowers|coat|dress|shirt|shoe|shoes|ticket|receipt|book|letter|phone|screen|car|room|house|home|table|door|window|box|bag|cake|towel|towels|leash)\b/i.test(
-      value,
-    );
-  const specificState =
-    /\b(?:nervous|scared|afraid|anxious|worried|sad|angry|tired|awkward|uneasy|tense|stressed|uncomfortable|happy|proud|calm|excited|confident|comfortable|relieved|fabulous|good|glad|pleased|delighted|fierce|cool|sharp|dapper|ready)\b/i.test(
-      value,
-    );
-  const generic =
-    /\b(?:separate|supplied|changes|converge|continuing thread|meaningful relationship|same realization|small changes in feeling)\b/i.test(
-      value,
+function interpretationEvidenceSpecificity(
+  graph: RealityGraph,
+  evidenceEventIds: readonly string[],
+): number {
+  const structures = evidenceEventIds
+    .map((id) =>
+      graph.eventStructure?.find((item) => item.eventId === id),
+    )
+    .filter(
+      (
+        value,
+      ): value is NonNullable<RealityGraph["eventStructure"]>[number] =>
+        Boolean(value),
     );
 
+  if (!structures.length) {
+    return 0;
+  }
+
+  const structureScores = structures.map((structure) => {
+    const structuralSignals = Math.min(
+      1,
+      (structure.actions?.length ?? 0) * 0.22 +
+        (structure.objects?.length ?? 0) * 0.2 +
+        (structure.states?.length ?? 0) * 0.18 +
+        (structure.semanticTags?.length ?? 0) * 0.08,
+    );
+
+    return Math.min(
+      1,
+      structuralSignals * 0.58 +
+        Number(structure.salienceScore ?? 0) * 0.42,
+    );
+  });
+
   return (
-    (concrete ? 0.34 : 0) +
-    (specificState ? 0.28 : 0) +
-    (generic ? -0.32 : 0) +
-    Math.min(0.2, value.split(/\s+/).filter(Boolean).length / 40)
+    structureScores.reduce((sum, value) => sum + value, 0) /
+    Math.max(1, structureScores.length)
   );
 }
 
@@ -247,20 +265,36 @@ function interpretationScore(
   );
 
   const mechanism = mechanismPriority(interpretation.mechanism);
-  const specificity = statementSpecificity(
-    interpretation.statement,
-  );
+  const evidenceSpecificity =
+    interpretationEvidenceSpecificity(
+      graph,
+      evidence,
+    );
 
+  /*
+   * Rank the grounded semantic structure, not the prose used to describe the
+   * candidate internally.
+   *
+   * A compact two-event idea may still beat a broad interpretation when its
+   * confidence, relation power, state shift, contrast, recurrence, or other
+   * evidence is genuinely stronger. But an arbitrary pair no longer wins just
+   * because its diagnostic sentence contains a familiar concrete noun.
+   *
+   * Whole-reality coverage matters because many mundane sequences (service
+   * work, receipts, routines, profiles, ordinary memories) become interesting
+   * only when several supplied details are perceived together.
+   */
   return (
     interpretation.confidence * 0.22 +
-    mechanism * 0.18 +
-    specificity * 0.12 +
-    coverage * 0.13 +
+    mechanism * 0.14 +
+    evidenceSpecificity * 0.12 +
+    coverage * 0.08 +
     spread * 0.08 +
     endpointSupport * 0.06 +
-    wholeRealityCoverage * 0.08 +
-    relationPower.strongest * 0.06 +
-    relationPower.nonAdjacent * 0.05 +
+    wholeRealityCoverage * 0.18 +
+    relationPower.strongest * 0.05 +
+    relationPower.nonAdjacent * 0.04 +
+    Math.min(0.03, evidence.length * 0.006) +
     Math.min(0.02, relationPower.count * 0.005)
   );
 }
