@@ -652,6 +652,7 @@ export function parseMouthCandidateBatch(
   const normalized = String(raw ?? "")
     .replace(/^\s*```(?:json)?\s*/i, "")
     .replace(/\s*```\s*$/i, "")
+    .replace(/^\s*(?:sequence|variant)\s*\d+\s*:\s*$/gim, "")
     .trim();
 
   try {
