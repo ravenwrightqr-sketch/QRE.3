@@ -180,6 +180,7 @@ async function realize(input: {
     "Create interest by changing the READING of supplied facts, never by decorating them with invented scenery.",
     "Every concrete person, object, place, action, sensory detail, body state, time, or event in the output must come from the factual readout. If it is not there, do not add it.",
     "Metaphor, framing, implication, understatement, status language, wordplay, personification, rhythm, and attitude are free when they clearly remain interpretation rather than new reality.",
+    "A metaphor may rename or reframe a supplied object, action, role, or transition, but it may not smuggle in an unsupplied before-state, after-state, damage, mess, absence, emotion, motive, sensory condition, or hidden event.",
     "Let each line change state, pressure, implication, interpretation, or what the next line now means.",
     "Make the observer feel the realization. Do not explain it.",
     "The selected frame is optional pressure, not a template. Use it only where it makes the supplied facts hit harder.",
