@@ -14,13 +14,13 @@
 import type { AuthorDomainContext, AuthorScene, LatentMovieCandidate, RealityGraph } from "@qre/contracts";
 import { localModelGenerate } from "./localModelRuntime.js";
 import { deriveMeaningPressure } from "./authorMeaningPressure.js";
-import { judgeRealizedFilm, type RealizedFilmJudgment } from "./authorRealizedFilmJudge.js";
+import { judgeRealizedExperience, type RealizedExperienceJudgment } from "./authorRealizedExperienceJudge.js";
 import type { CreativeLensBrief } from "./authorCreativeLensBrief.js";
 
 export type RealizedScene = AuthorScene & { sourceEventIds: string[]; score: number };
 export type AuthorRealizationResult = {
   scenes: RealizedScene[]; score: number; model: string; modelCalls: number; rejectedSets: number;
-  judgment?: RealizedFilmJudgment; reason?: string;
+  judgment?: RealizedExperienceJudgment; reason?: string;
 };
 
 type RawScene = { text?: unknown; kind?: unknown; sourceEventIds?: unknown };
@@ -28,7 +28,7 @@ type RawSet = { scenes?: unknown };
 type ValidationResult = { scenes?: RealizedScene[]; reason?: string };
 type ArtistDevice = { relationKind: string; mechanism: string; sourceEventIds: string[]; operation: string; transformationModes: string[]; languageAim: string };
 
-const INTERNAL = /\b(?:cognition|planner|planning|candidate|trajectory|viewer|audience|curiosity|prediction error|state shift|sequence|author|mouth|canonical|supplied evidence|evidenceEventIds|payoff dependency|memory projection|future thread|latent movie|creative opportunity|semantic turn|semanticRealization)\b/i;
+const INTERNAL = /\b(?:cognition|planner|planning|candidate|trajectory|viewer|audience|curiosity|prediction error|state shift|sequence|author|mouth|canonical|supplied evidence|evidenceEventIds|payoff dependency|memory projection|future thread|latent experience structure|creative opportunity|semantic turn|semanticRealization)\b/i;
 const EXPLANATION = /\b(?:this means|which means|this shows|which shows|the point is|the meaning is|in other words|reveals that|the viewer|the audience|the narrative|the experience was|the significance|let the supplied detail|the relationship between|changes what is worth noticing)\b/i;
 const GENERIC = /^(?:something happened|something changed|everything changed|a moment|the moment|a feeling|the feeling|it was meaningful|it was special|it was important|the transformation was|the situation was|the experience was|the result was|worth noticing)\.?$/i;
 const SCREENPLAY = /^(?:close(?:\s+in)?(?:\s+on)?|quick\s+cut|cut\s+to|sound\s*:|camera\s*:|wide\s+shot|medium\s+shot|tight\s+shot|fade(?:\s+(?:in|out|to))?|angle(?:\s+on)?|montage|dissolve(?:\s+to)?|smash\s+cut)\b/i;
@@ -42,7 +42,7 @@ const clean = (value: unknown): string => String(value ?? "").replace(/\s+/g, " 
 const unique = (values: readonly string[]): string[] => [...new Set(values.map(clean).filter(Boolean))];
 const words = (text: string): string[] => clean(text).match(WORDS) ?? [];
 
-function relationForMovie(graph: RealityGraph, movie: LatentMovieCandidate): { relationKind: string; sourceEventIds: string[] } {
+function relationForexperience structure(graph: RealityGraph, movie: LatentMovieCandidate): { relationKind: string; sourceEventIds: string[] } {
   const preferred = new Set(movie.supportingRelationKinds.map(clean).filter(Boolean));
   for (const step of movie.trajectory) {
     const ids = unique(step.eventIds);
@@ -71,7 +71,7 @@ function mechanismFor(relationKind: string): { mechanism: string; operation: str
   }
 }
 function buildArtistDevice(graph: RealityGraph, movie: LatentMovieCandidate): ArtistDevice {
-  const relation = relationForMovie(graph, movie);
+  const relation = relationForexperience structure(graph, experience structure);
   const mechanism = mechanismFor(relation.relationKind);
   return { relationKind: relation.relationKind, mechanism: mechanism.mechanism, sourceEventIds: relation.sourceEventIds, operation: mechanism.operation, transformationModes: mechanism.modes, languageAim: mechanism.languageAim };
 }
@@ -113,14 +113,14 @@ function bindProvenance(rawIds: unknown, index: number, total: number, text: str
     if (ids.length) return ids;
   }
 
-  const device = buildArtistDevice(graph, movie);
+  const device = buildArtistDevice(graph, experience structure);
   if (device.sourceEventIds.length) return device.sourceEventIds.filter((id) => valid.has(id));
   return unique(movie.anchorEventIds.filter((id) => valid.has(id))).slice(0, 2);
 }
 function validateSet(raw: unknown, input: { graph: RealityGraph; movie: LatentMovieCandidate }): ValidationResult {
   if (!raw || typeof raw !== "object") return { reason: "set is not an object" };
   const row = raw as RawSet; if (!Array.isArray(row.scenes)) return { reason: "set.scenes is missing" };
-  if (row.scenes.length < 2) return { reason: "film needs at least 2 cuts" }; if (row.scenes.length > MAX_CUTS) return { reason: `film exceeds ${MAX_CUTS} cuts` };
+  if (row.scenes.length < 2) return { reason: "experience needs at least 2 cuts" }; if (row.scenes.length > MAX_CUTS) return { reason: `experience exceeds ${MAX_CUTS} cuts` };
   const scenes: RealizedScene[] = [];
   for (const [index, item] of row.scenes.entries()) {
     if (!item || typeof item !== "object") return { reason: `cut ${index + 1} is not an object` };
@@ -138,16 +138,16 @@ function validateSet(raw: unknown, input: { graph: RealityGraph; movie: LatentMo
 function context(input: { prompt: string; subject: string; lens: string; graph: RealityGraph; movie: LatentMovieCandidate; creativeLensBrief?: CreativeLensBrief; domainContext?: AuthorDomainContext; memoryContext?: string[]; priorScenes?: string[]; creativeLearningContext?: string[] }, repairFeedback: string) {
   const spineIds = unique([...input.movie.anchorEventIds, ...input.movie.trajectory.flatMap((step) => step.eventIds)].filter((id) => input.graph.events.some((event) => event.id === id)));
   const spineEvents = spineIds.map((id) => input.graph.events.find((event) => event.id === id)).filter(Boolean).map((event) => ({ id: event!.id, text: eventText(event!), entities: event!.entities, place: event!.place, time: event!.time }));
-  const availableReality = input.graph.events.map((event) => ({ id: event.id, text: eventText(event), entities: event.entities, place: event.place, time: event.time, onSelectedMovieSpine: spineIds.includes(event.id) }));
+  const availableReality = input.graph.events.map((event) => ({ id: event.id, text: eventText(event), entities: event.entities, place: event.place, time: event.time, onSelectedexperience structureSpine: spineIds.includes(event.id) }));
   const artistDevice = buildArtistDevice(input.graph, input.movie);
   const meaningPressure = deriveMeaningPressure({ graph: input.graph, movie: input.movie });
   return {
     creativeTask: clean(input.prompt), subjectReference: clean(input.subject), subjectRole: "factual referent only; use its name when artistically useful, omit it when the detail can carry the cut alone", frame: clean(input.lens) || "NONE",
-    memory: (input.memoryContext ?? []).slice(0, 20), priorFilms: (input.priorScenes ?? []).slice(-12), creativeLearning: (input.creativeLearningContext ?? []).slice(0, 20),
+    memory: (input.memoryContext ?? []).slice(0, 20), priorExperiences: (input.priorScenes ?? []).slice(-12), creativeLearning: (input.creativeLearningContext ?? []).slice(0, 20),
     selectedStructure: { eventIds: spineIds, relationKinds: input.movie.supportingRelationKinds, operations: input.movie.trajectory.map((step) => ({ order: step.order, operation: step.operation, eventIds: step.eventIds })) },
     sourceReality: spineEvents, availableReality, artistDevice, meaningPressure, creativeLensBrief: input.creativeLensBrief, repairFeedback: clean(repairFeedback),
     creativePermission: "Interpretive language is wide open. Abstract feeling, irony, metaphor, personification, status, humor, absurdity, tenderness, menace, gamification, playful language, pop-cultural framing, impossible-seeming comparisons that are clearly metaphorical, compression, omission, fragments, sensory intensity and unexpected grammar are all available. The boundary is concrete reality, not imagination itself.",
-    artistRule: "Preserve semantic truth, never the client's sentence. The selected Movie is the semantic spine, NOT an inventory lock. The entire availableReality list is fair game. Pull in ANY supplied detail when it makes the piece funnier, stranger, clearer, more moving, more kinetic, more visceral or more memorable. A minor factual detail can become the hook, a callback, a punchline, a metaphorical image, a pressure point or the payoff. Every literal world detail must remain faithful to the supplied world. Figurative language may freely bend concrete imagery without asserting that the figurative imagery literally happened.",
+    artistRule: "Preserve semantic truth, never the client's sentence. The selected experience structure is the semantic spine, NOT an inventory lock. The entire availableReality list is fair game. Pull in ANY supplied detail when it makes the piece funnier, stranger, clearer, more moving, more kinetic, more visceral or more memorable. A minor factual detail can become the hook, a callback, a punchline, a metaphorical image, a pressure point or the payoff. Every literal world detail must remain faithful to the supplied world. Figurative language may freely bend concrete imagery without asserting that the figurative imagery literally happened.",
     sensoryRule: "When supplied reality contains sound, music, bass, silence, darkness, light, heat, cold, movement, texture, taste, smell or impact, treat that sensory material as primary creative substance. Do not flatten it into explanation. You may make the supplied sensation feel enormous through rhythm, compression, repetition, sound-language, image-language, or figurative bodily language, provided figurative intensity is not presented as an unsupported literal fact.",
     creativeTasteRule: "Creative learning and ARTIST DNA are preference signals, never source facts. Favor alive, kinetic, embodied, irreverent and surprising expression when the world supports it, but do not force one style onto every world.",
     experientialCompression: "The QRE target is experiential compression: as the sequence accumulates meaning, visible language may get smaller while what the observer can construct gets bigger. A short line is valuable only when prior reality and prior cuts have earned more meaning than the line literally states. Do not confuse brevity, vagueness, poetry, or genre vocabulary with compression.",
@@ -155,39 +155,39 @@ function context(input: { prompt: string; subject: string; lens: string; graph: 
   };
 }
 function prompt(attempt: number, feedback: string): string {
-  const attacks = ["Find the latent charge first. Then embody it. Do not announce the charge.", "Destroy the source wording and rebuild the film from the meaning pressure and the whole reality palette. Be bold, economical, playful, and materially different.", "Go for the line or structure the human will remember tomorrow. Do not choose the safest phrase. Take a creative risk while keeping the supplied world exact."];
+  const attacks = ["Find the latent charge first. Then embody it. Do not announce the charge.", "Destroy the source wording and rebuild the experience from the meaning pressure and the whole reality palette. Be bold, economical, playful, and materially different.", "Go for the line or structure the human will remember tomorrow. Do not choose the safest phrase. Take a creative risk while keeping the supplied world exact."];
   return [
     "You are QRE's ONE CREATIVE REALIZER.",
     "You are creating moving screen text, not a screenplay, article, treatment, caption, or shot list.",
     "The source facts are sacred. The source sentences are disposable.",
-    "The selected Movie is the semantic spine. The entire supplied RealityGraph is your artistic palette.",
-    "The Movie does NOT limit the material you may use. Hunt the whole reality for the weird little detail that makes the film click. Throw the apple into the film if the apple makes it better.",
+    "The selected experience structure is the semantic spine. The entire supplied RealityGraph is your artistic palette.",
+    "The experience structure does NOT limit the material you may use. Hunt the whole reality for the weird little detail that makes the experience click. Throw the apple into the experience if the apple makes it better.",
     "Meaning Pressure explains why the selected relationship or grounded structure has artistic charge. Artist Device suggests possible tools. Neither is a cage.",
     "Creative Lens Brief is treatment pressure only, never source reality and never the point of the experience. Use it to pressure rhythm, attitude, metaphor, status, implication, progression, and payoff while obeying every forbiddenRealityMove and realityInvariant.",
-    "PERFORM THE ACCUMULATED REALIZATION. The selected Movie tells you what becomes meaningful across the supplied reality. The lens may change how that meaning feels; it must not replace the meaning with genre vocabulary.",
+    "PERFORM THE ACCUMULATED REALIZATION. The selected experience structure tells you what becomes meaningful across the supplied reality. The lens may change how that meaning feels; it must not replace the meaning with genre vocabulary.",
     "QRE'S NORTH STAR: the language gets smaller while the meaning gets bigger. Compress only after meaning exists. Short language without accumulated meaning is merely a caption.",
     "Every cut must earn its screen by changing what can be constructed from the sequence: establish a useful fact, alter a prior reading, increase or release pressure, create implication, reveal recurrence, create contrast, compress multiple known details into one perception, produce a callback with changed charge, or leave meaningful residue. These are possibilities, not a required order or template.",
     "Do not turn source facts into a caption reel by chopping them into fragments. Repeated source wording without a changed charge is failure. Do not explain a realization the observer can construct. Stop as soon as the line lands.",
     "A realization may be a contradiction, callback, one word, full sentence, strange observation, repetition, status flip, implication, or silence-like fragment. Do not standardize the form and do not force the strongest realization to the ending.",
     "ATTENTION DEFAULT, NOT A RULE: for ordinary text-only playback, roughly five strong beats is usually enough. Prefer about 4–7 meaningful text beats when the material earns that shape. Use fewer when the realization is complete sooner and more only when additional cuts add new experiential value. Media may extend the experience without bloating the text.",
-    "ENDING FREEDOM: end briefly and intentionally. Do not append generic developer copy, a moral, an explanation, a slogan, or a CTA merely because the sequence is ending. A business CTA belongs outside the creative film unless the runtime explicitly supplies one as configured product behavior.",
+    "ENDING FREEDOM: end briefly and intentionally. Do not append generic developer copy, a moral, an explanation, a slogan, or a CTA merely because the sequence is ending. A business CTA belongs outside the creative experience unless the runtime explicitly supplies one as configured product behavior.",
     "The final output is a sequence of screen text beats. ONE BEAT = ONE SCREENFUL OF ATTENTION.",
     "Do not interpret 'one beat' as one fact or one sentence. Several facts may share one beat when their collision, compression, contrast, timing, or juxtaposition creates the fire. Split them when separation creates the fire. The Artist chooses where the screen changes.",
     "A beat can be one word, a fragment, a sentence, or several compressed clauses. Short is usually powerful. Longer is allowed when every extra word creates real artistic force. NEVER pad. NEVER shorten a line merely because of a number.",
     "Think: WOULD THIS DESERVE ITS OWN SCREEN? WOULD COMBINING THESE WORDS MAKE THE HIT STRONGER? Every word must earn its screen.",
-    "The viewer sees ONLY the text. Do not describe how the film is being filmed.",
+    "The viewer sees ONLY the text. Do not describe how the experience is being experienceed.",
     "NEVER write screenplay directions such as CLOSE ON, QUICK CUT, CUT TO, SOUND:, CAMERA:, WIDE SHOT, MEDIUM SHOT, FADE, ANGLE, MONTAGE, DISSOLVE, or SHOT OF.",
     "Do not write camera directions, production notes, shot descriptions, sound-design instructions, SFX labels, voice-over labels, or director commentary.",
     "Do not explain what the viewer feels. Do not explain the metaphor. Do not explain why a beat works. Make the viewer feel it.",
     "Do not invent literal facts. Concrete truth remains the hard boundary: never invent a person, object, action, location, time, dialogue, sound, bodily reaction, gesture, or event and present it as though it happened. Figurative language is welcome when it is clearly artistic language.",
-    "Search for the strongest sensory carrier and strongest active mechanic before settling for abstract commentary. Sound can drive a film. Silence can drive a film. Bass return can drive a film. Repeated work can drive a film. A house can feel like an opponent. A room can feel like an arena. An object can feel like a character. These are artistic devices, not claims that the metaphor literally happened.",
-    "Do not force every fact into the film. Do not force a fixed beat count. Two brutal beats can beat ten dead beats. Rich reality may deserve more beats, but richness must come from new strong moments, not longer sentences.",
-    "Do not force every beat to have the same grammar, rhythm, or length. Let rhythm change when the film needs it. Repetition is allowed when repetition itself creates meaning.",
+    "Search for the strongest sensory carrier and strongest active mechanic before settling for abstract commentary. Sound can drive a experience. Silence can drive a experience. Bass return can drive a experience. Repeated work can drive a experience. A house can feel like an opponent. A room can feel like an arena. An object can feel like a character. These are artistic devices, not claims that the metaphor literally happened.",
+    "Do not force every fact into the experience. Do not force a fixed beat count. Two brutal beats can beat ten dead beats. Rich reality may deserve more beats, but richness must come from new strong moments, not longer sentences.",
+    "Do not force every beat to have the same grammar, rhythm, or length. Let rhythm change when the experience needs it. Repetition is allowed when repetition itself creates meaning.",
     "Metaphor is encouraged. 'Forbidden fruit' can transform a stolen apple. 'Boss battle' can transform exhausting cleaning. 'No survivors' can be a comic metaphor for a finished task. Use such language only when the supplied reality earns it.",
     "You may be funny, strange, lyrical, stark, dark, tender, absurd, camp, dramatic, playful, deadpan, surreal, irreverent or understated. Artistic personality is a feature.",
     "CREATE SOMETHING WORTH WATCHING. The goal is entertainment media made from reality, not sanitized summaries.",
     "A transformed fact-bearing phrase is good. Exact source-sentence replay is not. A compressed collision of true facts can be excellent.",
-    "Generate four genuinely different candidate films. Change the idea, rhythm, ordering, compression, point of view, joke, metaphor, callback or structure—not merely adjectives. Candidates are exploration, not compliance variants. Candidate four should be the piece you would actually ship if it remains truthful.",
+    "Generate four genuinely different candidate experiences. Change the idea, rhythm, ordering, compression, point of view, joke, metaphor, callback or structure—not merely adjectives. Candidates are exploration, not compliance variants. Candidate four should be the piece you would actually ship if it remains truthful.",
     "Candidates may have any useful number of beats from 2 through 24. Do not pad, truncate, or standardize them.",
     "JSON ONLY: {sets:[{scenes:[{text,kind}]}]}. No commentary. No source IDs. Each text value is the exact text shown on one moving screen beat.",
     `This is creative attack ${attempt + 1} of 3.`,
@@ -200,8 +200,8 @@ export async function realizeAuthorExperience(input: { prompt: string; subject: 
   let model = "fallback";
   let modelCalls = 0;
   let rejectedSets = 0;
-  let lastJudgment: RealizedFilmJudgment | undefined;
-  let bestTruthful: { scenes: RealizedScene[]; judgment: RealizedFilmJudgment } | undefined;
+  let lastJudgment: RealizedExperienceJudgment | undefined;
+  let bestTruthful: { scenes: RealizedScene[]; judgment: RealizedExperienceJudgment } | undefined;
   const rejectedReasons: string[] = [];
   for (let attempt = 0; attempt < 3; attempt += 1) {
     const feedback = rejectedReasons.slice(-4).join(" | ");
@@ -210,11 +210,11 @@ export async function realizeAuthorExperience(input: { prompt: string; subject: 
       const result = await localModelGenerate([{ role: "system", content: prompt(attempt, feedback) }, { role: "user", content: JSON.stringify(ctx) }], "json", { numPredict: 4200, temperature: [1.0, 1.12, 1.04][attempt]! });
       model = result.model; modelCalls += 1;
       const parsed = parseJson(result.text); const rawSets = Array.isArray(parsed?.sets) ? parsed.sets : parsed ? [parsed] : [];
-      const validSets: Array<{ scenes: RealizedScene[]; judgment: RealizedFilmJudgment }> = [];
+      const validSets: Array<{ scenes: RealizedScene[]; judgment: RealizedExperienceJudgment }> = [];
       for (const raw of rawSets) {
         const validation = validateSet(raw, input);
         if (!validation.scenes) { rejectedSets += 1; if (validation.reason) rejectedReasons.push(validation.reason); continue; }
-        const judgment = judgeRealizedFilm({ scenes: validation.scenes, movie: input.movie, graph: input.graph }); lastJudgment = judgment;
+        const judgment = judgeRealizedExperience({ scenes: validation.scenes, movie: input.movie, graph: input.graph }); lastJudgment = judgment;
         // Artifact judgment is diagnostic. It never selects the artwork.
         validSets.push({ scenes: validation.scenes, judgment });
       }
@@ -238,5 +238,5 @@ export async function realizeAuthorExperience(input: { prompt: string; subject: 
   if (bestTruthful) {
     return { scenes: bestTruthful.scenes, score: bestTruthful.judgment.score, model, modelCalls, rejectedSets, judgment: bestTruthful.judgment, reason: rejectedReasons.join(" | ") || "quality target not reached" };
   }
-  return { scenes: [], score: 0, model, modelCalls, rejectedSets, judgment: lastJudgment, reason: rejectedReasons.join(" | ") || "no realized film survived validation" };
+  return { scenes: [], score: 0, model, modelCalls, rejectedSets, judgment: lastJudgment, reason: rejectedReasons.join(" | ") || "no realized experience survived validation" };
 }
