@@ -1,3 +1,4 @@
+import type { AuthorDomainContext } from "@qre/contracts";
 import { localModelGenerate } from "./localModelRuntime.js";
 
 const clean = (value: unknown): string =>
@@ -47,6 +48,11 @@ export type AuthorCreativeDiscovery = {
   surprisePotential: string;
   payoffPotential: string;
   experienceShape: string[];
+  carrierEventIds: string[];
+  backgroundEventIds: string[];
+  turnEventIds: string[];
+  payoffEventIds: string[];
+  compressionReason: string;
   thesis: string;
   lens: string;
   confidence: number;
@@ -54,9 +60,10 @@ export type AuthorCreativeDiscovery = {
 };
 
 export async function discoverAuthorCreativeDirection(input: {
-  facts: readonly string[];
+  events: ReadonlyArray<{ id: string; text: string }>;
   requestedLens?: string;
   memory?: readonly string[];
+  domainContext?: AuthorDomainContext;
 }): Promise<{
   discovery: AuthorCreativeDiscovery;
   model: string;
@@ -67,6 +74,11 @@ export async function discoverAuthorCreativeDirection(input: {
   const system = [
     "You are QRE Creative Discovery.",
     "You do NOT write the final experience. You discover the strongest creative idea hidden in supplied reality.",
+    "You receive separate authority lanes. NEVER merge their authority:",
+    "CURRENT_REALITY = what happened now. This is the only lane that can become current-event evidence.",
+    "MEMORY = previously established reality. It may create continuity or callbacks, but it did not happen now unless CURRENT_REALITY says so.",
+    "BUSINESS_CONTEXT = stable business/service/world information. It may improve understanding, vocabulary, and abstraction, but it is NEVER occurrence evidence.",
+    "CREATIVE_INTENT = requested treatment. It is instruction, not evidence.",
     "Start from relationships among facts, not from genre vocabulary.",
     "Ask what makes this particular subject recognizable, what pattern the viewer can connect for themselves, and what supplied fact changes the meaning of another supplied fact.",
     "Look freely for an organizing idea: a subject-specific system, rule, habit, priority hierarchy, contradiction, status ladder, recurring pattern, competition, negotiation, mystery, progression, transformation, relationship, or another structure you discover. None is mandatory.",
@@ -75,6 +87,15 @@ export async function discoverAuthorCreativeDirection(input: {
     "Also think: FACT -> RELATIONSHIP -> CONSEQUENCE -> MEANING.",
     "The best discovery gives QRE something the viewer can mentally continue filling in.",
     "Also design a short EXPERIENCE SHAPE: 3-7 abstract viewer-state moves describing how the reading should progress. This is not a mandatory genre arc and not final prose. Derive it from the material.",
+    "Do not assume every current fact deserves a beat. Dense operational/service detail is usually evidence underneath the experience, not the experience itself.",
+    "Choose CURRENT_REALITY event IDs by function:",
+    "carrierEventIds = the few facts that best carry the experience.",
+    "backgroundEventIds = true supplied details that can stay underneath as provenance without screen time.",
+    "turnEventIds = supplied facts that genuinely change the viewer's reading.",
+    "payoffEventIds = supplied facts that can earn the landing.",
+    "The same event may appear in more than one functional list when useful. Do not force every event into a list.",
+    "When many operational details collectively imply one larger transformation, COMPRESS UPWARD. Find the transformation instead of narrating every task.",
+    "Example: vacuumed, dusted, wiped counters, cleaned kitchen, cleaned bathrooms, finished. Those can collectively support 'the house progressively loses ground'; they do not require six cleaning beats.",
     "Examples of possible shapes: ordinary -> challenged -> losing ground -> victory; preference -> hierarchy -> conflict -> defining rule; nervous -> connection -> return -> reinterpretation. Invent the shape that fits the supplied reality.",
     "Entertainment matters more than sounding profound. Prefer a specific idea over a generic tone.",
     "Do not write scenes, captions, camera directions, dialogue, or final prose.",
@@ -86,7 +107,7 @@ export async function discoverAuthorCreativeDirection(input: {
     "FACTS: loves walks; bacon; small dogs. STRONG DISCOVERY: a priority system or taste hierarchy that reveals character. WEAK DISCOVERY: list the preferences or invent an event where the subject chooses among them.",
     "A requested lens is creative intent, not permission to falsify reality.",
     "Return ONE lens only, or NONE.",
-    "Return JSON only: {\"relationship\":\"...\",\"change\":\"...\",\"organizingIdea\":\"...\",\"subjectPattern\":\"...\",\"tension\":\"...\",\"surprisePotential\":\"...\",\"payoffPotential\":\"...\",\"experienceShape\":[\"...\",\"...\"],\"thesis\":\"...\",\"lens\":\"...\",\"confidence\":0.0,\"risk\":\"...\"}.",
+    "Return JSON only: {\"relationship\":\"...\",\"change\":\"...\",\"organizingIdea\":\"...\",\"subjectPattern\":\"...\",\"tension\":\"...\",\"surprisePotential\":\"...\",\"payoffPotential\":\"...\",\"experienceShape\":[\"...\",\"...\"],\"carrierEventIds\":[\"event-1\"],\"backgroundEventIds\":[\"event-2\"],\"turnEventIds\":[\"event-3\"],\"payoffEventIds\":[\"event-4\"],\"compressionReason\":\"...\",\"thesis\":\"...\",\"lens\":\"...\",\"confidence\":0.0,\"risk\":\"...\"}.",
   ].join("\n");
 
   const result = await localModelGenerate(
@@ -95,10 +116,13 @@ export async function discoverAuthorCreativeDirection(input: {
       {
         role: "user",
         content: JSON.stringify({
-          facts: input.facts,
-          requestedLens: requestedLens || undefined,
-          relevantMemory: (input.memory ?? []).slice(0, 24),
-          instruction: "Discover the idea worth creating from. Do not write the experience.",
+          CURRENT_REALITY: input.events,
+          MEMORY: (input.memory ?? []).slice(0, 24),
+          BUSINESS_CONTEXT: input.domainContext,
+          CREATIVE_INTENT: {
+            requestedLens: requestedLens || undefined,
+          },
+          instruction: "Discover the idea worth creating from. Decide what should carry the experience and what should remain background evidence. Do not write the experience.",
         }),
       },
     ],
@@ -124,6 +148,19 @@ export async function discoverAuthorCreativeDirection(input: {
             .filter(Boolean)
             .slice(0, 7)
         : [],
+      carrierEventIds: Array.isArray(parsed?.carrierEventIds)
+        ? parsed.carrierEventIds.filter((value): value is string => typeof value === "string").map(clean).filter(Boolean).slice(0, 24)
+        : [],
+      backgroundEventIds: Array.isArray(parsed?.backgroundEventIds)
+        ? parsed.backgroundEventIds.filter((value): value is string => typeof value === "string").map(clean).filter(Boolean).slice(0, 48)
+        : [],
+      turnEventIds: Array.isArray(parsed?.turnEventIds)
+        ? parsed.turnEventIds.filter((value): value is string => typeof value === "string").map(clean).filter(Boolean).slice(0, 16)
+        : [],
+      payoffEventIds: Array.isArray(parsed?.payoffEventIds)
+        ? parsed.payoffEventIds.filter((value): value is string => typeof value === "string").map(clean).filter(Boolean).slice(0, 16)
+        : [],
+      compressionReason: clean(parsed?.compressionReason),
       thesis: clean(parsed?.thesis),
       lens: clean(parsed?.lens) || requestedLens || "NONE",
       confidence: clamp(parsed?.confidence, 0.65),
