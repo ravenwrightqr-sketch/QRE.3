@@ -292,9 +292,25 @@ export async function authorBrainCanonical(
     domainContext: input.domainContext,
   });
 
+  const selectedPlayableIds = new Set(
+    unique([
+      ...discoveryResult.discovery.carrierEventIds,
+      ...discoveryResult.discovery.turnEventIds,
+      ...discoveryResult.discovery.payoffEventIds,
+    ]),
+  );
+
+  const playableEvents = selectedPlayableIds.size
+    ? events.filter((event) => selectedPlayableIds.has(event.id))
+    : events;
+
+  const playableIdSet = new Set(playableEvents.map((event) => event.id));
+  const backgroundEvents = events.filter((event) => !playableIdSet.has(event.id));
+
   const creativeResult = await createAuthorExperience({
     subject,
-    events,
+    playableEvents,
+    backgroundEvents,
     creativeDiscovery: discoveryResult.discovery,
     memory: input.memoryContext ?? [],
     domainContext: input.domainContext,
