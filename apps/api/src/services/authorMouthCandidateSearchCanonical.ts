@@ -693,15 +693,7 @@ export function buildMouthCandidateMessages(input: MouthCandidateGenerationInput
               contextualSignals: input.domainContext.contextualSignals ?? [],
               dogTag: input.domainContext.dogTag
                 ? {
-                    name: clean(input.domainContext.dogTag.name),
-                    breed: clean(input.domainContext.dogTag.breed),
-                    nicknames: input.domainContext.dogTag.nicknames ?? [],
                     personalityTraits: input.domainContext.dogTag.personalityTraits ?? [],
-                    likes: input.domainContext.dogTag.likes ?? [],
-                    dislikes: input.domainContext.dogTag.dislikes ?? [],
-                    favoriteFoods: input.domainContext.dogTag.favoriteFoods ?? [],
-                    favoriteActivities: input.domainContext.dogTag.favoriteActivities ?? [],
-                    socialPreferences: input.domainContext.dogTag.socialPreferences ?? [],
                     quirks: input.domainContext.dogTag.quirks ?? [],
                     voiceHints: input.domainContext.dogTag.voiceHints ?? [],
                     frameHints: input.domainContext.dogTag.frameHints ?? [],
