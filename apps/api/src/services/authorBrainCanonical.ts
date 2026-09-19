@@ -1706,6 +1706,49 @@ export async function authorBrainCanonical(
   let mouthGenerationError = "";
   const rejectedCandidates: unknown[] = [];
 
+  // Every authored cut sees the whole supplied world; cognition provides
+  // pressure and provenance, not a compulsory fact slot for each sentence.
+  const authoredBeatsForCount = (count: number): MouthCandidateBeat[] => {
+    const seed = realizationBeats[realizationBeats.length - 1] ?? realizationBeats[0];
+    if (!seed || count <= 0) return [];
+    const eventIds = unique(realizationBeats.flatMap((beat) => beat.eventIds ?? []));
+    const wholeWorldSeed: MouthCandidateBeat = {
+      ...seed,
+      order: 1,
+      role: "discovery",
+      eventIds,
+    };
+    const realizationAuthority = buildMouthRealizationAuthority({
+      beat: wholeWorldSeed,
+      envelope,
+    });
+    return Array.from({ length: count }, (_, index) => ({
+      ...wholeWorldSeed,
+      order: index + 1,
+      role: index === count - 1 ? "payoff" : index === 0 ? "establishing" : "discovery",
+      attentionFunction: index === count - 1 ? "payoff" : index === 0 ? "establish" : "advance",
+      eventIds,
+      realizationAuthority,
+    }));
+  };
+
+  const scoreWholeVariants = (variants: readonly string[][]): MouthCandidatePool[][] =>
+    variants.map((variant) => {
+      const authoredBeats = authoredBeatsForCount(variant.length);
+      return authoredBeats.map((beat, index) => ({
+        order: beat.order,
+        viewerState: beat.viewerState ?? deriveViewerStateCut(beat, index, authoredBeats, envelope),
+        nextPromise: clean(beat.next),
+        frontier: clean(beat.frontier),
+        candidates: [scoreMouthCandidate({
+          text: variant[index] ?? "",
+          beat,
+          envelope,
+          priorTexts: variant.slice(0, index),
+        })].filter((candidate) => candidate.text.length > 0),
+      }));
+    });
+
   try {
     /*
      * Keep the transport in plain JSON mode.  The full nested schema caused
@@ -1768,74 +1811,7 @@ export async function authorBrainCanonical(
           .filter((candidate) => candidate.text.length > 0),
       }));
 
-      /*
-       * The model owns the authored cut count.
-       *
-       * Cognition supplies pressure points and meaning, not sentence slots.
-       * Every authored cut is validated against the whole supplied reality so
-       * a preference, event, object, memory, or relationship may appear where
-       * the model finds it useful without being forced to "belong" to one
-       * precomputed beat.
-       */
-      const authoredBeatsForCount = (count: number): MouthCandidateBeat[] => {
-        const seed =
-          realizationBeats[realizationBeats.length - 1] ??
-          realizationBeats[0];
-
-        if (!seed || count <= 0) return [];
-
-        const eventIds = unique(
-          realizationBeats.flatMap((beat) => beat.eventIds ?? []),
-        );
-
-        const wholeWorldSeed: MouthCandidateBeat = {
-          ...seed,
-          order: 1,
-          role: "discovery",
-          eventIds,
-        };
-
-        const realizationAuthority =
-          buildMouthRealizationAuthority({
-            beat: wholeWorldSeed,
-            envelope,
-          });
-
-        return Array.from({ length: count }, (_, index) => {
-          const final = index === count - 1;
-          const first = index === 0;
-
-          return {
-            ...wholeWorldSeed,
-            order: index + 1,
-            role: final ? "payoff" : first ? "establishing" : "discovery",
-            attentionFunction: final ? "payoff" : first ? "establish" : "advance",
-            eventIds,
-            realizationAuthority,
-          };
-        });
-      };
-
-      authoredVariantPools = rawSequenceVariants.map((variant) => {
-        const authoredBeats = authoredBeatsForCount(variant.length);
-
-        return authoredBeats.map((beat, index) => ({
-          order: beat.order,
-          viewerState:
-            beat.viewerState ??
-            deriveViewerStateCut(beat, index, authoredBeats, envelope),
-          nextPromise: clean(beat.next),
-          frontier: clean(beat.frontier),
-          candidates: [
-            scoreMouthCandidate({
-              text: variant[index] ?? "",
-              beat,
-              envelope,
-              priorTexts: variant.slice(0, index),
-            }),
-          ].filter((candidate) => candidate.text.length > 0),
-        }));
-      });
+      authoredVariantPools = scoreWholeVariants(rawSequenceVariants);
       pools.forEach((pool) => {
         pool.candidates
           .filter((candidate) => !isAuthorizedMouthCandidate(candidate))
@@ -1868,7 +1844,7 @@ export async function authorBrainCanonical(
     });
   }
 
-  const intactVariantSelections = authoredVariantPools
+  const rankIntactVariants = () => authoredVariantPools
     .filter((variantPools) =>
       variantPools.length > 0 &&
       variantPools.every((pool) =>
@@ -1898,6 +1874,59 @@ export async function authorBrainCanonical(
           subject,
         ),
     );
+
+  let intactVariantSelections = rankIntactVariants();
+  const hasAuthoredVariant = () => intactVariantSelections.some((selection) =>
+    evaluateAuthorSourceReplay(selection, envelope).authored &&
+    evaluateAuthorAuthorshipQuality({
+      texts: selection.texts,
+      envelope,
+      movie,
+      subject,
+      candidates: selection.candidates,
+    }).accepted,
+  );
+
+  // If none of the model's complete sequences both tells the truth and does
+  // something with it, give the same Mouth a second look at the same reality.
+  // Feedback describes the failed experience, not a new rule or authored line.
+  if (rawSequenceVariants.length > 0 && !hasAuthoredVariant()) {
+    try {
+      const retry = await localModelGenerate([
+        ...messages,
+        { role: "assistant", content: rawMouthOutput.slice(0, 2400) },
+        {
+          role: "user",
+          content: [
+            "Try the same supplied reality again as three new complete moving-text sequences.",
+            "The earlier sequences did not create an earned change in what the viewer understands; isolated source words merely repeated the input, and concrete details beyond the supplied reality had no support.",
+            "Use the supplied preferences as desire, anticipation, attitude, tension, or a pattern the viewer discovers. Make the cuts affect one another; let a short line gain meaning from its position and give the final cut a payoff.",
+            "A preference can be imagined without claiming it occurred. Let real events move only when they were supplied.",
+            "One cut per line, three complete alternatives separated by a line containing only ---. Return nothing else.",
+          ].join(" "),
+        },
+      ], undefined, { numPredict: 2048, temperature: 0.85 });
+      modelCalls += 1;
+      modelName = retry.model || modelName;
+      rawMouthOutput += `\n--- SECOND LOOK ---\n${retry.text}`;
+      const parsedRetry = parseMouthCandidateBatch(retry.text, beats.length);
+      if (parsedRetry?.sequenceVariants?.length) {
+        const variants = parsedRetry.sequenceVariants;
+        rawSequenceVariants.push(...variants);
+        authoredVariantPools.push(...scoreWholeVariants(variants));
+        intactVariantSelections = rankIntactVariants();
+      } else {
+        rejectedCandidates.push({ phase: "mouth-second-look", reason: "model-output-did-not-parse" });
+      }
+    } catch (error) {
+      modelCalls += 1;
+      rejectedCandidates.push({
+        phase: "mouth-second-look",
+        reason: "model-generation-failed",
+        error: error instanceof Error ? error.message : clean(error),
+      });
+    }
+  }
 
   let recoveryUsed = false;
   const usablePools = intactVariantSelections.length

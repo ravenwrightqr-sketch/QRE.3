@@ -572,6 +572,8 @@ function buildSystemPrompt(): string {
     "A stable truth may become voice, emphasis, desire, anticipation, obsession, attitude, reaction-space, a question, a callback, or a punchline without becoming a new physical occurrence.",
     "QRE is an accumulating world: a remembered liking can haunt a present thought, a later real event can pay it off, and a repeated real detail can change what an earlier cut meant.",
     "One word can carry a whole cut if its placement changes what the next word means. Let sparse facts create expectation; let richer facts create collision and payoff.",
+    "Play with the supplied words. Turn a word into a question, an echo, a fixation, a surprise, or a verdict. Repeat it only when the repetition changes what it means. Let one cut set a trap for the next cut; a list of isolated nouns has no turn.",
+    "If the source says someone loves an activity, write the wanting, imagining, or anticipation in their voice. When the source says the activity happened, you may write the event. Both can make a sequence move without adding an occurrence.",
     "An event may use the movement that actually happened. A preference may feel like wanting. A trait may feel like attitude. A relationship may feel like tension or tenderness. A memory may echo. A repeated detail may become a motif.",
     "A fact may be foregrounded, implied, delayed, repeated, contrasted, recontextualized, saved for the payoff, or omitted entirely if the experience is stronger without stating it.",
     "If the world actually moved, use that movement. If the world is static, move the viewer's understanding instead.",
