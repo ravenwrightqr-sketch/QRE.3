@@ -649,71 +649,18 @@ function concreteAuthorityViolation(
   beat: MouthCandidateBeat | undefined,
   envelope: RealityEnvelope,
 ): string | undefined {
-  const authority = beat?.realizationAuthority;
-  if (!authority) return undefined;
-
   const value = clean(text);
   if (!value) return "empty-candidate";
 
-  const current = tokens(value);
-  const significant = [...current].filter((token) => !FUNCTION_WORDS.has(token));
-  if (!significant.length) return undefined;
-
-  const allowedReality = tokens(authorityRealityCorpus(beat, envelope));
-  const allowedMeaning = tokens(authorityMeaningCorpus(beat));
   const truthBinding = bindCandidateObservableTruth({
     text: value,
     beat,
     envelope,
   });
 
-  if (!truthBinding.accepted) {
-    return truthBinding.reasons[0] ?? "unbound-observable-claim";
-  }
-
-  if (
-    treatmentMetaphorOverSuppliedTarget(
-      value,
-      beat,
-      envelope,
-    )
-  ) {
-    return undefined;
-  }
-
-  const unknownRealityTokens = significant.filter(
-    (token) =>
-      !allowedReality.has(token) &&
-      !allowedMeaning.has(token) &&
-      !semanticFrameToken(token),
-  );
-
-  if (!unknownRealityTokens.length) return undefined;
-
-  const clauseSubject = CLAUSE_SUBJECT_MARKER.test(value);
-  const observableSignal =
-    !isInterrogativeClause(value) &&
-    (
-      CONCRETE_CLAIM.test(value) ||
-      EXTERNAL_STATE_CLAIM.test(value) ||
-      BODY.test(value) ||
-      introducesUnsupportedPhysicalRelation(value, envelope) ||
-      observableClaimShape(value)
-    );
-
-  if (observableSignal) {
-    return `outside-realization-authority:${unknownRealityTokens.join(",")}`;
-  }
-
-  /*
-   * A subject plus unknown predicate is an asserted event/state unless the
-   * unknown language is already covered by earned meaning.
-   */
-  if (clauseSubject && unknownRealityTokens.length > 0) {
-    return `outside-realization-authority:${unknownRealityTokens.join(",")}`;
-  }
-
-  return undefined;
+  return truthBinding.accepted
+    ? undefined
+    : truthBinding.reasons[0] ?? "unbound-observable-claim";
 }
 
 function hasApprovedBeatAuthority(
@@ -1165,15 +1112,6 @@ export function evaluateMouthInterpretation(input: {
       text,
     );
 
-  const externalStateClaim =
-    EXTERNAL_STATE_CLAIM.test(
-      text,
-    );
-  const unsupportedPhysicalRelation =
-  introducesUnsupportedPhysicalRelation(
-    text,
-    input.envelope,
-  );
   const groundedConcreteFragment =
     wordCount <= 5 &&
     concreteClaim &&
@@ -1183,82 +1121,25 @@ export function evaluateMouthInterpretation(input: {
     wholeSourceAnchor >= 0.45;
 
   /*
-   * A candidate that is concrete or externally sensory must have actual
-   * support somewhere in the supplied corpus. We deliberately do not
-   * maintain a domain-specific forbidden-word list.
+   * Hard authorization has one job: protect observable reality.
+   * Creative language does not need lexical permission from the beat.
    */
-  const concreteOrExternalClaim =
-    !isInterrogativeClause(text) &&
-    (
-      concreteClaim ||
-      externalStateClaim
-    );
+  const truthBinding = bindCandidateObservableTruth({
+    text,
+    beat: input.beat,
+    envelope: input.envelope,
+  });
 
-  const concreteActionSupport =
-    !concreteClaim ||
-    sourceAnchor >= 0.45 ||
-    input.sourceLabels.some((label) =>
-      CONCRETE_CLAIM.test(label),
-    );
+  const concreteAuthorityFailure =
+    truthBinding.accepted
+      ? undefined
+      : truthBinding.reasons[0] ?? "unbound-observable-claim";
 
-  const concreteSourceSupport =
-    concreteOrExternalClaim &&
-    wholeSourceAnchor >= 0.45 &&
-    concreteActionSupport;
+  const authorityConcreteRisk =
+    truthBinding.accepted ? 0 : 1;
 
   let unsupportedConcreteRisk =
-  concreteOrExternalClaim &&
-  !concreteSourceSupport
-    ? 1
-    : 0;
-
-if (
-  unsupportedPhysicalRelation
-) {
-  unsupportedConcreteRisk =
-    Math.max(
-      unsupportedConcreteRisk,
-      1,
-    );
-}
-
-const authorityConcreteRisk =
-  unsupportedAuthorityConcreteRisk(
-    text,
-    input.beat,
-    input.envelope,
-  );
-
-const concreteAuthorityFailure =
-  concreteAuthorityViolation(
-    text,
-    input.beat,
-    input.envelope,
-  );
-
-if (authorityConcreteRisk > 0 || concreteAuthorityFailure) {
-  unsupportedConcreteRisk =
-    Math.max(
-      unsupportedConcreteRisk,
-      authorityConcreteRisk,
-      concreteAuthorityFailure ? 1 : 0,
-    );
-}
-
-  /*
-   * Machine-facing language is never viewer-facing language.
-   */
-  if (
-    INTERNAL_MACHINE_LANGUAGE.test(
-      text,
-    )
-  ) {
-    unsupportedConcreteRisk =
-      Math.max(
-        unsupportedConcreteRisk,
-        1,
-      );
-  }
+    truthBinding.accepted ? 0 : 1;
 
   const frameSignal =
     ABSTRACT_FRAMING.test(text) ||
@@ -1543,17 +1424,18 @@ if (authorityConcreteRisk > 0 || concreteAuthorityFailure) {
 
   const authorizationReasons = [
     ...(realitySafe ? ["reality-safe"] : ["concrete-reality-veto"]),
-    ...(directGrounded ? ["direct-grounded"] : []),
-    ...(semanticAuthorized ? ["semantic-authorized-by-realization-authority"] : []),
+    ...(directGrounded ? ["direct-grounded-diagnostic"] : []),
+    ...(semanticAuthorized ? ["semantic-alignment-diagnostic"] : []),
   ];
 
+  /*
+   * Expression is free once observable reality is safe.
+   * Direct grounding and semantic overlap are useful diagnostics, not
+   * permission slips for language.
+   */
   const authorized =
     Boolean(text) &&
-    realitySafe &&
-    (
-      directGrounded ||
-      semanticAuthorized
-    );
+    realitySafe;
 
   return {
     interpretive,
