@@ -81,16 +81,41 @@ function parseJson(text: string): Record<string, unknown> | undefined {
   try { const parsed = JSON.parse(cleaned); return parsed && typeof parsed === "object" ? parsed as Record<string, unknown> : undefined; }
   catch { const start = cleaned.indexOf("{"); const end = cleaned.lastIndexOf("}"); if (start < 0 || end <= start) return undefined; try { const parsed = JSON.parse(cleaned.slice(start, end + 1)); return parsed && typeof parsed === "object" ? parsed as Record<string, unknown> : undefined; } catch { return undefined; } }
 }
-function bindProvenance(rawIds: unknown, index: number, movie: LatentMovieCandidate, graph: RealityGraph): string[] {
+function lexicalOverlap(left: string, right: string): number {
+  const tokens = (value: string): Set<string> => new Set(
+    clean(value).toLowerCase().match(/\b[\w’'-]+\b/g)?.filter((token) => token.length > 2) ?? [],
+  );
+  const a = tokens(left);
+  const b = tokens(right);
+  if (!a.size || !b.size) return 0;
+  let hits = 0;
+  for (const token of a) if (b.has(token)) hits += 1;
+  return hits / Math.max(1, Math.min(a.size, b.size));
+}
+
+function bindProvenance(rawIds: unknown, index: number, total: number, text: string, movie: LatentMovieCandidate, graph: RealityGraph): string[] {
   const valid = new Set(graph.events.map((event) => event.id));
   const supplied = Array.isArray(rawIds) ? unique(rawIds.filter((id): id is string => typeof id === "string")).filter((id) => valid.has(id)) : [];
   if (supplied.length) return supplied;
-  const trajectoryIds = unique(movie.trajectory.flatMap((step) => step.eventIds)).filter((id) => valid.has(id));
-  if (trajectoryIds.length) return [trajectoryIds[Math.min(index, trajectoryIds.length - 1)]!];
+
+  const lexical = graph.events
+    .map((event) => ({ id: event.id, score: lexicalOverlap(text, eventText(event)) }))
+    .sort((a, b) => b.score - a.score);
+  if ((lexical[0]?.score ?? 0) >= 0.5) return [lexical[0]!.id];
+
+  const steps = movie.trajectory
+    .map((step) => unique(step.eventIds).filter((id) => valid.has(id)))
+    .filter((ids) => ids.length > 0);
+  if (steps.length) {
+    const position = total <= 1 ? 0 : index / Math.max(1, total - 1);
+    const stepIndex = Math.min(steps.length - 1, Math.round(position * (steps.length - 1)));
+    const ids = steps[stepIndex]!;
+    if (ids.length) return ids;
+  }
+
   const device = buildArtistDevice(graph, movie);
-  if (device.sourceEventIds.length) return device.sourceEventIds;
-  const anchors = unique(movie.anchorEventIds.filter((id) => valid.has(id)));
-  return anchors.slice(0, 1);
+  if (device.sourceEventIds.length) return device.sourceEventIds.filter((id) => valid.has(id));
+  return unique(movie.anchorEventIds.filter((id) => valid.has(id))).slice(0, 2);
 }
 function validateSet(raw: unknown, input: { graph: RealityGraph; movie: LatentMovieCandidate }): ValidationResult {
   if (!raw || typeof raw !== "object") return { reason: "set is not an object" };
@@ -106,7 +131,7 @@ function validateSet(raw: unknown, input: { graph: RealityGraph; movie: LatentMo
     if (EXPLANATION.test(text)) return { reason: `cut ${index + 1} explains instead of dramatizing` };
     if (GENERIC.test(text)) return { reason: `cut ${index + 1} is generic` };
     if (SCREENPLAY.test(text) || SCREENPLAY_INLINE.test(text)) return { reason: `cut ${index + 1} contains screenplay direction` };
-    scenes.push({ text, kind: ALLOWED_KINDS.has(clean(scene.kind)) ? clean(scene.kind) as AuthorScene["kind"] : index === 0 ? "hook" : index === row.scenes.length - 1 ? "payoff" : "line", sourceEventIds: bindProvenance(scene.sourceEventIds, index, input.movie, input.graph), score: 0 });
+    scenes.push({ text, kind: ALLOWED_KINDS.has(clean(scene.kind)) ? clean(scene.kind) as AuthorScene["kind"] : index === 0 ? "hook" : index === row.scenes.length - 1 ? "payoff" : "line", sourceEventIds: bindProvenance(scene.sourceEventIds, index, row.scenes.length, text, input.movie, input.graph), score: 0 });
   }
   return { scenes };
 }
@@ -125,6 +150,8 @@ function context(input: { prompt: string; subject: string; lens: string; graph: 
     artistRule: "Preserve semantic truth, never the client's sentence. The selected Movie is the semantic spine, NOT an inventory lock. The entire availableReality list is fair game. Pull in ANY supplied detail when it makes the piece funnier, stranger, clearer, more moving, more kinetic, more visceral or more memorable. A minor factual detail can become the hook, a callback, a punchline, a metaphorical image, a pressure point or the payoff. Every literal world detail must remain faithful to the supplied world. Figurative language may freely bend concrete imagery without asserting that the figurative imagery literally happened.",
     sensoryRule: "When supplied reality contains sound, music, bass, silence, darkness, light, heat, cold, movement, texture, taste, smell or impact, treat that sensory material as primary creative substance. Do not flatten it into explanation. You may make the supplied sensation feel enormous through rhythm, compression, repetition, sound-language, image-language, or figurative bodily language, provided figurative intensity is not presented as an unsupported literal fact.",
     creativeTasteRule: "Creative learning and ARTIST DNA are preference signals, never source facts. Favor alive, kinetic, embodied, irreverent and surprising expression when the world supports it, but do not force one style onto every world.",
+    experientialCompression: "The QRE target is experiential compression: as the sequence accumulates meaning, visible language may get smaller while what the observer can construct gets bigger. A short line is valuable only when prior reality and prior cuts have earned more meaning than the line literally states. Do not confuse brevity, vagueness, poetry, or genre vocabulary with compression.",
+    sequenceFreedom: "There is no required climax position, hit position, ending shape, beat count, or emotional formula. Let the strongest realization occur wherever accumulated meaning earns it. The ending may land, whisper, reopen, callback, stop abruptly, or leave residue. Never force a manufactured final insight.",
   };
 }
 function prompt(attempt: number, feedback: string): string {
@@ -136,9 +163,12 @@ function prompt(attempt: number, feedback: string): string {
     "The selected Movie is the semantic spine. The entire supplied RealityGraph is your artistic palette.",
     "The Movie does NOT limit the material you may use. Hunt the whole reality for the weird little detail that makes the film click. Throw the apple into the film if the apple makes it better.",
     "Meaning Pressure explains why the selected relationship or grounded structure has artistic charge. Artist Device suggests possible tools. Neither is a cage.",
-    "Creative Lens Brief is treatment pressure only, never source reality. Use its framingBias, realizationPreferences, and treatmentMoves to shape rhythm, status, implication, metaphor, progression, and payoff while obeying every forbiddenRealityMove and realityInvariant.",
-    "PERFORM THE SELECTED TREATMENT. Do not merely name the genre, lens, mechanic, or source fact. If the selected structure implies progression, rounds, thresholds, upgrades, status changes, mission pressure, evidence, ceremony, rivalry, or another treatment move, make the visible language behave that way without inventing a concrete event.",
-    "Do not turn source facts into a caption reel by chopping them into fragments. Each cut should change pressure, status, expectation, interpretation, or payoff. Repeated source wording without a changed charge is failure.",
+    "Creative Lens Brief is treatment pressure only, never source reality and never the point of the experience. Use it to pressure rhythm, attitude, metaphor, status, implication, progression, and payoff while obeying every forbiddenRealityMove and realityInvariant.",
+    "PERFORM THE ACCUMULATED REALIZATION. The selected Movie tells you what becomes meaningful across the supplied reality. The lens may change how that meaning feels; it must not replace the meaning with genre vocabulary.",
+    "QRE'S NORTH STAR: the language gets smaller while the meaning gets bigger. Compress only after meaning exists. Short language without accumulated meaning is merely a caption.",
+    "Every cut must earn its screen by changing what can be constructed from the sequence: establish a useful fact, alter a prior reading, increase or release pressure, create implication, reveal recurrence, create contrast, compress multiple known details into one perception, produce a callback with changed charge, or leave meaningful residue. These are possibilities, not a required order or template.",
+    "Do not turn source facts into a caption reel by chopping them into fragments. Repeated source wording without a changed charge is failure. Do not explain a realization the observer can construct. Stop as soon as the line lands.",
+    "A realization may be a contradiction, callback, one word, full sentence, strange observation, repetition, status flip, implication, or silence-like fragment. Do not standardize the form and do not force the strongest realization to the ending.",
     "The final output is a sequence of screen text beats. ONE BEAT = ONE SCREENFUL OF ATTENTION.",
     "Do not interpret 'one beat' as one fact or one sentence. Several facts may share one beat when their collision, compression, contrast, timing, or juxtaposition creates the fire. Split them when separation creates the fire. The Artist chooses where the screen changes.",
     "A beat can be one word, a fragment, a sentence, or several compressed clauses. Short is usually powerful. Longer is allowed when every extra word creates real artistic force. NEVER pad. NEVER shorten a line merely because of a number.",
@@ -165,7 +195,12 @@ function prompt(attempt: number, feedback: string): string {
 }
 
 export async function realizeAuthorExperience(input: { prompt: string; subject: string; lens: string; graph: RealityGraph; movie: LatentMovieCandidate; creativeLensBrief?: CreativeLensBrief; domainContext?: AuthorDomainContext; memoryContext?: string[]; priorScenes?: string[]; creativeLearningContext?: string[] }): Promise<AuthorRealizationResult> {
-  let model = "fallback"; let modelCalls = 0; let rejectedSets = 0; let lastJudgment: RealizedFilmJudgment | undefined; const rejectedReasons: string[] = [];
+  let model = "fallback";
+  let modelCalls = 0;
+  let rejectedSets = 0;
+  let lastJudgment: RealizedFilmJudgment | undefined;
+  let bestTruthful: { scenes: RealizedScene[]; judgment: RealizedFilmJudgment } | undefined;
+  const rejectedReasons: string[] = [];
   for (let attempt = 0; attempt < 3; attempt += 1) {
     const feedback = rejectedReasons.slice(-4).join(" | ");
     const ctx = context(input, feedback);
@@ -182,12 +217,24 @@ export async function realizeAuthorExperience(input: { prompt: string; subject: 
         validSets.push({ scenes: validation.scenes, judgment });
       }
       if (validSets.length) {
-        const winner = validSets[validSets.length - 1]!;
-        return { scenes: winner.scenes, score: winner.judgment.score, model, modelCalls, rejectedSets, judgment: winner.judgment, reason: rejectedReasons.length ? rejectedReasons.join(" | ") : undefined };
+        const ranked = validSets.slice().sort((a, b) => b.judgment.score - a.judgment.score);
+        const strongest = ranked[0]!;
+        if (!bestTruthful || strongest.judgment.score > bestTruthful.judgment.score) bestTruthful = strongest;
+
+        const accepted = ranked.find((item) => item.judgment.accepted);
+        if (accepted) {
+          return { scenes: accepted.scenes, score: accepted.judgment.score, model, modelCalls, rejectedSets, judgment: accepted.judgment, reason: rejectedReasons.length ? rejectedReasons.join(" | ") : undefined };
+        }
+
+        rejectedSets += validSets.length;
+        rejectedReasons.push(...strongest.judgment.reasons.map((reason) => `quality: ${reason}`));
       }
     } catch (error) {
       rejectedSets += 1; rejectedReasons.push(error instanceof Error ? error.message : "creative realizer call failed");
     }
+  }
+  if (bestTruthful) {
+    return { scenes: bestTruthful.scenes, score: bestTruthful.judgment.score, model, modelCalls, rejectedSets, judgment: bestTruthful.judgment, reason: rejectedReasons.join(" | ") || "quality target not reached" };
   }
   return { scenes: [], score: 0, model, modelCalls, rejectedSets, judgment: lastJudgment, reason: rejectedReasons.join(" | ") || "no realized film survived validation" };
 }
