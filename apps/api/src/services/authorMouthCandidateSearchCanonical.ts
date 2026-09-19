@@ -691,6 +691,25 @@ export function buildMouthCandidateMessages(input: MouthCandidateGenerationInput
               subjectKind: clean(input.domainContext.subjectKind),
               knownCapabilities: input.domainContext.knownCapabilities ?? [],
               contextualSignals: input.domainContext.contextualSignals ?? [],
+              dogTag: input.domainContext.dogTag
+                ? {
+                    name: clean(input.domainContext.dogTag.name),
+                    breed: clean(input.domainContext.dogTag.breed),
+                    nicknames: input.domainContext.dogTag.nicknames ?? [],
+                    personalityTraits: input.domainContext.dogTag.personalityTraits ?? [],
+                    likes: input.domainContext.dogTag.likes ?? [],
+                    dislikes: input.domainContext.dogTag.dislikes ?? [],
+                    favoriteFoods: input.domainContext.dogTag.favoriteFoods ?? [],
+                    favoriteActivities: input.domainContext.dogTag.favoriteActivities ?? [],
+                    socialPreferences: input.domainContext.dogTag.socialPreferences ?? [],
+                    quirks: input.domainContext.dogTag.quirks ?? [],
+                    voiceHints: input.domainContext.dogTag.voiceHints ?? [],
+                    frameHints: input.domainContext.dogTag.frameHints ?? [],
+                    contextualPatterns: input.domainContext.dogTag.contextualPatterns ?? [],
+                  }
+                : undefined,
+              contextUsage:
+                "Background context may shape interpretation and voice. It is not occurrence evidence. Only suppliedReality may authorize concrete events, actions, sensory observations, chronology, or present-tense world claims.",
             }
           : undefined,
         priorCuts: input.priorTexts ?? [],
