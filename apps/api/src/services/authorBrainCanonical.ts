@@ -1547,11 +1547,6 @@ function sourceGroundedAuthorResult(input: {
           relations: input.graph.relations,
           eventStructure: input.graph.eventStructure ?? [],
         },
-        beatDiscovery: {
-          used: discoveredBeats.length > 0,
-          raw: discoveredPlan.raw,
-          beats: discoveredPlan.beats,
-        },
         finalSequence: sequence,
         finalScenes: scenes,
         provenance: cuts.map((cut) => ({
@@ -2431,6 +2426,11 @@ export async function authorBrainCanonical(
           viewerState: beat.viewerState,
           realizationAuthority: beat.realizationAuthority,
         })),
+        beatDiscovery: {
+          used: discoveredBeats.length > 0,
+          raw: discoveredPlan.raw,
+          beats: discoveredPlan.beats,
+        },
         mouthGeneration: {
           parseAccepted: mouthParseAccepted,
           error: mouthGenerationError || undefined,
