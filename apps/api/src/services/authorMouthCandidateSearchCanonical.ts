@@ -141,10 +141,9 @@ function worldEvidence(envelope: RealityEnvelope): string[] {
 }
 
 function mouthRealityEvidence(envelope: RealityEnvelope): string[] {
-  const candidates = [
-    ...envelope.events.map((event) => event.label),
-    ...envelope.suppliedPhrases,
-  ].map(clean).filter(Boolean);
+  const supplied = envelope.suppliedPhrases.map(clean).filter(Boolean);
+  const eventFallback = envelope.events.map((event) => clean(event.label)).filter(Boolean);
+  const candidates = supplied.length ? supplied : eventFallback;
 
   const seen = new Set<string>();
   const result: string[] = [];
