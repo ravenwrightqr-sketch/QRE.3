@@ -140,6 +140,25 @@ function worldEvidence(envelope: RealityEnvelope): string[] {
   ].map(clean).filter(Boolean);
 }
 
+function mouthRealityEvidence(envelope: RealityEnvelope): string[] {
+  const candidates = [
+    ...envelope.events.map((event) => event.label),
+    ...envelope.suppliedPhrases,
+  ].map(clean).filter(Boolean);
+
+  const seen = new Set<string>();
+  const result: string[] = [];
+
+  for (const value of candidates) {
+    const key = normalize(value);
+    if (!key || seen.has(key)) continue;
+    seen.add(key);
+    result.push(value);
+  }
+
+  return result.length ? result : [clean(envelope.subject)].filter(Boolean);
+}
+
 function suppliedIdentity(text: string, envelope: RealityEnvelope): boolean {
   const value = clean(text).toLowerCase();
   if (/\b(?:he|him|his|she|her|hers|they|them|their|the man|the woman|the boy|the girl|the guy|the lady|my friend|my partner|my wife|my husband|my girlfriend|my boyfriend)\b/i.test(value)) return true;
@@ -562,28 +581,15 @@ function candidateScore(text: string, beat: MouthCandidateBeat, envelope: Realit
 function buildSystemPrompt(): string {
   return [
     "You are QRE's Author.",
-    "Create the strongest short moving-text experience you can from the supplied reality.",
-    "Read the whole supplied reality before writing. Facts are ingredients, not checkpoints.",
-    "Do not march through the facts one by one and do not mention a fact merely because it was supplied.",
-    "Discover the strongest connected impression, pressure, contradiction, relationship, desire, status, surprise, recurrence, or change already latent in the material.",
-    "QRE observations are creative leads, not instructions, facts, slots, or a required outline. Ignore, combine, reorder, reinterpret, or outgrow them when a stronger truthful experience appears.",
-    "Be free with language, structure, humor, metaphor, implication, attitude, emotion, rhythm, perspective, silence, repetition, callbacks, compression, and surprise.",
-    "Perform the truth instead of merely reporting it.",
-    "A stable truth may become voice, emphasis, desire, anticipation, obsession, attitude, reaction-space, a question, a callback, or a punchline without becoming a new physical occurrence.",
-    "QRE is an accumulating world: a remembered liking can haunt a present thought, a later real event can pay it off, and a repeated real detail can change what an earlier cut meant.",
-    "One word can carry a whole cut if its placement changes what the next word means. Let sparse facts create expectation; let richer facts create collision and payoff.",
-    "Play with the supplied words. Turn a word into a question, an echo, a fixation, a surprise, or a verdict. Repeat it only when the repetition changes what it means. Let one cut set a trap for the next cut; a list of isolated nouns has no turn.",
-    "If the source says someone loves an activity, write the wanting, imagining, or anticipation in their voice. When the source says the activity happened, you may write the event. Both can make a sequence move without adding an occurrence.",
-    "An event may use the movement that actually happened. A preference may feel like wanting. A trait may feel like attitude. A relationship may feel like tension or tenderness. A memory may echo. A repeated detail may become a motif.",
-    "A fact may be foregrounded, implied, delayed, repeated, contrasted, recontextualized, saved for the payoff, or omitted entirely if the experience is stronger without stating it.",
-    "If the world actually moved, use that movement. If the world is static, move the viewer's understanding instead.",
-    "Change the viewer, not the facts.",
-    "Animate the truth without inventing the world.",
-    "Do not create artificial transitions just to reach the next supplied fact.",
-    "Do not invent concrete reality: new people, physical actions, objects, places, sensory events, dialogue, chronology, identity, or history.",
-    "Each cut should alter attention, expectation, interpretation, pressure, or feeling enough to make the next cut worth seeing.",
-    "Let details collide. Let one detail change another. Let omission do work. Stop when it lands.",
-    "Return three genuinely different complete sequences. Keep each sequence connected and make its ending land.",
+    "QRE remembers a real thing as its world grows. What someone loves, fears, wants, notices, remembers, imagines, and actually does are different kinds of truth and all are creative material. Know the difference, then play.",
+    "Play freely with what the reality suggests; keep what physically happened exactly as supplied.",
+    "Treat the supplied reality as a world to understand, not wording to rewrite. Read it all first and form a private impression of the subject, situation, pressure, pattern, contradiction, or personality that emerges.",
+    "Then write from that impression.",
+    "A supplied word may become a question, echo, fixation, interruption, contrast, callback, punchline, payoff, or disappear entirely. Do not enumerate the source.",
+    "A preference can sound like wanting without becoming an event. A memory can echo without becoming now. A possibility can create anticipation without becoming fact.",
+    "Make the viewer discover something about what is already there. Let cuts change each other. Stop before explaining the meaning.",
+    "Do not invent new concrete reality.",
+    "Create three genuinely different complete moving-text sequences.",
     "One cut per line. Put a line containing only --- between sequences. Return nothing else.",
   ].join("\n");
 }
@@ -606,24 +612,16 @@ function projectedRealizationAuthority(beat: MouthCandidateBeat) {
 
 export function buildMouthCandidateMessages(input: MouthCandidateGenerationInput): Array<{ role: "system" | "user"; content: string }> {
   const lens = classifyLens(input.lens);
-  const evidence = worldEvidence(input.envelope);
-  const observations = [...new Set(
-    input.beats.flatMap((beat) => {
-      const meaning = beat.realizationAuthority?.meaning;
-      return [
-        clean(meaning?.before),
-        clean(meaning?.after),
-        clean(meaning?.realizationMove),
-        clean(meaning?.creativeOpportunity),
-        clean(meaning?.viewerShift),
-        clean(meaning?.feltEffect),
-        clean(beat.change),
-        clean(beat.next),
-      ];
-    }).filter(Boolean),
-  )];
+  const evidence = mouthRealityEvidence(input.envelope);
 
-  const cutCount = Math.max(1, input.beats.length);
+  const mechanisms = [...new Set(
+    input.beats.flatMap((beat) => [
+      clean(beat.semanticRealization?.mechanism),
+      clean(beat.semanticRealization?.relation?.kind),
+      clean(beat.creativeMove),
+      clean(beat.role),
+    ]).filter(Boolean),
+  )];
 
   return [
     { role: "system", content: buildSystemPrompt() },
@@ -632,7 +630,11 @@ export function buildMouthCandidateMessages(input: MouthCandidateGenerationInput
       content: JSON.stringify({
         subject: input.envelope.subject,
         suppliedReality: evidence,
-        qreObservations: observations,
+        creativePressure: {
+          mechanisms,
+          objective:
+            "Find the strongest connected perception available in the supplied reality. The source wording is not the script.",
+        },
         lens:
           lens.label && lens.label !== "NONE"
             ? {
@@ -652,7 +654,8 @@ export function buildMouthCandidateMessages(input: MouthCandidateGenerationInput
             }
           : undefined,
         priorCuts: input.priorTexts ?? [],
-        output: "Create 3 complete sequences. Use as many cuts as each experience earns. One cut per line. Separate sequences with a line containing only ---. Return nothing else.",
+        output:
+          "Create 3 complete sequences. Use as many cuts as each experience earns. One cut per line. Separate sequences with a line containing only ---. Return nothing else.",
       }),
     },
   ];
