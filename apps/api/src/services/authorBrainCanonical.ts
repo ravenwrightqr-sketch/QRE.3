@@ -1718,30 +1718,73 @@ export async function authorBrainCanonical(
       }));
 
       /*
-       * The model authored whole sequences. Preserve their internal setup,
-       * turn, and landing during selection; per-beat transposition remains
-       * available for diagnostics and truth-safe recovery only.
+       * The model owns the authored cut count.
+       *
+       * Cognition supplies pressure points and meaning, not sentence slots.
+       * Every authored cut is validated against the whole supplied reality so
+       * a preference, event, object, memory, or relationship may appear where
+       * the model finds it useful without being forced to "belong" to one
+       * precomputed beat.
        */
-      authoredVariantPools = rawSequenceVariants
-        .filter((variant) => variant.length === realizationBeats.length)
-        .map((variant) =>
-          realizationBeats.map((beat, index) => ({
-            order: beat.order,
-            viewerState:
-              beat.viewerState ??
-              deriveViewerStateCut(beat, index, realizationBeats, envelope),
-            nextPromise: clean(beat.next),
-            frontier: clean(beat.frontier),
-            candidates: [
-              scoreMouthCandidate({
-                text: variant[index] ?? "",
-                beat,
-                envelope,
-                priorTexts: variant.slice(0, index),
-              }),
-            ].filter((candidate) => candidate.text.length > 0),
-          })),
+      const authoredBeatsForCount = (count: number): MouthCandidateBeat[] => {
+        const seed =
+          realizationBeats[realizationBeats.length - 1] ??
+          realizationBeats[0];
+
+        if (!seed || count <= 0) return [];
+
+        const eventIds = unique(
+          realizationBeats.flatMap((beat) => beat.eventIds ?? []),
         );
+
+        const wholeWorldSeed: MouthCandidateBeat = {
+          ...seed,
+          order: 1,
+          role: "discovery",
+          eventIds,
+        };
+
+        const realizationAuthority =
+          buildMouthRealizationAuthority({
+            beat: wholeWorldSeed,
+            envelope,
+          });
+
+        return Array.from({ length: count }, (_, index) => {
+          const final = index === count - 1;
+          const first = index === 0;
+
+          return {
+            ...wholeWorldSeed,
+            order: index + 1,
+            role: final ? "payoff" : first ? "establishing" : "discovery",
+            attentionFunction: final ? "payoff" : first ? "establish" : "advance",
+            eventIds,
+            realizationAuthority,
+          };
+        });
+      };
+
+      authoredVariantPools = rawSequenceVariants.map((variant) => {
+        const authoredBeats = authoredBeatsForCount(variant.length);
+
+        return authoredBeats.map((beat, index) => ({
+          order: beat.order,
+          viewerState:
+            beat.viewerState ??
+            deriveViewerStateCut(beat, index, authoredBeats, envelope),
+          nextPromise: clean(beat.next),
+          frontier: clean(beat.frontier),
+          candidates: [
+            scoreMouthCandidate({
+              text: variant[index] ?? "",
+              beat,
+              envelope,
+              priorTexts: variant.slice(0, index),
+            }),
+          ].filter((candidate) => candidate.text.length > 0),
+        }));
+      });
       pools.forEach((pool) => {
         pool.candidates
           .filter((candidate) => !isAuthorizedMouthCandidate(candidate))
@@ -1776,7 +1819,7 @@ export async function authorBrainCanonical(
 
   const intactVariantSelections = authoredVariantPools
     .filter((variantPools) =>
-      variantPools.length === realizationBeats.length &&
+      variantPools.length > 0 &&
       variantPools.every((pool) =>
         pool.candidates.length === 1 &&
         pool.candidates.every(isAuthorizedMouthCandidate),
@@ -1788,7 +1831,7 @@ export async function authorBrainCanonical(
         candidatesPerBeat: 1,
       }),
     )
-    .filter((selection) => selection.candidates.length === realizationBeats.length)
+    .filter((selection) => selection.candidates.length > 0)
     .sort((left, right) => right.score - left.score);
 
   let recoveryUsed = false;
@@ -1837,18 +1880,63 @@ export async function authorBrainCanonical(
       candidatesPerBeat: 8,
     });
 
-  const sequence = makeSequence(selected, realizationBeats, subject, movie);
+  const presentationBeats: MouthCandidateBeat[] =
+    intactVariantSelections.length > 0 && selected.candidates.length > 0
+      ? (() => {
+          const seed =
+            realizationBeats[realizationBeats.length - 1] ??
+            realizationBeats[0];
+
+          if (!seed) return realizationBeats;
+
+          const eventIds = unique(
+            realizationBeats.flatMap((beat) => beat.eventIds ?? []),
+          );
+
+          const wholeWorldSeed: MouthCandidateBeat = {
+            ...seed,
+            order: 1,
+            role: "discovery",
+            eventIds,
+          };
+
+          const realizationAuthority =
+            buildMouthRealizationAuthority({
+              beat: wholeWorldSeed,
+              envelope,
+            });
+
+          return Array.from(
+            { length: selected.candidates.length },
+            (_, index) => {
+              const final = index === selected.candidates.length - 1;
+              const first = index === 0;
+
+              return {
+                ...wholeWorldSeed,
+                order: index + 1,
+                role: final ? "payoff" : first ? "establishing" : "discovery",
+                attentionFunction: final ? "payoff" : first ? "establish" : "advance",
+                eventIds,
+                realizationAuthority,
+              };
+            },
+          );
+        })()
+      : realizationBeats;
+
+  const sequence = makeSequence(selected, presentationBeats, subject, movie);
 
   const attention = editAttentionSequence({
     beats: selected.candidates.map((candidate, index) => ({
       order: index + 1,
-      role: realizationBeats[index]?.role,
-      gainKind: gainKindForBeat(beatAt(realizationBeats, index), index, selected.candidates.length),
+      role: presentationBeats[index]?.role,
+      gainKind: gainKindForBeat(beatAt(presentationBeats, index), index, selected.candidates.length),
       text: candidate.text,
-      sourceIds: [...(realizationBeats[index]?.eventIds ?? [])],
-      attentionFunction: realizationBeats[index]?.attentionFunction,
-      next: realizationBeats[index]?.next,
-      frontier: realizationBeats[index]?.frontier,
+      sourceIds: [...(presentationBeats[index]?.eventIds ?? [])],
+      attentionFunction: presentationBeats[index]?.attentionFunction,
+      next: presentationBeats[index]?.next,
+      frontier: presentationBeats[index]?.frontier,
       setsUp: [],
       paysOff:
         index === selected.candidates.length - 1 ? [movie.payoff] : [],
@@ -1861,13 +1949,13 @@ export async function authorBrainCanonical(
       ? evaluateSequenceArc(
           selected.candidates.map((candidate, index) => ({
             order: index + 1,
-            role: realizationBeats[index]?.role,
-            attentionFunction: realizationBeats[index]?.attentionFunction,
-            creativeMove: realizationBeats[index]?.creativeMove,
+            role: presentationBeats[index]?.role,
+            attentionFunction: presentationBeats[index]?.attentionFunction,
+            creativeMove: presentationBeats[index]?.creativeMove,
             text: candidate.text,
-            change: realizationBeats[index]?.change,
-            next: realizationBeats[index]?.next,
-            frontier: realizationBeats[index]?.frontier,
+            change: presentationBeats[index]?.change,
+            next: presentationBeats[index]?.next,
+            frontier: presentationBeats[index]?.frontier,
             setsUp: [],
             paysOff:
               index === selected.candidates.length - 1 ? [movie.payoff] : [],
@@ -1892,7 +1980,7 @@ export async function authorBrainCanonical(
     movie,
     subject,
     candidates: selected.candidates,
-    beats: realizationBeats,
+    beats: presentationBeats,
   });
 
   /*
@@ -1904,7 +1992,7 @@ export async function authorBrainCanonical(
   );
   const complete =
     scenes.length >= 1 &&
-    scenes.length === realizationBeats.length &&
+    scenes.length === presentationBeats.length &&
     scenes.length === sequence.cuts.length &&
     sequenceSourcesComplete &&
     attention.accepted === true &&
