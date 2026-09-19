@@ -78,7 +78,7 @@ function progression(scenes: readonly RealizedScene[], graph: RealityGraph): num
   return clamp((Math.min(1, transitions / Math.max(1, sources.length - 1)) * 0.45) + (bridgeTiming * 0.35) + (Math.min(1, distinctSources / 2) * 0.2));
 }
 function landing(scenes: readonly RealizedScene[], graph: RealityGraph): number {
-  const last = scenes.at(-1); if (!last || scenes.length < 2) return 0;
+  const last = scenes.length ? scenes[scenes.length - 1] : undefined; if (!last || scenes.length < 2) return 0;
   const wordCount = tokenList(last.text).length;
   const compact = wordCount <= 4 ? 1 : wordCount <= 7 ? 0.8 : wordCount <= 11 ? 0.55 : 0.2;
   const overlapRatio = overlap(last.text, eventCorpus(graph));
