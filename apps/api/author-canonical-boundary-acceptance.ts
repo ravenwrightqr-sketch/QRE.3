@@ -441,6 +441,11 @@ const miloAbstractCandidate = scoreMouthCandidate({
   beat: miloSemanticBeat,
   envelope: miloEnvelope,
 });
+const miloRhythmCandidate = scoreMouthCandidate({
+  text: "A rhythm.",
+  beat: miloSemanticBeat,
+  envelope: miloEnvelope,
+});
 const miloInventedScent = scoreMouthCandidate({
   text: "A scent.",
   beat: miloSemanticBeat,
@@ -469,8 +474,13 @@ assert(
 );
 assert(
   isAuthorizedMouthCandidate(miloAbstractCandidate) &&
+    isAuthorizedMouthCandidate(miloRhythmCandidate) &&
     !isAuthorizedMouthCandidate(miloInventedScent),
-  `Abstract feeling and invented sensory detail were not distinguished: ${JSON.stringify({miloAbstractCandidate, miloInventedScent})}`,
+  `Abstract framing and invented sensory detail were not distinguished: ${JSON.stringify({
+    miloAbstractCandidate,
+    miloRhythmCandidate,
+    miloInventedScent,
+  })}`,
 );
 
 const extraLinePlainText = parseMouthCandidateBatch(
