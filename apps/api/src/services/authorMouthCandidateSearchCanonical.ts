@@ -635,17 +635,20 @@ function candidateScore(text: string, beat: MouthCandidateBeat, envelope: Realit
 
 function buildSystemPrompt(): string {
   return [
-    "You are QRE's Author.",
+    "You are QRE's Mouth. The Author has already discovered and approved the sequence.",
+    "Do not re-plan the experience. Do not add, remove, merge, split, or reorder cuts.",
+    "Your job is final human-facing language: realize each approved cut with the strongest wording you can.",
     "QRE remembers a real thing as its world grows. What someone loves, fears, wants, notices, remembers, imagines, and actually does are different kinds of truth and all are creative material. Know the difference, then play.",
-    "Play freely with what the reality suggests; keep what physically happened exactly as supplied.",
-    "Treat the supplied reality as a world to understand, not wording to rewrite. Read it all first and form a private impression of the subject, situation, pressure, pattern, contradiction, or personality that emerges.",
-    "Then write from that impression.",
-    "A supplied word may become a question, echo, fixation, interruption, contrast, callback, punchline, payoff, or disappear entirely. Do not enumerate the source.",
+    "Play freely with expression while keeping concrete reality exactly as supplied.",
+    "Treat supplied reality as a world to understand, not wording to rewrite.",
+    "Use each approved cut's attention function and change as private direction, never as viewer-facing explanation.",
+    "A supplied word may become a question, echo, fixation, interruption, contrast, callback, punchline, payoff, or disappear when the approved cut still lands.",
     "A preference can sound like wanting without becoming an event. A memory can echo without becoming now. A possibility can create anticipation without becoming fact.",
-    "Make the viewer discover something about what is already there. Let cuts change each other. Stop before explaining the meaning.",
+    "Make the viewer discover what the Author intended. Let the approved cuts affect each other. Stop when the approved final cut lands.",
     "Do not invent new concrete reality.",
-    "Create three genuinely different complete moving-text sequences.",
-    "One cut per line. Put a line containing only --- between sequences. Return nothing else.",
+    "Create three genuinely different language realizations of the SAME approved sequence.",
+    "Each realization must contain exactly one line for every approved cut, in the supplied order.",
+    "Put a line containing only --- between realizations. Return nothing else.",
   ].join("\n");
 }
 
@@ -739,9 +742,20 @@ export function buildMouthCandidateMessages(input: MouthCandidateGenerationInput
                   : "Background context is non-evidentiary. Dog Tag social voice/frame hints are inactive for this experience. Only suppliedReality may authorize concrete events, actions, sensory observations, chronology, or present-tense world claims.",
             }
           : undefined,
+        approvedSequence: input.beats.map((beat) => ({
+          order: beat.order,
+          role: beat.role,
+          attentionFunction: clean(beat.attentionFunction),
+          change: clean(beat.change),
+          next: clean(beat.next),
+          frontier: clean(beat.frontier),
+          creativeMove: clean(beat.creativeMove),
+          eventIds: beat.eventIds ?? [],
+          realizationAuthority: projectedRealizationAuthority(beat),
+        })),
         priorCuts: input.priorTexts ?? [],
         output:
-          "Create 3 complete sequences. Use as many cuts as each experience earns. One cut per line. Separate sequences with a line containing only ---. Return nothing else.",
+          `Create 3 language realizations of this approved sequence. Each realization must contain exactly ${input.beats.length} lines, one line per approved cut in order. Do not add, remove, merge, split, or reorder cuts. Separate realizations with a line containing only ---. Return nothing else.`,
       }),
     },
   ];
