@@ -1789,23 +1789,7 @@ export async function authorBrainCanonical(
       }),
     )
     .filter((selection) => selection.candidates.length === realizationBeats.length)
-    .sort((left, right) => {
-      const source = authorshipTokens(
-        envelope.events.map((event) => event.label).join(" "),
-        subject,
-      );
-      const leftContact = coverage(
-        authorshipTokens(left.texts.join(" "), subject),
-        source,
-      );
-      const rightContact = coverage(
-        authorshipTokens(right.texts.join(" "), subject),
-        source,
-      );
-      const leftScore = left.score * 0.78 + Math.min(1, leftContact * 2) * 0.22;
-      const rightScore = right.score * 0.78 + Math.min(1, rightContact * 2) * 0.22;
-      return rightScore - leftScore;
-    });
+    .sort((left, right) => right.score - left.score);
 
   let recoveryUsed = false;
   const usablePools = intactVariantSelections.length
