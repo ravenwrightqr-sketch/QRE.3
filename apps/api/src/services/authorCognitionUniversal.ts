@@ -183,8 +183,14 @@ function normalizeCanonicalTrajectory(value: unknown,g: RealityGraph): LatentMov
   });
 }
 function normalizeModel(raw: unknown,g: RealityGraph,returning:boolean): LatentMovieCandidate[] {
-  const rows=Array.isArray((raw as Record<string,unknown>|undefined)?.movies)?(raw as Record<string,unknown>).movies as unknown[]:[];
-  return rows.slice(0,8).flatMap((x,i)=>{
+  const movies = (raw as Record<string,unknown>|undefined)?.movies;
+  const rows: Array<{ key?: string; value: unknown }> = Array.isArray(movies)
+    ? movies.map((value) => ({ value }))
+    : movies && typeof movies === "object"
+      ? Object.entries(movies as Record<string, unknown>).map(([key, value]) => ({ key, value }))
+      : [];
+  return rows.slice(0,8).flatMap((row,i)=>{
+    const x = row.value;
     if(!x||typeof x!=="object")return[];
     const r=x as Record<string,unknown>;
     const explicitIds=validIds(r.evidenceEventIds??r.evidenceIds??r.anchorEventIds??r.eventIds,g);
@@ -209,7 +215,7 @@ function normalizeModel(raw: unknown,g: RealityGraph,returning:boolean): LatentM
     if(g.events.length&&(!ids.length||trajectory.length<2))return[];
     if(thesis&&(GENERIC.test(thesis)||PSYCH.test(thesis)||INTERNAL.test(thesis)))return[];
     const c:LatentMovieCandidate={
-      id:clean(r.id??r.movieId)||`model-movie-${i+1}`,
+      id: clean(r.id ?? r.movieId ?? row.key) || `model-movie-${i+1}`,
       lens:clean(r.lens??r.frame)||"NONE",
       anchorEventIds:validIds(r.anchorEventIds??ids,g).slice(0,4),
       supportingRelationKinds:unique(supporting),
@@ -264,7 +270,6 @@ export async function buildAuthorCognitivePlan(input: AuthorCognitionInput): Pro
     "Keep hypotheses diagnostic and non-psychological. No customer-facing prose.",
     "Return JSON only: selectedLens, frame, interpretations, movies, selectedMovieId, adaptiveQuestions, attentionStrategy, reasoningSummary."
   ].join("\n")},{role:"user",content:JSON.stringify({reality:compact,intelligence:{signals:intelligence.semanticSignals,moves:intelligence.candidateMoves,rules:intelligence.decisionRules,competition:intelligence.competitionProtocol,attention:intelligence.attention,antiFailure:intelligence.antiFailureChecks}})}],"json",{numPredict:1400,temperature:.9}); parsed=parse(r.text); model=r.model; modelCalls=1;}catch{} }
-  const fr=frame(parsed,explicit,input.realityGraph), selectedLens=fr.mode==="frame"?fr.frame:"NONE";
   const modelCs=normalizeModel(parsed,input.realityGraph,returning);
   const observations=observationCandidates(input.realityGraph,clean(input.subject)||"the subject",returning);
   const candidates=dedupe(modelCs.length?modelCs:observations,10);
@@ -274,7 +279,27 @@ export async function buildAuthorCognitivePlan(input: AuthorCognitionInput): Pro
   const selectedMovie=candidates.find(c=>c.id===chosenId)
     ||(Number.isInteger(numericChosen)&&numericChosen>=0?candidates[numericChosen]:undefined)
     ||candidates[0];
-  const ints=Array.isArray(parsed?.interpretations)?parsed.interpretations.slice(0,6).flatMap((x,i)=>{if(!x||typeof x!=="object")return[];const r=x as Record<string,unknown>;return [{id:clean(r.id)||`interpretation-${i+1}`,thesis:clean(r.thesis)||selectedMovie?.hypothesis[0]||"Find the strongest grounded reading.",creativeOpportunity:clean(r.creativeOpportunity)||"semantic progression",rationale:clean(r.rationale)||"grounded in supplied evidence",evidenceEventIds:validIds(r.evidenceEventIds,input.realityGraph),confidence:clamp(r.confidence,.6)}];}):[];
+  const baseFrame=frame(parsed,explicit,input.realityGraph);
+  const autoFrameGrounded = !explicit && baseFrame.frame !== "NONE" && Boolean(selectedMovie?.anchorEventIds.length);
+  const fr: CreativeFrameSelection = autoFrameGrounded && baseFrame.mode === "none"
+    ? { ...baseFrame, mode: "frame", evidenceEventIds: selectedMovie?.anchorEventIds ?? [] }
+    : baseFrame;
+  const selectedLens=fr.mode==="frame"?fr.frame:"NONE";
+  const interpretationValue = parsed?.interpretations;
+  const interpretationRows: Array<{ key?: string; value: unknown }> = Array.isArray(interpretationValue)
+    ? interpretationValue.map((value) => ({ value }))
+    : interpretationValue && typeof interpretationValue === "object"
+      ? Object.entries(interpretationValue as Record<string, unknown>).map(([key, value]) => ({ key, value }))
+      : [];
+  const ints=interpretationRows.slice(0,6).flatMap((row,i)=>{
+    const x=row.value;
+    if(typeof x==="string"){
+      return [{id:row.key||`interpretation-${i+1}`,thesis:clean(x)||selectedMovie?.hypothesis[0]||"Find the strongest grounded reading.",creativeOpportunity:"semantic progression",rationale:"grounded in supplied evidence",evidenceEventIds:selectedMovie?.anchorEventIds??[],confidence:selectedMovie?.score??.6}];
+    }
+    if(!x||typeof x!=="object")return[];
+    const r=x as Record<string,unknown>;
+    return [{id:clean(r.id??row.key)||`interpretation-${i+1}`,thesis:clean(r.thesis)||selectedMovie?.hypothesis[0]||"Find the strongest grounded reading.",creativeOpportunity:clean(r.creativeOpportunity)||"semantic progression",rationale:clean(r.rationale)||"grounded in supplied evidence",evidenceEventIds:validIds(r.evidenceEventIds,input.realityGraph),confidence:clamp(r.confidence,.6)}];
+  });
   const qs=Array.isArray(parsed?.adaptiveQuestions)?parsed.adaptiveQuestions.filter((x):x is Record<string,unknown>=>Boolean(x&&typeof x==="object")).map(x=>({kind:clean(x.kind) as AuthorAdaptiveQuestion["kind"],question:clean(x.question),reason:clean(x.reason)})).filter(x=>x.question&&["who","where","when","event","detail"].includes(x.kind)&&!PSYCH.test(x.question)).slice(0,3):[];
   return {selectedLens,frame:fr,interpretations:ints.length?ints:[{id:"interpretation-grounded",thesis:selectedMovie?.hypothesis[0]||"Find the strongest grounded reading.",creativeOpportunity:"semantic progression",rationale:"derived from supplied evidence",evidenceEventIds:selectedMovie?.anchorEventIds??[],confidence:selectedMovie?.score??.2}],latentMovieCandidates:candidates,selectedMovie,adaptiveQuestions:unique([...qs,...questions(input)].map(x=>JSON.stringify(x))).map(x=>JSON.parse(x) as AuthorAdaptiveQuestion).slice(0,4),attentionStrategy:clean(parsed?.attentionStrategy)||"notice what changes the meaning of another supplied detail",reasoningSummary:Array.isArray(parsed?.reasoningSummary)?parsed.reasoningSummary.filter((x):x is string=>typeof x==="string").map(clean).filter(Boolean).slice(0,10):[...intelligence.semanticSignals.slice(0,3),...intelligence.competitionProtocol.slice(0,4)],model,modelCalls};
 }
