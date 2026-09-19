@@ -101,9 +101,12 @@ export async function extractAuthorReality(input: {
 
   return {
     subject: clean(parsed?.subject) || clean(input.subject) || "the subject",
-    facts: facts.length
-      ? facts
-      : unique(input.sourceMoments?.length ? input.sourceMoments : [input.prompt]),
+    /*
+     * Fail closed. If extraction cannot recover explicit facts, do not promote
+     * the raw prompt/source moment into current reality: it may contain style,
+     * instructions, context, or other non-evidence language.
+     */
+    facts: facts.length ? facts : suppliedFacts,
     model: result.model,
     modelCalls: 1,
   };
