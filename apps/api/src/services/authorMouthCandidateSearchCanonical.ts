@@ -697,15 +697,12 @@ export function parseMouthCandidateBatch(
       if (variantsByBeat.some((item) => !Number.isInteger(item.order) || item.variants.length !== 3)) return undefined;
       const orders = [...variantsByBeat.map((item) => item.order)].sort((a, b) => a - b);
       if (orders.some((order, index) => order !== index + 1)) return undefined;
-      if (expectedBeatCount !== undefined && variantsByBeat.length !== expectedBeatCount) return undefined;
       if (variantsByBeat.some((item) => new Set(item.variants.map((value) => value.toLowerCase())).size !== 3)) return undefined;
       return { variantsByBeat: variantsByBeat.sort((a, b) => a.order - b.order) };
     }
   } catch {
     // Plain-text realization is the canonical fallback format.
   }
-
-  if (expectedBeatCount === undefined) return undefined;
 
   const plainSequenceVariants = normalized
     .split(/^\s*---\s*$/m)
@@ -721,12 +718,15 @@ export function parseMouthCandidateBatch(
     .filter((texts) => texts.length > 0);
 
   if (plainSequenceVariants.length === 3) {
-    if (plainSequenceVariants.some((texts) => texts.length !== expectedBeatCount)) return undefined;
     if (new Set(plainSequenceVariants.map((texts) => texts.join("\n").toLowerCase())).size !== 3) return undefined;
+
+    const cutCount = Math.max(
+      ...plainSequenceVariants.map((texts) => texts.length),
+    );
 
     return {
       variantsByBeat: Array.from(
-        { length: expectedBeatCount },
+        { length: cutCount },
         (_, index) => ({
           order: index + 1,
           variants: plainSequenceVariants
