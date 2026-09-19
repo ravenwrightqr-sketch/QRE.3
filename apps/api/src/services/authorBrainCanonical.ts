@@ -257,7 +257,7 @@ function makeSequence(
     const prior = scenes.slice(0, index).map((item) => item.text);
     const before: ViewerState = {
       known: prior,
-      recentChange: prior.at(-1),
+      recentChange: prior.length ? prior[prior.length - 1] : undefined,
     };
     const after: ViewerState = {
       known: [...prior, scene.text],
@@ -288,7 +288,7 @@ function makeSequence(
     openingState: { known: [] },
     baselineFacts: [],
     cuts,
-    closingState: cuts.at(-1)?.viewerAfter,
+    closingState: cuts.length ? cuts[cuts.length - 1]?.viewerAfter : undefined,
     continuity: [],
     antiCrutch: [],
   };
@@ -317,7 +317,7 @@ function makeMovie(
     anchorEventIds: events.map((event) => event.id),
     supportingRelationKinds: [],
     trajectory,
-    payoff: events.at(-1)?.text ?? "",
+    payoff: events.length ? events[events.length - 1]!.text : "",
     unresolvedQuestion: "",
     evidence: events.map((event) => event.text),
     hypothesis: [
@@ -472,7 +472,7 @@ export async function authorBrainCanonical(
     question: "",
     strongestImage: events[0]?.text ?? "",
     tension: frameResult.decision.why,
-    payoff: scenes.at(-1)?.text ?? "",
+    payoff: scenes.length ? scenes[scenes.length - 1]!.text : "",
     callback: "none",
     rhythm: ["standard"],
     avoid: ["invented concrete reality", "fact replay", "explanation"],
