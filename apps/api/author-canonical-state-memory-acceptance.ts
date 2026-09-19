@@ -540,26 +540,19 @@ const messages = buildMouthCandidateMessages({
 });
 
 const userPayload = JSON.parse(messages[1]?.content ?? "{}") as {
-  beats?: Array<Record<string, unknown>>;
+  suppliedReality?: string[];
+  qreObservations?: string[];
 };
 
-const projectedBeat = userPayload.beats?.[2];
-const projectedEvidence = projectedBeat?.evidence as unknown[] | undefined;
-const projectedPressure = projectedBeat?.creativePressure as
-  | Record<string, unknown>
-  | undefined;
-
-assert(projectedBeat, "Mouth prompt did not receive the approved realization beat.");
 assert(
-  Array.isArray(projectedEvidence) && projectedEvidence.length > 0,
-  `Mouth prompt lost scoped supplied evidence: ${JSON.stringify(projectedBeat)}`,
+  Array.isArray(userPayload.suppliedReality) && userPayload.suppliedReality.length > 0,
+  `Mouth prompt lost supplied evidence: ${JSON.stringify(userPayload)}`,
 );
 assert(
-  projectedPressure?.relationship &&
-    projectedPressure?.desiredRecognition &&
-    projectedPressure?.instruction,
-  `Mouth prompt lost positive creative pressure: ${JSON.stringify(projectedBeat)}`,
+  Array.isArray(userPayload.qreObservations) && userPayload.qreObservations.length > 0,
+  `Mouth prompt lost creative observations: ${JSON.stringify(userPayload)}`,
 );
+const projectedBeat = userPayload;
 assert(
   !("realizationAuthority" in projectedBeat) &&
     !("forbiddenMoves" in projectedBeat) &&

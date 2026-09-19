@@ -1232,6 +1232,8 @@ export function evaluateAuthorAuthorshipQuality(input: {
 function wholeAuthoredSelectionScore(
   selection: ReturnType<typeof selectBestMouthSequence>,
   envelope: ReturnType<typeof buildAuthorRealityEnvelope>,
+  movie?: LatentMovieCandidate,
+  subject?: string,
 ): number {
   if (!selection.candidates.length) return 0;
 
@@ -1240,6 +1242,13 @@ function wholeAuthoredSelectionScore(
       selection,
       envelope,
     );
+  const quality = evaluateAuthorAuthorshipQuality({
+    texts: selection.texts,
+    envelope,
+    movie,
+    subject,
+    candidates: selection.candidates,
+  });
 
   const average = (
     key:
@@ -1265,13 +1274,14 @@ function wholeAuthoredSelectionScore(
    * Line-level scores remain useful, but literal source contact must not beat
    * a stronger transformation merely because it repeats more supplied words.
    */
-  return metric(
+  return (quality.accepted && replay.authored ? 1 : 0) + metric(
     selection.score * 0.28 +
       meaning * 0.18 +
       discovery * 0.22 +
       novelty * 0.08 +
       transition * 0.10 +
-      (1 - replay.sourceReplayScore) * 0.34,
+      (1 - replay.sourceReplayScore) * 0.24 +
+      quality.score * 0.25,
   );
 }
 
@@ -1878,10 +1888,14 @@ export async function authorBrainCanonical(
         wholeAuthoredSelectionScore(
           right,
           envelope,
+          movie,
+          subject,
         ) -
         wholeAuthoredSelectionScore(
           left,
           envelope,
+          movie,
+          subject,
         ),
     );
 

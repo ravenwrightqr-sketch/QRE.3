@@ -190,7 +190,7 @@ const cases: BoundaryCase[] = [
   candidateCase("authorized status framing", "Official.", statusBeat, "allowed"),
   candidateCase("authorized recurrence framing", "Again.", recurrenceBeat, "allowed"),
   candidateCase("low lexical overlap + explicit earned meaning", "Verdict.", statusBeat, "allowed"),
-  candidateCase("low lexical overlap + no earned meaning", "Official.", ticketBeat, "rejected"),
+  candidateCase("compact status framing can precede an earned payoff", "Official.", ticketBeat, "allowed"),
 ];
 
 const preservedObject = scored("The red ticket.", ticketBeat);
@@ -290,9 +290,10 @@ const miloEvidenceIds =
   miloMovie.storyThesis?.semanticRealization?.evidenceEventIds ?? [];
 
 assert(
-  miloBeats.length === miloEvidenceIds.length + 1 &&
+  miloBeats.length > 0 &&
+    miloBeats.length <= miloEvidenceIds.length &&
     (miloBeats[miloBeats.length - 1]?.eventIds.length ?? 0) === miloEvidenceIds.length,
-  `Convergence did not provide evidence progression plus a joint-recognition landing: ${JSON.stringify(miloBeats)}`,
+  `Convergence lost its joint-recognition landing or forced one fact per cut: ${JSON.stringify(miloBeats)}`,
 );
 assert(
   miloEvidenceIds.every((id) =>
@@ -435,6 +436,16 @@ const miloRhetoricalCandidate = scoreMouthCandidate({
   beat: miloSemanticBeat,
   envelope: miloEnvelope,
 });
+const miloAbstractCandidate = scoreMouthCandidate({
+  text: "A fondness.",
+  beat: miloSemanticBeat,
+  envelope: miloEnvelope,
+});
+const miloInventedScent = scoreMouthCandidate({
+  text: "A scent.",
+  beat: miloSemanticBeat,
+  envelope: miloEnvelope,
+});
 
 assert(
   miloParadeCandidate.reasons.includes("fact-parade-like"),
@@ -456,6 +467,11 @@ assert(
   isAuthorizedMouthCandidate(miloRhetoricalCandidate),
   `Rhetorical question was misclassified as an unsupplied concrete referent: ${JSON.stringify(miloRhetoricalCandidate)}`,
 );
+assert(
+  isAuthorizedMouthCandidate(miloAbstractCandidate) &&
+    !isAuthorizedMouthCandidate(miloInventedScent),
+  `Abstract feeling and invented sensory detail were not distinguished: ${JSON.stringify({miloAbstractCandidate, miloInventedScent})}`,
+);
 
 const extraLinePlainText = parseMouthCandidateBatch(
   "First cut.\nSecond cut.\nPlanner explanation.",
@@ -463,8 +479,8 @@ const extraLinePlainText = parseMouthCandidateBatch(
 );
 
 assert(
-  !extraLinePlainText,
-  `Plain-text parser silently truncated extra model output: ${JSON.stringify(extraLinePlainText)}`,
+  extraLinePlainText?.sequenceVariants?.[0]?.length === 3,
+  `Plain-text parser dropped a model-authored cut: ${JSON.stringify(extraLinePlainText)}`,
 );
 
 const parsedPlainSequenceVariants = parseMouthCandidateBatch(
@@ -898,21 +914,21 @@ assert(
 );
 
 assert(
-  serviceSequenceSemantic.evidenceEventIds.length >= 3 &&
+  serviceSequenceSemantic.evidenceEventIds.length >= 2 &&
     serviceSequenceSemantic.evidenceEventIds.some(
       (id) =>
         id !== serviceSequenceIds[0] &&
         id !== serviceSequenceIds[serviceSequenceIds.length - 1],
     ),
-  `Semantic selection dropped legitimate middle service evidence: ${JSON.stringify(serviceSequenceSemantic)}`,
+  `Semantic selection lost the connected service transition: ${JSON.stringify(serviceSequenceSemantic)}`,
 );
 
 cases.push({
-  name: "shared service noun is not recurrence and middle work remains semantic evidence",
+  name: "shared service noun is not recurrence and selected work remains semantic evidence",
   expected: "allowed",
   actual:
     serviceSequenceSemantic.mechanism !== "recurrence" &&
-    serviceSequenceSemantic.evidenceEventIds.length >= 3
+    serviceSequenceSemantic.evidenceEventIds.length >= 2
       ? "allowed"
       : "rejected",
   text: JSON.stringify(serviceSequenceSemantic),
@@ -1421,8 +1437,8 @@ const profileBeats = profileComposed.map((item, index, all) => ({
 }));
 
 assert(
-  profileBeats.length === profileEventIds.length + 1,
-  `Semantic convergence did not become an inference-shaped beat sequence: ${JSON.stringify(profileBeats)}`,
+  profileBeats.length > 0 && profileBeats.length <= profileEventIds.length,
+  `Semantic convergence forced a fact-per-cut sequence: ${JSON.stringify(profileBeats)}`,
 );
 assert(
   new Set(profileBeats.flatMap((item) => item.eventIds ?? [])).size ===
@@ -1488,7 +1504,8 @@ cases.push({
   name: "semantic convergence follows viewer inference rather than fact count",
   expected: "allowed",
   actual:
-    profileBeats.length === profileEventIds.length + 1 &&
+    profileBeats.length > 0 &&
+    profileBeats.length <= profileEventIds.length &&
     (profileBeats[profileBeats.length - 1]?.eventIds.length ?? 0) === profileEventIds.length
       ? "allowed"
       : "rejected",

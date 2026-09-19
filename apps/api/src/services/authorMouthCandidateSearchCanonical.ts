@@ -53,10 +53,6 @@ const STOP = new Set([
 const INTERNAL = /\b(?:cognition|planner|planning|beat|candidate|semantic|trajectory|viewer|audience|observer|objective|curiosity|prediction error|state shift|sequence|author|mouth|canonical|supplied evidence|semantic turn|relation kind|payoff dependency|memory projection|future thread)\b/i;
 const EXPLANATION = /\b(?:this means|which means|this shows|which shows|the point is|the meaning is|in other words|reveals that|the viewer|the audience|the relationship|the experience was|the significance)\b/i;
 const GENERIC_SUMMARY = /^(?:something happened|something changed|something shifted|everything changed|a moment|the moment|a feeling|the feeling|it was meaningful|it was special|it was important)\.?$/i;
-const ABSTRACT_NOUN = /\b(?:lightness|stillness|softness|warmth|tension|pressure|presence|absence|recognition|connection|possibility|momentum|energy|rhythm|silence|distance|closeness|uncertainty|comfort|relief|contentment|satisfaction|release|ease|bloom|weight|space|pull|gravity|dissonance|acknowledgement|acknowledgment|resonance)\b/i;
-const FRAME_NOUN = /\b(?:lawyer|judge|witness|detective|agent|captain|boss|mission|operation|case|verdict|negotiation|negotiations|level|quest|upgrade|extraction|inspection|war|victory|champion|legend|showtime|final|reset|boss fight|character)\b/i;
-const FRAME_VERB = /\b(?:called|resumed|approved|cleared|secured|completed|started|began|ended|won|lost|continued|returned|reopened|settled|entered|left|passed|failed|made|earned|survived|finished)\b/i;
-const STATUS = /\b(?:fab|fabulous|dapper|fierce|cool|sharp|ready|done|cleared|approved|complete|finished|upgrade|victory|win|winner|exit|peace|temporary|temporarily|resumed|made it|level|mission|operation|case|verdict|negotiations?|final|reset|legend|perfect|apparently|anyway|for now)\b/i;
 const PHYSICAL_VERB = /\b(?:smiled|smile|laughed|laugh|walked|walk|moved|move|looked|look|watched|watch|stared|stare|blinked|blink|winked|wink|nodded|nod|shrugged|shrug|touched|touch|held|hold|reached|reach|stood|stand|sat|sit|ran|run|jumped|jump|wagged|wag|barked|bark|kissed|kiss|hugged|hug|grabbed|grab|nudged|nudge|opened|open|closed|close|entered|enter|returned|return|called|call|talked|talk|spoke|speak|heard|hear|saw|see|breathed|breathe)\b/i;
 const BODY = /\b(?:eye|eyes|face|mouth|shoulder|shoulders|hand|hands|head|tail|paw|paws|fur|coat|body|room|door|window|floor|wall|table|chair|car|road|street|sky|shadow|light|sound|scent|voice|water|phone|screen)\b/i;
 const SOFT_FIRST_PERSON = /^(?:I|we|my|our)\b/i;
@@ -158,13 +154,6 @@ function isInterrogativeClause(text: string): boolean {
   );
 }
 
-function isFrameOnly(text: string): boolean {
-  const value = clean(text);
-  if (!value || value.length > 64) return false;
-  if (FRAME_NOUN.test(value) && (FRAME_VERB.test(value) || STATUS.test(value))) return true;
-  return words(value).length <= 5 && STATUS.test(value) && !PHYSICAL_VERB.test(value) && !BODY.test(value);
-}
-
 function unsupportedConcrete(text: string, beat: MouthCandidateBeat, envelope: RealityEnvelope): number {
   const value = clean(text);
   if (!value) return 1;
@@ -176,6 +165,24 @@ function unsupportedConcrete(text: string, beat: MouthCandidateBeat, envelope: R
   });
 
   if (!binding.accepted) return 1;
+
+  // An interrogative about a supplied interest is anticipation, not a report
+  // that hearing occurred. The referent/chronology binder still runs above.
+  if (/^did\s+I\s+hear\s+/i.test(value) && isInterrogativeClause(value)) {
+    const cue = clean(value.replace(/^did\s+I\s+hear\s+/i, "").replace(/\?$/, "")).toLowerCase();
+    if (cue.length >= 4 && [...meaningfulTokens(worldEvidence(envelope).join(" "))]
+      .some((token) => token === cue || token === `${cue}s`)) return 0;
+  }
+
+  // A named participant + a new completed action reports an occurrence, not
+  // an interpretive frame. Derive the action from the candidate and compare
+  // it with supplied events; no list of allowed/forbidden gestures is needed.
+  const occurrence = value.match(/^([A-Z][a-z0-9'’-]*)\s+([a-z]{3,}(?:ed|ing))\b/i);
+  if (occurrence && [envelope.subject, ...envelope.suppliedParticipants]
+    .some((actor) => normalize(actor) === occurrence[1]?.toLowerCase())) {
+    const action = occurrence[2]?.toLowerCase() ?? "";
+    if (!meaningfulTokens(worldEvidence(envelope).join(" ")).has(action)) return 1;
+  }
 
   /*
    * Narrow post-generation seatbelt for concrete physical claims.
@@ -203,16 +210,6 @@ function unsupportedConcrete(text: string, beat: MouthCandidateBeat, envelope: R
   }
 
   return 0;
-}
-
-function abstractPenalty(text: string): number {
-  const value = clean(text);
-  const count = words(value).length;
-  if (!ABSTRACT_NOUN.test(value)) return 0;
-  if (GENERIC_SUMMARY.test(value)) return 0.7;
-  if (/^(?:a|an|the)\s+/i.test(value) && count <= 6) return 0.58;
-  if (count <= 4) return 0.4;
-  return 0.2;
 }
 
 function authorityLicensesViewerLanguage(
@@ -260,25 +257,16 @@ function explanationPenalty(
 function formScore(text: string): number {
   const value = clean(text);
   const count = words(value).length;
-  let score = count <= 2 ? 0.62 : count <= 4 ? 0.82 : count <= 8 ? 1 : count <= 12 ? 0.96 : count <= 18 ? 0.78 : 0.5;
-  if (STATUS.test(value)) score += 0.18;
-  if (FRAME_NOUN.test(value)) score += 0.14;
-  if (/\?$/.test(value)) score += 0.15;
-  if (/\b(?:but|yet|still|until|finally|again|already|apparently|anyway|for now|temporary|temporarily)\b/i.test(value)) score += 0.12;
-  if (/^(?:a|an|the)\s+/i.test(value) && ABSTRACT_NOUN.test(value)) score -= 0.4;
-  return metric(score);
+  return metric(count <= 2 ? 0.7 : count <= 9 ? 1 : count <= 14 ? 0.85 : 0.55);
 }
 
 function payoffScore(text: string, beat: MouthCandidateBeat): number {
   const attention = clean(beat.attentionFunction).toLowerCase();
   const role = clean(beat.role).toLowerCase();
   if (attention !== "payoff" && role !== "payoff" && attention !== "release" && role !== "release") return 0;
-  const value = clean(text);
-  const count = words(value).length;
-  let score = count <= 2 ? 0.62 : count <= 4 ? 0.82 : count <= 8 ? 1 : count <= 12 ? 0.96 : count <= 18 ? 0.78 : 0.5;
-  if (STATUS.test(value)) score += 0.25;
-  if (/\b(?:peace|for now|temporary|temporarily|exit|fab|fabulous|dapper|done|made it|win|winner|finished|approved|cleared)\b/i.test(value)) score += 0.25;
-  return metric(score);
+  // A payoff word has no intrinsic payoff. Its force is measured against the
+  // complete sequence by evaluateAuthorAuthorshipQuality.
+  return clean(text) ? 0.6 : 0;
 }
 
 function semanticScore(
@@ -287,16 +275,9 @@ function semanticScore(
   envelope: RealityEnvelope,
   interpretation: ReturnType<typeof evaluateMouthInterpretation>,
 ): number {
-  const labels = sourceLabels(beat, envelope);
-  const local = overlap(meaningfulTokens(text), meaningfulTokens(labels.join(" ")));
-  const whole = overlap(meaningfulTokens(text), meaningfulTokens(worldEvidence(envelope).join(" ")));
-
   return metric(
     (interpretation.accepted ? 0.55 : 0) +
-    (interpretation.creativeFraming ?? 0) * 0.30 +
-    whole * 0.08 +
-    local * 0.03 +
-    (beat.eventIds?.length ? 0.04 : 0),
+    (interpretation.creativeFraming ?? 0) * 0.38,
   );
 }
 
@@ -417,9 +398,10 @@ function candidateScore(text: string, beat: MouthCandidateBeat, envelope: Realit
   const forbidden = Math.max(
     unsupportedConcrete(value, beat, envelope),
     interpretation.unsupportedConcreteRisk,
+    candidateConcreteSpecificityRisk(value, beat, envelope),
   );
   const explain = explanationPenalty(value, beat);
-  const abstract = abstractPenalty(value);
+  const generic = GENERIC_SUMMARY.test(value) ? 1 : 0;
   const form = formScore(value);
   const payoff = payoffScore(value, beat);
   const semanticUnitRisk = semanticUnitParadeRisk(
@@ -489,12 +471,11 @@ function candidateScore(text: string, beat: MouthCandidateBeat, envelope: Realit
     (Number(beat.viewerState?.stateShift) || 0.45) * 0.72 +
       (Number(beat.viewerState?.inferenceSpace) || 0) * 0.28,
   );
-  const meaning = metric(baseSemantic * 0.5 + (STATUS.test(value) ? 0.08 : 0) + payoff * 0.26 - abstract * 0.18,);
+  const meaning = metric(baseSemantic * 0.5 + payoff * 0.26 - generic * 0.18);
   const distinctive = metric(
     form * 0.42 +
       meaning * 0.28 +
       novelty * 0.22 +
-      (isFrameOnly(value) ? 0.14 : 0) +
       payoff * 0.14 +
       (sourceOverlap < 0.65 ? 0.08 : 0) -
       semanticUnitRisk.parade * 0.28,
@@ -504,7 +485,6 @@ function candidateScore(text: string, beat: MouthCandidateBeat, envelope: Realit
       transition * 0.24 +
       distinctive * 0.2 +
       novelty * 0.1 +
-      (isFrameOnly(value) ? 0.08 : 0) -
       semanticUnitRisk.parade * 0.24,
   );
   const score = metric(
@@ -517,7 +497,7 @@ function candidateScore(text: string, beat: MouthCandidateBeat, envelope: Realit
       discovery * 0.18 +
       distinctive * 0.14 +
       payoff * 0.16 -
-      abstract * 0.08 -
+      generic * 0.08 -
       explain * 0.10 -
       semanticUnitRisk.parade * 0.20 -
       semanticUnitRisk.trivialProgression * 0.06,
@@ -552,8 +532,7 @@ function candidateScore(text: string, beat: MouthCandidateBeat, envelope: Realit
   ) {
     reasons.push("semantic-unit-transformation");
   }
-  if (abstract > 0.35) reasons.push("abstract-nominalization");
-  if (/^(?:a|an|the)\s+/i.test(value) && ABSTRACT_NOUN.test(value)) reasons.push("article-abstract-fragment");
+  if (generic) reasons.push("generic-summary");
 
   return {
     text: value,
@@ -591,6 +570,8 @@ function buildSystemPrompt(): string {
     "Be free with language, structure, humor, metaphor, implication, attitude, emotion, rhythm, perspective, silence, repetition, callbacks, compression, and surprise.",
     "Perform the truth instead of merely reporting it.",
     "A stable truth may become voice, emphasis, desire, anticipation, obsession, attitude, reaction-space, a question, a callback, or a punchline without becoming a new physical occurrence.",
+    "QRE is an accumulating world: a remembered liking can haunt a present thought, a later real event can pay it off, and a repeated real detail can change what an earlier cut meant.",
+    "One word can carry a whole cut if its placement changes what the next word means. Let sparse facts create expectation; let richer facts create collision and payoff.",
     "An event may use the movement that actually happened. A preference may feel like wanting. A trait may feel like attitude. A relationship may feel like tension or tenderness. A memory may echo. A repeated detail may become a motif.",
     "A fact may be foregrounded, implied, delayed, repeated, contrasted, recontextualized, saved for the payoff, or omitted entirely if the experience is stronger without stating it.",
     "If the world actually moved, use that movement. If the world is static, move the viewer's understanding instead.",

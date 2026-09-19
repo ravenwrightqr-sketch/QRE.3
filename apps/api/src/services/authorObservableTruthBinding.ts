@@ -96,7 +96,12 @@ const OBSERVABLE_PREPOSITIONAL_CONTEXT =
   /\b(?:at|in|on|inside|outside|near|around|through|into|onto|under|over)\s+(?:(?:the|a|an|this|that|my|your|his|her|our|their)\s+)?[a-z0-9][a-z0-9'â€™-]*\b/i;
 
 function referenceTokens(value: string): Set<string> {
-  return new Set([...tokens(value)].filter((token) => !FUNCTION_WORDS.has(token)));
+  const references = new Set([...tokens(value)].filter((token) => !FUNCTION_WORDS.has(token)));
+  // Short initialisms can name real participants too (DJ, MC, AI).
+  for (const initialism of clean(value).match(/\b[A-Z]{2}\b/g) ?? []) {
+    references.add(initialism.toLowerCase());
+  }
+  return references;
 }
 
 function semanticFrameToken(token: string): boolean {
@@ -104,7 +109,11 @@ function semanticFrameToken(token: string): boolean {
 }
 
 function abstractReference(value: string): boolean {
-  const parts = [...referenceTokens(value)];
+  // Keep the original surface form here: referenceTokens stems a trailing "s",
+  // which turns "fondness" into "fondnes" before we can recognize it.
+  const parts = clean(value).toLowerCase()
+    .split(/[^a-z0-9'-]+/i)
+    .filter((token) => token.length >= 3 && !FUNCTION_WORDS.has(token));
   if (!parts.length) return false;
 
   /*
