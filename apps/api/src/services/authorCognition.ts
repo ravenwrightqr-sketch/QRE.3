@@ -65,6 +65,20 @@ export type CharacterRead = {
   avoidedMoves: string[];
 };
 
+export type ObserverInferenceHypothesis = {
+  kind: string;
+  evidenceEventIds: string[];
+  latentRead: string;
+  grounding: number;
+  relationalStrength: number;
+  latentInterpretability: number;
+  observerInferencePotential: number;
+  predictionMomentum: number;
+  unresolvedSpace: number;
+  unsupportedAssumptionRisk: number;
+  score: number;
+};
+
 export type AuthorCognitivePlan = {
   mode: string;
   selectedFrame: string;
@@ -75,6 +89,8 @@ export type AuthorCognitivePlan = {
   selectedActionMechanics: AuthorActionMechanic[];
   latentMovieCandidates: LatentMovieCandidate[];
   selectedMovie?: LatentMovieCandidate;
+  inferenceHypotheses: ObserverInferenceHypothesis[];
+  selectedInference?: ObserverInferenceHypothesis;
   experienceState?: AuthorExperienceState;
   operatorMix: string[];
   callbackTargets: string[];
@@ -341,6 +357,222 @@ function resolveLens(
  *
  * Cognition does not select a second movie.
  */
+const PREFERENCE_RELATION =
+  /\b(?:love|loves|like|likes|prefer|prefers|favorite|favourite|enjoy|enjoys|hate|hates|avoid|avoids|into)\b/i;
+
+function movieEventIds(candidate: LatentMovieCandidate): string[] {
+  return uniq(candidate.trajectory.flatMap((step) => step.eventIds), 32);
+}
+
+function relationStrengthFor(graph: RealityGraph, ids: readonly string[]): number {
+  if (ids.length < 2) return 0;
+  let strongest = 0;
+  let total = 0;
+  let count = 0;
+  for (let left = 0; left < ids.length; left += 1) {
+    for (let right = left + 1; right < ids.length; right += 1) {
+      const relation = graph.relations
+        .filter((item) =>
+          (item.from === ids[left] && item.to === ids[right]) ||
+          (item.from === ids[right] && item.to === ids[left]),
+        )
+        .sort((a, b) => b.strength - a.strength)[0];
+      if (!relation) continue;
+      if (["before", "after", "involves", "belongs_to"].includes(relation.kind)) continue;
+      strongest = Math.max(strongest, relation.strength);
+      total += relation.strength;
+      count += 1;
+    }
+  }
+  const average = count ? total / count : 0;
+  return metric(strongest * 0.62 + average * 0.38);
+}
+
+function eventSpecificityForInference(graph: RealityGraph, ids: readonly string[]): number {
+  if (!ids.length) return 0;
+  const values = ids.map((id) => {
+    const structure = graph.eventStructure?.find((item) => item.eventId === id);
+    const current = graph.events.find((item) => item.id === id);
+    return metric(
+      Number(structure?.salienceScore ?? 0) * 0.42 +
+      Math.min(1, (structure?.semanticTags.length ?? 0) / 4) * 0.18 +
+      Math.min(1, (structure?.objects.length ?? 0) / 3) * 0.16 +
+      Math.min(1, (structure?.actions.length ?? 0) / 3) * 0.14 +
+      (current?.salient ? 0.1 : 0),
+    );
+  });
+  return metric(values.reduce((sum, value) => sum + value, 0) / Math.max(1, values.length));
+}
+
+function predictionMomentumForInference(candidate: LatentMovieCandidate): number {
+  const questions = uniq(candidate.trajectory.map((step) => clean(step.nextQuestion)).filter(Boolean), 16);
+  const operationKinds = new Set(candidate.trajectory.map((step) => clean(step.operation)).filter(Boolean)).size;
+  return metric(
+    Math.min(1, questions.length / Math.max(1, candidate.trajectory.length)) * 0.58 +
+    Math.min(1, operationKinds / 4) * 0.24 +
+    (candidate.trajectory.length >= 2 ? 0.18 : 0),
+  );
+}
+
+function preferenceConstellationHypothesis(
+  graph: RealityGraph,
+  candidate: LatentMovieCandidate,
+): ObserverInferenceHypothesis | undefined {
+  const ids = movieEventIds(candidate);
+  const preferenceIds = ids.filter((id) =>
+    PREFERENCE_RELATION.test(clean(graph.events.find((event) => event.id === id)?.label)),
+  );
+  if (preferenceIds.length < 2) return undefined;
+  const grounding = metric(preferenceIds.length / Math.max(1, ids.length));
+  const relationalStrength = Math.max(
+    relationStrengthFor(graph, preferenceIds),
+    metric(Math.min(1, preferenceIds.length / 3) * 0.72),
+  );
+  const specificity = eventSpecificityForInference(graph, preferenceIds);
+  const predictionMomentum = predictionMomentumForInference(candidate);
+  const unresolvedSpace = 0.94;
+  const unsupportedAssumptionRisk = metric(Math.max(0, 0.22 - grounding * 0.16));
+  const latentInterpretability = metric(
+    relationalStrength * 0.42 +
+    specificity * 0.18 +
+    grounding * 0.22 +
+    unresolvedSpace * 0.18,
+  );
+  const observerInferencePotential = metric(
+    latentInterpretability * 0.38 +
+    relationalStrength * 0.22 +
+    predictionMomentum * 0.18 +
+    unresolvedSpace * 0.22,
+  );
+  const score = metric(
+    observerInferencePotential * 0.58 +
+    grounding * 0.16 +
+    relationalStrength * 0.14 +
+    specificity * 0.12 -
+    unsupportedAssumptionRisk * 0.2,
+  );
+  return {
+    kind: "preference_constellation",
+    evidenceEventIds: preferenceIds,
+    latentRead:
+      "The supplied preferences form a recognizable pattern of specific taste. Let the observer construct the character read; do not name it for them.",
+    grounding,
+    relationalStrength,
+    latentInterpretability,
+    observerInferencePotential,
+    predictionMomentum,
+    unresolvedSpace,
+    unsupportedAssumptionRisk,
+    score,
+  };
+}
+
+function semanticHypothesis(
+  graph: RealityGraph,
+  candidate: LatentMovieCandidate,
+): ObserverInferenceHypothesis | undefined {
+  const semantic = candidate.storyThesis?.semanticRealization;
+  if (!semantic?.evidenceEventIds.length) return undefined;
+  const ids = semantic.evidenceEventIds;
+  const grounding = metric(
+    ids.filter((id) => graph.events.some((event) => event.id === id)).length / Math.max(1, ids.length),
+  );
+  const relationalStrength = relationStrengthFor(graph, ids);
+  const specificity = eventSpecificityForInference(graph, ids);
+  const confidence = metric(Number(semantic.confidence ?? 0.5));
+  const predictionMomentum = predictionMomentumForInference(candidate);
+  const unresolvedSpace = candidate.storyThesis?.observerExperience?.explanationForbidden ? 0.92 : 0.62;
+  const unsupportedAssumptionRisk = metric(
+    Math.max(0, (1 - grounding) * 0.72 + (1 - confidence) * 0.12),
+  );
+  const latentInterpretability = metric(
+    confidence * 0.34 +
+    relationalStrength * 0.24 +
+    specificity * 0.16 +
+    grounding * 0.16 +
+    unresolvedSpace * 0.1,
+  );
+  const observerInferencePotential = metric(
+    latentInterpretability * 0.34 +
+    predictionMomentum * 0.22 +
+    unresolvedSpace * 0.22 +
+    relationalStrength * 0.22,
+  );
+  const score = metric(
+    observerInferencePotential * 0.52 +
+    grounding * 0.18 +
+    relationalStrength * 0.14 +
+    confidence * 0.16 -
+    unsupportedAssumptionRisk * 0.22,
+  );
+  return {
+    kind: clean(semantic.mechanism) || "semantic_relationship",
+    evidenceEventIds: [...ids],
+    latentRead:
+      clean(semantic.viewerShift) ||
+      clean(semantic.creativeOpportunity) ||
+      "A grounded relationship changes what the supplied details mean together.",
+    grounding,
+    relationalStrength,
+    latentInterpretability,
+    observerInferencePotential,
+    predictionMomentum,
+    unresolvedSpace,
+    unsupportedAssumptionRisk,
+    score,
+  };
+}
+
+function inferenceHypothesesFor(
+  graph: RealityGraph,
+  candidate: LatentMovieCandidate,
+): ObserverInferenceHypothesis[] {
+  return [
+    preferenceConstellationHypothesis(graph, candidate),
+    semanticHypothesis(graph, candidate),
+  ]
+    .filter((item): item is ObserverInferenceHypothesis => Boolean(item))
+    .sort((left, right) =>
+      right.score - left.score ||
+      right.observerInferencePotential - left.observerInferencePotential ||
+      left.unsupportedAssumptionRisk - right.unsupportedAssumptionRisk,
+    );
+}
+
+function applyInferencePressure(
+  candidate: LatentMovieCandidate,
+  hypothesis: ObserverInferenceHypothesis | undefined,
+): LatentMovieCandidate {
+  if (!hypothesis || !candidate.storyThesis) return candidate;
+  const observer = candidate.storyThesis.observerExperience;
+  return {
+    ...candidate,
+    storyThesis: {
+      ...candidate.storyThesis,
+      observerExperience: {
+        objective: hypothesis.latentRead,
+        surprise: observer?.surprise ?? "Let the observer recognize the hidden relationship before QRE names it.",
+        curiosity: observer?.curiosity ?? "Preserve enough unresolved space for the observer to complete the read.",
+        attention: observer?.attention?.length
+          ? observer.attention
+          : [
+              "show grounded evidence",
+              "let a prediction form",
+              "add evidence that changes the prediction",
+              "stop when the observer can complete the meaning",
+            ],
+        landing: observer?.landing ?? "Land on evidence, not an explanation of the inference.",
+        explanationForbidden: true,
+      },
+    },
+    hypothesis: [
+      ...candidate.hypothesis,
+      "Observer inference: " + hypothesis.kind,
+      "Observer inference potential: " + hypothesis.observerInferencePotential.toFixed(3),
+      "Hidden read: " + hypothesis.latentRead,
+    ].slice(0, 10),
+  };
+}
 function movieFor(
   input: AuthorCognitionInput,
   priorExperienceStates: readonly AuthorExperienceState[],
@@ -348,6 +580,8 @@ function movieFor(
 ): {
   latentMovieCandidates: LatentMovieCandidate[];
   selectedMovie?: LatentMovieCandidate;
+  inferenceHypotheses: ObserverInferenceHypothesis[];
+  selectedInference?: ObserverInferenceHypothesis;
   worldSimulation?: ReturnType<typeof buildAuthorWorldSimulation>;
 } {
   if (
@@ -357,6 +591,7 @@ function movieFor(
   ) {
     return {
       latentMovieCandidates: [],
+      inferenceHypotheses: [],
     };
   }
 
@@ -418,15 +653,57 @@ function movieFor(
       6,
     );
 
-  const candidates =
+  const viewerRanked =
     rerankByViewerState(
       input.realityGraph,
       differentiated,
     );
 
+  const rankedWithInference = viewerRanked
+    .map((candidate) => {
+      const hypotheses = inferenceHypothesesFor(
+        input.realityGraph!,
+        candidate,
+      );
+      const selectedInference = hypotheses[0];
+      const inferenceScore =
+        selectedInference?.observerInferencePotential ?? 0;
+      const combinedScore = metric(
+        candidate.score * 0.58 +
+        inferenceScore * 0.42,
+      );
+
+      return {
+        candidate: applyInferencePressure(
+          {
+            ...candidate,
+            score: combinedScore,
+          },
+          selectedInference,
+        ),
+        hypotheses,
+        selectedInference,
+        combinedScore,
+      };
+    })
+    .sort((left, right) =>
+      right.combinedScore - left.combinedScore ||
+      (right.selectedInference?.observerInferencePotential ?? 0) -
+        (left.selectedInference?.observerInferencePotential ?? 0),
+    );
+
+  const candidates =
+    rankedWithInference.map((entry) => entry.candidate);
+  const selectedEntry =
+    rankedWithInference[0];
+
   return {
     latentMovieCandidates: candidates,
-    selectedMovie: candidates[0],
+    selectedMovie: selectedEntry?.candidate,
+    inferenceHypotheses:
+      selectedEntry?.hypotheses ?? [],
+    selectedInference:
+      selectedEntry?.selectedInference,
     worldSimulation,
   };
 }
@@ -991,6 +1268,12 @@ const selectedLens =
             dynamics?.score ??
             "n/a"
           }`,
+          "OBSERVER INFERENCE: " +
+            (movie.selectedInference?.kind ?? "none"),
+          "OBSERVER INFERENCE POTENTIAL: " +
+            String(movie.selectedInference?.observerInferencePotential ?? "n/a"),
+          "HIDDEN READ: " +
+            (movie.selectedInference?.latentRead ?? "none"),
         ].join(" ")
       : "MOVIE DISCOVERY: off or unavailable; remain direct and grounded.";
 
@@ -1065,6 +1348,12 @@ const selectedLens =
       movie.latentMovieCandidates,
 
     selectedMovie,
+
+    inferenceHypotheses:
+      movie.inferenceHypotheses,
+
+    selectedInference:
+      movie.selectedInference,
 
     experienceState,
 
