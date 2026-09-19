@@ -263,12 +263,13 @@ function semanticScore(
   const labels = sourceLabels(beat, envelope);
   const local = overlap(meaningfulTokens(text), meaningfulTokens(labels.join(" ")));
   const whole = overlap(meaningfulTokens(text), meaningfulTokens(worldEvidence(envelope).join(" ")));
+
   return metric(
-    (interpretation.accepted ? 0.42 : 0) +
-    (interpretation.creativeFraming ?? 0) * 0.28 +
-    whole * 0.12 +
-    local * 0.08 +
-    (beat.eventIds?.length ? 0.1 : 0),
+    (interpretation.accepted ? 0.55 : 0) +
+    (interpretation.creativeFraming ?? 0) * 0.30 +
+    whole * 0.08 +
+    local * 0.03 +
+    (beat.eventIds?.length ? 0.04 : 0),
   );
 }
 
@@ -480,19 +481,19 @@ function candidateScore(text: string, beat: MouthCandidateBeat, envelope: Realit
       semanticUnitRisk.parade * 0.24,
   );
   const score = metric(
-    grounding * 0.1 +
-      obligation * 0.1 +
-      meaning * 0.25 +
-      transition * 0.12 +
-      novelty * 0.1 +
-      form * 0.1 +
-      discovery * 0.13 +
-      distinctive * 0.08 +
-      payoff * 0.12 -
-      abstract * 0.16 -
-      explain * 0.14 -
-      semanticUnitRisk.parade * 0.22 -
-      semanticUnitRisk.trivialProgression * 0.08,
+    grounding * 0.02 +
+      obligation * 0.03 +
+      meaning * 0.23 +
+      transition * 0.09 +
+      novelty * 0.12 +
+      form * 0.08 +
+      discovery * 0.18 +
+      distinctive * 0.14 +
+      payoff * 0.16 -
+      abstract * 0.08 -
+      explain * 0.10 -
+      semanticUnitRisk.parade * 0.20 -
+      semanticUnitRisk.trivialProgression * 0.06,
   );
 
   const reasons: string[] = [];
