@@ -114,8 +114,20 @@ function groundedCandidate(graph: RealityGraph, candidate: LatentMovieCandidate)
     if (!step.eventIds.length || step.eventIds.some((id) => !validIds.has(id))) return false;
     if (step.eventIds.length < 2) return true;
     for (let i = 0; i < step.eventIds.length; i += 1) for (let j = i + 1; j < step.eventIds.length; j += 1) {
-      const relation = graph.relations.find((item) => (item.from === step.eventIds[i] && item.to === step.eventIds[j]) || (item.from === step.eventIds[j] && item.to === step.eventIds[i]));
-      if (!relation || operationForRelation(relation.kind) !== step.operation) return false;
+      const fromId = step.eventIds[i]!;
+      const toId = step.eventIds[j]!;
+      const relation = graph.relations.find((item) => (item.from === fromId && item.to === toId) || (item.from === toId && item.to === fromId));
+      if (relation) {
+        if (operationForRelation(relation.kind) !== step.operation) return false;
+        continue;
+      }
+
+      // Ordered supplied actions may form a grounded run without an explicit
+      // semantic relation edge. This is sequence structure, not invented reality.
+      const fromIndex = graph.events.findIndex((event) => event.id === fromId);
+      const toIndex = graph.events.findIndex((event) => event.id === toId);
+      const consecutive = fromIndex >= 0 && toIndex >= 0 && Math.abs(fromIndex - toIndex) === 1;
+      if (!(step.operation === "reveal" && consecutive)) return false;
     }
     return true;
   });
