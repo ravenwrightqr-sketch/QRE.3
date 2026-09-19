@@ -57,6 +57,15 @@ const PHYSICAL_VERB = /\b(?:smiled|smile|laughed|laugh|walked|walk|moved|move|lo
 const BODY = /\b(?:eye|eyes|face|mouth|shoulder|shoulders|hand|hands|head|tail|paw|paws|fur|coat|body|room|door|window|floor|wall|table|chair|car|road|street|sky|shadow|light|sound|scent|voice|water|phone|screen)\b/i;
 const SOFT_FIRST_PERSON = /^(?:I|we|my|our)\b/i;
 
+const normalizePhysicalLexeme = (value: string): string => {
+  const token = clean(value).toLowerCase().replace(/[^a-z0-9'’-]+/g, "");
+  if (token.length > 5 && token.endsWith("ing")) return token.slice(0, -3);
+  if (token.length > 4 && token.endsWith("ed")) return token.slice(0, -2);
+  if (token.length > 4 && token.endsWith("es")) return token.slice(0, -2);
+  if (token.length > 3 && token.endsWith("s")) return token.slice(0, -1);
+  return token;
+};
+
 const GENERIC_CONCRETE_HEAD = /\b(?:thing|things|stuff|object|objects|item|items|something|anything|one|piece|pieces|shape|shapes|whatever|whatsoever)\b/i;
 
 function candidateConcreteSubstitutionRisk(text: string, beat: MouthCandidateBeat, envelope: RealityEnvelope): number {
@@ -210,21 +219,46 @@ function unsupportedConcrete(text: string, beat: MouthCandidateBeat, envelope: R
    * supplied world contains no corresponding token. Figurative, emotional,
    * rhythmic, and abstract language remains outside this check.
    */
-  if (PHYSICAL_VERB.test(value) || BODY.test(value)) {
-    const candidateTokens = meaningfulTokens(value);
-    const sourceTokens = meaningfulTokens(worldEvidence(envelope).join(" "));
+  const candidateTokens = meaningfulTokens(value);
+  const sourceTokens = meaningfulTokens(worldEvidence(envelope).join(" "));
+  const normalizedSourceTokens = new Set(
+    [...sourceTokens].map(normalizePhysicalLexeme).filter(Boolean),
+  );
 
+  /*
+   * A compact cue may reuse the lexical root of supplied reality without
+   * asserting that the physical action is happening now. This is what lets a
+   * supplied preference such as "loves walks" become "Walk." as voice or
+   * fixation while still refusing a genuinely new occurrence.
+   */
+  if (PHYSICAL_VERB.test(value) || BODY.test(value)) {
     const physicalTerms = [...candidateTokens].filter((token) =>
       PHYSICAL_VERB.test(token) || BODY.test(token),
     );
 
     if (
       physicalTerms.some(
-        (token) => !sourceTokens.has(token),
+        (token) => !normalizedSourceTokens.has(normalizePhysicalLexeme(token)),
       )
     ) {
       return 1;
     }
+  }
+
+  /*
+   * A newly coined participial observation is an occurrence-shaped claim.
+   * It therefore needs a matching supplied lexical action root. This is
+   * structural, not domain-specific: "small feet padding" cannot borrow
+   * semantic authority from a preference constellation and become a physical
+   * event that never happened.
+   */
+  const participialClaim = value
+    .replace(/[.!?]+$/g, "")
+    .match(/^.{1,80}\s+([a-z][a-z'’-]{2,}(?:ed|ing))$/i);
+
+  if (participialClaim) {
+    const action = normalizePhysicalLexeme(participialClaim[1] ?? "");
+    if (action && !normalizedSourceTokens.has(action)) return 1;
   }
 
   return 0;
