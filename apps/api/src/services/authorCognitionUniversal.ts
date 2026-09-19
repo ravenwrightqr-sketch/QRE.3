@@ -183,7 +183,8 @@ function normalizeCanonicalTrajectory(value: unknown,g: RealityGraph): LatentMov
   });
 }
 function normalizeModel(raw: unknown,g: RealityGraph,returning:boolean): LatentMovieCandidate[] {
-  const movies = (raw as Record<string,unknown>|undefined)?.movies;
+  const root = raw as Record<string,unknown>|undefined;
+  const movies = root?.structures ?? root?.movies;
   const rows: Array<{ key?: string; value: unknown }> = Array.isArray(movies)
     ? movies.map((value) => ({ value }))
     : movies && typeof movies === "object"
@@ -250,30 +251,90 @@ function dedupe(cs: LatentMovieCandidate[],limit=10): LatentMovieCandidate[] { c
 function questions(input: AuthorCognitionInput): AuthorAdaptiveQuestion[]{
   const out:AuthorAdaptiveQuestion[]=[]; if(!input.subject)out.push({kind:"who",question:"Who or what is this about?",reason:"The focal subject is missing."}); if(!input.place&&!input.realityGraph.events.some(e=>e.place))out.push({kind:"where",question:"Where did this happen?",reason:"Place may add meaningful context."}); if(!input.realityGraph.events.some(e=>e.time)&&!/(today|yesterday|tomorrow|morning|afternoon|evening|night|\d{1,2}:\d{2}|\d{4})/i.test(input.prompt))out.push({kind:"when",question:"When did this happen?",reason:"Time may establish useful continuity."}); return out.slice(0,3);
 }
+function usableCognitionPayload(value: Record<string, unknown> | undefined): boolean {
+  if (!value) return false;
+  const structures = value.structures ?? value.movies;
+  const rows = Array.isArray(structures)
+    ? structures
+    : structures && typeof structures === "object"
+      ? Object.values(structures as Record<string, unknown>)
+      : [];
+  if (!rows.length) return false;
+  return rows.some((row) => {
+    if (!row || typeof row !== "object") return false;
+    const item = row as Record<string, unknown>;
+    const ids = item.eventIds ?? item.evidenceEventIds ?? item.anchorEventIds;
+    const cuts = item.cuts;
+    const trajectory = item.trajectory;
+    return (Array.isArray(ids) && ids.length >= 2)
+      || (Array.isArray(cuts) && cuts.length >= 2)
+      || (Array.isArray(trajectory) && trajectory.length >= 2);
+  });
+}
+
 export async function buildAuthorCognitivePlan(input: AuthorCognitionInput): Promise<AuthorCognitionPlan>{
   const returning=Boolean(input.returning||(input.visitNumber??1)>1), explicit=clean(input.lens); const intelligence=buildAuthorCognitionIntelligence(input.realityGraph,returning,input.creativeLearningContext??[]);
   const compact={subject:clean(input.subject)||"unknown",place:clean(input.place)||"unknown",prompt:clean(input.prompt),returning,memory:(input.memoryContext??[]).slice(0,20),learning:(input.creativeLearningContext??[]).slice(0,20),events:input.realityGraph.events.map(e=>({id:e.id,label:e.label,salient:Boolean(e.salient),place:e.place,time:e.time,entities:e.entities})),relations:input.realityGraph.relations.map(r=>({from:r.from,to:r.to,kind:r.kind,strength:r.strength})),patterns:input.realityGraph.patterns??[],tensions:input.realityGraph.unresolvedTensions??[],sensory:input.realityGraph.sensorySignals??[]};
   let parsed:Record<string,unknown>|undefined; let model="deterministic"; let modelCalls=0;
-  if(input.movieMode!==false){try{const r=await localModelGenerate([{role:"system",content:[
-    "You are QRE universal cognition, not a writer.",
-    "Reality is immutable. Never invent people, places, actions, outcomes, chronology, motives or emotions.",
-    "Search the supplied RealityGraph for materially different creative structures. Do not force a genre, lens, narrator or fixed beat count.",
-    "A Movie is a grounded creative structure made from supplied event IDs. It may emerge from explicit relationships OR from the structure of a real sequence of actions, objects, spaces, repetitions, interruptions, transformations, comparisons, returns or unusual details.",
-    "Do not require an explicit graph relation before recognizing form. Ordered work can contain stages; stages can become rounds; rooms can become territory; a sequence can become a run; completion can become a finish; a real interruption can become an obstacle; before/after can become transformation.",
-    "Search for active mechanics and material agency: mission, campaign, rounds, territory, race, speedrun, countdown, contest, hunt, showdown, boss room, elimination, rescue, repair, transformation, reversal, accumulation, status flip, object-as-character, food-as-character, car-as-contender, house-as-stage, room-as-arena, machine-as-opponent, tool-as-weapon, sign-as-sentinel or other metaphorical roles when supplied reality supports them.",
-    "Material agency is expressive, not literal. A dish may 'enter the stage' in the film without claiming the food literally walked, spoke or chose. A car may be framed as a contender without inventing a race. A house may feel like a boss room without inventing a monster.",
-    "Do not invent an opponent, danger, deadline, failure, victory, dialogue, motive, sensation or consequence merely to make something exciting. The energy must be extracted from real structure or clearly figurative language reserved for the Artist.",
-    "Do not make one hypothesis per event. Do not treat a subject as narrator by default.",
-    "A rich reality graph may justify a materially rich structure. A sparse graph may produce a compact structure. Do not collapse rich material merely because a compact answer is easier.",
-    "Every concrete cut in downstream realization will be bound to supplied evidence. You may return movies using eventIds:[...] alone, cuts:[{eventIds:[...],duration?}], or canonical trajectory:[{operation,eventIds,viewerChange,nextQuestion}].",
-    "Do not invent relationship kinds; when using trajectory operations, use only relationships visible in the supplied graph.",
-    "Keep hypotheses diagnostic and non-psychological. No customer-facing prose.",
-    "Return JSON only: selectedLens, frame, interpretations, movies, selectedMovieId, adaptiveQuestions, attentionStrategy, reasoningSummary."
-  ].join("\n")},{role:"user",content:JSON.stringify({reality:compact,intelligence:{signals:intelligence.semanticSignals,moves:intelligence.candidateMoves,rules:intelligence.decisionRules,competition:intelligence.competitionProtocol,attention:intelligence.attention,antiFailure:intelligence.antiFailureChecks}})}],"json",{numPredict:1400,temperature:.9}); parsed=parse(r.text); model=r.model; modelCalls=1;}catch{} }
+  if(input.movieMode!==false){
+    const systemPrompt = [
+      "You are QRE universal cognition. You are not the final writer.",
+      "Reality is immutable. Never invent people, places, objects, actions, outcomes, chronology, motives, emotions, dialogue, sensory facts, or relationships.",
+      "Your job is to notice what the supplied reality becomes when events are considered together: change, recurrence, contrast, implication, character, status, progression, accumulation, interruption, transformation, or another grounded structure.",
+      "Do not merely restate events. Do not output one relation object. Build at least one multi-event experience structure when the supplied reality supports it.",
+      "Ordered supplied actions may form a run, stages, rounds, progression, or completion without requiring a fabricated graph relation.",
+      "A creative frame may pressure interpretation, but source domain never dictates a genre and framing never adds facts.",
+      "The downstream Realizer needs accumulated meaning: what becomes newly noticeable only because multiple supplied details are considered together.",
+      "Use only supplied event IDs.",
+      "Return JSON only with this exact top-level shape:",
+      '{"selectedLens":"NONE or grounded treatment","frame":{"frame":"NONE or treatment","confidence":0.0,"evidenceEventIds":[]},"interpretations":[{"thesis":"what becomes newly noticeable","creativeOpportunity":"why it has experiential charge","rationale":"grounded reason","evidenceEventIds":["event-1","event-2"],"confidence":0.0}],"structures":[{"id":"structure-1","eventIds":["event-1","event-2"],"cuts":[{"eventIds":["event-1"]},{"eventIds":["event-2"]}],"hypothesis":["grounded accumulated reading"]}],"selectedStructureId":"structure-1","adaptiveQuestions":[],"attentionStrategy":"how understanding should accumulate","reasoningSummary":["brief grounded reason"]}',
+      "Do not return any other top-level shape."
+    ].join("\n");
+
+    const userPayload = JSON.stringify({
+      reality: compact,
+      cognitionHints: {
+        signals: intelligence.semanticSignals.slice(0, 10),
+        moves: intelligence.candidateMoves.slice(0, 10),
+        attention: intelligence.attention.slice(0, 8),
+      },
+    });
+
+    try {
+      const first = await localModelGenerate(
+        [{role:"system",content:systemPrompt},{role:"user",content:userPayload}],
+        "json",
+        {numPredict:1400,temperature:.82},
+      );
+      parsed=parse(first.text);
+      model=first.model;
+      modelCalls=1;
+
+      if (!usableCognitionPayload(parsed)) {
+        const repair = await localModelGenerate(
+          [
+            {role:"system",content:systemPrompt},
+            {role:"user",content:[
+              userPayload,
+              "",
+              "Your previous response did not satisfy the QRE cognition contract.",
+              "Return the required top-level object with structures containing at least one grounded multi-event structure.",
+              "Do not return a bare relation, score, event pair, prose explanation, or final viewer-facing copy."
+            ].join("\n")},
+          ],
+          "json",
+          {numPredict:1400,temperature:.7},
+        );
+        parsed=parse(repair.text);
+        model=repair.model;
+        modelCalls=2;
+      }
+    } catch {}
+  }
   const modelCs=normalizeModel(parsed,input.realityGraph,returning);
   const observations=observationCandidates(input.realityGraph,clean(input.subject)||"the subject",returning);
   const candidates=dedupe(modelCs.length?modelCs:observations,10);
-  const chosenRaw=parsed?.selectedMovieId;
+  const chosenRaw=parsed?.selectedStructureId ?? parsed?.selectedMovieId;
   const chosenId=clean(chosenRaw);
   const numericChosen=Number(chosenId);
   const selectedMovie=candidates.find(c=>c.id===chosenId)
