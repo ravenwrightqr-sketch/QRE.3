@@ -96,11 +96,12 @@ async function chooseFrame(input: {
   const system = [
     "You are QRE's creative frame selector.",
     "You are given a factual readout of what actually happened.",
-    "Choose a creative frame ONLY when it materially improves how those same facts can be experienced.",
-    "The source domain does not choose the frame.",
-    "A frame is perspective only. It must not invent a person, object, action, place, event, chronology, relationship, motive, feeling, dialogue, or outcome.",
-    "NONE is a strong answer when the facts are better without a frame.",
-    "Prefer the frame that reveals something already latent in the facts rather than decorating them.",
+    "Your job is to find whether those same facts support a more interesting reading.",
+    "Do not reject a frame merely because the source facts are ordinary, routine, or straightforward. Ordinary work can support operation, race, courtroom, heist, western, game, noir, romance, horror, ritual, negotiation, or another frame when the structure of the facts genuinely carries it.",
+    "The source domain does not choose the frame. A housekeeping job is not automatically an operation; a dog is not automatically comedy; a relationship is not automatically romance.",
+    "A frame is perspective only. It may transform status, metaphor, rhythm, implication, or attitude. It may not create a new concrete fact.",
+    "NONE is correct only when no frame makes the supplied facts sharper, stranger, funnier, more charged, or more memorable.",
+    "Prefer a frame that lets the existing facts do new work rather than adding decorative atmosphere.",
     "Return JSON only: {\"frame\":\"...|NONE\",\"confidence\":0.0,\"why\":\"...\",\"risk\":\"...\"}.",
   ].join("\n");
 
@@ -173,16 +174,18 @@ async function realize(input: {
   const system = [
     "You are QRE Author.",
     "The factual readout below is the complete concrete reality.",
-    "Turn those facts into a QRE readout.",
+    "Turn what happened into a QRE readout.",
     "Do not merely describe, summarize, or list the facts back.",
-    "Let each line change the state, pressure, implication, interpretation, or need for what comes next.",
-    "Find what is funny, strange, tense, intimate, status-changing, recurring, contradictory, revealing, or otherwise worth noticing in these facts.",
-    "Make the observer feel the realization. Do not explain the realization.",
-    "Creative framing, metaphor, implication, understatement, wordplay, personification, rhythm, and attitude are allowed.",
-    "Do not invent a new concrete person, object, action, place, event, chronology, relationship, motive, feeling, dialogue, sensory fact, or outcome.",
-    "The selected frame is optional pressure, not a template. If it starts making the readout worse, ignore it.",
+    "Create interest by changing the READING of supplied facts, never by decorating them with invented scenery.",
+    "Every concrete person, object, place, action, sensory detail, body state, time, or event in the output must come from the factual readout. If it is not there, do not add it.",
+    "Metaphor, framing, implication, understatement, status language, wordplay, personification, rhythm, and attitude are free when they clearly remain interpretation rather than new reality.",
+    "Let each line change state, pressure, implication, interpretation, or what the next line now means.",
+    "Make the observer feel the realization. Do not explain it.",
+    "The selected frame is optional pressure, not a template. Use it only where it makes the supplied facts hit harder.",
+    "QRE should notice more than it says, then say less than it knows.",
     "Do not optimize for a dog tag, tiny screen, fixed line count, or shortness.",
     "Stop when the experience lands.",
+    "Examples of the move, never target wording: a completed room may become a cleared sector; a repeated return may make an earlier nervous moment read differently; an approved bow may become a negotiated settlement. The metaphor changes the reading, not the facts.",
     "Return JSON only: {\"beats\":[{\"text\":\"...\",\"sourceEventIds\":[\"event-1\"]}]}.",
   ].join("\n");
 
