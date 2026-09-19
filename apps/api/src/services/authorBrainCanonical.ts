@@ -1761,7 +1761,7 @@ export async function authorBrainCanonical(
     // creative sequence output before the first object is complete.
     const generated = await localModelGenerate(messages, undefined, {
       numPredict: 2048,
-      temperature: 0.7,
+      temperature: 0.95,
     });
 
     modelCalls = 1;
@@ -1888,24 +1888,28 @@ export async function authorBrainCanonical(
   );
 
   // If none of the model's complete sequences both tells the truth and does
-  // something with it, give the same Mouth a second look at the same reality.
-  // Feedback describes the failed experience, not a new rule or authored line.
+  // something with it, give Mouth one clean second look at the same reality.
+  // Do not quote the failed wording back to the model: that anchors the retry
+  // on the exact source-parade shape we are trying to escape.
   if (rawSequenceVariants.length > 0 && !hasAuthoredVariant()) {
     try {
       const retry = await localModelGenerate([
         ...messages,
-        { role: "assistant", content: rawMouthOutput.slice(0, 2400) },
         {
           role: "user",
           content: [
-            "Try the same supplied reality again as three new complete moving-text sequences.",
-            "The earlier sequences did not create an earned change in what the viewer understands; isolated source words merely repeated the input, and concrete details beyond the supplied reality had no support.",
-            "Use the supplied preferences as desire, anticipation, attitude, tension, or a pattern the viewer discovers. Make the cuts affect one another; let a short line gain meaning from its position and give the final cut a payoff.",
-            "A preference can be imagined without claiming it occurred. Let real events move only when they were supplied.",
-            "One cut per line, three complete alternatives separated by a line containing only ---. Return nothing else.",
+            "Start over from the supplied reality.",
+            "The previous attempt stayed too close to source wording or added concrete reality that was not supplied.",
+            "Do not revise or imitate that attempt.",
+            "First form a fresh private read of the character, situation, pressure, pattern, contradiction, or personality created by the facts together.",
+            "Then create three new complete moving-text sequences from that read.",
+            "Use source words only when their placement changes meaning; a row of isolated source nouns is not an experience.",
+            "Preferences may become wanting, anticipation, attitude, fixation, or voice without becoming events. Real events may move only when they were supplied.",
+            "Let cuts affect each other and stop when the perception lands.",
+            "One cut per line. Separate the three alternatives with a line containing only ---. Return nothing else.",
           ].join(" "),
         },
-      ], undefined, { numPredict: 2048, temperature: 0.85 });
+      ], undefined, { numPredict: 2048, temperature: 1.05 });
       modelCalls += 1;
       modelName = retry.model || modelName;
       rawMouthOutput += `\n--- SECOND LOOK ---\n${retry.text}`;
@@ -1916,7 +1920,10 @@ export async function authorBrainCanonical(
         authoredVariantPools.push(...scoreWholeVariants(variants));
         intactVariantSelections = rankIntactVariants();
       } else {
-        rejectedCandidates.push({ phase: "mouth-second-look", reason: "model-output-did-not-parse" });
+        rejectedCandidates.push({
+          phase: "mouth-second-look",
+          reason: "model-output-did-not-parse",
+        });
       }
     } catch (error) {
       modelCalls += 1;
