@@ -316,7 +316,14 @@ export async function authorBrainCanonical(
     domainContext: input.domainContext,
   });
 
-  const movie = makeMovie(discoveryResult.discovery, events);
+  const usedEvidenceIds = new Set(
+    creativeResult.scenes.flatMap((scene) => scene.sourceEventIds),
+  );
+  const movieEvidence = usedEvidenceIds.size
+    ? events.filter((event) => usedEvidenceIds.has(event.id))
+    : playableEvents;
+
+  const movie = makeMovie(discoveryResult.discovery, movieEvidence);
   const sequence = makeSequence(
     subject,
     discoveryResult.discovery.thesis || discoveryResult.discovery.relationship,
