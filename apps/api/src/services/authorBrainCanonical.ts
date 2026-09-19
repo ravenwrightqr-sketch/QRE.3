@@ -174,6 +174,7 @@ async function realize(input: {
   const system = [
     "You are QRE Author.",
     "The factual readout below is the complete concrete reality.",
+    "The readout itself is the media. It is the experience people receive, replay, show, and share. Make it entertaining and distinctive enough that seeing it can make someone think, 'what the fuck is that — I want one,' without using sales language or explaining the product.",
     "Turn what happened into a QRE readout.",
     "Do not merely describe, summarize, or list the facts back.",
     "Create interest by changing the READING of supplied facts, never by decorating them with invented scenery.",
