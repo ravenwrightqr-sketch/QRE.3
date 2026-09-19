@@ -2206,6 +2206,10 @@ export async function authorBrainCanonical(
         actionMechanics: cognition.actionMechanics,
         selectedActionMechanics:
           cognition.selectedActionMechanics,
+        inferenceHypotheses:
+          cognition.inferenceHypotheses,
+        selectedInference:
+          cognition.selectedInference,
         semanticCandidates: cognition.latentMovieCandidates.map((candidate) => ({
           id: candidate.id,
           score: candidate.score,
