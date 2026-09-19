@@ -65,17 +65,38 @@ function concreteGrounding(scenes: readonly RealizedScene[], graph: RealityGraph
   const nonFinal = scenes.slice(0, -1); if (!graph.events.length) return 1; if (!nonFinal.length) return 0;
   return clamp(nonFinal.reduce((sum, s) => sum + sceneGrounding(s, graph), 0) / nonFinal.length);
 }
-function relationBridge(scenes: readonly RealizedScene[], graph: RealityGraph): number {
-  if (graph.events.length < 2) return 1; return scenes.some((s) => s.sourceEventIds.length >= 2 && relationExists(graph, s.sourceEventIds)) ? 1 : 0;
+function movieBridge(movie: LatentMovieCandidate, ids: readonly string[]): boolean {
+  if (ids.length < 2) return false;
+  const set = new Set(ids);
+  return movie.trajectory.some((step) => step.eventIds.filter((id) => set.has(id)).length >= 2);
 }
-function progression(scenes: readonly RealizedScene[], graph: RealityGraph): number {
+function relationBridge(scenes: readonly RealizedScene[], graph: RealityGraph, movie: LatentMovieCandidate): number {
+  if (graph.events.length < 2) return 1;
+  return scenes.some((scene) =>
+    scene.sourceEventIds.length >= 2 &&
+    (relationExists(graph, scene.sourceEventIds) || movieBridge(movie, scene.sourceEventIds))
+  ) ? 1 : 0;
+}
+function progression(scenes: readonly RealizedScene[], graph: RealityGraph, movie: LatentMovieCandidate): number {
   if (scenes.length < 2) return 0;
-  const sources = scenes.map((s) => new Set(s.sourceEventIds));
-  const transitions = sources.slice(1).filter((set, index) => { for (const id of set) if (!sources[index]!.has(id)) return true; return false; }).length;
-  const bridgeIndex = scenes.findIndex((s) => s.sourceEventIds.length >= 2 && relationExists(graph, s.sourceEventIds));
-  const bridgeTiming = bridgeIndex > 0 ? 1 : 0;
-  const distinctSources = new Set(scenes.flatMap((s) => s.sourceEventIds)).size;
-  return clamp((Math.min(1, transitions / Math.max(1, sources.length - 1)) * 0.45) + (bridgeTiming * 0.35) + (Math.min(1, distinctSources / 2) * 0.2));
+  const sources = scenes.map((scene) => new Set(scene.sourceEventIds));
+  const transitions = sources.slice(1).filter((set, index) => {
+    const prior = sources[index]!;
+    if (set.size !== prior.size) return true;
+    for (const id of set) if (!prior.has(id)) return true;
+    return false;
+  }).length;
+  const bridgeIndex = scenes.findIndex((scene) =>
+    scene.sourceEventIds.length >= 2 &&
+    (relationExists(graph, scene.sourceEventIds) || movieBridge(movie, scene.sourceEventIds))
+  );
+  const bridgeTiming = bridgeIndex >= 0 ? 1 : 0;
+  const distinctSources = new Set(scenes.flatMap((scene) => scene.sourceEventIds)).size;
+  return clamp(
+    Math.min(1, transitions / Math.max(1, sources.length - 1)) * 0.5 +
+    bridgeTiming * 0.25 +
+    Math.min(1, distinctSources / Math.max(2, Math.min(4, graph.events.length))) * 0.25,
+  );
 }
 function landing(scenes: readonly RealizedScene[], graph: RealityGraph): number {
   const last = scenes.length ? scenes[scenes.length - 1] : undefined; if (!last || scenes.length < 2) return 0;
@@ -140,33 +161,37 @@ function explanationRisk(scenes: readonly RealizedScene[]): number {
   const explanation = /\b(?:this means|which means|this shows|which shows|the point is|the meaning is|in other words|the relationship|the viewer|the audience|changes what is worth noticing|because this)\b/i;
   return clamp(scenes.filter((s) => explanation.test(s.text)).length / Math.max(1, scenes.length));
 }
-function captionReelRisk(scenes: readonly RealizedScene[], graph: RealityGraph): number {
+function captionReelRisk(scenes: readonly RealizedScene[], graph: RealityGraph, movie: LatentMovieCandidate): number {
   if (scenes.length < 3) return 0;
-  const oneEvent = scenes.filter((s) => s.sourceEventIds.length === 1).length / scenes.length;
-  const paraphrases = scenes.slice(0, -1).filter((s) => {
-    const source = sourceEvents(s, graph)[0]; return s.sourceEventIds.length === 1 && source && overlap(s.text, eventText(source)) >= 0.58;
+  const oneEvent = scenes.filter((scene) => scene.sourceEventIds.length === 1).length / scenes.length;
+  const paraphrases = scenes.slice(0, -1).filter((scene) => {
+    const source = sourceEvents(scene, graph)[0];
+    return scene.sourceEventIds.length === 1 && source && overlap(scene.text, eventText(source)) >= 0.58;
   }).length / Math.max(1, scenes.length);
-  const bridge = scenes.filter((s) => s.sourceEventIds.length >= 2 && relationExists(graph, s.sourceEventIds)).length / scenes.length;
-  return clamp(oneEvent * 0.25 + paraphrases * 0.55 + (1 - bridge) * 0.2);
+  const bridges = scenes.filter((scene) =>
+    scene.sourceEventIds.length >= 2 &&
+    (relationExists(graph, scene.sourceEventIds) || movieBridge(movie, scene.sourceEventIds))
+  ).length / scenes.length;
+  return clamp(oneEvent * 0.2 + paraphrases * 0.6 + (1 - bridges) * 0.2);
 }
 
 export function judgeRealizedFilm(input: { scenes: readonly RealizedScene[]; movie: LatentMovieCandidate; graph: RealityGraph }): RealizedFilmJudgment {
   const dimensions = {
     concreteGrounding: concreteGrounding(input.scenes, input.graph),
-    relationBridge: relationBridge(input.scenes, input.graph),
-    progression: progression(input.scenes, input.graph),
+    relationBridge: relationBridge(input.scenes, input.graph, input.movie),
+    progression: progression(input.scenes, input.graph, input.movie),
     landing: landing(input.scenes, input.graph),
     formDiversity: formDiversity(input.scenes),
     artisticTransformation: artisticTransformation(input.scenes, input.graph),
     sourceCopyRisk: sourceCopyRisk(input.scenes, input.graph),
     inventionRisk: inventionRisk(input.scenes, input.graph),
     explanationRisk: explanationRisk(input.scenes),
-    captionReelRisk: captionReelRisk(input.scenes, input.graph),
+    captionReelRisk: captionReelRisk(input.scenes, input.graph, input.movie),
   };
   const reasons: string[] = [];
   if (input.scenes.length < 2) reasons.push("film needs at least two cuts");
   if (input.graph.events.length > 1 && dimensions.concreteGrounding < 0.18) reasons.push("visible film loses contact with supplied reality");
-  if (input.graph.events.length > 1 && dimensions.relationBridge < 1) reasons.push("visible film never bridges the discovered relationship");
+  if (input.graph.events.length > 1 && dimensions.relationBridge < 1) reasons.push("visible film never bridges the discovered relationship or selected ordered structure");
   if (input.graph.events.length > 1 && dimensions.progression < 0.35) reasons.push("visible film does not move attention");
   if (dimensions.landing < 0.65) reasons.push("ending does not earn a felt landing");
   if (dimensions.artisticTransformation < 0.35 || dimensions.sourceCopyRisk >= 0.5) reasons.push("visible film copies source wording instead of transforming the reality");
