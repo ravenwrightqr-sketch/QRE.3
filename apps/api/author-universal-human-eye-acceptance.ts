@@ -22,7 +22,7 @@ type UniversalCase = {
 type RecordValue = Record<string, unknown>;
 
 const PROMPT =
-  "Create a QRE experience from this supplied reality. Make the viewer feel what is already there instead of explaining or summarizing it. Do not invent concrete reality.";
+  "Create a QRE experience from this supplied reality.";
 
 const CASES: UniversalCase[] = [
   {
@@ -31,6 +31,18 @@ const CASES: UniversalCase[] = [
     subject: "Milo",
     facts: ["Milo loves walks, bacon, small dogs"],
     sourceMoments: ["Milo loves walks, bacon, small dogs"],
+  },
+  {
+    id: "milo-walk-event",
+    label: "CURRENT PET EVENT",
+    subject: "Milo",
+    facts: [],
+    sourceMoments: [
+      "5 PM Milo walked to the park",
+      "Milo saw squirrels",
+      "Milo saw five dogs",
+      "Milo came home after 56 minutes",
+    ],
   },
   {
     id: "living-memory",
@@ -396,12 +408,7 @@ async function runCase(testCase: UniversalCase): Promise<{
     playoutMode: testCase.playoutMode ?? "experience",
     memoryContext: testCase.memoryContext ?? [],
     trajectory: [],
-    creativeLearningContext: [
-      "prefer implication over explanation",
-      "prefer recognition over exposition",
-      "prefer compression when the meaning still lands",
-      "avoid source replay",
-    ],
+    creativeLearningContext: [],
   });
 
   const trace = record(result.diagnostics.trace);
@@ -458,10 +465,19 @@ async function runCase(testCase: UniversalCase): Promise<{
       composedBeats.length > 0,
       "No composed semantic beats.",
     );
+    const mouthGeneration = record(trace.mouthGeneration);
+    const rawMouthOutput = String(mouthGeneration.rawOutput ?? "").trim();
+    check(
+      failures,
+      rawMouthOutput.length > 0,
+      "Mouth model returned no text.",
+    );
     check(
       failures,
       rawVariants.length > 0,
-      "Mouth returned no whole-sequence variants.",
+      rawMouthOutput
+        ? "Mouth returned text, but the canonical parser accepted no whole-sequence variants."
+        : "Mouth returned no whole-sequence variants.",
     );
     check(
       failures,
