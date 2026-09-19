@@ -2293,7 +2293,6 @@ export async function authorBrainCanonical(
   const authored =
     renderable &&
     !recoveryUsed &&
-    intactVariantSelections.length > 0 &&
     sourceReplay.authored &&
     authorshipQuality.accepted;
 
