@@ -63,7 +63,7 @@ const FUNCTION_WORDS = new Set([
 ]);
 
 const SEMANTIC_FRAME =
-  /\b(?:apparently|clearly|somehow|finally|now|still|again|temporary|approved|peace|mission|round|danger|victory|upgrade|boss|evidence|case|deal|terms?|status|power|control|confidence|fabulous|sharp|beautiful|good|brilliant|perfect|official|complete|completed|done|finished|cleared|ready|serious|ridiculous|absurd|suspicious|legendary|mine|belongs|in\s+charge|game|quest|operation|objective|target|verdict|rescue|heist|noir|romance|rebel|showtime|finish|final\s+round|dream|devotion|naturally|favorite|thought|problem|wish|wonder|feeling|pull|current|pressure|warmth|silence|familiar|close|closer|distance|spark|gravity|drift|rush|calm|heat|cold|lightness|weight|connection|tension|fondness|preferences?|impression|character|personality)\b/i;
+  /\b(?:apparently|clearly|somehow|finally|now|still|again|temporary|approved|peace|mission|round|danger|victory|upgrade|boss|evidence|case|deal|terms?|status|power|control|confidence|fabulous|sharp|beautiful|good|brilliant|perfect|official|complete|completed|done|finished|cleared|ready|serious|ridiculous|absurd|suspicious|legendary|mine|belongs|in\s+charge|game|quest|operation|objective|target|verdict|rescue|heist|noir|romance|rebel|showtime|finish|final\s+round|dream|devotion|naturally|favorite|thought|problem|wish|wonder|feeling|pull|current|pressure|warmth|silence|familiar|close|closer|distance|spark|gravity|drift|rush|calm|heat|cold|lightness|weight|connection|tension|fondness|preferences?|impression|character|personality|rhythm|pattern|priority|priorities|type|taste|mood|urge|want|wanting|anticipation|attitude|fixation|obsession|echo|callback|contrast|payoff|theme|name)\b/i;
 
 const CLOSED_WORLD_PRONOUN =
   /\b(?:he|him|his|she|her|hers)\b/i;
