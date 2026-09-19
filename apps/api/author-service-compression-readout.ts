@@ -36,8 +36,8 @@ const result = await authorBrainCanonical({
       "mopping",
     ],
     importantFacts: [
-      "service details are operational evidence",
-      "the customer-facing QRE experience should communicate the larger transformation rather than replay every task",
+      "residential housekeeping service",
+      "the recorded tasks are completed service work",
     ],
   },
 });
