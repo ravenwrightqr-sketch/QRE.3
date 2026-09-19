@@ -98,7 +98,7 @@ router.post("/create", requireAuth, async (req, res) => {
       different ? `Anything different: ${different}.` : "",
       notes ? `Additional notes: ${notes}.` : "",
       mediaUrls.length ? `Media attached by the service provider: ${mediaUrls.join(" | ")}.` : "",
-      "Create a short customer-facing cinematic service receipt film. Stay anchored to supplied reality. Discover the strongest memorable meaning without inventing concrete events.",
+      "Create a short customer-facing QRE service readout from the supplied reality. Treat the factual receipt/proof as source truth, not as viewer-facing copy. Build a miniature experiential film in which each text beat changes state, pressure, implication, interpretation, or necessity. Source domain does not dictate genre. Stay anchored to supplied reality and do not invent concrete events. Do not force a CTA; product CTA behavior is configured outside the readout.",
     ].filter(Boolean).join("\n");
 
     const experience = await compileExperience({
