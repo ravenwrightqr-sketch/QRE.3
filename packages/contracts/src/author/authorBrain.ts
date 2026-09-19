@@ -5,6 +5,31 @@ import type { AuthorExperienceState } from "./authorExperienceState.js";
 export type AuthorRhythm = "hit" | "short" | "standard" | "long";
 export type AuthorPlayoutMode = "operational" | "experience";
 
+export type DogTagContext = {
+  /** Persistent profile context. These are stable truths/background, never occurrence evidence by themselves. */
+  name?: string;
+  breed?: string;
+  age?: string;
+  nicknames?: string[];
+  personalityTraits?: string[];
+  likes?: string[];
+  dislikes?: string[];
+  favoriteFoods?: string[];
+  favoriteActivities?: string[];
+  socialPreferences?: string[];
+  quirks?: string[];
+  fears?: string[];
+  comfortThings?: string[];
+  importantPeople?: string[];
+  importantAnimals?: string[];
+  favoritePlaces?: string[];
+  voiceHints?: string[];
+  /** Optional perspective ideas. Hints influence framing only; they never create facts. */
+  frameHints?: string[];
+  /** Derived or owner-supplied stable patterns. Context only; never a physical occurrence. */
+  contextualPatterns?: string[];
+};
+
 export type AuthorDomainContext = {
   category?: string;
   businessType?: string;
@@ -22,6 +47,8 @@ export type AuthorDomainContext = {
   /** Legacy/derived aliases retained for current callers. */
   knownCapabilities?: string[];
   contextualSignals?: string[];
+  /** Optional persistent Dog Tag profile. Uses the same universal Author; this is context, not a separate domain brain. */
+  dogTag?: DogTagContext;
 };
 
 export type AuthorCreativeBrief = {
