@@ -1899,10 +1899,11 @@ export async function authorBrainCanonical(
           role: "user",
           content: [
             "Start over from the supplied reality.",
-            "The previous attempt stayed too close to source wording or added concrete reality that was not supplied.",
+            "The previous attempt stayed too close to source wording or introduced concrete reality that was not supplied.",
             "Do not revise or imitate that attempt.",
             "First form a fresh private read of the character, situation, pressure, pattern, contradiction, or personality created by the facts together.",
             "Then create three new complete moving-text sequences from that read.",
+            "Concrete vocabulary belongs to supplied reality. Put invention into relationship, implication, rhythm, attitude, voice, metaphor, contrast, and structure instead of adding new physical nouns, actions, places, people, or sensory detail.",
             "Use source words only when their placement changes meaning; a row of isolated source nouns is not an experience.",
             "Preferences may become wanting, anticipation, attitude, fixation, or voice without becoming events. Real events may move only when they were supplied.",
             "Let cuts affect each other and stop when the perception lands.",
@@ -2108,6 +2109,8 @@ export async function authorBrainCanonical(
   const renderable = complete && truthSafe;
   const authored =
     renderable &&
+    !recoveryUsed &&
+    intactVariantSelections.length > 0 &&
     sourceReplay.authored &&
     authorshipQuality.accepted;
 
