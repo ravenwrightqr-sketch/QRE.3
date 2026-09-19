@@ -455,7 +455,7 @@ function preferenceConstellationHypothesis(
     kind: "preference_constellation",
     evidenceEventIds: preferenceIds,
     latentRead:
-      "The supplied preferences form a recognizable pattern of specific taste. Let the observer construct the character read; do not name it for them.",
+      "The supplied preferences are identity material. Perform the pattern as selective attention, wanting, priority, interruption, repetition, attitude, or voice rather than inventory or scene description. Let the observer construct the character read; do not name it for them and do not turn preference into an occurrence.",
     grounding,
     relationalStrength,
     latentInterpretability,
