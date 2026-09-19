@@ -635,7 +635,7 @@ export function buildMouthCandidateMessages(input: MouthCandidateGenerationInput
             }
           : undefined,
         priorCuts: input.priorTexts ?? [],
-        output: `For transport, return exactly ${cutCount} cuts in each sequence. This number is pacing only: cuts do not correspond one-to-one with facts or QRE observations.`,
+        output: "Create 3 complete sequences. Use as many cuts as each experience earns. One cut per line. Separate sequences with a line containing only ---. Return nothing else.",
       }),
     },
   ];
@@ -671,9 +671,8 @@ export function parseMouthCandidateBatch(
 
       if (sequenceVariants.length !== 3) return undefined;
       if (sequenceVariants.some((texts) => texts.length < 1)) return undefined;
-      if (expectedBeatCount !== undefined && sequenceVariants.some((texts) => texts.length !== expectedBeatCount)) return undefined;
-      const cutCount = sequenceVariants[0]?.length ?? 0;
-      if (sequenceVariants.some((texts) => texts.length !== cutCount)) return undefined;
+
+      const cutCount = Math.max(...sequenceVariants.map((texts) => texts.length));
 
       return {
         variantsByBeat: Array.from(
@@ -743,7 +742,7 @@ export function parseMouthCandidateBatch(
     .map((line) => line.replace(/^\s*(?:[-*]|\d+[.)])\s*/, "").trim())
     .filter(Boolean);
 
-  if (lines.length !== expectedBeatCount && lines.length !== 1) return undefined;
+  if (!lines.length) return undefined;
 
   const texts = lines;
   return {
