@@ -622,6 +622,12 @@ export function buildMouthCandidateMessages(input: MouthCandidateGenerationInput
     ]).filter(Boolean),
   )];
 
+  const hiddenReads = [...new Set(
+    input.beats
+      .map((beat) => clean(beat.observerExperience?.objective))
+      .filter(Boolean),
+  )];
+
   return [
     { role: "system", content: buildSystemPrompt() },
     {
@@ -631,8 +637,9 @@ export function buildMouthCandidateMessages(input: MouthCandidateGenerationInput
         suppliedReality: evidence,
         creativePressure: {
           mechanisms,
+          hiddenRead: hiddenReads[0] || undefined,
           objective:
-            "Find the strongest connected perception available in the supplied reality. The source wording is not the script.",
+            "Find the strongest connected perception available in the supplied reality. The source wording is not the script. If a hiddenRead is supplied, make the observer discover it without stating or paraphrasing the conclusion.",
         },
         lens:
           lens.label && lens.label !== "NONE"
