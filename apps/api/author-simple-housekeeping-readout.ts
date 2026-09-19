@@ -27,6 +27,9 @@ for (const event of result.world.events) {
   console.log(`- ${event.id}: ${event.label}`);
 }
 
+console.log("\nCREATIVE DISCOVERY");
+console.log(JSON.stringify(result.diagnostics.creativeDiscovery ?? null, null, 2));
+
 console.log("\nSELECTED FRAME");
 console.log(JSON.stringify(result.diagnostics.selectedFrame ?? null, null, 2));
 
