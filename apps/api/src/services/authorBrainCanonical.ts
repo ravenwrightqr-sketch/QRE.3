@@ -60,6 +60,7 @@ function selectionFromDiscovery(discovery: AuthorCreativeDiscovery): CreativeSel
       discovery.tension,
       discovery.surprisePotential,
       discovery.payoffPotential,
+      discovery.compressionReason,
     ]).join(" | "),
     risk: discovery.risk,
   };
@@ -285,9 +286,10 @@ export async function authorBrainCanonical(
     .filter((event) => event.text);
 
   const discoveryResult = await discoverAuthorCreativeDirection({
-    facts: events.map((event) => event.text),
+    events,
     requestedLens: input.lens,
     memory: input.memoryContext ?? [],
+    domainContext: input.domainContext,
   });
 
   const creativeResult = await createAuthorExperience({
@@ -295,6 +297,7 @@ export async function authorBrainCanonical(
     events,
     creativeDiscovery: discoveryResult.discovery,
     memory: input.memoryContext ?? [],
+    domainContext: input.domainContext,
   });
 
   const movie = makeMovie(discoveryResult.discovery, events);
