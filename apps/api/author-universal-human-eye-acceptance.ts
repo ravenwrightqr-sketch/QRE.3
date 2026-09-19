@@ -428,10 +428,11 @@ async function runCase(testCase: UniversalCase): Promise<{
     failures,
     operational
       ? result.diagnostics.modelCalls === 0
-      : result.diagnostics.modelCalls === 1,
+      : result.diagnostics.modelCalls >= 1 &&
+        result.diagnostics.modelCalls <= 2,
     operational
       ? `Operational receipt should use zero model calls; got ${result.diagnostics.modelCalls}.`
-      : `Expected exactly one Mouth model call; got ${result.diagnostics.modelCalls}.`,
+      : `Expected one Mouth generation plus at most one clean creative reset; got ${result.diagnostics.modelCalls} calls.`,
   );
   check(failures, Object.keys(trace).length > 0, "Missing canonical diagnostics trace.");
   check(
