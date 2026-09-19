@@ -419,6 +419,7 @@ async function runCase(testCase: UniversalCase): Promise<{
   const rawVariants = list(trace.rawSequenceVariants);
   const scoredCandidates = list(trace.candidateScores);
   const composedBeats = list(trace.composedBeats);
+  const selectedInference = record(trace.selectedInference);
   const failures: string[] = [];
 
   const operational =
@@ -510,6 +511,19 @@ async function runCase(testCase: UniversalCase): Promise<{
     result.diagnostics.qualityStatus === "ACCEPTED",
     `Quality verdict was ${result.diagnostics.qualityStatus}, not ACCEPTED.`,
   );
+
+  if (testCase.id === "milo-profile") {
+    check(
+      failures,
+      String(selectedInference.kind ?? "") === "preference_constellation",
+      `Profile reality did not become a preference-constellation inference: ${JSON.stringify(selectedInference)}`,
+    );
+    check(
+      failures,
+      Number(selectedInference.observerInferencePotential ?? 0) >= 0.55,
+      `Profile inference did not create enough observer-discovery potential: ${JSON.stringify(selectedInference)}`,
+    );
+  }
 
   if (
     testCase.id === "service" ||
