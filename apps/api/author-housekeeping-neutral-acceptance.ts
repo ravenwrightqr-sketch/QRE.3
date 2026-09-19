@@ -21,12 +21,7 @@ const INPUT = {
     "Cleaned two bathrooms",
     "Finished at 11:47 AM",
   ],
-  sourceMoments: [
-    "arrived at 9:04 AM",
-    "cleaned the kitchen",
-    "cleaned two bathrooms",
-    "finished at 11:47 AM",
-  ],
+  sourceMoments: [] as string[],
   memoryContext: [] as string[],
   trajectory: [] as string[],
   creativeLearningContext: [] as string[],
