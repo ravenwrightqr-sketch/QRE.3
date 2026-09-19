@@ -14,6 +14,8 @@ import { buildAuthorReadout, type AuthorReadout } from "./authorReadout.js";
 import { realizeAuthorExperience, type RealizedScene } from "./authorCreativeRealizer.js";
 import type { RealizedFilmJudgment } from "./authorRealizedFilmJudge.js";
 import { buildAuthorBehaviorProfile } from "./authorBehaviorProfile.js";
+import { buildAuthorRealityEnvelope } from "./authorRealityEnvelope.js";
+import { buildCreativeLensBrief } from "./authorCreativeLensBrief.js";
 
 const ARTIST_DNA = [
   "CREATIVE TASTE ONLY — never treat this as source reality.",
@@ -134,7 +136,9 @@ export async function authorBrainCanonical(input: AuthorBrainTruth): Promise<Can
 
   const lensSpine = buildAuthorCreativeSpine({ graph: world, subject, lens: cognition.selectedLens, returning: input.returning });
   const lensStack = [lensSpine.lensTreatment.primary, lensSpine.lensTreatment.secondary].filter((value) => value && value !== "none").join(" + ") || cognition.selectedLens;
-  const realization = await realizeAuthorExperience({ prompt, subject, lens: lensStack, graph: world, movie, domainContext: input.domainContext, memoryContext: input.memoryContext, priorScenes: input.trajectory, creativeLearningContext: cognitionLearningContext });
+  const realityEnvelope = buildAuthorRealityEnvelope({ graph: world, subject });
+  const creativeLensBrief = buildCreativeLensBrief({ lens: lensStack, movie, envelope: realityEnvelope });
+  const realization = await realizeAuthorExperience({ prompt, subject, lens: lensStack, graph: world, movie, creativeLensBrief, domainContext: input.domainContext, memoryContext: input.memoryContext, priorScenes: input.trajectory, creativeLearningContext: cognitionLearningContext });
   const scenes = realization.scenes.map((scene) => ({ text: scene.text, kind: scene.kind } satisfies AuthorScene));
   const sequence = sequenceFor(subject, movie, realization.scenes);
   const complete = scenes.length > 0 && scenes.length === sequence.cuts.length;
