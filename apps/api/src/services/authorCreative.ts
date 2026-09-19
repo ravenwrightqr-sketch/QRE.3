@@ -116,11 +116,11 @@ export async function createAuthorExperience(input: {
         content: JSON.stringify({
           subject: input.subject,
           PLAYABLE_REALITY: input.playableEvents,
-          BACKGROUND_EVIDENCE: (input.backgroundEvents ?? []).map((event) => event.text),
+          BACKGROUND_EVIDENCE: input.backgroundEvents ?? [],
           MEMORY: (input.memory ?? []).slice(0, 20),
           BUSINESS_CONTEXT: input.domainContext,
           CREATIVE_DISCOVERY: input.creativeDiscovery,
-          instruction: "Create the QRE experience from PLAYABLE_REALITY. BACKGROUND_EVIDENCE stays underneath and must not become its own beat. Apply the lens as pressure to the discovered relation, then realize it in tiny moving-text cuts.",
+          instruction: "Create the QRE experience from PLAYABLE_REALITY plus relationships supported by BACKGROUND_EVIDENCE. A single background fact must not become its own beat; when background evidence supports a higher-level perception, cite multiple background event IDs together. Apply the lens as pressure to the discovered relation, then realize it in tiny moving-text cuts.",
         }),
       },
     ],
