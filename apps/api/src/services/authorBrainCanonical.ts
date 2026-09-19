@@ -324,31 +324,26 @@ function semanticEvidenceUnitGroups(
     /*
      * Convergence is a viewer-recognition problem, not a batching problem.
      *
-     * Do not hand Mouth a first cut containing several source facts: that
-     * structurally invites a fact parade ("walks. bacon. small dogs.").
-     *
-     * Stage one grounded anchor first. Then give the landing beat the complete
-     * approved evidence set so it can realize what the details mean together.
-     * Evidence may therefore participate in more than one viewer-update beat;
-     * concrete truth remains unchanged and provenance remains explicit.
+     * Do not turn each supplied detail into its own visible slot. That makes
+     * source-label parade the path of least resistance. Instead, give Mouth a
+     * small set of attention functions over the shared evidence: an opening
+     * pressure, an optional recontextualizing turn, and a landing recognition.
+     * The model may still omit, combine, delay, echo, or transform individual
+     * facts because concrete truth is enforced later by realization authority.
      */
-    if (relevantSteps.length === 1) {
+    if (relevantSteps.length <= 2) {
       return [relevantSteps];
     }
 
-    /*
-     * A convergence needs room for the observer to assemble the pattern.
-     *
-     * Two oversized beats force Mouth to jump from one fact to a generic
-     * summary. Give each participating evidence unit a perceptual cut, then
-     * give the complete constellation one landing cut. This does not require
-     * literal replay: every evidence cut is still scored as an authored
-     * realization, while the final cut owns the joint recognition.
-     */
+    const opening = relevantSteps.slice(0, Math.max(1, Math.ceil(relevantSteps.length / 3)));
+    const turn = relevantSteps.slice(opening.length, -1);
+    const landing = relevantSteps;
+
     return [
-      ...relevantSteps.map((step) => [step]),
-      relevantSteps,
-    ];
+      opening,
+      ...(turn.length ? [turn] : []),
+      landing,
+    ].filter((group) => group.length > 0);
   }
 
   const before = new Set(unique(semantic.beforeEventIds ?? []));

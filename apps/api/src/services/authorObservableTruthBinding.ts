@@ -92,6 +92,9 @@ const SEQUENCE_LANGUAGE =
 const CONTINUITY_LANGUAGE =
   /\b(?:still|already|continues?|continued|remains?|remained)\b/i;
 
+const OBSERVABLE_PREPOSITIONAL_CONTEXT =
+  /\b(?:at|in|on|inside|outside|near|around|through|into|onto|under|over)\s+(?:(?:the|a|an|this|that|my|your|his|her|our|their)\s+)?[a-z0-9][a-z0-9'â€™-]*\b/i;
+
 function referenceTokens(value: string): Set<string> {
   return new Set([...tokens(value)].filter((token) => !FUNCTION_WORDS.has(token)));
 }
@@ -291,6 +294,24 @@ function sourcePronounAuthority(text: string, envelope: RealityEnvelope): boolea
   );
 }
 
+function continuityAsStatusFrame(value: string): boolean {
+  if (
+    !CONTINUITY_LANGUAGE.test(value) ||
+    RECURRENCE_LANGUAGE.test(value) ||
+    SEQUENCE_LANGUAGE.test(value)
+  ) {
+    return false;
+  }
+
+  /*
+   * "Remains non-negotiable" is status/attitude language, not a new
+   * observable chronology. Continuity wording becomes a hard chronology claim
+   * when it points at place/context/relations or otherwise binds observable
+   * world material; abstract status framing stays in semantic-quality land.
+   */
+  return !OBSERVABLE_PREPOSITIONAL_CONTEXT.test(value);
+}
+
 function bindReference(input: {
   value: string;
   allowedConcrete: readonly string[];
@@ -344,6 +365,7 @@ function chronologyClaim(
     CONTINUITY_LANGUAGE.test(value);
 
   if (!hasChronology) return undefined;
+  if (continuityAsStatusFrame(value)) return undefined;
 
   const source = chronologyAuthorityCorpus(beat, envelope);
 
