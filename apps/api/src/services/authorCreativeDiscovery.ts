@@ -46,6 +46,7 @@ export type AuthorCreativeDiscovery = {
   tension: string;
   surprisePotential: string;
   payoffPotential: string;
+  experienceShape: string[];
   thesis: string;
   lens: string;
   confidence: number;
@@ -73,14 +74,19 @@ export async function discoverAuthorCreativeDirection(input: {
     "Think: REALITY -> CHARACTER/IDENTITY -> PATTERN -> CONNECTION -> SURPRISE -> MEMORY.",
     "Also think: FACT -> RELATIONSHIP -> CONSEQUENCE -> MEANING.",
     "The best discovery gives QRE something the viewer can mentally continue filling in.",
+    "Also design a short EXPERIENCE SHAPE: 3-7 abstract viewer-state moves describing how the reading should progress. This is not a mandatory genre arc and not final prose. Derive it from the material.",
+    "Examples of possible shapes: ordinary -> challenged -> losing ground -> victory; preference -> hierarchy -> conflict -> defining rule; nervous -> connection -> return -> reinterpretation. Invent the shape that fits the supplied reality.",
     "Entertainment matters more than sounding profound. Prefer a specific idea over a generic tone.",
     "Do not write scenes, captions, camera directions, dialogue, or final prose.",
     "Do not invent concrete people, objects, actions, conditions, operations, reactions, sensory evidence, before-states, after-states, or future events.",
     "Interpretive language is allowed. You may say the facts behave like a hierarchy, campaign, contest, negotiation, game, trial, resistance, victory, reversal, heist, comedy, horror, romance, or something else when that describes the relationship rather than asserting a literal event.",
     "Do not infer grime from cleaning, happiness from completion, or any plausible condition not supplied.",
+    "Contrastive examples:",
+    "FACTS: arrived 9:04; cleaned kitchen; cleaned two bathrooms; finished 11:47. STRONG DISCOVERY: progressive conquest — the house can lose ground room by room until completion reads as victory. WEAK DISCOVERY: chronometric optimization, efficiency, possible interruption, or a hidden obstacle. Those analyze the job instead of finding the entertaining idea.",
+    "FACTS: loves walks; bacon; small dogs. STRONG DISCOVERY: a priority system or taste hierarchy that reveals character. WEAK DISCOVERY: list the preferences or invent an event where the subject chooses among them.",
     "A requested lens is creative intent, not permission to falsify reality.",
     "Return ONE lens only, or NONE.",
-    "Return JSON only: {\"relationship\":\"...\",\"change\":\"...\",\"organizingIdea\":\"...\",\"subjectPattern\":\"...\",\"tension\":\"...\",\"surprisePotential\":\"...\",\"payoffPotential\":\"...\",\"thesis\":\"...\",\"lens\":\"...\",\"confidence\":0.0,\"risk\":\"...\"}.",
+    "Return JSON only: {\"relationship\":\"...\",\"change\":\"...\",\"organizingIdea\":\"...\",\"subjectPattern\":\"...\",\"tension\":\"...\",\"surprisePotential\":\"...\",\"payoffPotential\":\"...\",\"experienceShape\":[\"...\",\"...\"],\"thesis\":\"...\",\"lens\":\"...\",\"confidence\":0.0,\"risk\":\"...\"}.",
   ].join("\n");
 
   const result = await localModelGenerate(
@@ -111,6 +117,13 @@ export async function discoverAuthorCreativeDirection(input: {
       tension: clean(parsed?.tension),
       surprisePotential: clean(parsed?.surprisePotential),
       payoffPotential: clean(parsed?.payoffPotential),
+      experienceShape: Array.isArray(parsed?.experienceShape)
+        ? parsed.experienceShape
+            .filter((value): value is string => typeof value === "string")
+            .map(clean)
+            .filter(Boolean)
+            .slice(0, 7)
+        : [],
       thesis: clean(parsed?.thesis),
       lens: clean(parsed?.lens) || requestedLens || "NONE",
       confidence: clamp(parsed?.confidence, 0.65),
