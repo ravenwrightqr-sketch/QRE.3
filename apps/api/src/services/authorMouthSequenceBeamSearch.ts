@@ -836,16 +836,16 @@ function expressionQuality(
     );
 
   return metric(
-    safety * 0.14 +
-      grounding * 0.14 +
+    safety * 0.20 +
+      grounding * 0.03 +
       semantic * 0.18 +
-      experiential * 0.16 +
-      consequence * 0.12 +
-      distinctive * 0.10 +
+      experiential * 0.15 +
+      consequence * 0.11 +
+      distinctive * 0.15 +
       compression * 0.03 +
       earnedCompression * 0.07 +
-      novelty * 0.05 +
-      contrast * 0.05,
+      novelty * 0.08 +
+      contrast * 0.08,
   );
 }
 
@@ -1041,24 +1041,11 @@ function localAuthority(
       candidate.forbiddenMoveRisk,
     );
 
-  const authorization =
-    candidate.authorization?.authorized
-      ? candidate.authorization.directGrounded
-        ? 1
-        : candidate.authorization.semanticAuthorized
-          ? 0.88
-          : 0.76
-      : 0;
-
   return metric(
-    safety * 0.34 +
-      authorization * 0.30 +
-      candidate.groundingScore *
-        0.18 +
-      candidate.meaningScore *
-        0.10 +
-      candidate.transitionScore *
-        0.08,
+    safety * 0.70 +
+      candidate.meaningScore * 0.12 +
+      candidate.observerDiscoveryScore * 0.10 +
+      candidate.noveltyScore * 0.08,
   );
 }
 
@@ -1502,108 +1489,26 @@ function compareCandidates(
   a: MouthCandidate,
   b: MouthCandidate,
 ): number {
-  const aSafe =
-    isSafe(
-      a,
-    );
+  const aSafe = isSafe(a);
+  const bSafe = isSafe(b);
 
-  const bSafe =
-    isSafe(
-      b,
-    );
-
-  if (
-    aSafe !==
-    bSafe
-  ) {
-    return aSafe
-      ? -1
-      : 1;
+  if (aSafe !== bSafe) {
+    return aSafe ? -1 : 1;
   }
 
-  const aAuthority =
-    localAuthority(
-      a,
-    );
-
-  const bAuthority =
-    localAuthority(
-      b,
-    );
-
-  if (
-    aAuthority !==
-    bAuthority
-  ) {
-    return (
-      bAuthority -
-      aAuthority
-    );
+  if (a.score !== b.score) {
+    return b.score - a.score;
   }
 
-  const aStateProxy =
-    metric(
-      a.transitionScore *
-        0.55 +
-        a.meaningScore *
-          0.45,
-    );
-
-  const bStateProxy =
-    metric(
-      b.transitionScore *
-        0.55 +
-        b.meaningScore *
-          0.45,
-    );
-
-  if (
-    aStateProxy !==
-    bStateProxy
-  ) {
-    return (
-      bStateProxy -
-      aStateProxy
-    );
+  if (a.observerDiscoveryScore !== b.observerDiscoveryScore) {
+    return b.observerDiscoveryScore - a.observerDiscoveryScore;
   }
 
-  if (
-    a.endpointExactness !==
-    b.endpointExactness
-  ) {
-    return (
-      b.endpointExactness -
-      a.endpointExactness
-    );
+  if (a.noveltyScore !== b.noveltyScore) {
+    return b.noveltyScore - a.noveltyScore;
   }
 
-  if (
-    a.supportedEventIds.length !==
-    b.supportedEventIds.length
-  ) {
-    return (
-      b.supportedEventIds.length -
-      a.supportedEventIds.length
-    );
-  }
-
-  if (
-    a.groundingScore !==
-    b.groundingScore
-  ) {
-    return (
-      b.groundingScore -
-      a.groundingScore
-    );
-  }
-
-  return clean(
-    a.text,
-  ).localeCompare(
-    clean(
-      b.text,
-    ),
-  );
+  return clean(a.text).localeCompare(clean(b.text));
 }
 
 function dedupeCandidates(
