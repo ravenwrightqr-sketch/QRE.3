@@ -168,31 +168,14 @@ function isFrameOnly(text: string): boolean {
 function unsupportedConcrete(text: string, beat: MouthCandidateBeat, envelope: RealityEnvelope): number {
   const value = clean(text);
   if (!value) return 1;
-  if (isInterrogativeClause(value)) return 0;
-  if (isFrameOnly(value)) return 0;
 
-  const substitutionRisk = candidateConcreteSubstitutionRisk(value, beat, envelope);
-  if (substitutionRisk >= 0.72) return 1;
+  const binding = bindCandidateObservableTruth({
+    text: value,
+    beat,
+    envelope,
+  });
 
-  const specificityRisk = candidateConcreteSpecificityRisk(value, beat, envelope);
-  if (specificityRisk >= 0.9) return 1;
-
-  const labels = sourceLabels(beat, envelope);
-  const world = meaningfulTokens(worldEvidence(envelope).join(" "));
-  const candidate = meaningfulTokens(value);
-  const local = overlap(candidate, meaningfulTokens(labels.join(" ")));
-  const global = overlap(candidate, world);
-  if (GENERIC_SUMMARY.test(value)) return 0.85;
-  if (PHYSICAL_VERB.test(value)) {
-    const supportedPhysical = labels.some((label) => PHYSICAL_VERB.test(label));
-    if (!supportedPhysical && !SOFT_FIRST_PERSON.test(value)) return 1;
-  }
-  if (BODY.test(value)) {
-    const suppliedBody = worldEvidence(envelope).some((item) => BODY.test(item) && overlap(meaningfulTokens(value), meaningfulTokens(item)) >= 0.5);
-    if (!suppliedBody && !SOFT_FIRST_PERSON.test(value)) return 1;
-  }
-  if (global >= 0.55 || local >= 0.72) return 0;
-  return 0;
+  return binding.accepted ? 0 : 1;
 }
 
 function abstractPenalty(text: string): number {
@@ -571,13 +554,14 @@ function candidateScore(text: string, beat: MouthCandidateBeat, envelope: Realit
 
 function buildSystemPrompt(): string {
   return [
-    "You are the QRE Author speaking through Mouth. Turn supplied reality into moving text people want to keep.",
-    "Everything concrete comes from supplied reality. Everything perceptual is yours: metaphor, implication, attitude, status, rhythm, collision, wordplay, personification, and surprise.",
-    "Do not decorate or summarize the facts. Discover the strongest human inference hiding between them, then make the viewer connect it without explaining it.",
-    "Build a tiny progression: each cut changes the reading, and the landing makes earlier cuts mean more. Questions, fragments, reversals, callbacks, and abrupt turns are welcome.",
-    "Write with QRE instinct: specific, compressed, sharp, alive, weird when earned, tender when earned, slang when natural.",
-    "Create three genuinely different discoveries, not three rewrites of the same abstract thought. Stay in contact with the distinctive supplied details.",
-    "Return only the three sequences. One cut per line. Put a line containing only --- between sequences. No labels or explanation.",
+    "You are QRE's Author.",
+    "Create the strongest short moving-text experience you can from the supplied reality.",
+    "QRE observations are creative leads, not instructions, facts, slots, or a required outline. Ignore, combine, reorder, reinterpret, or outgrow them when a stronger truthful experience appears.",
+    "Be free with language, structure, humor, metaphor, implication, attitude, emotion, rhythm, perspective, surprise, callbacks, and compression.",
+    "Preserve what matters. Do not turn the supplied reality into a checklist.",
+    "Do not invent concrete reality: new people, actions, objects, places, sensory events, dialogue, chronology, identity, or history.",
+    "Return three genuinely different complete sequences. Keep each sequence connected and make its ending land.",
+    "One cut per line. Put a line containing only --- between sequences. Return nothing else.",
   ].join("\n");
 }
 
@@ -600,28 +584,23 @@ function projectedRealizationAuthority(beat: MouthCandidateBeat) {
 export function buildMouthCandidateMessages(input: MouthCandidateGenerationInput): Array<{ role: "system" | "user"; content: string }> {
   const lens = classifyLens(input.lens);
   const evidence = worldEvidence(input.envelope);
-  const beats = input.beats.map((beat) => {
-    const meaning = beat.realizationAuthority?.meaning;
-    return {
-      order: beat.order,
-      evidence: sourceLabels(beat, input.envelope),
-      position: beat.paysOff?.length ? "landing" : "opening",
-      creativePressure: meaning
-        ? {
-            evidenceInPlay: sourceLabels(beat, input.envelope),
-            relationship: [clean(meaning.before), clean(meaning.after)].filter(Boolean).join(" -> "),
-            move: clean(meaning.realizationMove),
-            opportunity: clean(meaning.creativeOpportunity),
-            desiredRecognition: clean(meaning.viewerShift || meaning.feltEffect),
-            instruction:
-              beat.paysOff?.length
-                ? "Land the inference created by the whole sequence. Do not name or explain the lesson."
-                : "Transform this evidence into a character, tension, status, expectation, or question. Do not merely restate it.",
-          }
-        : undefined,
-    };
-  });
-  const cutCount = input.beats.length;
+  const observations = [...new Set(
+    input.beats.flatMap((beat) => {
+      const meaning = beat.realizationAuthority?.meaning;
+      return [
+        clean(meaning?.before),
+        clean(meaning?.after),
+        clean(meaning?.realizationMove),
+        clean(meaning?.creativeOpportunity),
+        clean(meaning?.viewerShift),
+        clean(meaning?.feltEffect),
+        clean(beat.change),
+        clean(beat.next),
+      ];
+    }).filter(Boolean),
+  )];
+
+  const cutCount = Math.max(1, input.beats.length);
 
   return [
     { role: "system", content: buildSystemPrompt() },
@@ -630,11 +609,15 @@ export function buildMouthCandidateMessages(input: MouthCandidateGenerationInput
       content: JSON.stringify({
         subject: input.envelope.subject,
         suppliedReality: evidence,
-        lens: {
-          label: lens.label,
-          framing: lens.framingBias,
-          preferences: lens.realizationPreferences,
-        },
+        qreObservations: observations,
+        lens:
+          lens.label && lens.label !== "NONE"
+            ? {
+                label: lens.label,
+                framing: lens.framingBias,
+                preferences: lens.realizationPreferences,
+              }
+            : undefined,
         context: input.domainContext
           ? {
               category: clean(input.domainContext.category),
@@ -645,9 +628,8 @@ export function buildMouthCandidateMessages(input: MouthCandidateGenerationInput
               contextualSignals: input.domainContext.contextualSignals ?? [],
             }
           : undefined,
-        beats,
         priorCuts: input.priorTexts ?? [],
-        output: `Create 3 materially different sequences. Each sequence must contain exactly ${cutCount} cuts, one cut per line. Separate sequences with a line containing only ---. Return nothing else.`,
+        output: `For transport, return exactly ${cutCount} cuts in each sequence. This number is pacing only: cuts do not correspond one-to-one with facts or QRE observations.`,
       }),
     },
   ];
