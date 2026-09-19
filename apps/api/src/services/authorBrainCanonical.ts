@@ -28,9 +28,9 @@ import { buildAuthorRealityGraph } from "./authorRealityGraph.js";
 import type { AuthorReadout } from "./authorReadout.js";
 import { extractAuthorReality } from "./authorRealityExtractor.js";
 import {
-  buildAuthorCreativeRead,
-  type AuthorCreativeRead,
-} from "./authorCreativeRead.js";
+  discoverAuthorCreativeDirection,
+  type AuthorCreativeDiscovery,
+} from "./authorCreativeDiscovery.js";
 import { createAuthorExperience } from "./authorCreative.js";
 
 const clean = (value: unknown): string =>
@@ -48,14 +48,20 @@ type CreativeSelection = {
   risk: string;
 };
 
-function selectionFromRead(read: AuthorCreativeRead): CreativeSelection {
+function selectionFromDiscovery(discovery: AuthorCreativeDiscovery): CreativeSelection {
   return {
-    relationship: read.relationship,
-    latentMovie: read.thesis,
-    frame: read.lens,
-    confidence: read.confidence,
-    why: unique([read.change, read.pressure, read.consequence]).join(" | "),
-    risk: read.risk,
+    relationship: discovery.relationship,
+    latentMovie: discovery.thesis,
+    frame: discovery.lens,
+    confidence: discovery.confidence,
+    why: unique([
+      discovery.organizingIdea,
+      discovery.subjectPattern,
+      discovery.tension,
+      discovery.surprisePotential,
+      discovery.payoffPotential,
+    ]).join(" | "),
+    risk: discovery.risk,
   };
 }
 
@@ -112,7 +118,7 @@ function makeSequence(
 }
 
 function makeMovie(
-  read: AuthorCreativeRead,
+  discovery: AuthorCreativeDiscovery,
   events: Array<{ id: string; text: string }>,
 ): LatentMovieCandidate {
   const trajectory: LatentMovieTrajectoryStep[] = events.map((event, index) => ({
@@ -130,14 +136,14 @@ function makeMovie(
 
   return {
     id: "qre-creative-read",
-    lens: read.lens,
+    lens: discovery.lens,
     anchorEventIds: events.map((event) => event.id),
     supportingRelationKinds: [],
     trajectory,
-    payoff: read.consequence || (events.length ? events[events.length - 1]!.text : ""),
+    payoff: discovery.payoffPotential || (events.length ? events[events.length - 1]!.text : ""),
     unresolvedQuestion: "",
     evidence: events.map((event) => event.text),
-    hypothesis: [read.thesis || read.relationship || "Grounded creative reading of supplied reality."],
+    hypothesis: [discovery.thesis || discovery.relationship || "Grounded creative discovery from supplied reality."],
     truthRisk: 0,
     novelty: 0.7,
     specificity: 1,
@@ -228,9 +234,9 @@ export type CanonicalAuthorResult = {
     experienceJudge?: undefined;
     realizedFilmJudge?: undefined;
     selectedFrame?: CreativeSelection;
-    creativeRead?: AuthorCreativeRead;
+    creativeDiscovery?: AuthorCreativeDiscovery;
     realityModel?: string;
-    creativeReadModel?: string;
+    creativeDiscoveryModel?: string;
   };
   adaptiveQuestions: Array<{ kind: string; question: string; reason: string }>;
   world: ReturnType<typeof buildAuthorRealityGraph>;
@@ -278,7 +284,7 @@ export async function authorBrainCanonical(
     }))
     .filter((event) => event.text);
 
-  const creativeReadResult = await buildAuthorCreativeRead({
+  const discoveryResult = await discoverAuthorCreativeDirection({
     facts: events.map((event) => event.text),
     requestedLens: input.lens,
     memory: input.memoryContext ?? [],
@@ -287,29 +293,29 @@ export async function authorBrainCanonical(
   const creativeResult = await createAuthorExperience({
     subject,
     events,
-    creativeRead: creativeReadResult.read,
+    creativeDiscovery: discoveryResult.discovery,
     memory: input.memoryContext ?? [],
   });
 
-  const movie = makeMovie(creativeReadResult.read, events);
+  const movie = makeMovie(discoveryResult.discovery, events);
   const sequence = makeSequence(
     subject,
-    creativeReadResult.read.thesis || creativeReadResult.read.relationship,
+    discoveryResult.discovery.thesis || discoveryResult.discovery.relationship,
     creativeResult.scenes,
   );
 
   const scenes = creativeResult.scenes.map(({ text, kind }) => ({ text, kind }));
   const complete = scenes.length > 0;
-  const selection = selectionFromRead(creativeReadResult.read);
+  const selection = selectionFromDiscovery(discoveryResult.discovery);
 
   const brief: AuthorCreativeBrief = {
-    angle: creativeReadResult.read.lens,
-    engine: "Reality -> Creative Read -> QRE Creative",
+    angle: discoveryResult.discovery.lens,
+    engine: "Reality -> Creative Discovery -> QRE Creative",
     question: "",
     strongestImage: events[0]?.text ?? "",
-    tension: creativeReadResult.read.pressure || creativeReadResult.read.relationship,
+    tension: discoveryResult.discovery.tension || discoveryResult.discovery.relationship,
     payoff:
-      creativeReadResult.read.consequence ||
+      discoveryResult.discovery.payoffPotential ||
       (scenes.length ? scenes[scenes.length - 1]!.text : ""),
     callback: "none",
     rhythm: ["standard"],
@@ -336,7 +342,7 @@ export async function authorBrainCanonical(
       model: creativeResult.model,
       modelCalls:
         receipt.modelCalls +
-        creativeReadResult.modelCalls +
+        discoveryResult.modelCalls +
         creativeResult.modelCalls,
       candidateSequences: 1,
       acceptedCandidates: complete ? 1 : 0,
@@ -346,9 +352,9 @@ export async function authorBrainCanonical(
       selectedScore: complete ? 1 : 0,
       rejectedCandidates: [],
       selectedFrame: selection,
-      creativeRead: creativeReadResult.read,
+      creativeDiscovery: discoveryResult.discovery,
       realityModel: receipt.model,
-      creativeReadModel: creativeReadResult.model,
+      creativeDiscoveryModel: discoveryResult.model,
     },
     adaptiveQuestions: [],
     world,
