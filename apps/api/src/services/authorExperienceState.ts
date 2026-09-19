@@ -6,14 +6,66 @@ import type {
   RealityGraph,
   RealityRelation,
 } from "@qre/contracts";
-import {
-  detectAuthorMemoryContinuity,
-  summarizeAuthorMemoryContinuity,
-} from "./authorMemoryContinuity.js";
-
 const clean = (value: unknown): string => String(value ?? "").replace(/\s+/g, " ").trim();
 const metric = (value: number): number => Number(Math.max(0, Math.min(1, value)).toFixed(3));
 const uniq = <T>(values: readonly T[], limit = 64): T[] => [...new Set(values)].slice(0, limit);
+
+function normalizedWords(value: string): string[] {
+  return clean(value)
+    .toLowerCase()
+    .split(/[^a-z0-9]+/)
+    .filter((word) => word.length >= 3);
+}
+
+function sharesMeaningfulAnchor(current: string, prior: string): boolean {
+  const a = clean(current).toLowerCase();
+  const b = clean(prior).toLowerCase();
+  if (!a || !b) return false;
+  if (a.includes(b) || b.includes(a)) return true;
+
+  const priorWords = new Set(normalizedWords(prior));
+  const currentWords = normalizedWords(current);
+  const shared = currentWords.filter((word) => priorWords.has(word));
+
+  return shared.length >= 2;
+}
+
+function detectAuthorMemoryContinuity(
+  events: RealityGraph["events"],
+  priorRealityAnchors: readonly string[],
+): string[] {
+  if (!priorRealityAnchors.length) return [];
+
+  return uniq(
+    events
+      .filter((item) =>
+        priorRealityAnchors.some((anchor) =>
+          sharesMeaningfulAnchor(item.label, anchor),
+        ),
+      )
+      .map((item) => item.id),
+    24,
+  );
+}
+
+function summarizeAuthorMemoryContinuity(
+  events: RealityGraph["events"],
+  priorRealityAnchors: readonly string[],
+): string[] {
+  if (!priorRealityAnchors.length) return [];
+
+  return uniq(
+    events.flatMap((item) => {
+      const match = priorRealityAnchors.find((anchor) =>
+        sharesMeaningfulAnchor(item.label, anchor),
+      );
+      return match
+        ? [`revisit: ${clean(match)} -> ${clean(item.label)}`]
+        : [];
+    }),
+    16,
+  );
+}
 
 function event(graph: RealityGraph, id: string) { return graph.events.find((item) => item.id === id); }
 function eventLabel(graph: RealityGraph, id: string): string { return clean(event(graph, id)?.label); }
