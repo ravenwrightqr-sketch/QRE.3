@@ -50,6 +50,20 @@ const forbiddenTokens = [
   "microBeatMouth",
 ];
 
+const allowedAuthorServiceFiles = new Set([
+  "authorRealityExtractor.ts",
+  "authorRealityGraph.ts",
+  "authorCreativeDiscovery.ts",
+  "authorCreative.ts",
+  "authorBrainCanonical.ts",
+  "authorReadout.ts",
+  "authorTruth.ts",
+  "authorExperienceMemory.ts",
+  "authorExperienceState.ts",
+  "authorBehaviorProfile.ts",
+  "authorAdaptiveTempo.ts",
+]);
+
 const read = (p) => readFileSync(join(root, p), "utf8");
 function walk(dir, out = []) {
   if (!existsSync(dir)) return out;
@@ -69,6 +83,14 @@ for (const token of ["authorRealityExtractor.js", "authorRealityGraph.js", "auth
   if (!brain.includes(token)) failures.push(`canonical-brain missing ${token}`);
 }
 if (/localModelGenerate\s*\(/.test(brain)) failures.push("canonical-brain must orchestrate, not call the model directly");
+
+const authorServiceDir = join(root, "apps/api/src/services");
+for (const file of walk(authorServiceDir).filter((p) => /author[^/\\]*\.ts$/i.test(p))) {
+  const name = file.split(/[\\/]/).pop();
+  if (name && !allowedAuthorServiceFiles.has(name)) {
+    failures.push(`unapproved-author-service-file: ${relative(root, file).replaceAll("\\", "/")}`);
+  }
+}
 
 const sourceFiles = walk(join(root, "apps/api/src")).filter((p) => /\.(ts|tsx|js|mjs)$/.test(p));
 for (const file of sourceFiles) {
