@@ -369,6 +369,59 @@ function semanticEvidenceUnitGroups(
   return [relevantSteps];
 }
 
+function inferenceTrajectoryFor(input: {
+  inferenceKind?: string;
+  groupIndex: number;
+  groupCount: number;
+}): {
+  role?: MouthCandidateBeat["role"];
+  attentionFunction?: string;
+  change?: string;
+} | undefined {
+  const kind = clean(input.inferenceKind).toLowerCase();
+  if (kind !== "preference_constellation") return undefined;
+
+  const final = input.groupIndex === input.groupCount - 1;
+
+  if (input.groupCount <= 1) {
+    return {
+      role: "payoff",
+      attentionFunction:
+        "Let several supplied preferences collapse into one recognizable character impression. The observer should feel the personality pattern without QRE naming it.",
+      change:
+        "Separate preferences become one character read in the observer's mind.",
+    };
+  }
+
+  if (input.groupIndex === 0) {
+    return {
+      role: "hook",
+      attentionFunction:
+        "Catch attention through one supplied preference as desire, fixation, selective attention, attitude, or voice. Do not stage an occurrence.",
+      change:
+        "A supplied preference becomes an attention pressure rather than a factual restatement.",
+    };
+  }
+
+  if (final) {
+    return {
+      role: "payoff",
+      attentionFunction:
+        "Let the accumulated preferences resolve into personality or self-presentation. Land the recognition without explaining the trait.",
+      change:
+        "The preference pattern resolves into a recognizable character read.",
+    };
+  }
+
+  return {
+    role: "reframe",
+    attentionFunction:
+      "Let another supplied preference interrupt, outrank, contrast with, or reframe the current attention. Movement happens in priority and interpretation, not in an invented physical scene.",
+    change:
+      "A new supplied preference changes the observer's current priority or interpretation.",
+  };
+}
+
 function inferenceChangeForGroup(input: {
   semantic?: NonNullable<LatentMovieCandidate["storyThesis"]>["semanticRealization"];
   groupIndex: number;
@@ -410,6 +463,7 @@ function inferenceChangeForGroup(input: {
 export function composeTrajectoryBeats(
   movie: LatentMovieCandidate,
   envelope: ReturnType<typeof buildAuthorRealityEnvelope>,
+  inferenceKind?: string,
 ): MouthCandidateBeat[] {
   const steps = [...movie.trajectory];
   if (!steps.length) return [];
@@ -529,15 +583,23 @@ export function composeTrajectoryBeats(
           "Do not spend a cut merely repeating already-known evidence.",
         ];
 
+    const inferenceTrajectory = inferenceTrajectoryFor({
+      inferenceKind,
+      groupIndex,
+      groupCount: groups.length,
+    });
+
     return {
       order: groupIndex + 1,
       role:
-        final
+        inferenceTrajectory?.role ??
+        (final
           ? "payoff"
           : groupIndex === 0
             ? "establishing"
-            : "reveal",
+            : "reveal"),
       attentionFunction: [
+        inferenceTrajectory?.attentionFunction,
         ...viewerObjective,
         clean(first?.viewerChange),
       ]
@@ -549,7 +611,7 @@ export function composeTrajectoryBeats(
           ? "synthesis"
           : clean(last?.operation) || undefined,
       eventIds,
-      change,
+      change: inferenceTrajectory?.change ?? change,
       next: clean(last?.nextQuestion),
       frontier: clean(last?.nextQuestion),
       paysOff: final ? [movie.payoff] : [],
@@ -1644,7 +1706,11 @@ export async function authorBrainCanonical(
     movie,
     envelope,
   });
-  const composedBeats = composeTrajectoryBeats(movie, envelope);
+  const composedBeats = composeTrajectoryBeats(
+    movie,
+    envelope,
+    cognition.selectedInference?.kind,
+  );
   const authorityBeats = composedBeats.map((beat) => ({
     ...beat,
     realizationAuthority: buildMouthRealizationAuthority({
@@ -1722,14 +1788,31 @@ export async function authorBrainCanonical(
       beat: wholeWorldSeed,
       envelope,
     });
-    return Array.from({ length: count }, (_, index) => ({
-      ...wholeWorldSeed,
-      order: index + 1,
-      role: index === count - 1 ? "payoff" : index === 0 ? "establishing" : "discovery",
-      attentionFunction: index === count - 1 ? "payoff" : index === 0 ? "establish" : "advance",
-      eventIds,
-      realizationAuthority,
-    }));
+    return Array.from({ length: count }, (_, index) => {
+      const sourceBeat =
+        realizationBeats[
+          Math.min(
+            index,
+            Math.max(0, realizationBeats.length - 1),
+          )
+        ] ?? wholeWorldSeed;
+      const final = index === count - 1;
+
+      return {
+        ...wholeWorldSeed,
+        ...sourceBeat,
+        order: index + 1,
+        role:
+          final
+            ? "payoff"
+            : sourceBeat.role ?? (index === 0 ? "establishing" : "discovery"),
+        attentionFunction:
+          clean(sourceBeat.attentionFunction) ||
+          (final ? "payoff" : index === 0 ? "establish" : "advance"),
+        eventIds,
+        realizationAuthority,
+      };
+    });
   };
 
   const scoreWholeVariants = (variants: readonly string[][]): MouthCandidatePool[][] =>
@@ -2014,11 +2097,25 @@ export async function authorBrainCanonical(
               const final = index === selected.candidates.length - 1;
               const first = index === 0;
 
+              const sourceBeat =
+                realizationBeats[
+                  Math.min(
+                    index,
+                    Math.max(0, realizationBeats.length - 1),
+                  )
+                ] ?? wholeWorldSeed;
+
               return {
                 ...wholeWorldSeed,
+                ...sourceBeat,
                 order: index + 1,
-                role: final ? "payoff" : first ? "establishing" : "discovery",
-                attentionFunction: final ? "payoff" : first ? "establish" : "advance",
+                role:
+                  final
+                    ? "payoff"
+                    : sourceBeat.role ?? (first ? "establishing" : "discovery"),
+                attentionFunction:
+                  clean(sourceBeat.attentionFunction) ||
+                  (final ? "payoff" : first ? "establish" : "advance"),
                 eventIds,
                 realizationAuthority,
               };
