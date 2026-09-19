@@ -170,8 +170,23 @@ function mouthRealityEvidence(envelope: RealityEnvelope): string[] {
 const ACTIVE_PREFERENCE_SIGNAL =
   /\b(?:love|loves|like|likes|prefer|prefers|favorite|favourite|enjoy|enjoys|hate|hates|avoid|avoids|into)\b/i;
 
-function hasActivePreferenceConstellation(evidence: readonly string[]): boolean {
-  return evidence.filter((item) => ACTIVE_PREFERENCE_SIGNAL.test(clean(item))).length >= 2;
+function hasActivePreferenceConstellation(envelope: RealityEnvelope): boolean {
+  const structuredPreferences = envelope.events.filter((event) =>
+    ACTIVE_PREFERENCE_SIGNAL.test(clean(event.label)),
+  );
+
+  if (structuredPreferences.length >= 2) return true;
+
+  /*
+   * Some inputs arrive as one compact profile phrase while RealityGraph
+   * expands them into several preference events. Prefer structured reality,
+   * but retain the supplied phrase as a compatibility fallback.
+   */
+  return envelope.suppliedPhrases.some((phrase) => {
+    const value = clean(phrase);
+    if (!ACTIVE_PREFERENCE_SIGNAL.test(value)) return false;
+    return value.split(/[,;/]|\band\b/i).map(clean).filter(Boolean).length >= 2;
+  });
 }
 
 function suppliedIdentity(text: string, envelope: RealityEnvelope): boolean {
@@ -654,7 +669,7 @@ export function buildMouthCandidateMessages(input: MouthCandidateGenerationInput
   const lens = classifyLens(input.lens);
   const evidence = mouthRealityEvidence(input.envelope);
   const dogSocialContextActive = Boolean(
-    input.domainContext?.dogTag && hasActivePreferenceConstellation(evidence),
+    input.domainContext?.dogTag && hasActivePreferenceConstellation(input.envelope),
   );
 
   const mechanisms = [...new Set(
