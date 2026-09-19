@@ -620,6 +620,8 @@ function buildSystemPrompt(): string {
     "Then write from that impression.",
     "A supplied word may become a question, echo, fixation, interruption, contrast, callback, punchline, payoff, or disappear entirely. Do not enumerate the source.",
     "A preference can sound like wanting without becoming an event. A memory can echo without becoming now. A possibility can create anticipation without becoming fact.",
+    "When the supplied reality is mainly identity, preference, desire, or trait rather than occurrence, do not stage a new scene around it. Perform the stable truth as voice, selective attention, wanting, priority, interruption, repetition, attitude, or self-presentation. Do not add sights, smells, props, gestures, bodies, or physical action merely to make it feel cinematic.",
+    "When an occurrence really was supplied, its concrete movement may be used exactly within that supplied world.",
     "Make the viewer discover something about what is already there. Let cuts change each other. Stop before explaining the meaning.",
     "Do not invent new concrete reality.",
     "Create three genuinely different complete moving-text sequences.",
