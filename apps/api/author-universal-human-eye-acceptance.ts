@@ -546,12 +546,18 @@ async function runCase(testCase: UniversalCase): Promise<{
     actionMechanics: trace.actionMechanics,
     selectedActionMechanics:
       trace.selectedActionMechanics,
+    inferenceHypotheses:
+      trace.inferenceHypotheses,
+    selectedInference:
+      trace.selectedInference,
     unresolvedTensions: reality.unresolvedTensions,
     recurringSignals: reality.recurringSignals,
     sensorySignals: reality.sensorySignals,
     relations: reality.relations,
     eventStructure: reality.eventStructure,
   });
+  section("INFERENCE HYPOTHESES", trace.inferenceHypotheses);
+  section("SELECTED INFERENCE / HIDDEN READ", trace.selectedInference);
   section("SEMANTIC / MOVIE CANDIDATES", trace.semanticCandidates);
   section(
     "REJECTED SEMANTIC CANDIDATES + WHY",
