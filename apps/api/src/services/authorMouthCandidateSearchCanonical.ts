@@ -167,6 +167,13 @@ function mouthRealityEvidence(envelope: RealityEnvelope): string[] {
   return result.length ? result : [clean(envelope.subject)].filter(Boolean);
 }
 
+const ACTIVE_PREFERENCE_SIGNAL =
+  /\b(?:love|loves|like|likes|prefer|prefers|favorite|favourite|enjoy|enjoys|hate|hates|avoid|avoids|into)\b/i;
+
+function hasActivePreferenceConstellation(evidence: readonly string[]): boolean {
+  return evidence.filter((item) => ACTIVE_PREFERENCE_SIGNAL.test(clean(item))).length >= 2;
+}
+
 function suppliedIdentity(text: string, envelope: RealityEnvelope): boolean {
   const value = clean(text).toLowerCase();
   if (/\b(?:he|him|his|she|her|hers|they|them|their|the man|the woman|the boy|the girl|the guy|the lady|my friend|my partner|my wife|my husband|my girlfriend|my boyfriend)\b/i.test(value)) return true;
@@ -646,6 +653,9 @@ function projectedRealizationAuthority(beat: MouthCandidateBeat) {
 export function buildMouthCandidateMessages(input: MouthCandidateGenerationInput): Array<{ role: "system" | "user"; content: string }> {
   const lens = classifyLens(input.lens);
   const evidence = mouthRealityEvidence(input.envelope);
+  const dogSocialContextActive = Boolean(
+    input.domainContext?.dogTag && hasActivePreferenceConstellation(evidence),
+  );
 
   const mechanisms = [...new Set(
     input.beats.flatMap((beat) => [
@@ -691,17 +701,19 @@ export function buildMouthCandidateMessages(input: MouthCandidateGenerationInput
               subjectKind: clean(input.domainContext.subjectKind),
               knownCapabilities: input.domainContext.knownCapabilities ?? [],
               contextualSignals: input.domainContext.contextualSignals ?? [],
-              dogTag: input.domainContext.dogTag
+              dogTag: dogSocialContextActive
                 ? {
-                    personalityTraits: input.domainContext.dogTag.personalityTraits ?? [],
-                    quirks: input.domainContext.dogTag.quirks ?? [],
-                    voiceHints: input.domainContext.dogTag.voiceHints ?? [],
-                    frameHints: input.domainContext.dogTag.frameHints ?? [],
-                    contextualPatterns: input.domainContext.dogTag.contextualPatterns ?? [],
+                    personalityTraits: input.domainContext.dogTag?.personalityTraits ?? [],
+                    quirks: input.domainContext.dogTag?.quirks ?? [],
+                    voiceHints: input.domainContext.dogTag?.voiceHints ?? [],
+                    frameHints: input.domainContext.dogTag?.frameHints ?? [],
+                    contextualPatterns: input.domainContext.dogTag?.contextualPatterns ?? [],
                   }
                 : undefined,
               contextUsage:
-                "Background context may shape interpretation and voice. It is not occurrence evidence. Only suppliedReality may authorize concrete events, actions, sensory observations, chronology, or present-tense world claims.",
+                dogSocialContextActive
+                  ? "Dog Tag creative context is active because the current supplied reality is a preference constellation. It may shape personality, voice, and framing only. It is not occurrence evidence."
+                  : "Background context is non-evidentiary. Dog Tag social voice/frame hints are inactive for this experience. Only suppliedReality may authorize concrete events, actions, sensory observations, chronology, or present-tense world claims.",
             }
           : undefined,
         priorCuts: input.priorTexts ?? [],
