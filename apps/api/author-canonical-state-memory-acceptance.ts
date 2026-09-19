@@ -541,7 +541,10 @@ const messages = buildMouthCandidateMessages({
 
 const userPayload = JSON.parse(messages[1]?.content ?? "{}") as {
   suppliedReality?: string[];
-  qreObservations?: string[];
+  creativePressure?: {
+    mechanisms?: string[];
+    objective?: string;
+  };
 };
 
 assert(
@@ -549,8 +552,13 @@ assert(
   `Mouth prompt lost supplied evidence: ${JSON.stringify(userPayload)}`,
 );
 assert(
-  Array.isArray(userPayload.qreObservations) && userPayload.qreObservations.length > 0,
-  `Mouth prompt lost creative observations: ${JSON.stringify(userPayload)}`,
+  Boolean(userPayload.creativePressure?.objective) &&
+    Array.isArray(userPayload.creativePressure?.mechanisms),
+  `Mouth prompt lost structural creative pressure: ${JSON.stringify(userPayload)}`,
+);
+assert(
+  !("qreObservations" in userPayload),
+  `Mouth prompt reintroduced source-echo observations: ${JSON.stringify(userPayload)}`,
 );
 const projectedBeat = userPayload;
 assert(
