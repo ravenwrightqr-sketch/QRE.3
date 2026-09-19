@@ -24,6 +24,24 @@ type RecordValue = Record<string, unknown>;
 const PROMPT =
   "Create a QRE experience from this supplied reality.";
 
+const MILO_DOG_TAG_CONTEXT: AuthorDomainContext = {
+  category: "pet",
+  subjectKind: "dog tag",
+  dogTag: {
+    name: "Milo",
+    breed: "Pomeranian",
+    personalityTraits: ["excitable", "social", "highly preference-driven"],
+    likes: ["walks", "bacon", "small dogs"],
+    favoriteFoods: ["bacon"],
+    favoriteActivities: ["walks"],
+    socialPreferences: ["small dogs"],
+    quirks: ["certain favorites immediately take over his attention"],
+    voiceHints: ["quick attention shifts", "playful self-introduction"],
+    frameHints: ["high-energy social identity", "tiny confidence"],
+    contextualPatterns: ["specific favorites create a recognizable personality pattern"],
+  },
+};
+
 const CASES: UniversalCase[] = [
   {
     id: "milo-profile",
@@ -31,6 +49,24 @@ const CASES: UniversalCase[] = [
     subject: "Milo",
     facts: ["Milo loves walks, bacon, small dogs"],
     sourceMoments: ["Milo loves walks, bacon, small dogs"],
+    domainContext: MILO_DOG_TAG_CONTEXT,
+  },
+  {
+    id: "milo-memorial-context",
+    label: "DOG TAG CONTEXT DOES NOT HIJACK A MEMORY",
+    subject: "Milo",
+    facts: [],
+    sourceMoments: [
+      "Milo slept beside Raven every night",
+      "Milo died in 2026",
+      "Raven kept Milo's collar",
+    ],
+    domainContext: MILO_DOG_TAG_CONTEXT,
+    forbiddenOutputTerms: [
+      "bacon",
+      "small dogs",
+      "walks",
+    ],
   },
   {
     id: "milo-walk-event",
