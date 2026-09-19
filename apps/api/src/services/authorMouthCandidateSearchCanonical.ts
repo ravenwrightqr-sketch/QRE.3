@@ -635,20 +635,16 @@ function candidateScore(text: string, beat: MouthCandidateBeat, envelope: Realit
 
 function buildSystemPrompt(): string {
   return [
-    "You are QRE's Mouth. The Author has already discovered and approved the sequence.",
-    "Do not re-plan the experience. Do not add, remove, merge, split, or reorder cuts.",
-    "Your job is final human-facing language: realize each approved cut with the strongest wording you can.",
-    "QRE remembers a real thing as its world grows. What someone loves, fears, wants, notices, remembers, imagines, and actually does are different kinds of truth and all are creative material. Know the difference, then play.",
-    "Play freely with expression while keeping concrete reality exactly as supplied.",
-    "Treat supplied reality as a world to understand, not wording to rewrite.",
-    "Use each approved cut's attention function and change as private direction, never as viewer-facing explanation.",
-    "A supplied word may become a question, echo, fixation, interruption, contrast, callback, punchline, payoff, or disappear when the approved cut still lands.",
-    "A preference can sound like wanting without becoming an event. A memory can echo without becoming now. A possibility can create anticipation without becoming fact.",
-    "Make the viewer discover what the Author intended. Let the approved cuts affect each other. Stop when the approved final cut lands.",
-    "Do not invent new concrete reality.",
-    "Create three genuinely different language realizations of the SAME approved sequence.",
-    "Each realization must contain exactly one line for every approved cut, in the supplied order.",
-    "Put a line containing only --- between realizations. Return nothing else.",
+    "You are QRE's Mouth. The Author has already made the experience.",
+    "Realize the approved beats in final viewer-facing language.",
+    "Do not plan, add, remove, merge, split, or reorder beats.",
+    "Do not summarize the source. Make each approved beat felt.",
+    "Reality is fixed. Expression is free.",
+    "You may use implication, rhythm, attitude, metaphor, contrast, personification, compression, humor, tenderness, tension, or surprise when the authored beat earns it.",
+    "Do not invent a new concrete person, role, object, place, action, sensory observation, chronology, dialogue, relationship, or event.",
+    "Do not explain the meaning or mention QRE's internal machinery.",
+    "For each beat, return three materially different language options.",
+    "Output JSON only as {\"variantsByBeat\":[{\"order\":1,\"variants\":[\"...\",\"...\",\"...\"]}]}.",
   ].join("\n");
 }
 
@@ -660,57 +656,45 @@ function projectedRealizationAuthority(beat: MouthCandidateBeat) {
     reality: authority.reality,
     meaning: authority.meaning,
     earnedInterpretations: authority.earnedInterpretations,
-    permittedRealizationModes: authority.permittedRealizationModes,
     inferenceBudget: authority.inferenceBudget,
-    creativeMoves: authority.creativeMoves,
     treatment: authority.treatment,
-    forbiddenMoves: authority.forbiddenMoves,
   };
 }
 
-export function buildMouthCandidateMessages(input: MouthCandidateGenerationInput): Array<{ role: "system" | "user"; content: string }> {
+export function buildMouthCandidateMessages(
+  input: MouthCandidateGenerationInput,
+): Array<{ role: "system" | "user"; content: string }> {
   const lens = classifyLens(input.lens);
-  const evidence = mouthRealityEvidence(input.envelope);
   const dogSocialContextActive = Boolean(
-    input.domainContext?.dogTag && hasActivePreferenceConstellation(input.envelope),
+    input.domainContext?.dogTag &&
+      hasActivePreferenceConstellation(input.envelope),
   );
 
-  const mechanisms = [...new Set(
-    input.beats.flatMap((beat) => [
-      clean(beat.semanticRealization?.mechanism),
-      clean(beat.semanticRealization?.relation?.kind),
-      clean(beat.creativeMove),
-      clean(beat.role),
-    ]).filter(Boolean),
-  )];
-
-  const hiddenReads = [...new Set(
-    input.beats
-      .map((beat) => clean(beat.observerExperience?.objective))
-      .filter(Boolean),
-  )];
+  const jobs = input.beats.map((beat) => ({
+    order: beat.order,
+    role: beat.role,
+    approvedReality: sourceLabels(beat, input.envelope),
+    authorDirection: {
+      attentionFunction: clean(beat.attentionFunction),
+      change: clean(beat.change),
+      next: clean(beat.next),
+      frontier: clean(beat.frontier),
+      creativeMove: clean(beat.creativeMove),
+      paysOff: beat.paysOff ?? [],
+    },
+    realizationAuthority: projectedRealizationAuthority(beat),
+  }));
 
   return [
-    { role: "system", content: buildSystemPrompt() },
+    {
+      role: "system",
+      content: buildSystemPrompt(),
+    },
     {
       role: "user",
       content: JSON.stringify({
+        task: "REALIZE_AUTHORED_BEATS",
         subject: input.envelope.subject,
-        suppliedReality: evidence,
-        creativePressure: {
-          mechanisms,
-          hiddenRead: hiddenReads[0] || undefined,
-          objective:
-            "Find the strongest connected perception available in the supplied reality. The source wording is not the script. If a hiddenRead is supplied, make the observer discover it without stating or paraphrasing the conclusion.",
-          dogTagProfile:
-            dogSocialContextActive
-              ? {
-                  mode: "performed-character",
-                  instruction:
-                    "This is a Dog Tag profile sequence, not a report of an outing. Let the supplied preferences behave like personality: attention, wanting, priority, interruption, repetition, attitude, voice, contrast, reveal, or self-introduction. Sequence movement may happen entirely in what the character notices or wants. Keep the external world exactly as supplied; do not stage a physical scene just to create motion.",
-                }
-              : undefined,
-        },
         lens:
           lens.label && lens.label !== "NONE"
             ? {
@@ -719,43 +703,24 @@ export function buildMouthCandidateMessages(input: MouthCandidateGenerationInput
                 preferences: lens.realizationPreferences,
               }
             : undefined,
-        context: input.domainContext
-          ? {
-              category: clean(input.domainContext.category),
-              businessType: clean(input.domainContext.businessType),
-              serviceType: clean(input.domainContext.serviceType),
-              subjectKind: clean(input.domainContext.subjectKind),
-              knownCapabilities: input.domainContext.knownCapabilities ?? [],
-              contextualSignals: input.domainContext.contextualSignals ?? [],
-              dogTag: dogSocialContextActive
-                ? {
-                    personalityTraits: input.domainContext.dogTag?.personalityTraits ?? [],
-                    quirks: input.domainContext.dogTag?.quirks ?? [],
-                    voiceHints: input.domainContext.dogTag?.voiceHints ?? [],
-                    frameHints: input.domainContext.dogTag?.frameHints ?? [],
-                    contextualPatterns: input.domainContext.dogTag?.contextualPatterns ?? [],
-                  }
-                : undefined,
-              contextUsage:
-                dogSocialContextActive
-                  ? "Dog Tag creative context is active because the current supplied reality is a preference constellation. Use it to perform character through attention, desire, priority, interruption, attitude, voice, and reveal. Sequence movement can be internal to attention or interpretation; context does not authorize a staged physical scene."
-                  : "Background context is non-evidentiary. Dog Tag social voice/frame hints are inactive for this experience. Only suppliedReality may authorize concrete events, actions, sensory observations, chronology, or present-tense world claims.",
-            }
-          : undefined,
-        approvedSequence: input.beats.map((beat) => ({
-          order: beat.order,
-          role: beat.role,
-          attentionFunction: clean(beat.attentionFunction),
-          change: clean(beat.change),
-          next: clean(beat.next),
-          frontier: clean(beat.frontier),
-          creativeMove: clean(beat.creativeMove),
-          eventIds: beat.eventIds ?? [],
-          realizationAuthority: projectedRealizationAuthority(beat),
-        })),
-        priorCuts: input.priorTexts ?? [],
+        background:
+          dogSocialContextActive
+            ? {
+                personalityTraits:
+                  input.domainContext?.dogTag?.personalityTraits ?? [],
+                quirks:
+                  input.domainContext?.dogTag?.quirks ?? [],
+                voiceHints:
+                  input.domainContext?.dogTag?.voiceHints ?? [],
+                frameHints:
+                  input.domainContext?.dogTag?.frameHints ?? [],
+                usage:
+                  "Background may color voice and attitude. It does not add concrete reality.",
+              }
+            : undefined,
+        jobs,
         output:
-          `Create 3 language realizations of this approved sequence. Each realization must contain exactly ${input.beats.length} lines, one line per approved cut in order. Do not add, remove, merge, split, or reorder cuts. Separate realizations with a line containing only ---. Return nothing else.`,
+          "Return exactly three variants for every authored beat. Keep the same beat orders. Return JSON only.",
       }),
     },
   ];
