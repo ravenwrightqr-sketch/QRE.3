@@ -699,6 +699,14 @@ export function buildMouthCandidateMessages(input: MouthCandidateGenerationInput
           hiddenRead: hiddenReads[0] || undefined,
           objective:
             "Find the strongest connected perception available in the supplied reality. The source wording is not the script. If a hiddenRead is supplied, make the observer discover it without stating or paraphrasing the conclusion.",
+          dogTagProfile:
+            dogSocialContextActive
+              ? {
+                  mode: "performed-character",
+                  instruction:
+                    "This is a Dog Tag profile sequence, not a report of an outing. Let the supplied preferences behave like personality: attention, wanting, priority, interruption, repetition, attitude, voice, contrast, reveal, or self-introduction. Sequence movement may happen entirely in what the character notices or wants. Keep the external world exactly as supplied; do not stage a physical scene just to create motion.",
+                }
+              : undefined,
         },
         lens:
           lens.label && lens.label !== "NONE"
@@ -727,7 +735,7 @@ export function buildMouthCandidateMessages(input: MouthCandidateGenerationInput
                 : undefined,
               contextUsage:
                 dogSocialContextActive
-                  ? "Dog Tag creative context is active because the current supplied reality is a preference constellation. It may shape personality, voice, and framing only. It is not occurrence evidence."
+                  ? "Dog Tag creative context is active because the current supplied reality is a preference constellation. Use it to perform character through attention, desire, priority, interruption, attitude, voice, and reveal. Sequence movement can be internal to attention or interpretation; context does not authorize a staged physical scene."
                   : "Background context is non-evidentiary. Dog Tag social voice/frame hints are inactive for this experience. Only suppliedReality may authorize concrete events, actions, sensory observations, chronology, or present-tense world claims.",
             }
           : undefined,
