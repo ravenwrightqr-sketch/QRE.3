@@ -50,19 +50,16 @@ type CreativeSelection = {
 
 function selectionFromDiscovery(discovery: AuthorCreativeDiscovery): CreativeSelection {
   return {
-    relationship: discovery.relationship,
-    latentMovie: discovery.thesis,
+    relationship: discovery.selected.relationship,
+    latentMovie: discovery.selected.perception,
     frame: discovery.lens,
     confidence: discovery.confidence,
     why: unique([
-      discovery.organizingIdea,
-      discovery.subjectPattern,
-      discovery.tension,
-      discovery.surprisePotential,
-      discovery.payoffPotential,
-      discovery.compressionReason,
+      discovery.selected.observerInference,
+      discovery.selected.whyItHits,
+      discovery.selectionReason,
     ]).join(" | "),
-    risk: discovery.risk,
+    risk: discovery.risk || discovery.selected.risk,
   };
 }
 
@@ -141,10 +138,14 @@ function makeMovie(
     anchorEventIds: events.map((event) => event.id),
     supportingRelationKinds: [],
     trajectory,
-    payoff: discovery.payoffPotential || (events.length ? events[events.length - 1]!.text : ""),
-    unresolvedQuestion: "",
+    payoff: events.length ? events[events.length - 1]!.text : "",
+    unresolvedQuestion: discovery.selected.observerInference,
     evidence: events.map((event) => event.text),
-    hypothesis: [discovery.thesis || discovery.relationship || "Grounded creative discovery from supplied reality."],
+    hypothesis: [
+      discovery.selected.perception ||
+      discovery.selected.relationship ||
+      "Grounded creative discovery from supplied reality.",
+    ],
     truthRisk: 0,
     novelty: 0.7,
     specificity: 1,
@@ -294,9 +295,7 @@ export async function authorBrainCanonical(
 
   const selectedPlayableIds = new Set(
     unique([
-      ...discoveryResult.discovery.carrierEventIds,
-      ...discoveryResult.discovery.turnEventIds,
-      ...discoveryResult.discovery.payoffEventIds,
+      ...discoveryResult.discovery.playableEventIds,
     ]),
   );
 
@@ -326,7 +325,8 @@ export async function authorBrainCanonical(
   const movie = makeMovie(discoveryResult.discovery, movieEvidence);
   const sequence = makeSequence(
     subject,
-    discoveryResult.discovery.thesis || discoveryResult.discovery.relationship,
+    discoveryResult.discovery.selected.perception ||
+      discoveryResult.discovery.selected.relationship,
     creativeResult.scenes,
   );
 
@@ -339,10 +339,10 @@ export async function authorBrainCanonical(
     engine: "Reality -> Creative Discovery -> QRE Creative",
     question: "",
     strongestImage: events[0]?.text ?? "",
-    tension: discoveryResult.discovery.tension || discoveryResult.discovery.relationship,
-    payoff:
-      discoveryResult.discovery.payoffPotential ||
-      (scenes.length ? scenes[scenes.length - 1]!.text : ""),
+    tension:
+      discoveryResult.discovery.selected.relationship ||
+      discoveryResult.discovery.selected.perception,
+    payoff: scenes.length ? scenes[scenes.length - 1]!.text : "",
     callback: "none",
     rhythm: ["standard"],
     avoid: ["invented literal reality", "fact replay", "mechanic leakage"],
@@ -370,12 +370,12 @@ export async function authorBrainCanonical(
         receipt.modelCalls +
         discoveryResult.modelCalls +
         creativeResult.modelCalls,
-      candidateSequences: 1,
+      candidateSequences: discoveryResult.discovery.candidates.length,
       acceptedCandidates: complete ? 1 : 0,
       qualityStatus: complete ? "ACCEPTED" : "REJECTED",
       renderable: complete,
       complete,
-      selectedScore: complete ? 1 : 0,
+      selectedScore: complete ? discoveryResult.discovery.confidence : 0,
       rejectedCandidates: [],
       selectedFrame: selection,
       creativeDiscovery: discoveryResult.discovery,
