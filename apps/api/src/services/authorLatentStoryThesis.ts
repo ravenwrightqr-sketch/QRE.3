@@ -276,6 +276,13 @@ function interpretationScore(
   const endpointSupport =
     endpoint && evidence.includes(endpoint) ? 1 : 0;
 
+  const endpointDependency =
+    endpointRelationPower(
+      graph,
+      candidate,
+      evidence,
+    );
+
   const wholeRealityCoverage = Math.min(
     1,
     evidence.length / Math.max(1, ids.length),
@@ -325,14 +332,209 @@ function interpretationScore(
     semanticSpecificity * 0.16 +
     evidenceSpecificity * 0.12 +
     coverage * 0.08 +
-    spread * 0.08 +
-    endpointSupport * 0.06 +
-    wholeRealityCoverage * 0.07 +
+    spread * 0.07 +
+    endpointSupport * 0.10 +
+    endpointDependency * 0.12 +
+    wholeRealityCoverage * 0.03 +
     relationPower.strongest * 0.05 +
     relationPower.nonAdjacent * 0.04 +
     Math.min(0.03, evidence.length * 0.006) +
     Math.min(0.02, relationPower.count * 0.005)
   );
+}
+
+
+function relationImpact(kind: RealityRelation["kind"]): number {
+  switch (kind) {
+    case "recontextualizes":
+      return 1;
+    case "repeats":
+      return 0.96;
+    case "contrasts":
+      return 0.94;
+    case "changes":
+      return 0.92;
+    case "causes":
+      return 0.9;
+    case "converges":
+      return 0.72;
+    default:
+      return 0.4;
+  }
+}
+
+function endpointRelationPower(
+  graph: RealityGraph,
+  candidate: LatentMovieCandidate,
+  evidenceEventIds: readonly string[],
+): number {
+  const endpoint = endpointId(candidate);
+  if (!endpoint) return 0;
+
+  let best = 0;
+
+  for (const id of evidenceEventIds) {
+    if (!id || id === endpoint) continue;
+    const relation = relationBetween(graph, id, endpoint);
+    if (!relation) continue;
+
+    best = Math.max(
+      best,
+      relation.strength * 0.72 +
+        relationImpact(relation.kind) * 0.28,
+    );
+  }
+
+  return Math.min(1, best);
+}
+
+function sealingSpecificity(
+  graph: RealityGraph,
+  eventId: string,
+): number {
+  const event = graph.events.find((item) => item.id === eventId);
+  const structure = graph.eventStructure?.find((item) => item.eventId === eventId);
+  if (!event) return 0;
+
+  const tokenCount = clean(event.label).split(/\s+/).filter(Boolean).length;
+  const structuralDetail =
+    (structure?.objects?.length ?? 0) * 0.18 +
+    (structure?.actions?.length ?? 0) * 0.14 +
+    (structure?.states?.length ?? 0) * 0.12 +
+    (structure?.semanticTags?.length ?? 0) * 0.05;
+
+  return Math.min(
+    1,
+    tokenCount * 0.045 +
+      structuralDetail +
+      Number(structure?.salienceScore ?? 0) * 0.28 +
+      (event.salient ? 0.14 : 0),
+  );
+}
+
+function sealingRelationDensity(
+  graph: RealityGraph,
+  candidate: LatentMovieCandidate,
+  eventId: string,
+): number {
+  const ids = new Set(orderedIds(candidate));
+  const related = graph.relations.filter(
+    (relation) =>
+      ids.has(relation.from) &&
+      ids.has(relation.to) &&
+      (relation.from === eventId || relation.to === eventId) &&
+      !["before", "after", "involves", "belongs_to"].includes(relation.kind),
+  );
+
+  if (!related.length) return 0;
+
+  const total = related.reduce(
+    (sum, relation) =>
+      sum +
+      relation.strength * 0.72 +
+      relationImpact(relation.kind) * 0.28,
+    0,
+  );
+
+  return Math.min(1, total / Math.max(1, Math.min(3, related.length)));
+}
+
+function sealingDetailScore(
+  graph: RealityGraph,
+  candidate: LatentMovieCandidate,
+  eventId: string,
+): number {
+  const endpoint = endpointId(candidate);
+  if (!eventId || eventId === endpoint) return 0;
+
+  const specificity = sealingSpecificity(graph, eventId);
+  const density = sealingRelationDensity(graph, candidate, eventId);
+  const endpointRelation = endpoint
+    ? relationBetween(graph, eventId, endpoint)
+    : undefined;
+  const endpointPower = endpointRelation
+    ? endpointRelation.strength * 0.72 +
+      relationImpact(endpointRelation.kind) * 0.28
+    : 0;
+
+  const ids = orderedIds(candidate);
+  const position = ids.indexOf(eventId);
+  const lateEnoughToSeal =
+    position >= 0 && ids.length > 1
+      ? position / Math.max(1, ids.length - 1)
+      : 0;
+
+  return Math.min(
+    1,
+    specificity * 0.32 +
+      density * 0.24 +
+      endpointPower * 0.34 +
+      lateEnoughToSeal * 0.10,
+  );
+}
+
+function strongestSealingDetailIds(
+  graph: RealityGraph,
+  candidate: LatentMovieCandidate,
+): string[] {
+  const endpoint = endpointId(candidate);
+
+  return orderedIds(candidate)
+    .filter((id) => id && id !== endpoint)
+    .map((id) => ({
+      id,
+      score: sealingDetailScore(graph, candidate, id),
+    }))
+    .sort((left, right) => right.score - left.score)
+    .filter((entry) => entry.score >= 0.28)
+    .slice(0, 1)
+    .map((entry) => entry.id);
+}
+
+function backwardDependencyIds(
+  graph: RealityGraph,
+  candidate: LatentMovieCandidate,
+  sealingEventIds: readonly string[],
+): string[] {
+  const ids = orderedIds(candidate);
+  const endpoint = endpointId(candidate);
+  const target = sealingEventIds[0] ?? endpoint;
+  if (!target) return [];
+
+  const targetIndex = ids.indexOf(target);
+  const earlier = ids.filter((id, index) =>
+    id !== endpoint &&
+    id !== target &&
+    (targetIndex < 0 || index < targetIndex),
+  );
+
+  const ranked = earlier
+    .map((id) => {
+      const relation = relationBetween(graph, id, target);
+      const endpointRelation = endpoint
+        ? relationBetween(graph, id, endpoint)
+        : undefined;
+
+      const relationScore = relation
+        ? relation.strength * 0.72 + relationImpact(relation.kind) * 0.28
+        : 0;
+      const endpointScore = endpointRelation
+        ? endpointRelation.strength * 0.72 +
+          relationImpact(endpointRelation.kind) * 0.28
+        : 0;
+
+      return {
+        id,
+        score:
+          Math.max(relationScore, endpointScore) * 0.76 +
+          sealingSpecificity(graph, id) * 0.24,
+      };
+    })
+    .sort((left, right) => right.score - left.score)
+    .slice(0, 2)
+    .map((entry) => entry.id);
+
+  return ids.filter((id) => ranked.includes(id));
 }
 
 function strongestInterpretation(
@@ -626,36 +828,53 @@ export function deriveLatentStoryThesis(
     endpoint;
     const semanticTurn = "";
 
+  const sealingEventIds =
+    strongestSealingDetailIds(
+      graph,
+      candidate,
+    );
+
+  const backwardDependencies =
+    backwardDependencyIds(
+      graph,
+      candidate,
+      sealingEventIds,
+    );
+
   const carrierEventIds = unique([
+    ...backwardDependencies,
     ...(interpretation?.evidenceEventIds ?? []),
   ])
-    .filter((id) => id !== endpoint)
+    .filter(
+      (id) =>
+        id !== endpoint &&
+        !sealingEventIds.includes(id),
+    )
     .slice(0, 2);
 
-  const sealingEventIds =
-    endpoint &&
-    endpoint !== beforeId &&
-    endpoint !== afterId
-      ? [endpoint]
-      : afterId && afterId !== beforeId
-        ? [afterId]
-        : [];
+  const sealingLabel =
+    sealingEventIds[0]
+      ? eventLabel(
+          graph,
+          sealingEventIds[0],
+        )
+      : "";
 
   const payoffDependency = endpoint
-    ? interpretation?.statement
-      ? `The supplied ending is earned by the grounded relationship expressed in the selected realization, culminating in ${eventLabel(
+    ? sealingLabel
+      ? `The supplied detail "${sealingLabel}" most strongly helps earn the supplied endpoint "${eventLabel(
           graph,
           endpoint,
-        )}.`
-      : afterId
-        ? `The supplied ending depends on the earlier supplied relationship culminating in ${eventLabel(
+        )}". Earlier evidence should make that detail matter; the endpoint remains supplied reality, not an invented conclusion.`
+      : interpretation?.statement
+        ? `The supplied ending is earned by the grounded relationship expressed in the selected realization, culminating in ${eventLabel(
             graph,
             endpoint,
           )}.`
         : `The supplied ending is ${eventLabel(
             graph,
             endpoint,
-          )}.`
+          )}; use only grounded relationships to make it feel earned.`
     : "";
 
   return {
