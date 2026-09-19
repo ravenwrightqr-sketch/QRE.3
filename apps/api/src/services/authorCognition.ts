@@ -125,6 +125,7 @@ const PRIOR_STATE_PREFIX =
 
 function domainContextText(context?: AuthorDomainContext): string[] {
   if (!context) return [];
+  const dog = context.dogTag;
   return [
     context.category ? `domain category: ${context.category}` : "",
     context.businessType ? `business type: ${context.businessType}` : "",
@@ -140,6 +141,25 @@ function domainContextText(context?: AuthorDomainContext): string[] {
     ...(context.importantFacts ?? []).map((item) => `important business fact: ${item}`),
     ...(context.knownCapabilities ?? []).map((item) => `known capability: ${item}`),
     ...(context.contextualSignals ?? []).map((item) => `contextual signal: ${item}`),
+    ...(dog?.name ? [`dog tag name: ${dog.name}`] : []),
+    ...(dog?.breed ? [`dog tag breed: ${dog.breed}`] : []),
+    ...(dog?.age ? [`dog tag age: ${dog.age}`] : []),
+    ...(dog?.nicknames ?? []).map((item) => `dog tag nickname: ${item}`),
+    ...(dog?.personalityTraits ?? []).map((item) => `dog tag personality: ${item}`),
+    ...(dog?.likes ?? []).map((item) => `dog tag like: ${item}`),
+    ...(dog?.dislikes ?? []).map((item) => `dog tag dislike: ${item}`),
+    ...(dog?.favoriteFoods ?? []).map((item) => `dog tag favorite food: ${item}`),
+    ...(dog?.favoriteActivities ?? []).map((item) => `dog tag favorite activity: ${item}`),
+    ...(dog?.socialPreferences ?? []).map((item) => `dog tag social preference: ${item}`),
+    ...(dog?.quirks ?? []).map((item) => `dog tag quirk: ${item}`),
+    ...(dog?.fears ?? []).map((item) => `dog tag fear: ${item}`),
+    ...(dog?.comfortThings ?? []).map((item) => `dog tag comfort: ${item}`),
+    ...(dog?.importantPeople ?? []).map((item) => `dog tag important person: ${item}`),
+    ...(dog?.importantAnimals ?? []).map((item) => `dog tag important animal: ${item}`),
+    ...(dog?.favoritePlaces ?? []).map((item) => `dog tag favorite place: ${item}`),
+    ...(dog?.voiceHints ?? []).map((item) => `dog tag voice hint: ${item}`),
+    ...(dog?.frameHints ?? []).map((item) => `dog tag frame hint: ${item}`),
+    ...(dog?.contextualPatterns ?? []).map((item) => `dog tag contextual pattern: ${item}`),
   ].filter(Boolean);
 }
 
@@ -715,6 +735,9 @@ function traits(
     ...input.facts,
     ...input.sourceMoments,
     ...(input.memoryContext ?? []),
+    ...(input.domainContext?.dogTag?.personalityTraits ?? []),
+    ...(input.domainContext?.dogTag?.quirks ?? []),
+    ...(input.domainContext?.dogTag?.contextualPatterns ?? []),
   ];
 
   return uniq(
@@ -1313,8 +1336,8 @@ const selectedLens =
         : []),
       ...(domainContext.length
         ? [
-            `DOMAIN CONTEXT (CONTEXT ONLY, NOT OCCURRENCE EVIDENCE): ${domainContext.join(" | ")}`,
-            "Domain context may classify the world and legitimate service/business capabilities. It may not invent a person, ownership, tenancy, client relationship, location, action, or event.",
+            `DOMAIN CONTEXT (BACKGROUND ONLY, NOT ACTIVE OCCURRENCE EVIDENCE): ${domainContext.join(" | ")}`,
+            "Context may shape interpretation, framing, character reading, and opportunity discovery. It may not invent or assert a person, ownership, relationship, location, action, chronology, sensory observation, or event. Active sequence evidence comes from the selected RealityGraph evidence.",
           ]
         : []),
       movieSummary,
