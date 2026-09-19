@@ -15,6 +15,7 @@ import type { AuthorDomainContext, AuthorScene, LatentMovieCandidate, RealityGra
 import { localModelGenerate } from "./localModelRuntime.js";
 import { deriveMeaningPressure } from "./authorMeaningPressure.js";
 import { judgeRealizedFilm, type RealizedFilmJudgment } from "./authorRealizedFilmJudge.js";
+import type { CreativeLensBrief } from "./authorCreativeLensBrief.js";
 
 export type RealizedScene = AuthorScene & { sourceEventIds: string[]; score: number };
 export type AuthorRealizationResult = {
@@ -109,7 +110,7 @@ function validateSet(raw: unknown, input: { graph: RealityGraph; movie: LatentMo
   }
   return { scenes };
 }
-function context(input: { prompt: string; subject: string; lens: string; graph: RealityGraph; movie: LatentMovieCandidate; domainContext?: AuthorDomainContext; memoryContext?: string[]; priorScenes?: string[]; creativeLearningContext?: string[] }, repairFeedback: string) {
+function context(input: { prompt: string; subject: string; lens: string; graph: RealityGraph; movie: LatentMovieCandidate; creativeLensBrief?: CreativeLensBrief; domainContext?: AuthorDomainContext; memoryContext?: string[]; priorScenes?: string[]; creativeLearningContext?: string[] }, repairFeedback: string) {
   const spineIds = unique([...input.movie.anchorEventIds, ...input.movie.trajectory.flatMap((step) => step.eventIds)].filter((id) => input.graph.events.some((event) => event.id === id)));
   const spineEvents = spineIds.map((id) => input.graph.events.find((event) => event.id === id)).filter(Boolean).map((event) => ({ id: event!.id, text: eventText(event!), entities: event!.entities, place: event!.place, time: event!.time }));
   const availableReality = input.graph.events.map((event) => ({ id: event.id, text: eventText(event), entities: event.entities, place: event.place, time: event.time, onSelectedMovieSpine: spineIds.includes(event.id) }));
@@ -119,7 +120,7 @@ function context(input: { prompt: string; subject: string; lens: string; graph: 
     creativeTask: clean(input.prompt), subjectReference: clean(input.subject), subjectRole: "factual referent only; use its name when artistically useful, omit it when the detail can carry the cut alone", frame: clean(input.lens) || "NONE",
     memory: (input.memoryContext ?? []).slice(0, 20), priorFilms: (input.priorScenes ?? []).slice(-12), creativeLearning: (input.creativeLearningContext ?? []).slice(0, 20),
     selectedStructure: { eventIds: spineIds, relationKinds: input.movie.supportingRelationKinds, operations: input.movie.trajectory.map((step) => ({ order: step.order, operation: step.operation, eventIds: step.eventIds })) },
-    sourceReality: spineEvents, availableReality, artistDevice, meaningPressure, repairFeedback: clean(repairFeedback),
+    sourceReality: spineEvents, availableReality, artistDevice, meaningPressure, creativeLensBrief: input.creativeLensBrief, repairFeedback: clean(repairFeedback),
     creativePermission: "Interpretive language is wide open. Abstract feeling, irony, metaphor, personification, status, humor, absurdity, tenderness, menace, gamification, playful language, pop-cultural framing, impossible-seeming comparisons that are clearly metaphorical, compression, omission, fragments, sensory intensity and unexpected grammar are all available. The boundary is concrete reality, not imagination itself.",
     artistRule: "Preserve semantic truth, never the client's sentence. The selected Movie is the semantic spine, NOT an inventory lock. The entire availableReality list is fair game. Pull in ANY supplied detail when it makes the piece funnier, stranger, clearer, more moving, more kinetic, more visceral or more memorable. A minor factual detail can become the hook, a callback, a punchline, a metaphorical image, a pressure point or the payoff. Every literal world detail must remain faithful to the supplied world. Figurative language may freely bend concrete imagery without asserting that the figurative imagery literally happened.",
     sensoryRule: "When supplied reality contains sound, music, bass, silence, darkness, light, heat, cold, movement, texture, taste, smell or impact, treat that sensory material as primary creative substance. Do not flatten it into explanation. You may make the supplied sensation feel enormous through rhythm, compression, repetition, sound-language, image-language, or figurative bodily language, provided figurative intensity is not presented as an unsupported literal fact.",
@@ -135,6 +136,9 @@ function prompt(attempt: number, feedback: string): string {
     "The selected Movie is the semantic spine. The entire supplied RealityGraph is your artistic palette.",
     "The Movie does NOT limit the material you may use. Hunt the whole reality for the weird little detail that makes the film click. Throw the apple into the film if the apple makes it better.",
     "Meaning Pressure explains why the selected relationship or grounded structure has artistic charge. Artist Device suggests possible tools. Neither is a cage.",
+    "Creative Lens Brief is treatment pressure only, never source reality. Use its framingBias, realizationPreferences, and treatmentMoves to shape rhythm, status, implication, metaphor, progression, and payoff while obeying every forbiddenRealityMove and realityInvariant.",
+    "PERFORM THE SELECTED TREATMENT. Do not merely name the genre, lens, mechanic, or source fact. If the selected structure implies progression, rounds, thresholds, upgrades, status changes, mission pressure, evidence, ceremony, rivalry, or another treatment move, make the visible language behave that way without inventing a concrete event.",
+    "Do not turn source facts into a caption reel by chopping them into fragments. Each cut should change pressure, status, expectation, interpretation, or payoff. Repeated source wording without a changed charge is failure.",
     "The final output is a sequence of screen text beats. ONE BEAT = ONE SCREENFUL OF ATTENTION.",
     "Do not interpret 'one beat' as one fact or one sentence. Several facts may share one beat when their collision, compression, contrast, timing, or juxtaposition creates the fire. Split them when separation creates the fire. The Artist chooses where the screen changes.",
     "A beat can be one word, a fragment, a sentence, or several compressed clauses. Short is usually powerful. Longer is allowed when every extra word creates real artistic force. NEVER pad. NEVER shorten a line merely because of a number.",
@@ -160,7 +164,7 @@ function prompt(attempt: number, feedback: string): string {
   ].join("\n");
 }
 
-export async function realizeAuthorExperience(input: { prompt: string; subject: string; lens: string; graph: RealityGraph; movie: LatentMovieCandidate; domainContext?: AuthorDomainContext; memoryContext?: string[]; priorScenes?: string[]; creativeLearningContext?: string[] }): Promise<AuthorRealizationResult> {
+export async function realizeAuthorExperience(input: { prompt: string; subject: string; lens: string; graph: RealityGraph; movie: LatentMovieCandidate; creativeLensBrief?: CreativeLensBrief; domainContext?: AuthorDomainContext; memoryContext?: string[]; priorScenes?: string[]; creativeLearningContext?: string[] }): Promise<AuthorRealizationResult> {
   let model = "fallback"; let modelCalls = 0; let rejectedSets = 0; let lastJudgment: RealizedFilmJudgment | undefined; const rejectedReasons: string[] = [];
   for (let attempt = 0; attempt < 3; attempt += 1) {
     const feedback = rejectedReasons.slice(-4).join(" | ");
