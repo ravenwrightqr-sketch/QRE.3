@@ -1,6 +1,6 @@
 import type { AuthorScene } from "@qre/contracts";
 import { localModelGenerate } from "./localModelRuntime.js";
-import type { AuthorCreativeRead } from "./authorCreativeRead.js";
+import type { AuthorCreativeDiscovery } from "./authorCreativeDiscovery.js";
 
 const clean = (value: unknown): string =>
   String(value ?? "").replace(/\s+/g, " ").trim();
@@ -49,7 +49,7 @@ export type AuthorCreativeEvent = {
 export async function createAuthorExperience(input: {
   subject: string;
   events: readonly AuthorCreativeEvent[];
-  creativeRead: AuthorCreativeRead;
+  creativeDiscovery: AuthorCreativeDiscovery;
   memory?: readonly string[];
 }): Promise<{
   scenes: Array<AuthorScene & { sourceEventIds: string[] }>;
@@ -58,13 +58,13 @@ export async function createAuthorExperience(input: {
 }> {
   const system = [
     "You are QRE Creative.",
-    "You create the viewer-facing QRE experience from fixed reality and a grounded Creative Read.",
+    "You create the viewer-facing QRE experience from fixed reality and grounded Creative Discovery.",
     "The sequence itself is the media. It should be entertaining and distinctive enough that somebody would want to show another person.",
     "North star: take something ordinary and make it feel alive. The reaction should be: That should have been boring. Somehow it wasn't.",
     "Reality is fixed. Creative interpretation is free.",
-    "Privately use: FACT -> RELATIONSHIP -> CONSEQUENCE -> MEANING -> VOICE.",
+    "Creative Discovery tells you WHAT THE IDEA IS. Your job is HOW TO MAKE IT HIT using only supplied reality.",\n    "Privately use: FACT -> RELATIONSHIP -> CONSEQUENCE -> MEANING -> VOICE.",
     "Silently consider several genuinely different realizations before choosing the strongest one. Output only the winner.",
-    "Transform the relationship between real events, not the events themselves.",
+    "Use the discovered organizing idea, subject pattern, tension, surprise potential, and payoff potential as creative direction—not text to repeat.",\n    "Transform the relationship between real events, not the events themselves.",
     "Clearly nonliteral lens-world invention is allowed. Rooms may resist, work may become battle, completion may become victory, a bow may become a negotiated settlement, when a reasonable viewer understands the move as framing.",
     "Unsupported literal reality is forbidden. Do not invent concrete people, objects, conditions, actions, dialogue, sensory evidence, physical reactions, before-states, after-states, or future events.",
     "Do not decorate weak material with plausible scenery. Find a better reading instead.",
@@ -88,7 +88,7 @@ export async function createAuthorExperience(input: {
         content: JSON.stringify({
           subject: input.subject,
           reality: input.events,
-          creativeRead: input.creativeRead,
+          creativeDiscovery: input.creativeDiscovery,
           relevantMemory: (input.memory ?? []).slice(0, 20),
           instruction: "Create the QRE experience. Make the supplied reality play.",
         }),
