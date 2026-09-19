@@ -48,7 +48,8 @@ export type AuthorCreativeEvent = {
 
 export async function createAuthorExperience(input: {
   subject: string;
-  events: readonly AuthorCreativeEvent[];
+  playableEvents: readonly AuthorCreativeEvent[];
+  backgroundEvents?: readonly AuthorCreativeEvent[];
   creativeDiscovery: AuthorCreativeDiscovery;
   memory?: readonly string[];
   domainContext?: AuthorDomainContext;
@@ -65,6 +66,8 @@ export async function createAuthorExperience(input: {
     "MEMORY = previously established reality. It may support continuity/callback meaning, but it is not a current occurrence.",
     "BUSINESS_CONTEXT = stable background about the business/service/world. It may inform vocabulary and interpretation, but it is not an event.",
     "CREATIVE_DISCOVERY = interpretive direction over those lanes. It is not literal evidence.",
+    "PLAYABLE_REALITY = the current facts Creative Discovery selected to carry the viewer-facing experience.",
+    "BACKGROUND_EVIDENCE = grounded truth kept underneath for provenance/context. It must NOT become a separate beat unless Discovery selected it as playable.",
     "The sequence itself is the media. It should be entertaining and distinctive enough that somebody would want to show another person.",
     "North star: take something ordinary and make it feel alive. The reaction should be: That should have been boring. Somehow it wasn't.",
     "Reality is fixed. Creative interpretation is free.",
@@ -72,8 +75,8 @@ export async function createAuthorExperience(input: {
     "Privately use: FACT -> RELATIONSHIP -> CONSEQUENCE -> MEANING -> VOICE.",
     "Silently consider several genuinely different realizations before choosing the strongest one. Output only the winner.",
     "Use the discovered organizing idea, subject pattern, tension, surprise potential, payoff potential, experienceShape, and evidence-role selections as creative direction—not text to repeat.",
-    "carrierEventIds are the preferred on-screen factual spine.",
-    "backgroundEventIds are allowed to remain entirely off-screen; they are still valuable provenance.",
+    "carrierEventIds are the on-screen factual spine.",
+    "backgroundEventIds remain off-screen unless already represented by a selected playable milestone. They are still valuable provenance.",
     "turnEventIds and payoffEventIds identify supplied facts that may earn shifts and landings.",
     "Do not make a beat merely because a fact exists. Compress operational detail upward into the larger transformation when Creative Discovery found one.",
     "Transform the relationship between real events, not the events themselves.",
@@ -87,6 +90,9 @@ export async function createAuthorExperience(input: {
     "Write around the subject once identity is established. Do not restart every beat with the subject's name.",
     "A true fact is not automatically a beat. Source order is not automatically the experience.",
     "Each beat should be a distinct piece of the experience and should change what the viewer knows, expects, suspects, wants, or understands, or change how an earlier beat now reads.",
+    "This is MOVING TEXT, not prose. Default to 1-7 words per cut. Fragments and one-word cuts are welcome. Use 8-12 words only when essential. Never write paragraph-like beats or multiple full sentences inside one beat.",
+    "Prefer the smallest sharp language that preserves implication, rhythm, attitude, and unresolved meaning.",
+    "Do not state the latent conclusion if the selected evidence can make the observer infer it.",
     "Use the discovered experienceShape as a trajectory, not a form to fill. The exact number and type of beats should emerge from the material.",
     "Do not expose internal labels such as relationship, pressure, consequence, thesis, lens, beat, escalation, payoff, mechanic, or directive. Perform them.",
     "Do not write literary atmosphere, faux-profound ceremony, trailer narration, or explanatory prose.",
@@ -104,11 +110,12 @@ export async function createAuthorExperience(input: {
         role: "user",
         content: JSON.stringify({
           subject: input.subject,
-          CURRENT_REALITY: input.events,
+          PLAYABLE_REALITY: input.playableEvents,
+          BACKGROUND_EVIDENCE: (input.backgroundEvents ?? []).map((event) => event.text),
           MEMORY: (input.memory ?? []).slice(0, 20),
           BUSINESS_CONTEXT: input.domainContext,
           CREATIVE_DISCOVERY: input.creativeDiscovery,
-          instruction: "Create the QRE experience. Make the supplied reality play. Prefer the discovered carrier facts; leave background evidence underneath unless it earns screen time.",
+          instruction: "Create the QRE experience from PLAYABLE_REALITY. BACKGROUND_EVIDENCE stays underneath and must not become its own beat. Apply the lens as pressure to the discovered relation, then realize it in tiny moving-text cuts.",
         }),
       },
     ],
@@ -118,7 +125,7 @@ export async function createAuthorExperience(input: {
 
   const parsed = parseJson(result.text);
   const raw = Array.isArray(parsed?.beats) ? parsed!.beats : [];
-  const eventIds = input.events.map((event) => event.id);
+  const eventIds = input.playableEvents.map((event) => event.id);
 
   const scenes = raw.flatMap((value, index): Array<AuthorScene & { sourceEventIds: string[] }> => {
     const beat: RawBeat =
