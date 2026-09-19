@@ -13,6 +13,7 @@ import { buildAuthorCognitivePlan } from "./authorCognition.js";
 import { buildAuthorReadout, type AuthorReadout } from "./authorReadout.js";
 import { realizeAuthorExperience, type RealizedScene } from "./authorCreativeRealizer.js";
 import type { RealizedFilmJudgment } from "./authorRealizedFilmJudge.js";
+import { buildAuthorBehaviorProfile } from "./authorBehaviorProfile.js";
 
 const ARTIST_DNA = [
   "CREATIVE TASTE ONLY — never treat this as source reality.",
@@ -61,7 +62,7 @@ function sequenceFor(subject: string, movie: LatentMovieCandidate, scenes: Reali
       known: prior,
       expected: clean(movie.trajectory[index - 1]?.nextQuestion) || clean(movie.unresolvedQuestion),
       unresolved: clean(movie.unresolvedQuestion),
-      recentChange: prior.at(-1),
+      recentChange: prior.length ? prior[prior.length - 1] : undefined,
     };
     const viewerAfter: ViewerState = {
       known: [...prior, scene.text],
@@ -86,7 +87,7 @@ function sequenceFor(subject: string, movie: LatentMovieCandidate, scenes: Reali
       confidence: metric(scene.score),
     } satisfies SequenceCut;
   });
-  return { subject, premise: clean(movie.hypothesis[0]) || clean(movie.payoff), openingState: cuts[0]?.viewerBefore ?? { known: [] }, baselineFacts: [], cuts, closingState: cuts.at(-1)?.viewerAfter, continuity: movie.callbackPotential > 0.55 ? ["selected movie uses continuity material"] : [], antiCrutch: ["no fixed beat count", "no repeated subject openings", "no source-order as chronology"], continuation: clean(movie.unresolvedQuestion) || "The world can receive another supplied event." };
+  return { subject, premise: clean(movie.hypothesis[0]) || clean(movie.payoff), openingState: cuts[0]?.viewerBefore ?? { known: [] }, baselineFacts: [], cuts, closingState: cuts.length ? cuts[cuts.length - 1]?.viewerAfter : undefined, continuity: movie.callbackPotential > 0.55 ? ["selected movie uses continuity material"] : [], antiCrutch: ["no fixed beat count", "no repeated subject openings", "no source-order as chronology"], continuation: clean(movie.unresolvedQuestion) || "The world can receive another supplied event." };
 }
 function briefFor(movie: LatentMovieCandidate, cognition: Awaited<ReturnType<typeof buildAuthorCognitivePlan>>, lens: string): AuthorCreativeBrief {
   return {
@@ -116,11 +117,11 @@ export async function authorBrainCanonical(input: AuthorBrainTruth): Promise<Can
   const sourceMoments = unique(input.sourceMoments);
   const returning = Boolean(input.returning || (input.visitNumber ?? 1) > 1);
   const world = input.realityGraph ?? buildAuthorRealityGraph({ prompt, subject, place: clean(input.place), facts, sourceMoments, memoryContext: input.memoryContext ?? [], trajectory: input.trajectory ?? [] });
-  const readout = buildAuthorReadout({ graph: world, subject });
   const creativeSpine = buildAuthorCreativeSpine({ graph: world, subject, returning: input.returning });
   const metamorphicContext = creativeSpine.opportunities.slice(0, 12).map((opportunity) => `DERIVED CREATIVE OPPORTUNITY: ${opportunity.opportunity}; evidence=${opportunity.evidenceEventIds.join(",")}; strength=${opportunity.strength}`);
   const cognitionLearningContext = unique([ARTIST_DNA, ...(input.creativeLearningContext ?? []), ...metamorphicContext]);
   const cognition = await buildAuthorCognitivePlan({ prompt, subject, place: clean(input.place), lens: clean(input.lens), facts, sourceMoments, realityGraph: world, domainContext: input.domainContext, memoryContext: input.memoryContext ?? [], trajectory: input.trajectory ?? [], creativeLearningContext: cognitionLearningContext, returning, visitNumber: input.visitNumber, movieMode: input.movieMode });
+  const readout = buildAuthorReadout({ graph: world, subject, learnedProfile: buildAuthorBehaviorProfile(cognitionLearningContext), movieCandidates: cognition.latentMovieCandidates, selectedMovie: cognition.selectedMovie });
   if (!cognition.latentMovieCandidates.length) {
     return { readout, scenes: [], sequence: { subject, premise: "", openingState: { known: [] }, cuts: [] }, realizationMode: "collection", brief: { angle: cognition.selectedLens, engine: "Reality → World → Cognition → Movie → Artist → Creative Realizer → Sequence → Experience", question: "", strongestImage: "", tension: "", payoff: "", callback: "none", rhythm: ["short"], avoid: ["invented reality"] }, diagnostics: { model: cognition.model, modelCalls: cognition.modelCalls, candidateSequences: 0, acceptedCandidates: 0, qualityStatus: "REJECTED", renderable: false, complete: false, selectedScore: 0, rejectedCandidates: [{ reason: "no Movie candidates" }] }, adaptiveQuestions: cognition.adaptiveQuestions, world };
   }
