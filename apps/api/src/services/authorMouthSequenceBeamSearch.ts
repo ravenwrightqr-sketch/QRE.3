@@ -230,62 +230,17 @@ function wordCount(
 export function isAuthorizedMouthCandidate(
   candidate: MouthCandidate,
 ): boolean {
-  const text =
-    clean(
-      candidate.text,
-    );
+  const text = clean(candidate.text);
+  if (!text) return false;
 
-  if (!text) {
-    return false;
-  }
-
-  /*
-   * Candidate Search already establishes the concrete safety boundary.
-   * The Beam cannot override it.
-   */
   if (
-    candidate.inventionRisk >=
-      0.35 ||
-    candidate.forbiddenMoveRisk >=
-      0.35
+    candidate.inventionRisk >= 0.35 ||
+    candidate.forbiddenMoveRisk >= 0.35
   ) {
     return false;
   }
 
-  /*
-   * Internal cognitive machinery must never reach viewer-facing output.
-   */
-  if (
-    candidate.reasons.includes(
-      "internal-viewer-state-language",
-    )
-  ) {
-    return false;
-  }
-
-  /*
-   * Identity provenance remains hard.
-   */
-  if (
-    candidate.reasons.includes(
-      "unsupported-identity-language",
-    )
-  ) {
-    return false;
-  }
-
-  /*
-   * Unsupported concrete reality remains hard.
-   */
-  if (
-    candidate.reasons.includes(
-      "unsupported-concrete-detail",
-    )
-  ) {
-    return false;
-  }
-
-  return candidate.authorization?.authorized === true;
+  return candidate.authorization?.realitySafe === true;
 }
 
 function isSafe(
