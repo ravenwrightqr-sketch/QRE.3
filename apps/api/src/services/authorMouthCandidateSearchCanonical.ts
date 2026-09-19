@@ -57,8 +57,8 @@ const ABSTRACT_NOUN = /\b(?:lightness|stillness|softness|warmth|tension|pressure
 const FRAME_NOUN = /\b(?:lawyer|judge|witness|detective|agent|captain|boss|mission|operation|case|verdict|negotiation|negotiations|level|quest|upgrade|extraction|inspection|war|victory|champion|legend|showtime|final|reset|boss fight|character)\b/i;
 const FRAME_VERB = /\b(?:called|resumed|approved|cleared|secured|completed|started|began|ended|won|lost|continued|returned|reopened|settled|entered|left|passed|failed|made|earned|survived|finished)\b/i;
 const STATUS = /\b(?:fab|fabulous|dapper|fierce|cool|sharp|ready|done|cleared|approved|complete|finished|upgrade|victory|win|winner|exit|peace|temporary|temporarily|resumed|made it|level|mission|operation|case|verdict|negotiations?|final|reset|legend|perfect|apparently|anyway|for now)\b/i;
-const PHYSICAL_VERB = /\b(?:smiled|smile|laughed|laugh|walked|walk|moved|move|looked|look|watched|watch|stared|stare|blinked|blink|winked|wink|nodded|nod|shrugged|shrug|touched|touch|held|hold|reached|reach|stood|stand|sat|sit|ran|run|jumped|jump|wagged|wag|barked|bark|kissed|kiss|hugged|hug|grabbed|grab|opened|open|closed|close|entered|enter|returned|return|called|call|talked|talk|spoke|speak|heard|hear|saw|see|breathed|breathe)\b/i;
-const BODY = /\b(?:eye|eyes|face|mouth|shoulder|shoulders|hand|hands|head|tail|fur|coat|body|room|door|window|floor|wall|table|chair|car|road|street|sky|shadow|light|sound|scent|voice|water|phone|screen)\b/i;
+const PHYSICAL_VERB = /\b(?:smiled|smile|laughed|laugh|walked|walk|moved|move|looked|look|watched|watch|stared|stare|blinked|blink|winked|wink|nodded|nod|shrugged|shrug|touched|touch|held|hold|reached|reach|stood|stand|sat|sit|ran|run|jumped|jump|wagged|wag|barked|bark|kissed|kiss|hugged|hug|grabbed|grab|nudged|nudge|opened|open|closed|close|entered|enter|returned|return|called|call|talked|talk|spoke|speak|heard|hear|saw|see|breathed|breathe)\b/i;
+const BODY = /\b(?:eye|eyes|face|mouth|shoulder|shoulders|hand|hands|head|tail|paw|paws|fur|coat|body|room|door|window|floor|wall|table|chair|car|road|street|sky|shadow|light|sound|scent|voice|water|phone|screen)\b/i;
 const SOFT_FIRST_PERSON = /^(?:I|we|my|our)\b/i;
 
 const GENERIC_CONCRETE_HEAD = /\b(?:thing|things|stuff|object|objects|item|items|something|anything|one|piece|pieces|shape|shapes|whatever|whatsoever)\b/i;
@@ -175,7 +175,34 @@ function unsupportedConcrete(text: string, beat: MouthCandidateBeat, envelope: R
     envelope,
   });
 
-  return binding.accepted ? 0 : 1;
+  if (!binding.accepted) return 1;
+
+  /*
+   * Narrow post-generation seatbelt for concrete physical claims.
+   *
+   * This is deliberately NOT creative authorization. It only catches a
+   * physical action/body/sensory token that the candidate introduced when the
+   * supplied world contains no corresponding token. Figurative, emotional,
+   * rhythmic, and abstract language remains outside this check.
+   */
+  if (PHYSICAL_VERB.test(value) || BODY.test(value)) {
+    const candidateTokens = meaningfulTokens(value);
+    const sourceTokens = meaningfulTokens(worldEvidence(envelope).join(" "));
+
+    const physicalTerms = [...candidateTokens].filter((token) =>
+      PHYSICAL_VERB.test(token) || BODY.test(token),
+    );
+
+    if (
+      physicalTerms.some(
+        (token) => !sourceTokens.has(token),
+      )
+    ) {
+      return 1;
+    }
+  }
+
+  return 0;
 }
 
 function abstractPenalty(text: string): number {
