@@ -1,4 +1,4 @@
-import type { AuthorScene } from "@qre/contracts";
+import type { AuthorDomainContext, AuthorScene } from "@qre/contracts";
 import { localModelGenerate } from "./localModelRuntime.js";
 import type { AuthorCreativeDiscovery } from "./authorCreativeDiscovery.js";
 
@@ -51,6 +51,7 @@ export async function createAuthorExperience(input: {
   events: readonly AuthorCreativeEvent[];
   creativeDiscovery: AuthorCreativeDiscovery;
   memory?: readonly string[];
+  domainContext?: AuthorDomainContext;
 }): Promise<{
   scenes: Array<AuthorScene & { sourceEventIds: string[] }>;
   model: string;
@@ -59,13 +60,22 @@ export async function createAuthorExperience(input: {
   const system = [
     "You are QRE Creative.",
     "You create the viewer-facing QRE experience from fixed reality and grounded Creative Discovery.",
+    "You receive separate authority lanes. NEVER merge their authority:",
+    "CURRENT_REALITY = what happened now. Only this lane may be cited as current-event evidence.",
+    "MEMORY = previously established reality. It may support continuity/callback meaning, but it is not a current occurrence.",
+    "BUSINESS_CONTEXT = stable background about the business/service/world. It may inform vocabulary and interpretation, but it is not an event.",
+    "CREATIVE_DISCOVERY = interpretive direction over those lanes. It is not literal evidence.",
     "The sequence itself is the media. It should be entertaining and distinctive enough that somebody would want to show another person.",
     "North star: take something ordinary and make it feel alive. The reaction should be: That should have been boring. Somehow it wasn't.",
     "Reality is fixed. Creative interpretation is free.",
     "Creative Discovery tells you WHAT THE IDEA IS. Your job is HOW TO MAKE IT HIT using only supplied reality.",
     "Privately use: FACT -> RELATIONSHIP -> CONSEQUENCE -> MEANING -> VOICE.",
     "Silently consider several genuinely different realizations before choosing the strongest one. Output only the winner.",
-    "Use the discovered organizing idea, subject pattern, tension, surprise potential, payoff potential, and experienceShape as creative direction—not text to repeat.",
+    "Use the discovered organizing idea, subject pattern, tension, surprise potential, payoff potential, experienceShape, and evidence-role selections as creative direction—not text to repeat.",
+    "carrierEventIds are the preferred on-screen factual spine.",
+    "backgroundEventIds are allowed to remain entirely off-screen; they are still valuable provenance.",
+    "turnEventIds and payoffEventIds identify supplied facts that may earn shifts and landings.",
+    "Do not make a beat merely because a fact exists. Compress operational detail upward into the larger transformation when Creative Discovery found one.",
     "Transform the relationship between real events, not the events themselves.",
     "A tiny cinematic world is created through status, metaphor, consequence, rhythm, and voice—not by inventing props, camera moves, lighting, sounds, weather, textures, or physical staging.",
     "Clearly nonliteral lens-world invention is allowed. Rooms may resist, work may become battle, completion may become victory, a bow may become a negotiated settlement, when a reasonable viewer understands the move as framing.",
@@ -94,10 +104,11 @@ export async function createAuthorExperience(input: {
         role: "user",
         content: JSON.stringify({
           subject: input.subject,
-          reality: input.events,
-          creativeDiscovery: input.creativeDiscovery,
-          relevantMemory: (input.memory ?? []).slice(0, 20),
-          instruction: "Create the QRE experience. Make the supplied reality play.",
+          CURRENT_REALITY: input.events,
+          MEMORY: (input.memory ?? []).slice(0, 20),
+          BUSINESS_CONTEXT: input.domainContext,
+          CREATIVE_DISCOVERY: input.creativeDiscovery,
+          instruction: "Create the QRE experience. Make the supplied reality play. Prefer the discovered carrier facts; leave background evidence underneath unless it earns screen time.",
         }),
       },
     ],
