@@ -155,7 +155,6 @@ export async function createAuthorExperience(input: {
         )
       : [];
 
-    const usesPlayable = suppliedIds.some((id) => playableIdSet.has(id));
     const backgroundOnly = suppliedIds.length > 0 &&
       suppliedIds.every((id) => backgroundIdSet.has(id));
 
@@ -166,24 +165,17 @@ export async function createAuthorExperience(input: {
      */
     if (backgroundOnly && suppliedIds.length < 2) return [];
 
-    const fallbackId = playableIds.length
-      ? playableIds[Math.min(playableIds.length - 1, Math.round(
-          (index / Math.max(1, raw.length - 1)) * (playableIds.length - 1),
-        ))]
-      : undefined;
+    /*
+     * Never invent provenance for a beat. If the model cannot identify the
+     * supplied evidence that supports a line, the line is not grounded enough
+     * to enter the canonical experience.
+     */
+    if (!suppliedIds.length) return [];
 
     return [{
       text,
       kind: index === 0 ? "hook" : index === raw.length - 1 ? "payoff" : "line",
-      sourceEventIds: unique(
-        suppliedIds.length
-          ? suppliedIds
-          : usesPlayable
-            ? suppliedIds
-            : fallbackId
-              ? [fallbackId]
-              : [],
-      ),
+      sourceEventIds: suppliedIds,
     }];
   }).slice(0, 20);
 
