@@ -1,5 +1,15 @@
 /* QRE UNIVERSAL COGNITION · one domain-neutral search brain */
-import type { AuthorDomainContext, CreativeFrameSelection, LatentMovieCandidate, LatentMovieTrajectoryStep, RealityGraph } from "@qre/contracts";
+import type { AuthorDomainContext, LatentMovieCandidate, LatentMovieTrajectoryStep, RealityGraph } from "@qre/contracts";
+
+type CreativeFrameSelection = {
+  mode: "frame" | "none";
+  frame: string;
+  confidence: number;
+  coreTension: string;
+  creativeGain: string;
+  templateRisk: string;
+  evidenceEventIds: string[];
+};
 import { localModelGenerate } from "./localModelRuntime.js";
 import { buildAuthorCognitionIntelligence } from "./authorCognitionIntelligence.js";
 
@@ -146,7 +156,7 @@ function deriveCutTrajectory(cuts: unknown[], g: RealityGraph): { ids:string[]; 
     previousIds=unique([...previousIds,...current]);
   }
   if(trajectory.length<2)return undefined;
-  const last=previousIds.at(-1)!;
+  const last=previousIds[previousIds.length - 1]!;
   trajectory.push({order:trajectory.length+1,operation:"payoff",eventIds:[last],viewerChange:"land the completed or changed state without adding a new event",nextQuestion:"What lingers after the supplied run?"});
   return {ids:allIds,trajectory,relationKinds:unique(relationKinds)};
 }
@@ -204,7 +214,11 @@ function normalizeModel(raw: unknown,g: RealityGraph,returning:boolean): LatentM
       anchorEventIds:validIds(r.anchorEventIds??ids,g).slice(0,4),
       supportingRelationKinds:unique(supporting),
       trajectory,
-      payoff:clean(r.payoff??r.finalMeaning)||labels(g,[ids.at(-1)??""]).at(-1)||"supplied reality",
+      payoff: clean(r.payoff ?? r.finalMeaning) || (() => {
+        const lastId = ids.length ? ids[ids.length - 1] : "";
+        const lastLabels = labels(g, [lastId]);
+        return lastLabels.length ? lastLabels[lastLabels.length - 1] : "supplied reality";
+      })(),
       unresolvedQuestion:clean(r.unresolvedQuestion??r.nextQuestion)||"What changes this reading?",
       evidence:Array.isArray(r.evidence)?r.evidence.filter((x):x is string=>typeof x==="string").map(clean).filter(Boolean).slice(0,24):labels(g,ids),
       hypothesis:Array.isArray(r.hypothesis)?r.hypothesis.filter((x):x is string=>typeof x==="string").map(clean).filter(Boolean).slice(0,8):[thesis||"Grounded structural reading of supplied details."],
