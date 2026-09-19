@@ -69,6 +69,8 @@ function parseJson(text: string): Record<string, unknown> | undefined {
 }
 
 type FrameDecision = {
+  relationship: string;
+  latentMovie: string;
   frame: string;
   confidence: number;
   why: string;
@@ -84,27 +86,29 @@ async function chooseFrame(input: {
   if (requested && requested.toLowerCase() !== "let qre decide") {
     return {
       decision: {
+        relationship: "",
+        latentMovie: "",
         frame: requested,
         confidence: 1,
         why: "explicitly supplied",
-        risk: "do not let the lens invent reality",
+        risk: "do not let the lens invent literal reality",
       },
       model: "explicit",
     };
   }
 
   const system = [
-    "You are QRE's creative frame selector.",
+    "You are QRE's hidden story finder.",
     "You are given a factual readout of what actually happened.",
-    "Your job is to find whether those same facts support a more entertaining reading.",
-    "Entertainment lift matters more than sounding deep. Do not mistake solemnity, symbolism, abstraction, ceremony, or poetic significance for an interesting frame.",
-    "A frame earns selection when it creates playable tension, status, motion, competition, contrast, surprise, absurdity, anticipation, or another clear reason to keep watching.",
-    "Do not reject a frame merely because the source facts are ordinary, routine, or straightforward. Ordinary reality is exactly where QRE should find the unexpected angle.",
-    "The source domain does not choose the frame. A housekeeping job is not automatically an operation; a dog is not automatically comedy; a relationship is not automatically romance.",
-    "A frame is perspective only. It may transform status, metaphor, rhythm, implication, or attitude. It may not create a new concrete fact.",
-    "NONE is correct only when no frame makes the supplied facts sharper, stranger, funnier, more charged, or more memorable.",
-    "Prefer a frame that lets the existing facts do new work rather than adding decorative atmosphere.",
-    "Return JSON only: {\"frame\":\"...|NONE\",\"confidence\":0.0,\"why\":\"...\",\"risk\":\"...\"}.",
+    "Before choosing a lens, discover the relationship among the facts and the latent movie already hiding inside them.",
+    "Ask privately: What changed? What is the pressure? What is the turn? What is the consequence? What payoff is already supported?",
+    "Do not write prose yet.",
+    "Entertainment lift matters more than sounding deep. Do not mistake solemnity, symbolism, abstraction, ceremony, or poetic significance for an interesting movie.",
+    "The latent movie should describe the transformation of the event structure, not repeat the facts.",
+    "Then choose the narrative lens that makes that relationship most entertaining. The source domain does not choose the lens.",
+    "A lens may transform status, metaphor, rhythm, implication, conflict, or attitude. It may not invent literal reality.",
+    "NONE is correct only when no lens materially improves the latent movie.",
+    "Return JSON only: {\"relationship\":\"...\",\"latentMovie\":\"...\",\"frame\":\"...|NONE\",\"confidence\":0.0,\"why\":\"...\",\"risk\":\"...\"}.",
   ].join("\n");
 
   const result = await localModelGenerate(
@@ -127,6 +131,8 @@ async function chooseFrame(input: {
 
   return {
     decision: {
+      relationship: clean(parsed?.relationship),
+      latentMovie: clean(parsed?.latentMovie),
       frame,
       confidence: clamp(parsed?.confidence, frame === "NONE" ? 0.5 : 0.65),
       why: clean(parsed?.why),
@@ -180,7 +186,7 @@ async function realize(input: {
     "QRE writes for the screen, not the page. The sequence itself creates the experience.",
     "North star: take something ordinary and make it feel alive. The reaction should be: 'That should have been boring. Somehow it wasn't.'",
     "Silently explore several genuinely different readings of the supplied reality before writing. Choose the one that would be the most fun, surprising, strange, sharp, tense, funny, status-changing, or otherwise irresistible to keep watching while staying grounded. Do not reveal the rejected readings.",
-    "Privately move through this chain before writing: FACT -> RELATIONSHIP -> CONSEQUENCE -> MEANING -> VOICE. Facts alone are not the story. Notice how facts relate, what that relationship causes in the reading, what it comes to mean, then choose the voice that makes that meaning playable.",
+    "The hidden story finder already supplied RELATIONSHIP and LATENT MOVIE. Trust that structure. Privately move through: FACT -> RELATIONSHIP -> CONSEQUENCE -> MEANING -> VOICE. Facts alone are not the story. The storyteller's job is to turn that latent structure into human, entertaining prose.",
     "Do not confuse 'meaningful' with 'entertaining'. QRE may be meaningful, but this layer must first make the reality PLAY.",
     "Turn what happened into a QRE readout.",
     "Do not merely describe, summarize, or list the facts back.",
@@ -214,10 +220,12 @@ async function realize(input: {
         content: JSON.stringify({
           subject: input.subject,
           factualReadout: input.reality,
+          relationship: input.frame.relationship,
+          latentMovie: input.frame.latentMovie,
           selectedFrame: input.frame.frame,
           frameReason: input.frame.why,
           frameRisk: input.frame.risk,
-          instruction: "Create the QRE readout from what happened. Feel it; do not explain it.",
+          instruction: "Tell the latent movie like an actual storyteller. Write around the subject. Perform the relationship and consequence; do not explain the mechanics.",
         }),
       },
     ],
