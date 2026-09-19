@@ -1234,6 +1234,52 @@ export function evaluateAuthorAuthorshipQuality(input: {
   };
 }
 
+function wholeAuthoredSelectionScore(
+  selection: ReturnType<typeof selectBestMouthSequence>,
+  envelope: ReturnType<typeof buildAuthorRealityEnvelope>,
+): number {
+  if (!selection.candidates.length) return 0;
+
+  const replay =
+    evaluateAuthorSourceReplay(
+      selection,
+      envelope,
+    );
+
+  const average = (
+    key:
+      | "meaningScore"
+      | "observerDiscoveryScore"
+      | "noveltyScore"
+      | "transitionScore",
+  ): number =>
+    selection.candidates.reduce(
+      (sum, candidate) =>
+        sum + Number(candidate[key] ?? 0),
+      0,
+    ) / selection.candidates.length;
+
+  const meaning = average("meaningScore");
+  const discovery = average("observerDiscoveryScore");
+  const novelty = average("noveltyScore");
+  const transition = average("transitionScore");
+
+  /*
+   * Whole authored variants compete as experiences.
+   *
+   * Line-level scores remain useful, but literal source contact must not beat
+   * a stronger transformation merely because it repeats more supplied words.
+   */
+  return metric(
+    selection.score * 0.28 +
+      meaning * 0.18 +
+      discovery * 0.22 +
+      novelty * 0.08 +
+      transition * 0.10 +
+      (1 - replay.sourceReplayScore) * 0.34,
+  );
+}
+
 export function buildLiteralRecoveryCandidate(input: {
   beat: MouthCandidateBeat;
   envelope: ReturnType<typeof buildAuthorRealityEnvelope>;
@@ -1832,7 +1878,17 @@ export async function authorBrainCanonical(
       }),
     )
     .filter((selection) => selection.candidates.length > 0)
-    .sort((left, right) => right.score - left.score);
+    .sort(
+      (left, right) =>
+        wholeAuthoredSelectionScore(
+          right,
+          envelope,
+        ) -
+        wholeAuthoredSelectionScore(
+          left,
+          envelope,
+        ),
+    );
 
   let recoveryUsed = false;
   const usablePools = intactVariantSelections.length
