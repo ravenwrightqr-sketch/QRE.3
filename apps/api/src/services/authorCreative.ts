@@ -67,7 +67,8 @@ export async function createAuthorExperience(input: {
     "BUSINESS_CONTEXT = stable background about the business/service/world. It may inform vocabulary and interpretation, but it is not an event.",
     "CREATIVE_DISCOVERY = interpretive direction over those lanes. It is not literal evidence.",
     "PLAYABLE_REALITY = the current facts Creative Discovery selected to carry the viewer-facing experience.",
-    "BACKGROUND_EVIDENCE = grounded truth kept underneath for provenance/context. It must NOT become a separate beat unless Discovery selected it as playable.",
+    "BACKGROUND_EVIDENCE = grounded truth kept underneath for provenance/context. It may SUPPORT an interpretive beat collectively, but it must NOT become a separate one-fact beat.",
+    "A background-only interpretive beat should normally cite TWO OR MORE background event IDs, showing that the line comes from their relationship/accumulation rather than from restating one task.",
     "The sequence itself is the media. It should be entertaining and distinctive enough that somebody would want to show another person.",
     "North star: take something ordinary and make it feel alive. The reaction should be: That should have been boring. Somehow it wasn't.",
     "Reality is fixed. Creative interpretation is free.",
@@ -76,9 +77,10 @@ export async function createAuthorExperience(input: {
     "Silently consider several genuinely different realizations before choosing the strongest one. Output only the winner.",
     "Use the discovered organizing idea, subject pattern, tension, surprise potential, payoff potential, experienceShape, and evidence-role selections as creative direction—not text to repeat.",
     "carrierEventIds are the on-screen factual spine.",
-    "backgroundEventIds remain off-screen unless already represented by a selected playable milestone. They are still valuable provenance.",
+    "backgroundEventIds remain off-screen as individual facts. They may jointly support a higher-level interpretive cut when multiple background facts create the relation.",
     "turnEventIds and payoffEventIds identify supplied facts that may earn shifts and landings.",
     "Do not make a beat merely because a fact exists. Compress operational detail upward into the larger transformation when Creative Discovery found one.",
+    "When a line is supported by several mundane facts, cite those event IDs together instead of turning each fact into its own line.",
     "Do not open with arrival or close with completion merely because those facts are available. Use them only when they actively improve the experience.",
     "Quality beats coverage. Fewer stronger cuts are better than complete representation of the input.",
     "Transform the relationship between real events, not the events themselves.",
@@ -128,7 +130,11 @@ export async function createAuthorExperience(input: {
 
   const parsed = parseJson(result.text);
   const raw = Array.isArray(parsed?.beats) ? parsed!.beats : [];
-  const eventIds = input.playableEvents.map((event) => event.id);
+  const playableIds = input.playableEvents.map((event) => event.id);
+  const backgroundIds = (input.backgroundEvents ?? []).map((event) => event.id);
+  const eventIds = unique([...playableIds, ...backgroundIds]);
+  const playableIdSet = new Set(playableIds);
+  const backgroundIdSet = new Set(backgroundIds);
 
   const scenes = raw.flatMap((value, index): Array<AuthorScene & { sourceEventIds: string[] }> => {
     const beat: RawBeat =
@@ -142,14 +148,27 @@ export async function createAuthorExperience(input: {
     if (!text) return [];
 
     const suppliedIds = Array.isArray(beat.sourceEventIds)
-      ? beat.sourceEventIds
-          .filter((id): id is string => typeof id === "string")
-          .filter((id) => eventIds.includes(id))
+      ? unique(
+          beat.sourceEventIds
+            .filter((id): id is string => typeof id === "string")
+            .filter((id) => eventIds.includes(id)),
+        )
       : [];
 
-    const fallbackId = eventIds.length
-      ? eventIds[Math.min(eventIds.length - 1, Math.round(
-          (index / Math.max(1, raw.length - 1)) * (eventIds.length - 1),
+    const usesPlayable = suppliedIds.some((id) => playableIdSet.has(id));
+    const backgroundOnly = suppliedIds.length > 0 &&
+      suppliedIds.every((id) => backgroundIdSet.has(id));
+
+    /*
+     * Background evidence may create a higher-order perception only as a set.
+     * A single background event becoming its own beat is exactly the
+     * one-fact-one-caption failure QRE must prevent.
+     */
+    if (backgroundOnly && suppliedIds.length < 2) return [];
+
+    const fallbackId = playableIds.length
+      ? playableIds[Math.min(playableIds.length - 1, Math.round(
+          (index / Math.max(1, raw.length - 1)) * (playableIds.length - 1),
         ))]
       : undefined;
 
@@ -157,7 +176,13 @@ export async function createAuthorExperience(input: {
       text,
       kind: index === 0 ? "hook" : index === raw.length - 1 ? "payoff" : "line",
       sourceEventIds: unique(
-        suppliedIds.length ? suppliedIds : fallbackId ? [fallbackId] : [],
+        suppliedIds.length
+          ? suppliedIds
+          : usesPlayable
+            ? suppliedIds
+            : fallbackId
+              ? [fallbackId]
+              : [],
       ),
     }];
   }).slice(0, 20);
