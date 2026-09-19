@@ -48,6 +48,7 @@ import {
   buildSequenceTransition,
   initialMomentum,
 } from "./authorSequenceIntelligence.js";
+import { discoverAuthorBeatPlan } from "./authorBeatDiscoveryCanonical.js";
 
 const clean = (value: unknown): string =>
   String(value ?? "").replace(/\s+/g, " ").trim();
@@ -1546,6 +1547,11 @@ function sourceGroundedAuthorResult(input: {
           relations: input.graph.relations,
           eventStructure: input.graph.eventStructure ?? [],
         },
+        beatDiscovery: {
+          used: discoveredBeats.length > 0,
+          raw: discoveredPlan.raw,
+          beats: discoveredPlan.beats,
+        },
         finalSequence: sequence,
         finalScenes: scenes,
         provenance: cuts.map((cut) => ({
@@ -1706,11 +1712,87 @@ export async function authorBrainCanonical(
     movie,
     envelope,
   });
-  const composedBeats = composeTrajectoryBeats(
+
+  /*
+   * Author owns the sequence before Mouth.
+   *
+   * The dedicated discovery pass may reorganize approved evidence into the
+   * strongest observer trajectory. It cannot add reality because every beat is
+   * closed over existing RealityGraph event IDs. If discovery fails to produce
+   * a valid plan, the deterministic semantic composer remains the fallback.
+   */
+  const discoveredPlan = await discoverAuthorBeatPlan({
+    graph,
     movie,
-    envelope,
-    cognition.selectedInference?.kind,
+    subject,
+    prompt: clean(input.prompt),
+    lens,
+    selectedInference: cognition.selectedInference
+      ? {
+          kind: cognition.selectedInference.kind,
+          latentRead: cognition.selectedInference.latentRead,
+          evidenceEventIds: cognition.selectedInference.evidenceEventIds,
+        }
+      : undefined,
+  });
+
+  const discoveredBeats: MouthCandidateBeat[] = discoveredPlan.beats.map(
+    (beat, index, all) => {
+      const semanticRealization = scopedSemanticRealization(
+        movie,
+        beat.eventIds,
+      );
+
+      return {
+        order: index + 1,
+        role:
+          index === all.length - 1
+            ? "payoff"
+            : beat.role,
+        attentionFunction: beat.change,
+        creativeMove: "author-discovered",
+        eventIds: beat.eventIds,
+        change: beat.change,
+        next: beat.next,
+        frontier: beat.frontier,
+        paysOff:
+          index === all.length - 1
+            ? [movie.payoff]
+            : [],
+        relationKinds: unique([
+          ...movie.supportingRelationKinds,
+          ...(semanticRealization?.mechanism
+            ? [semanticRealization.mechanism]
+            : []),
+        ]),
+        semanticRealization,
+        observerExperience: semanticRealization
+          ? movie.storyThesis?.observerExperience
+          : undefined,
+        obligations: [
+          beat.necessity,
+          "This beat was authored before Mouth and must be realized, not replanned.",
+          "Concrete reality remains limited to the approved source event IDs.",
+          "Do not merely restate source labels when the beat asks for a change in attention or interpretation.",
+          ...(index === all.length - 1
+            ? [
+                "Land the approved payoff and stop.",
+              ]
+            : []),
+        ],
+      };
+    },
   );
+
+  const composedBeats =
+    discoveredBeats.length > 0
+      ? discoveredBeats
+      : composeTrajectoryBeats(
+          movie,
+          envelope,
+          cognition.selectedInference?.kind,
+        );
+
   const authorityBeats = composedBeats.map((beat) => ({
     ...beat,
     realizationAuthority: buildMouthRealizationAuthority({
@@ -1754,10 +1836,11 @@ export async function authorBrainCanonical(
   });
 
   let modelName =
+    discoveredPlan.model ||
     process.env.QRE_AUTHOR_FAST_MODEL ||
     process.env.QRE_LOCAL_MODEL ||
     "unknown";
-  let modelCalls = 0;
+  let modelCalls = discoveredPlan.modelCalls;
   let pools: MouthCandidatePool[] = [];
   let authoredVariantPools: MouthCandidatePool[][] = [];
   /*
@@ -2287,6 +2370,8 @@ export async function authorBrainCanonical(
         mouthParseAccepted,
         mouthGenerationError: mouthGenerationError || undefined,
         recoveryUsed,
+        beatDiscoveryUsed: discoveredBeats.length > 0,
+        beatDiscoveryModel: discoveredPlan.model,
       },
       trace: {
         input: {
