@@ -475,7 +475,7 @@ function preferenceConstellationHypothesis(
     kind: "preference_constellation",
     evidenceEventIds: preferenceIds,
     latentRead:
-      "The supplied preferences are identity material. Perform the pattern as selective attention, wanting, priority, interruption, repetition, attitude, or voice rather than inventory or scene description. Let the observer construct the character read; do not name it for them and do not turn preference into an occurrence.",
+      "The supplied preferences form a recognizable pattern of specific taste. Let the observer construct the character read; do not name it for them.",
     grounding,
     relationalStrength,
     latentInterpretability,
@@ -735,9 +735,6 @@ function traits(
     ...input.facts,
     ...input.sourceMoments,
     ...(input.memoryContext ?? []),
-    ...(input.domainContext?.dogTag?.personalityTraits ?? []),
-    ...(input.domainContext?.dogTag?.quirks ?? []),
-    ...(input.domainContext?.dogTag?.contextualPatterns ?? []),
   ];
 
   return uniq(
