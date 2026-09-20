@@ -148,6 +148,7 @@ export async function discoverAuthorCreativeDirection(input: {
     "",
     "METAMORPHIC candidate test:",
     "The figurative read must reorganize supplied reality without claiming the metaphor literally happened.",
+    "A METAMORPHIC candidate should normally relate at least TWO supplied facts. Do not build the winning world from one isolated action when broader grounded material exists.",
     "It must remain understandable from the cited evidence alone.",
     "Prefer supplied actions, entities, places, repetition, contrast, or recurrence as the support for a metamorphic read.",
     "Do not use arrival/finish times as support for a metamorphic read when the same idea works without them.",
@@ -284,10 +285,27 @@ export async function discoverAuthorCreativeDirection(input: {
   };
 
   const requestedSelectedId = clean(parsed?.selectedCandidateId);
+  const requestedSelected = candidates.find(
+    (candidate) => candidate.id === requestedSelectedId,
+  );
+
   const selected =
-    candidates.find((candidate) => candidate.id === requestedSelectedId) ??
-    candidates[0] ??
-    fallbackCandidate;
+    requestedSelected &&
+    (
+      requestedSelected.mode !== "METAMORPHIC" ||
+      requestedSelected.evidenceEventIds.length >= 2
+    )
+      ? requestedSelected
+      : candidates.find(
+          (candidate) =>
+            candidate.mode === "METAMORPHIC" &&
+            candidate.evidenceEventIds.length >= 2,
+        ) ??
+        candidates.find(
+          (candidate) => candidate.evidenceEventIds.length >= 2,
+        ) ??
+        candidates[0] ??
+        fallbackCandidate;
 
   const playableEventIds = stringArray(parsed?.playableEventIds, 32)
     .filter((id) => allowedEventIds.has(id));
