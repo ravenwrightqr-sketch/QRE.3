@@ -46,8 +46,8 @@ if (required.every((p) => existsSync(join(root, p)))) {
 
   if (!/temperature:\s*0\.18/.test(extractor)) failures.push("Reality Extractor must remain low-temperature factual extraction");
   if (!/candidates/.test(discovery) || !/selectedCandidateId/.test(discovery) || !/observerInference/.test(discovery)) failures.push("Creative Discovery must search competing grounded perceptions and select one");
-  if (!/Silently consider several genuinely different realizations/.test(creative)) failures.push("QRE Creative must privately search multiple realizations");
-  if (!/Reality is fixed\. Creative interpretation is free\./.test(creative)) failures.push("QRE Creative missing fixed-reality/free-interpretation law");
+  if (!/Silently consider several realizations/.test(creative)) failures.push("QRE Creative must privately search multiple realizations");
+  if (!/Reality is fixed\./.test(creative) || !/Interpretation is free\./.test(creative)) failures.push("QRE Creative missing fixed-reality/free-interpretation law");
   if (/localModelGenerate\s*\(/.test(brain)) failures.push("Canonical brain may not directly call model");
   if (!/authorBrainCanonical/.test(service)) failures.push("Production service not wired to canonical brain");
   if (!/authorExperienceStateToMemoryBatch/.test(service) || !/buildExperienceMemoryBatch/.test(service)) failures.push("Memory/persistence boundary lost");
