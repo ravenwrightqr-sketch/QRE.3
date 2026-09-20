@@ -4,6 +4,7 @@ type Case = {
   name: string;
   subject: string;
   facts: string[];
+  domainContext?: Record<string, unknown>;
 };
 
 const cases: Case[] = [
@@ -36,6 +37,10 @@ const cases: Case[] = [
       "Milo loves bacon",
       "Milo loves small dogs",
     ],
+    domainContext: {
+      category: "DOG TAG",
+      outputType: "LIVING DOG TAG",
+    },
   },
   {
     name: "RELATIONSHIP",
@@ -67,6 +72,7 @@ for (const test of selectedCases) {
     memoryContext: [],
     trajectory: [],
     creativeLearningContext: [],
+    domainContext: test.domainContext,
     returning: false,
     visitNumber: 1,
     movieMode: true,
