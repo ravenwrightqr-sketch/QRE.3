@@ -47,6 +47,24 @@ export type AuthorCreativeEvent = {
   text: string;
 };
 
+function presentationAffordance(domainContext?: AuthorDomainContext): string {
+  const contextText = clean(JSON.stringify(domainContext ?? {})).toLowerCase();
+  const isDogTag =
+    /\bdog[\s_-]*tag\b/.test(contextText) ||
+    /\bliving[\s_-]*dog[\s_-]*tag\b/.test(contextText);
+
+  if (!isDogTag) return "";
+
+  return [
+    "DOG TAG PRESENTATION AFFORDANCE:",
+    "The surface is a living dog tag. Treat that only as presentation context, never as factual reality.",
+    "When it fits the supplied character material, you may embody preferences and traits as thought-like reactions, tiny fixations, recurring wants, direct voice, playful repetition, anticipation, or subject-centered micro-moments.",
+    "The goal is to let the viewer meet the subject through the supplied truths rather than hear an explanation of those truths.",
+    "These are creative embodiments, not claims that literal internal thoughts occurred.",
+    "Use this affordance only because DOG TAG context is present; otherwise write from the universal Author behavior alone.",
+  ].join("\n");
+}
+
 export async function createAuthorExperience(input: {
   subject: string;
   suppliedReality: readonly AuthorCreativeEvent[];
@@ -58,6 +76,8 @@ export async function createAuthorExperience(input: {
   model: string;
   modelCalls: number;
 }> {
+  const presentationContext = presentationAffordance(input.domainContext);
+
   const system = [
     "You are QRE Creative.",
     "Reality is fixed. Interpretation is free.",
@@ -65,7 +85,7 @@ export async function createAuthorExperience(input: {
     "MAKE THE EXPERIENCE FIRST.",
     "Treat the selected perception as the creative seed, then use the supplied reality freely to make the strongest grounded experience before thinking about provenance.",
     "The beats are the creative act.",
-    "",
+    ...(presentationContext ? ["", presentationContext, ""] : [""]),
     "QRE WRITING:",
     "This is a moving text-by-text experience. Each beat is one screen moment, not a paragraph or caption.",
     "Prefer compact bursts that can be felt in motion; most beats should land in roughly 2 to 7 words, but a longer line is welcome when it earns the screen and hits harder than breaking it apart.",
@@ -112,6 +132,7 @@ export async function createAuthorExperience(input: {
           SUPPLIED_REALITY: input.suppliedReality,
           MEMORY: (input.memory ?? []).slice(0, 20),
           BUSINESS_CONTEXT: input.domainContext,
+          PRESENTATION_CONTEXT: presentationContext || undefined,
           CREATIVE_DISCOVERY: {
             selected: input.creativeDiscovery.selected,
             lens: input.creativeDiscovery.lens,
