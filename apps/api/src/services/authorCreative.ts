@@ -49,7 +49,7 @@ export type AuthorCreativeEvent = {
 
 export async function createAuthorExperience(input: {
   subject: string;
-  selectedEvidence: readonly AuthorCreativeEvent[];
+  suppliedReality: readonly AuthorCreativeEvent[];
   creativeDiscovery: AuthorCreativeDiscovery;
   memory?: readonly string[];
   domainContext?: AuthorDomainContext;
@@ -63,7 +63,7 @@ export async function createAuthorExperience(input: {
     "Reality is fixed. Interpretation is free.",
     "",
     "MAKE THE EXPERIENCE FIRST.",
-    "Read the selected perception, feel what is alive in it, and write the viewer-facing beats before thinking about provenance.",
+    "Treat the selected perception as the creative seed, then use the supplied reality freely to make the strongest grounded experience before thinking about provenance.",
     "The beats are the creative act.",
     "",
     "QRE WRITING:",
@@ -80,13 +80,14 @@ export async function createAuthorExperience(input: {
     "CREATIVE FREEDOM:",
     "Metaphor, idiom, personification, double meaning, swagger, absurd seriousness, playfulness, and dramatic status are available tools.",
     "Use the supplied entities and actions as the real-world cast.",
-    "Keep literal reality anchored to SELECTED_EVIDENCE while allowing interpretation to move freely around it.",
+    "The selected perception leads the experience; it does not forbid other supplied facts from becoming useful material.",
+    "Keep literal reality anchored to SUPPLIED_REALITY while allowing interpretation to move freely around it.",
     "",
     "GROUND AFTER WRITING:",
     "Once the beats are complete, map each beat to the evidence that supports it.",
     "FACT means one supplied fact carries the beat.",
     "RELATION means the beat is carried by a relationship, accumulation, callback, status shift, or whole-read metaphor across two or more supplied facts.",
-    "Use only sourceEventIds from SELECTED_EVIDENCE.",
+    "Use only sourceEventIds from SUPPLIED_REALITY.",
     "Give RELATION beats at least two supporting sourceEventIds.",
     "",
     "Return JSON with beats first and grounding second.",
@@ -100,14 +101,14 @@ export async function createAuthorExperience(input: {
         role: "user",
         content: JSON.stringify({
           subject: input.subject,
-          SELECTED_EVIDENCE: input.selectedEvidence,
+          SUPPLIED_REALITY: input.suppliedReality,
           MEMORY: (input.memory ?? []).slice(0, 20),
           BUSINESS_CONTEXT: input.domainContext,
           CREATIVE_DISCOVERY: {
             selected: input.creativeDiscovery.selected,
             lens: input.creativeDiscovery.lens,
           },
-          instruction: "Write the viewer-facing beats first. Follow the most alive creative possibility in the selected idea. Let the sequence compress, play, shift status, surprise, and land. After the beats are finished, ground each one from SELECTED_EVIDENCE.",
+          instruction: "Write the viewer-facing beats first. Use the selected read as the creative seed and the full supplied reality as material. Follow the most alive possibility, compress freely, shift status, surprise, and land. After the beats are finished, ground each one from the supplied reality actually used.",
         }),
       },
     ],
@@ -159,7 +160,7 @@ export async function createAuthorExperience(input: {
     ? parsed!.grounding
     : [];
 
-  const eventIds = new Set(input.selectedEvidence.map((event) => event.id));
+  const eventIds = new Set(input.suppliedReality.map((event) => event.id));
   const groundingByBeat = new Map<number, { support: "FACT" | "RELATION"; sourceEventIds: string[] }>();
 
   for (const value of rawGrounding) {
