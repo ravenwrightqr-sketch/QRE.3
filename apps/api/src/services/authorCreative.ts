@@ -63,6 +63,8 @@ function presentationAffordance(domainContext?: AuthorDomainContext): string {
     "Leave negative space. Prefer implication, interruption, callback, and unfinished-feeling fragments over labels that tell the viewer what the subject is.",
     "Do not translate sparse character facts into generic pet praise or species clichés such as good boy, happy tail, adorable, loyal friend, sunshine, paws, wagging, sniffing, barking, or similar unless those concrete ideas are actually supplied.",
     "When a strange little beat can stand without explanation, let it stand. The viewer should sometimes have to complete the character themselves.",
+    "React to the supplied preference itself; do not expand it into its stereotypical setting, associated object, bodily action, sensory consequence, or surrounding scene unless that concrete reality is supplied.",
+    "A preference can become voice, anticipation, fixation, or a tiny question without inventing where it happens or what physically happens next.",
     "These are creative embodiments, not claims that literal internal thoughts occurred.",
     "Use this affordance only because DOG TAG context is present; otherwise write from the universal Author behavior alone.",
   ].join("\n");
