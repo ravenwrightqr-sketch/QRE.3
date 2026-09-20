@@ -158,6 +158,8 @@ export async function discoverAuthorCreativeDirection(input: {
     "SELECTION:",
     "Choose the candidate that is most grounded, specific, surprising, compressible, and worth watching.",
     "Prefer a grounded METAMORPHIC read over a generic process summary.",
+    "Among metamorphic candidates, prefer the read carried by supplied actions/entities over one carried mainly by timestamps, arrival/departure, duration, or abstract atmosphere.",
+    "A candidate whose own risk admits it lacks specific action detail, is mainly temporal, is too abstract, or depends on subtle framing should normally lose to a comparably grounded candidate with stronger action-supported consequence.",
     "Reject any candidate whose core idea is merely cleaning/service/process/time/effort/completion.",
     "",
     "EVIDENCE:",
@@ -186,7 +188,7 @@ export async function discoverAuthorCreativeDirection(input: {
             requestedLens: requestedLens || undefined,
           },
           instruction:
-            "Produce 2 grounded RELATIONAL reads and 2 clearly nonliteral METAMORPHIC reads. Then select the strongest. Do not write final cuts.",
+            "Produce 2 grounded RELATIONAL reads and 2 clearly nonliteral METAMORPHIC reads. Then select the strongest. Selection should favor action-supported consequence over temporal framing or abstract atmosphere. Do not write final cuts.",
         }),
       },
     ],
