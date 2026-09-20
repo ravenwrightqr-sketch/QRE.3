@@ -156,8 +156,10 @@ export async function discoverAuthorCreativeDirection(input: {
     "",
     "EVIDENCE SELECTION AFTER THE READ:",
     "Only after selecting the strongest perception decide which CURRENT_REALITY facts deserve viewer-facing use.",
-    "playableEventIds = only the facts whose presence materially strengthens the selected perception.",
-    "backgroundEventIds = grounded facts that may remain underneath as provenance/context.",
+    "playableEventIds = only facts that deserve DIRECT literal presence on screen because the experience becomes materially weaker without showing them.",
+    "backgroundEventIds = grounded facts that may remain underneath as provenance/context and may collectively support a higher-order interpretive cut.",
+    "Candidate evidenceEventIds may be broader than playableEventIds. Do not copy all candidate evidence into playableEventIds.",
+    "When accumulation itself supports the selected perception, prefer keeping the contributing facts as background evidence and let them jointly support one interpretive cut rather than replaying the list.",
     "Arrival, start time, finish time, chronology, timestamps, completion, and source order are optional. Never use them merely because they exist.",
     "Dense operational evidence may collectively support one higher-order perception without each task becoming a beat.",
     "Quality beats coverage.",
@@ -165,6 +167,8 @@ export async function discoverAuthorCreativeDirection(input: {
     "OBSERVER LAW:",
     "QRE should let the observer complete meaningful inference.",
     "The observer should feel 'I noticed that', not 'the AI explained that'.",
+    "Observer inference must stay at the level of relationships among supplied facts. Do NOT infer a hidden cause, motive, personality trait, psychological state, personal standard, urgency, pride, satisfaction, obsession, intention, or unseen condition unless CURRENT_REALITY explicitly supports it.",
+    "A playful relational read such as a preference pattern is allowed when it is visibly constructed from supplied facts; an unseen explanation for why the pattern exists is not.",
     "Do not resolve the latent meaning before the observer gets a chance to make it.",
     "",
     "LENS:",
@@ -175,6 +179,8 @@ export async function discoverAuthorCreativeDirection(input: {
     "GROUNDING:",
     "Do not invent concrete people, objects, actions, conditions, sensory evidence, chronology, before-states, after-states, motives, emotions, relationships, outcomes, or future events.",
     "Clearly nonliteral interpretation is allowed, but the candidate itself must remain traceable to supplied evidence.",
+    "Do not infer a before-state from an action: cleaning does not prove grime, disorder, chaos, neglect, or something being obscured; repair does not prove negligence; completion does not prove pride, relief, satisfaction, or future recurrence.",
+    "Do not infer intensity from elapsed time alone: timestamps do not prove urgency, racing, pressure, efficiency, or leisurely pace unless supplied.",
     "",
     "EXPERIENCE SHAPE:",
     "After selection, return a short abstract viewer trajectory only if useful. Do not force a genre arc.",
@@ -230,9 +236,7 @@ export async function discoverAuthorCreativeDirection(input: {
   const requestedPlayable = stringArray(parsed?.playableEventIds, 32)
     .filter((id) => allowedEventIds.has(id));
 
-  const playableEventIds = requestedPlayable.length
-    ? requestedPlayable
-    : selected.evidenceEventIds;
+  const playableEventIds = requestedPlayable;
 
   const playableSet = new Set(playableEventIds);
   const requestedBackground = stringArray(parsed?.backgroundEventIds, 64)
