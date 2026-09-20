@@ -32,6 +32,7 @@ import {
   type AuthorCreativeDiscovery,
 } from "./authorCreativeDiscovery.js";
 import { createAuthorExperience } from "./authorCreative.js";
+import { verifyAuthorCreativeGrounding } from "./authorCreativeGroundingVerifier.js";
 
 const clean = (value: unknown): string =>
   String(value ?? "").replace(/\s+/g, " ").trim();
@@ -312,8 +313,13 @@ export async function authorBrainCanonical(
         modelCalls: 0,
       };
 
+  const verifiedCreative = await verifyAuthorCreativeGrounding({
+    scenes: creativeResult.scenes,
+    suppliedReality: events,
+  });
+
   const usedEvidenceIds = new Set(
-    creativeResult.scenes.flatMap((scene) => scene.sourceEventIds),
+    verifiedCreative.scenes.flatMap((scene) => scene.sourceEventIds),
   );
   const movieEvidence = usedEvidenceIds.size
     ? events.filter((event) => usedEvidenceIds.has(event.id))
@@ -326,10 +332,10 @@ export async function authorBrainCanonical(
     subject,
     discoveryResult.discovery.selected.perception ||
       discoveryResult.discovery.selected.relationship,
-    creativeResult.scenes,
+    verifiedCreative.scenes,
   );
 
-  const scenes = creativeResult.scenes.map(({ text, kind }) => ({ text, kind }));
+  const scenes = verifiedCreative.scenes.map(({ text, kind }) => ({ text, kind }));
   const complete = scenes.length > 0;
   const selection = selectionFromDiscovery(discoveryResult.discovery);
 
@@ -368,7 +374,8 @@ export async function authorBrainCanonical(
       modelCalls:
         receipt.modelCalls +
         discoveryResult.modelCalls +
-        creativeResult.modelCalls,
+        creativeResult.modelCalls +
+        verifiedCreative.modelCalls,
       candidateSequences: discoveryResult.discovery.candidates.length,
       acceptedCandidates: complete ? 1 : 0,
       qualityStatus: complete ? "ACCEPTED" : "REJECTED",
