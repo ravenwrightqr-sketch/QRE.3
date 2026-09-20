@@ -150,6 +150,9 @@ export async function discoverAuthorCreativeDirection(input: {
     "",
     "SELECT FOR LIFE.",
     "Choose the read that feels most specific, grounded, surprising, compressible, and worth realizing.",
+    "A strong selected read changes how the supplied facts feel when viewed together.",
+    "Give Creative a relation with motion: status, tension, contrast, reversal, character, escalation, rivalry, excess, repetition, or another felt dynamic.",
+    "Prefer a read that creates a viewer perception over one that merely categorizes the service, workflow, process, or record.",
     "A tiny odd detail can beat a broad interpretation when it has more energy.",
     "Prefer the read that gives Creative the strongest thing to play with.",
     "",
@@ -176,7 +179,7 @@ export async function discoverAuthorCreativeDirection(input: {
             requestedLens: requestedLens || undefined,
           },
           instruction:
-            "Find four genuinely different grounded reads in the supplied reality. Keep each read concise: what you noticed, the playable relation, and its evidence. Select the one with the most life and creative potential. Do not write final cuts.",
+            "Find four genuinely different grounded reads in the supplied reality. Keep each concise: what you noticed, the playable relation, and its evidence. Favor reads that make the facts feel different through status, tension, contrast, character, reversal, escalation, repetition, excess, or another felt dynamic. Select the one with the most life and creative potential. Do not write final cuts.",
         }),
       },
     ],
