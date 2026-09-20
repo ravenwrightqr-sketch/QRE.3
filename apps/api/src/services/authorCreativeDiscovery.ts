@@ -322,6 +322,10 @@ export async function discoverAuthorCreativeDirection(input: {
     candidates[0] ??
     fallbackCandidate;
 
+  const selectedMatchesModelChoice =
+    Boolean(requestedSelected) &&
+    selected.id === requestedSelectedId;
+
   const selectedEvidenceSet = new Set(selected.evidenceEventIds);
 
   const playableEventIds = stringArray(parsed?.playableEventIds, 32)
@@ -348,8 +352,12 @@ export async function discoverAuthorCreativeDirection(input: {
       experienceShape: stringArray(parsed?.experienceShape, 5),
       lens: requestedLens || "NONE",
       confidence: clamp(parsed?.confidence, 0.65),
-      selectionReason: clean(parsed?.selectionReason),
-      risk: clean(parsed?.risk) || selected.risk,
+      selectionReason: selectedMatchesModelChoice
+        ? clean(parsed?.selectionReason)
+        : selected.perception || selected.relationship,
+      risk: selectedMatchesModelChoice
+        ? clean(parsed?.risk) || selected.risk
+        : selected.risk,
     },
     model: result.model,
     modelCalls: 1,
