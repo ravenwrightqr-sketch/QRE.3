@@ -79,7 +79,7 @@ export async function createAuthorExperience(input: {
     "Use selected.perception, selected.relationship, selected.observerInference, experienceShape, lens, and evidence selection as creative direction—not text to repeat.",
     "playableEventIds are the preferred factual spine.",
     "backgroundEventIds remain off-screen as individual facts. They may jointly support a higher-level interpretive cut when multiple background facts create the selected relation.",
-    "Do not revive rejected candidates or invent a new story in realization."
+    "Do not revive rejected candidates or invent a new story in realization.",
     "Do not make a beat merely because a fact exists. Compress operational detail upward into the larger transformation when Creative Discovery found one.",
     "When a line is supported by several mundane facts, cite those event IDs together instead of turning each fact into its own line.",
     "Do not open with arrival or close with completion merely because those facts are available. Use them only when they actively improve the experience.",
@@ -134,7 +134,6 @@ export async function createAuthorExperience(input: {
   const playableIds = input.playableEvents.map((event) => event.id);
   const backgroundIds = (input.backgroundEvents ?? []).map((event) => event.id);
   const eventIds = unique([...playableIds, ...backgroundIds]);
-  const playableIdSet = new Set(playableIds);
   const backgroundIdSet = new Set(backgroundIds);
 
   const scenes = raw.flatMap((value, index): Array<AuthorScene & { sourceEventIds: string[] }> => {
