@@ -41,6 +41,8 @@ type Verification = {
 };
 
 const ABSOLUTE_RELATION_LANGUAGE = /\b(always|never|first|last)\b/i;
+const SENSORY_CLAIM_LANGUAGE =
+  /\b(smell|smells|smelled|scent|scents|scented|taste|tastes|tasted|flavor|flavors|sound|sounds|sounded|noise|noises|texture|textures|touch|touches|touched|feel|feels|felt)\b/i;
 
 function hasUnsupportedAbsoluteClaim(
   sceneText: string,
@@ -48,6 +50,19 @@ function hasUnsupportedAbsoluteClaim(
 ): boolean {
   const sceneMatches = clean(sceneText).match(
     new RegExp(ABSOLUTE_RELATION_LANGUAGE.source, "ig"),
+  );
+  if (!sceneMatches?.length) return false;
+
+  const reality = clean(suppliedRealityText).toLowerCase();
+  return sceneMatches.some((claim) => !reality.includes(claim.toLowerCase()));
+}
+
+function hasUnsupportedSensoryClaim(
+  sceneText: string,
+  suppliedRealityText: string,
+): boolean {
+  const sceneMatches = clean(sceneText).match(
+    new RegExp(SENSORY_CLAIM_LANGUAGE.source, "ig"),
   );
   if (!sceneMatches?.length) return false;
 
@@ -162,6 +177,7 @@ export async function verifyAuthorCreativeGrounding(input: {
     const item = value as Verification;
     if (item.grounded !== true) return [];
     if (hasUnsupportedAbsoluteClaim(scene.text, suppliedRealityText)) return [];
+    if (hasUnsupportedSensoryClaim(scene.text, suppliedRealityText)) return [];
 
     const sourceEventIds = Array.isArray(item.sourceEventIds)
       ? unique(
