@@ -136,6 +136,8 @@ export async function discoverAuthorCreativeDirection(input: {
     "Use the supplied entities and actions as the creative cast.",
     "Treat logistics as background context unless the logistics themselves are genuinely distinctive.",
     "Prefer ideas that remain interesting even if the same facts are formatted differently.",
+    "Read CURRENT_REALITY as facts about the world, not as a document, list, prompt, sentence pattern, writing style, record, or presentation artifact.",
+    "Never make the formatting, repetition of wording, ordering of fields, existence of a list, or act of someone recording the facts into the discovered subject. Discover something about the supplied world itself.",
     "",
     "CREATE FOUR DIFFERENT READS.",
     "Keep each one concise.",
@@ -184,7 +186,7 @@ export async function discoverAuthorCreativeDirection(input: {
             requestedLens: requestedLens || undefined,
           },
           instruction:
-            "Find four genuinely different grounded reads in the supplied reality. Keep each concise: what you noticed, the playable relation, and its evidence. Favor reads that make the facts feel different through status, tension, contrast, character, reversal, repetition, excess, or another felt dynamic. Do not manufacture order, ranking, causality, urgency, or hidden pressure from a simple list or from precise timestamps. Keep literal premises supported; use figurative status rather than inventing unseen relations or prior conditions. Select the one with the most life and creative potential. Do not write final cuts.",
+            "Find four genuinely different grounded reads in the supplied reality. Treat the input only as facts about the world: do not analyze the list, phrasing, repetition of wording, formatting, field order, or the act of recording those facts. Keep each read concise: what you noticed in the world, the playable relation, and its evidence. Favor reads that make the facts feel different through status, tension, contrast, character, reversal, repetition, excess, or another felt dynamic. Do not manufacture order, ranking, causality, urgency, or hidden pressure from a simple list or from precise timestamps. Keep literal premises supported; use figurative status rather than inventing unseen relations or prior conditions. Select the one with the most life and creative potential. Do not write final cuts.",
         }),
       },
     ],
