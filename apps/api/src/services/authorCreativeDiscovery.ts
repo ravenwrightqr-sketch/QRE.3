@@ -85,7 +85,7 @@ function normalizeMode(value: unknown): "RELATIONAL" | "METAMORPHIC" {
 }
 
 const RECORD_SHAPE_LANGUAGE =
-  /\b(list|prompt|input|record|document|format|formatting|field|fields|wording|phrasing|sentence|sentences)\b/i;
+  /\b(list|prompt|input|record|document|format|formatting|field|fields|wording|phrasing|sentence|sentences|repetition|repeated|repeating)\b/i;
 
 const EXPLICIT_RELATION_CLAIMS =
   /\b(priorit(?:y|ize|ized|ization)|rank(?:ed|ing)?|hierarch(?:y|ical)|curat(?:e|ed|es|ion)|deliberat(?:e|ely)|step\s+up|escalat(?:e|ed|es|ing|ion))\b/i;
