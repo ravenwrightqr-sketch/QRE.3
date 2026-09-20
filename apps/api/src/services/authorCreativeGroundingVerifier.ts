@@ -36,7 +36,6 @@ function parseJson(text: string): Record<string, unknown> | undefined {
 }
 
 type Verification = {
-  beatIndex?: unknown;
   grounded?: unknown;
   sourceEventIds?: unknown;
 };
@@ -68,9 +67,10 @@ export async function verifyAuthorCreativeGrounding(input: {
     "Mark grounded=false only when the beat materially asserts a new concrete person, object, action, condition, sensory fact, motive, chronology, or outcome that is not supplied.",
     "",
     "For every grounded beat, cite the supplied event IDs that actually carry its literal anchor.",
+    "The writer may provide groundingHint IDs. Treat them as clues, not authority; keep, replace, or expand them based on the actual words.",
     "Do not judge style, quality, humor, or taste.",
     "Do not rewrite the beat.",
-    "Return one verification entry for every beat.",
+    "Return exactly one verification entry per beat, in the same order as BEATS.",
   ].join("\n");
 
   const result = await localModelGenerate(
@@ -80,12 +80,12 @@ export async function verifyAuthorCreativeGrounding(input: {
         role: "user",
         content: JSON.stringify({
           SUPPLIED_REALITY: input.suppliedReality,
-          BEATS: input.scenes.map((scene, beatIndex) => ({
-            beatIndex,
+          BEATS: input.scenes.map((scene) => ({
             text: scene.text,
+            groundingHint: scene.sourceEventIds,
           })),
           instruction:
-            "Verify literal grounding while preserving figurative freedom. Return grounded=true whenever the line is supported literally or is clearly figurative around supplied reality. Return grounded=false only for unsupported concrete claims.",
+            "Verify every beat in the same order. groundingHint is only a clue from the writer; correct it when needed. Preserve figurative freedom. Return grounded=true whenever the line is supported literally or is clearly figurative around supplied reality. Return grounded=false only for unsupported concrete claims.",
         }),
       },
     ],
@@ -100,14 +100,13 @@ export async function verifyAuthorCreativeGrounding(input: {
         properties: {
           verifications: {
             type: "array",
-            minItems: 1,
-            maxItems: 10,
+            minItems: input.scenes.length,
+            maxItems: input.scenes.length,
             items: {
               type: "object",
               additionalProperties: false,
-              required: ["beatIndex", "grounded", "sourceEventIds"],
+              required: ["grounded", "sourceEventIds"],
               properties: {
-                beatIndex: { type: "integer", minimum: 0, maximum: 9 },
                 grounded: { type: "boolean" },
                 sourceEventIds: {
                   type: "array",
@@ -128,14 +127,12 @@ export async function verifyAuthorCreativeGrounding(input: {
     : [];
 
   const allowedIds = new Set(input.suppliedReality.map((event) => event.id));
-  const verified = new Map<number, string[]>();
+  const scenes = input.scenes.flatMap((scene, index) => {
+    const value = raw[index];
+    if (!value || typeof value !== "object") return [];
 
-  for (const value of raw) {
-    if (!value || typeof value !== "object") continue;
     const item = value as Verification;
-    const beatIndex = Number(item.beatIndex);
-    if (!Number.isInteger(beatIndex) || beatIndex < 0 || beatIndex >= input.scenes.length) continue;
-    if (item.grounded !== true) continue;
+    if (item.grounded !== true) return [];
 
     const sourceEventIds = Array.isArray(item.sourceEventIds)
       ? unique(
@@ -145,13 +142,8 @@ export async function verifyAuthorCreativeGrounding(input: {
         )
       : [];
 
-    if (!sourceEventIds.length) continue;
-    verified.set(beatIndex, sourceEventIds);
-  }
+    if (!sourceEventIds.length) return [];
 
-  const scenes = input.scenes.flatMap((scene, index) => {
-    const sourceEventIds = verified.get(index);
-    if (!sourceEventIds) return [];
     return [{
       ...scene,
       sourceEventIds,
