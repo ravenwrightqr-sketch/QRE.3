@@ -49,7 +49,16 @@ const cases: Case[] = [
   },
 ];
 
-for (const test of cases) {
+const requestedCase = String(process.env.QRE_AUTHOR_CASE ?? "").trim().toUpperCase();
+const selectedCases = requestedCase
+  ? cases.filter((test) => test.name === requestedCase)
+  : cases;
+
+if (requestedCase && !selectedCases.length) {
+  throw new Error(`Unknown QRE_AUTHOR_CASE: ${requestedCase}. Expected one of: ${cases.map((test) => test.name).join(", ")}`);
+}
+
+for (const test of selectedCases) {
   const result = await authorBrainCanonical({
     prompt: "Create the QRE experience from supplied reality.",
     subject: test.subject,
