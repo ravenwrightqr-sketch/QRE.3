@@ -298,26 +298,17 @@ export async function authorBrainCanonical(
     Boolean(discoveryResult.discovery.selected.relationship) &&
     discoveryResult.discovery.candidates.length > 0;
 
-  const selectedPlayableIds = new Set(
-    unique([
-      ...discoveryResult.discovery.playableEventIds,
-    ]),
+  const selectedEvidenceIds = new Set(
+    discoveryResult.discovery.selected.evidenceEventIds,
   );
-
-  const playableEvents = events.filter((event) => selectedPlayableIds.has(event.id));
-
-  const backgroundIdSet = new Set(
-    discoveryResult.discovery.backgroundEventIds,
-  );
-  const backgroundEvents = events.filter((event) =>
-    backgroundIdSet.has(event.id),
+  const selectedEvidence = events.filter((event) =>
+    selectedEvidenceIds.has(event.id),
   );
 
   const creativeResult = discoveryReady
     ? await createAuthorExperience({
         subject,
-        playableEvents,
-        backgroundEvents,
+        selectedEvidence,
         creativeDiscovery: discoveryResult.discovery,
         memory: input.memoryContext ?? [],
         domainContext: input.domainContext,
@@ -333,7 +324,7 @@ export async function authorBrainCanonical(
   );
   const movieEvidence = usedEvidenceIds.size
     ? events.filter((event) => usedEvidenceIds.has(event.id))
-    : playableEvents;
+    : selectedEvidence;
 
   const movie = makeMovie(discoveryResult.discovery, movieEvidence);
   const sequence = makeSequence(
