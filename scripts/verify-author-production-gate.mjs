@@ -8,6 +8,7 @@ const required = [
   "apps/api/src/services/authorRealityExtractor.ts",
   "apps/api/src/services/authorCreativeDiscovery.ts",
   "apps/api/src/services/authorCreative.ts",
+  "apps/api/src/services/authorCreativeGroundingVerifier.ts",
   "apps/api/src/services/authorBrainCanonical.ts",
   "apps/api/src/services/experienceService.ts",
 ];
@@ -27,6 +28,7 @@ const authorModelCallers = new Set([
   "apps/api/src/services/authorRealityExtractor.ts",
   "apps/api/src/services/authorCreativeDiscovery.ts",
   "apps/api/src/services/authorCreative.ts",
+  "apps/api/src/services/authorCreativeGroundingVerifier.ts",
 ]);
 
 for (const file of walk(join(root, "apps/api/src/services")).filter((p) => /\.ts$/.test(p))) {
