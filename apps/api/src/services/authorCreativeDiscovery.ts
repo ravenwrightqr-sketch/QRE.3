@@ -126,65 +126,39 @@ export async function discoverAuthorCreativeDirection(input: {
 
   const system = [
     "You are QRE Creative Discovery.",
-    "Reality is fixed. Interpretation is free.",
     "Do not write final scenes.",
+    "Reality is fixed. Interpretation is free.",
     "",
-    "Your first job is to NOTICE what is alive in the supplied reality.",
-    "Look for the detail, contrast, character signal, excess, awkwardness, reversal, recurrence, status change, strange combination, or unexpected implication that makes this specific input worth watching.",
-    "The strongest read does not need to cover the whole input. One supplied detail can become the center when it changes how the rest is felt.",
-    "Do not reward coverage. Reward a grounded perception that gives Creative something worth playing with.",
+    "Find what is alive in CURRENT_REALITY.",
+    "Look for the specific detail, contrast, character signal, excess, awkwardness, reversal, recurrence, status change, strange combination, or relationship that makes this input worth watching.",
+    "A strong read may come from one supplied detail or from several facts together.",
+    "Do not reward coverage. Do not summarize the record.",
     "",
-    "Generate EXACTLY FOUR short grounded candidate reads from CURRENT_REALITY:",
-    "1-2 = RELATIONAL: real supplied facts change how other supplied facts are read.",
-    "3-4 = METAMORPHIC: clearly nonliteral framing over supplied facts: status, game, contest, negotiation, hierarchy, takeover, reversal, rule-system, or another figurative relation you discover.",
+    "Generate EXACTLY FOUR candidate reads.",
+    "Each candidate may be RELATIONAL or METAMORPHIC.",
+    "RELATIONAL means supplied facts change how other supplied facts are read.",
+    "METAMORPHIC means clearly nonliteral status, game, contest, negotiation, hierarchy, reversal, or another figurative relationship discovered from supplied reality.",
     "",
-    "UNIVERSAL RULES:",
-    "No domain templates.",
-    "Do not infer motives, personality, pride, obsession, urgency, satisfaction, hidden standards, unseen conditions, dirt, grime, chaos, disarray, neglect, difficulty, priority, or effort unless explicitly supplied.",
-    "Metaphor may invent a figurative relationship; it may not invent a hidden literal before-state or after-state. Cleaning does not prove prior disorder, and completion does not prove restoration or renewal as literal fact.",
-    "An action verb does NOT prove what condition existed before it. Do not reverse-engineer an unseen condition from an action.",
-    "A metamorphic world may create abstract status, conflict, hierarchy, stakes, or consequence around supplied facts, but its opponent/problem/state must not silently become a new literal condition.",
-    "Do not infer significance from formatting, list granularity, event boundaries, or wording differences.",
-    "Do not use timestamps, task count, chronology, completion, service scope, efficiency, professionalism, thoroughness, or workload as the main idea unless another supplied fact genuinely changes their meaning.",
+    "GROUNDING:",
+    "Cite only supplied event IDs that actually support the candidate.",
+    "Do not invent literal people, objects, actions, dialogue, motives, psychology, hidden causes, hidden before-states, hidden after-states, or chronology.",
+    "An action does not prove what condition existed before it.",
+    "Metaphor may change status or meaning. It may not invent the world.",
     "BUSINESS_CONTEXT may clarify vocabulary only. It is not creative evidence.",
     "",
-    "RELATIONAL candidate test:",
-    "At least two supplied facts must create a relationship stronger than simple sequence or accumulation.",
-    "If no strong literal relationship exists, keep the relational candidate modest rather than inventing one.",
-    "",
-    "METAMORPHIC candidate test:",
-    "The figurative read must reorganize supplied reality without claiming the metaphor literally happened.",
-    "For METAMORPHIC candidates, the figurative relationship itself must sit directly on supplied facts. Do not justify the metaphor by inventing a literal bridge such as priority, importance, dirtiness, hygiene need, effort, purpose, or hidden cause.",
-    "Do not import an external theme to make the facts feel meaningful. Concepts such as domesticity, purification, history, memory, spirituality, danger, secrecy, morality, or deeper purpose are not evidence unless supplied. Prefer a relation created by the supplied entities/actions themselves.",
-    "A METAMORPHIC candidate should normally relate at least TWO supplied facts. Do not build the winning world from one isolated action when broader grounded material exists.",
-    "It must remain understandable from the cited evidence alone.",
-    "Prefer supplied actions, entities, places, repetition, contrast, or recurrence as the support for a metamorphic read.",
-    "Do not use arrival/finish times as support for a metamorphic read when the same idea works without them.",
-    "",
-    "OBSERVER:",
-    "Leave something for the viewer to notice. Do not explain the final meaning.",
-    "",
     "SELECTION:",
-    "Choose the candidate that is most grounded, specific, surprising, compressible, and worth watching.",
-    "Prefer the candidate that notices something distinctive in THIS input over one that merely organizes the facts.",
-    "A small strange or revealing detail may beat a broad interpretation of the whole record.",
-    "Prefer a grounded METAMORPHIC read over a generic process summary.",
-    "Among metamorphic candidates, prefer the read carried by supplied actions/entities over one carried mainly by timestamps, arrival/departure, duration, or abstract atmosphere.",
-    "A candidate whose own risk admits it lacks specific action detail, is mainly temporal, is too abstract, depends on subtle framing, or requires careful delivery should normally lose to a comparably grounded candidate with stronger action-supported consequence.",
-    "Prefer a candidate whose figurative nouns and forces can be traced to supplied entities/actions over one that needs an imported concept to carry the idea.",
-    "Reject any candidate whose core idea is merely cleaning/service/process/time/effort/completion.",
+    "Select the read that is most specific to THIS input, grounded, surprising, compressible, and worth realizing.",
+    "A small odd or revealing detail may beat a broad interpretation of the whole record.",
+    "Do not prefer a candidate merely because it uses more facts.",
     "",
-    "EVIDENCE:",
-    "evidenceEventIds = all current facts that support the candidate.",
-    "playableEventIds = only facts that truly deserve literal screen presence.",
-    "For a metamorphic selection, keep timestamps/background logistics out of playableEventIds unless they materially improve the selected figurative world.",
-    "backgroundEventIds = all other grounded facts; they may collectively support an interpretive cut.",
-    "experienceShape = a short semantic trajectory for the selected idea, such as escalation/reversal/callback/expansion/compression. It is NOT a list of events, camera directions, visual instructions, lens choices, mood notes, or prose.",
-    "Do not copy all evidenceEventIds into playableEventIds.",
+    "EVIDENCE HANDOFF:",
+    "evidenceEventIds = only the supplied facts that support the selected idea.",
+    "playableEventIds = the selected evidence that deserves direct screen presence.",
+    "backgroundEventIds = the remaining selected evidence.",
+    "experienceShape = a few semantic words only when useful; it is not an event list or writing template.",
     "",
-    "LENS comes AFTER selection. If no lens was requested, return NONE. Do not invent a lens.",
-    "",
-    "Keep every field concise. One sentence maximum per text field.",
+    "If no lens was requested, return NONE. Do not invent a lens.",
+    "Keep every field concise.",
     "Return only the requested structured object.",
   ].join("\n");
 
@@ -201,7 +175,7 @@ export async function discoverAuthorCreativeDirection(input: {
             requestedLens: requestedLens || undefined,
           },
           instruction:
-            "Produce 2 grounded RELATIONAL reads and 2 clearly nonliteral METAMORPHIC reads. Then select the strongest. Selection should favor action-supported consequence over temporal framing or abstract atmosphere. Do not write final cuts.",
+            "Find four genuinely different grounded reads. Select the one with the most life in it, not the one with the most coverage. Do not write final cuts.",
         }),
       },
     ],
@@ -302,22 +276,9 @@ export async function discoverAuthorCreativeDirection(input: {
   );
 
   const selected =
-    requestedSelected &&
-    (
-      requestedSelected.mode !== "METAMORPHIC" ||
-      requestedSelected.evidenceEventIds.length >= 2
-    )
-      ? requestedSelected
-      : candidates.find(
-          (candidate) =>
-            candidate.mode === "METAMORPHIC" &&
-            candidate.evidenceEventIds.length >= 2,
-        ) ??
-        candidates.find(
-          (candidate) => candidate.evidenceEventIds.length >= 2,
-        ) ??
-        candidates[0] ??
-        fallbackCandidate;
+    requestedSelected ??
+    candidates[0] ??
+    fallbackCandidate;
 
   const selectedEvidenceSet = new Set(selected.evidenceEventIds);
 
