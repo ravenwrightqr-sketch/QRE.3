@@ -183,20 +183,18 @@ export async function createAuthorExperience(input: {
       : [];
 
     if (!sourceEventIds.length) continue;
-    if (support === "RELATION" && sourceEventIds.length < 2) continue;
 
     groundingByBeat.set(beatIndex, { support, sourceEventIds });
   }
 
-  const scenes = beats.flatMap((text, index): Array<AuthorScene & { sourceEventIds: string[] }> => {
+  const scenes = beats.map((text, index): AuthorScene & { sourceEventIds: string[] } => {
     const grounding = groundingByBeat.get(index);
-    if (!grounding) return [];
 
-    return [{
+    return {
       text,
       kind: index === 0 ? "hook" : index === beats.length - 1 ? "payoff" : "line",
-      sourceEventIds: grounding.sourceEventIds,
-    }];
+      sourceEventIds: grounding?.sourceEventIds ?? [],
+    };
   });
 
   return {
