@@ -56,6 +56,7 @@ function stringArray(value: unknown, limit: number): string[] {
 
 export type AuthorCreativeCandidate = {
   id: string;
+  mode: "RELATIONAL" | "METAMORPHIC";
   perception: string;
   relationship: string;
   observerInference: string;
@@ -77,6 +78,12 @@ export type AuthorCreativeDiscovery = {
   risk: string;
 };
 
+function normalizeMode(value: unknown): "RELATIONAL" | "METAMORPHIC" {
+  return clean(value).toUpperCase() === "METAMORPHIC"
+    ? "METAMORPHIC"
+    : "RELATIONAL";
+}
+
 function normalizeCandidate(
   value: unknown,
   index: number,
@@ -93,6 +100,7 @@ function normalizeCandidate(
 
   return {
     id: clean(record.id) || `candidate-${index + 1}`,
+    mode: normalizeMode(record.mode),
     perception,
     relationship,
     observerInference,
@@ -118,84 +126,47 @@ export async function discoverAuthorCreativeDirection(input: {
 
   const system = [
     "You are QRE Creative Discovery.",
-    "You do NOT write the final viewer-facing experience.",
-    "Your job is to search supplied reality for several competing grounded perceptions, then select the strongest one.",
-    "",
-    "CORE LAW:",
     "Reality is fixed. Interpretation is free.",
-    "Do not change what happened. Change what a human can notice in what happened.",
+    "Do not write final scenes.",
     "",
-    "AUTHORITY LANES:",
-    "CURRENT_REALITY = what happened now. It is the only current-event evidence.",
-    "MEMORY = previously established truth. It may create continuity or recontextualization, but it did not happen now unless CURRENT_REALITY says so.",
-    "BUSINESS_CONTEXT = stable world/domain context. It helps understanding but is never an occurrence.",
-    "CREATIVE_INTENT = requested treatment only. It is not evidence.",
+    "Generate EXACTLY FOUR short grounded candidate reads from CURRENT_REALITY:",
+    "1-2 = RELATIONAL: real supplied facts change how other supplied facts are read.",
+    "3-4 = METAMORPHIC: clearly nonliteral framing over supplied facts: status, game, contest, negotiation, hierarchy, takeover, reversal, rule-system, or another figurative relation you discover.",
     "",
-    "UNIVERSAL SEARCH:",
-    "Do not use domain-specific templates.",
-    "Do not assume a service, pet, person, relationship, object, business, place, memory, or event needs a special story type.",
-    "Search relationships among the supplied evidence itself.",
-    "Possible relational structures include pattern, contrast, recurrence, accumulation, invariant, hierarchy, status change, origin, convergence, recontextualization, preference constellation, relational role, contradiction, or another structure you discover.",
-    "These are search possibilities, not mandatory slots.",
-    "A strong candidate usually makes one supplied fact change how another supplied fact is read. Mere quantity, elapsed time, completion, breadth of work, or source order is not enough by itself.",
-    "Do not infer significance from formatting. Separate event wording, list granularity, sentence boundaries, or the fact that one task has its own event do NOT imply priority, intensity, dirtiness, difficulty, importance, or focus.",
-    "Do not call chronology a relationship unless a later supplied fact genuinely recontextualizes an earlier supplied fact.",
-    "If the supplied facts do not contain a strong literal recontextualizing relationship, do NOT manufacture one. Instead search for a clearly nonliteral METAMORPHIC READ over the grounded facts: a status relation, game, contest, negotiation, rule system, hierarchy, takeover, reversal, or another figurative structure that reorganizes the evidence without asserting new literal reality.",
-    "A metamorphic read is valid only when a reasonable viewer would understand it as framing, not as a claim that the figurative event literally happened.",
+    "UNIVERSAL RULES:",
+    "No domain templates.",
+    "Do not infer motives, personality, pride, obsession, urgency, satisfaction, hidden standards, unseen conditions, dirt, chaos, difficulty, priority, or effort unless explicitly supplied.",
+    "Do not infer significance from formatting, list granularity, event boundaries, or wording differences.",
+    "Do not use timestamps, task count, chronology, completion, service scope, efficiency, professionalism, thoroughness, or workload as the main idea unless another supplied fact genuinely changes their meaning.",
+    "BUSINESS_CONTEXT may clarify vocabulary only. It is not creative evidence.",
     "",
-    "COMPETING READS:",
-    "Generate 3 to 5 genuinely different candidate perceptions before selecting one.",
-    "Do not generate cosmetic paraphrases of the same idea.",
-    "Each candidate must state:",
-    "- perception: what this reality can become when perceived differently",
-    "- relationship: which relationship among supplied evidence creates that perception",
-    "- observerInference: what the observer may reasonably infer without QRE stating the final conclusion",
-    "- evidenceEventIds: supplied CURRENT_REALITY IDs supporting the candidate",
-    "- whyItHits: why this read could be distinctive, revealing, funny, moving, strange, satisfying, tense, or otherwise worth watching",
-    "- risk: grounding, genericness, obviousness, or explanation risk",
+    "RELATIONAL candidate test:",
+    "At least two supplied facts must create a relationship stronger than simple sequence or accumulation.",
+    "If no strong literal relationship exists, keep the relational candidate modest rather than inventing one.",
     "",
-    "SELECTION OBJECTIVE:",
-    "Select the candidate that best maximizes grounding, relational strength, specificity, observer inference, recontextualization, distinctiveness, entertainment potential, compression potential, and unresolved space.",
-    "Penalize administrative/process language, genericness, fact restatement, explanation, obviousness, predictability, invented reality, and unsupported conclusions.",
-    "Reject candidates whose main idea is workflow, service scope, chronology, amount of effort, speed, efficiency, completion, productivity, thoroughness, professionalism, or business value unless another supplied fact gives that idea a genuinely different meaning.",
-    "Reject candidates that could be written from timestamps plus task count alone.",
-    "Reject a candidate if its own risk admits the core relation is arbitrary, unsupported, over-interpreted, or depends on formatting rather than semantics.",
-    "When all literal candidates are generic or unsupported, prefer a grounded metamorphic candidate over a fabricated literal explanation.",
-    "BUSINESS_CONTEXT may disambiguate what supplied facts mean, but it may not be the relationship that makes the candidate interesting. The latent read must emerge from CURRENT_REALITY.",
+    "METAMORPHIC candidate test:",
+    "The figurative read must reorganize supplied reality without claiming the metaphor literally happened.",
+    "It must remain understandable from the cited evidence alone.",
     "",
-    "EVIDENCE SELECTION AFTER THE READ:",
-    "Only after selecting the strongest perception decide which CURRENT_REALITY facts deserve viewer-facing use.",
-    "playableEventIds = only facts that deserve DIRECT literal presence on screen because the experience becomes materially weaker without showing them.",
-    "backgroundEventIds = grounded facts that may remain underneath as provenance/context and may collectively support a higher-order interpretive cut.",
-    "Candidate evidenceEventIds may be broader than playableEventIds. Do not copy all candidate evidence into playableEventIds.",
-    "When accumulation itself supports the selected perception, prefer keeping the contributing facts as background evidence and let them jointly support one interpretive cut rather than replaying the list.",
-    "Arrival, start time, finish time, chronology, timestamps, completion, and source order are optional. Never use them merely because they exist.",
-    "Dense operational evidence may collectively support one higher-order perception without each task becoming a beat.",
-    "Quality beats coverage.",
+    "OBSERVER:",
+    "Leave something for the viewer to notice. Do not explain the final meaning.",
     "",
-    "OBSERVER LAW:",
-    "QRE should let the observer complete meaningful inference.",
-    "The observer should feel 'I noticed that', not 'the AI explained that'.",
-    "Observer inference must stay at the level of relationships among supplied facts. Do NOT infer a hidden cause, motive, personality trait, psychological state, personal standard, urgency, pride, satisfaction, obsession, intention, or unseen condition unless CURRENT_REALITY explicitly supports it.",
-    "A playful relational read such as a preference pattern is allowed when it is visibly constructed from supplied facts; an unseen explanation for why the pattern exists is not.",
-    "Do not resolve the latent meaning before the observer gets a chance to make it.",
+    "SELECTION:",
+    "Choose the candidate that is most grounded, specific, surprising, compressible, and worth watching.",
+    "Prefer a grounded METAMORPHIC read over a generic process summary.",
+    "Reject any candidate whose core idea is merely cleaning/service/process/time/effort/completion.",
     "",
-    "LENS:",
-    "Discover the selected perception BEFORE choosing or applying a lens.",
-    "Lens is pressure/treatment on the selected relation. Lens does not decide what the story is.",
-    "Return one lens or NONE.",
+    "EVIDENCE:",
+    "evidenceEventIds = all current facts that support the candidate.",
+    "playableEventIds = only facts that truly deserve literal screen presence.",
+    "backgroundEventIds = all other grounded facts; they may collectively support an interpretive cut.",
+    "Do not copy all evidenceEventIds into playableEventIds.",
     "",
-    "GROUNDING:",
-    "Do not invent concrete people, objects, actions, conditions, sensory evidence, chronology, before-states, after-states, motives, emotions, relationships, outcomes, or future events.",
-    "Clearly nonliteral interpretation is allowed, but the candidate itself must remain traceable to supplied evidence.",
-    "Do not infer a before-state from an action: cleaning does not prove grime, disorder, chaos, neglect, or something being obscured; repair does not prove negligence; completion does not prove pride, relief, satisfaction, or future recurrence.",
-    "Do not infer intensity from elapsed time alone: timestamps do not prove urgency, racing, pressure, efficiency, or leisurely pace unless supplied.",
+    "LENS comes AFTER selection. Return requested lens or NONE; lens does not choose the idea.",
     "",
-    "EXPERIENCE SHAPE:",
-    "After selection, return a short abstract viewer trajectory only if useful. Do not force a genre arc.",
-    "",
-    "Return JSON only in this shape:",
-    "{\"candidates\":[{\"id\":\"candidate-1\",\"perception\":\"...\",\"relationship\":\"...\",\"observerInference\":\"...\",\"evidenceEventIds\":[\"event-1\"],\"whyItHits\":\"...\",\"risk\":\"...\"}],\"selectedCandidateId\":\"candidate-1\",\"playableEventIds\":[\"event-1\"],\"backgroundEventIds\":[\"event-2\"],\"experienceShape\":[\"...\",\"...\"],\"lens\":\"NONE\",\"confidence\":0.0,\"selectionReason\":\"...\",\"risk\":\"...\"}.",
+    "Keep every field concise.",
+    "Return JSON only:",
+    "{\"candidates\":[{\"id\":\"candidate-1\",\"mode\":\"RELATIONAL\",\"perception\":\"...\",\"relationship\":\"...\",\"observerInference\":\"...\",\"evidenceEventIds\":[\"event-1\"],\"whyItHits\":\"...\",\"risk\":\"...\"}],\"selectedCandidateId\":\"candidate-1\",\"playableEventIds\":[],\"backgroundEventIds\":[\"event-1\"],\"experienceShape\":[\"...\"],\"lens\":\"NONE\",\"confidence\":0.0,\"selectionReason\":\"...\",\"risk\":\"...\"}.",
   ].join("\n");
 
   const result = await localModelGenerate(
@@ -205,18 +176,18 @@ export async function discoverAuthorCreativeDirection(input: {
         role: "user",
         content: JSON.stringify({
           CURRENT_REALITY: input.events,
-          MEMORY: (input.memory ?? []).slice(0, 24),
+          MEMORY: (input.memory ?? []).slice(0, 12),
           BUSINESS_CONTEXT: input.domainContext,
           CREATIVE_INTENT: {
             requestedLens: requestedLens || undefined,
           },
           instruction:
-            "Search several genuinely different grounded perceptions. Prefer reads where supplied facts recontextualize one another. If the literal evidence has no strong recontextualizing relation, generate clearly nonliteral metamorphic reads over the grounded facts rather than inventing hidden causes or fake significance. Reject process summaries, service-scope summaries, time-plus-workload summaries, formatting-derived significance, and business-context summaries. Select the strongest latent read first. Only then select the minimum evidence needed to make that perception playable. Do not write final cuts.",
+            "Produce 2 grounded RELATIONAL reads and 2 clearly nonliteral METAMORPHIC reads. Then select the strongest. Do not write final cuts.",
         }),
       },
     ],
     "json",
-    { numPredict: 1100, temperature: 0.8 },
+    { numPredict: 850, temperature: 0.82 },
   );
 
   const parsed = parseJson(result.text);
@@ -224,10 +195,11 @@ export async function discoverAuthorCreativeDirection(input: {
   const candidates = rawCandidates
     .map((value, index) => normalizeCandidate(value, index, allowedEventIds))
     .filter((value): value is AuthorCreativeCandidate => Boolean(value))
-    .slice(0, 5);
+    .slice(0, 4);
 
   const fallbackCandidate: AuthorCreativeCandidate = {
     id: "candidate-1",
+    mode: "RELATIONAL",
     perception: "",
     relationship: "",
     observerInference: "",
@@ -236,16 +208,14 @@ export async function discoverAuthorCreativeDirection(input: {
     risk: "creative_discovery_parse_failure",
   };
 
-  const selectedCandidateId = clean(parsed?.selectedCandidateId);
+  const requestedSelectedId = clean(parsed?.selectedCandidateId);
   const selected =
-    candidates.find((candidate) => candidate.id === selectedCandidateId) ??
+    candidates.find((candidate) => candidate.id === requestedSelectedId) ??
     candidates[0] ??
     fallbackCandidate;
 
-  const requestedPlayable = stringArray(parsed?.playableEventIds, 32)
+  const playableEventIds = stringArray(parsed?.playableEventIds, 32)
     .filter((id) => allowedEventIds.has(id));
-
-  const playableEventIds = requestedPlayable;
 
   const playableSet = new Set(playableEventIds);
   const requestedBackground = stringArray(parsed?.backgroundEventIds, 64)
@@ -265,8 +235,8 @@ export async function discoverAuthorCreativeDirection(input: {
       selected,
       playableEventIds,
       backgroundEventIds,
-      experienceShape: stringArray(parsed?.experienceShape, 7),
-      lens: clean(parsed?.lens) || requestedLens || "NONE",
+      experienceShape: stringArray(parsed?.experienceShape, 5),
+      lens: requestedLens || clean(parsed?.lens) || "NONE",
       confidence: clamp(parsed?.confidence, 0.65),
       selectionReason: clean(parsed?.selectionReason),
       risk: clean(parsed?.risk) || selected.risk,
