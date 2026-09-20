@@ -89,10 +89,9 @@ export async function createAuthorExperience(input: {
     "At least one cut should make the selected perception felt rather than merely restating evidence. If every cut could appear on a receipt, realization failed.",
     "Transform the relationship between real events, not the events themselves.",
     "A tiny cinematic world is created through status, metaphor, consequence, rhythm, and voice—not by inventing props, camera moves, lighting, sounds, weather, textures, or physical staging.",
-    "Clearly nonliteral lens-world invention is allowed. Rooms may resist, work may become battle, completion may become victory, a bow may become a negotiated settlement, when a reasonable viewer understands the move as framing.",
-    "Allowed example from housekeeping facts: 'The kitchen looked confident. It was about to lose that confidence.' That personifies the supplied kitchen without asserting a new physical event.",
-    "Allowed example: 'By the time she reached the living room, the house was negotiating from a position of weakness.' That is clearly status framing over supplied progress.",
-    "Forbidden from the same facts: glowing clocks, welcome mats, vacuum cleaners, water rushing, sponges, grease, floorboards, lighting, sounds, or any other concrete scenery not supplied.",
+    "Clearly nonliteral framing is allowed when a reasonable viewer understands it as metaphor or status treatment over supplied evidence.",
+    "The framing must remain domain-neutral: do not import props, scenery, roles, sensory details, or actions that were not supplied.",
+    "Never use an example from the prompt as a target pattern. Realize only the selected relationship in the current evidence.",
     "Unsupported literal reality is forbidden. Do not invent concrete people, objects, conditions, actions, dialogue, sensory evidence, physical reactions, before-states, after-states, motives, psychological states, or future events.",
     "Do not turn Discovery speculation into fact. A selected perception may guide framing, but unsupported obsession, urgency, pride, satisfaction, disorder, grime, chaos, or hidden motive may not appear as literal truth.",
     "Do not decorate weak material with plausible scenery. Find a better reading instead.",
@@ -109,7 +108,7 @@ export async function createAuthorExperience(input: {
     "Sharp is good. Cryptic is not.",
     "Do not explain the joke, metaphor, meaning, or creative mechanism.",
     "Do not optimize for a fixed beat count or fixed word count. Stop when it lands.",
-    "Behavior examples, never target wording: supplied completion may read as victory; repeated return may reframe earlier nervousness; several preferences together may reveal character without listing them.",
+    "The realization should make the selected relationship perceptible through sequence, implication, status, rhythm, contrast, or callback without turning the relationship label itself into prose.",
     "Return JSON only: {\"beats\":[{\"text\":\"...\",\"sourceEventIds\":[\"event-1\"]}]}.",
   ].join("\n");
 
