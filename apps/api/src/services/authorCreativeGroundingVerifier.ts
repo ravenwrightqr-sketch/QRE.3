@@ -40,6 +40,21 @@ type Verification = {
   sourceEventIds?: unknown;
 };
 
+const ABSOLUTE_RELATION_LANGUAGE = /\b(always|never|first|last)\b/i;
+
+function hasUnsupportedAbsoluteClaim(
+  sceneText: string,
+  suppliedRealityText: string,
+): boolean {
+  const sceneMatches = clean(sceneText).match(
+    new RegExp(ABSOLUTE_RELATION_LANGUAGE.source, "ig"),
+  );
+  if (!sceneMatches?.length) return false;
+
+  const reality = clean(suppliedRealityText).toLowerCase();
+  return sceneMatches.some((claim) => !reality.includes(claim.toLowerCase()));
+}
+
 export async function verifyAuthorCreativeGrounding(input: {
   scenes: Array<AuthorScene & { sourceEventIds: string[] }>;
   suppliedReality: readonly { id: string; text: string }[];
@@ -137,12 +152,16 @@ export async function verifyAuthorCreativeGrounding(input: {
     : [];
 
   const allowedIds = new Set(input.suppliedReality.map((event) => event.id));
+  const suppliedRealityText = input.suppliedReality
+    .map((event) => event.text)
+    .join(" ");
   const scenes = input.scenes.flatMap((scene, index) => {
     const value = raw[index];
     if (!value || typeof value !== "object") return [];
 
     const item = value as Verification;
     if (item.grounded !== true) return [];
+    if (hasUnsupportedAbsoluteClaim(scene.text, suppliedRealityText)) return [];
 
     const sourceEventIds = Array.isArray(item.sourceEventIds)
       ? unique(
