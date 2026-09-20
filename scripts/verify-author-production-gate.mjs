@@ -49,7 +49,7 @@ if (required.every((p) => existsSync(join(root, p)))) {
 
   if (!/temperature:\s*0\.18/.test(extractor)) failures.push("Reality Extractor must remain low-temperature factual extraction");
   if (!/candidates/.test(discovery) || !/selectedCandidateId/.test(discovery) || !/evidenceEventIds/.test(discovery)) failures.push("Creative Discovery must search competing grounded perceptions and select one with evidence");
-  if (!/WRITE FIRST\./.test(creative) || !/grounding/.test(creative) || !/SUPPLIED_REALITY/.test(creative)) failures.push("QRE Creative must write the experience before grounding it against supplied reality");
+  if (!/MAKE THE EXPERIENCE FIRST\./.test(creative) || !/GROUND AFTER WRITING:/.test(creative) || !/beats first and grounding second/.test(creative) || !/SUPPLIED_REALITY/.test(creative)) failures.push("QRE Creative must write the experience before grounding it against supplied reality");
   if (!/Reality is fixed\./.test(creative) || !/Interpretation is free\./.test(creative)) failures.push("QRE Creative missing fixed-reality/free-interpretation law");
   if (!/Semantic Grounding/.test(verifier) || !/grounded/.test(verifier)) failures.push("Semantic grounding verifier missing from Author truth boundary");
   if (/localModelGenerate\s*\(/.test(brain)) failures.push("Canonical brain may not directly call model");
