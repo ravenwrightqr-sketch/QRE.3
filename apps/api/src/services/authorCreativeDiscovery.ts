@@ -149,6 +149,7 @@ export async function discoverAuthorCreativeDirection(input: {
     "",
     "METAMORPHIC candidate test:",
     "The figurative read must reorganize supplied reality without claiming the metaphor literally happened.",
+    "For METAMORPHIC candidates, the figurative relationship itself must sit directly on supplied facts. Do not justify the metaphor by inventing a literal bridge such as priority, importance, dirtiness, hygiene need, effort, purpose, or hidden cause.",
     "A METAMORPHIC candidate should normally relate at least TWO supplied facts. Do not build the winning world from one isolated action when broader grounded material exists.",
     "It must remain understandable from the cited evidence alone.",
     "Prefer supplied actions, entities, places, repetition, contrast, or recurrence as the support for a metamorphic read.",
@@ -309,19 +310,21 @@ export async function discoverAuthorCreativeDirection(input: {
         candidates[0] ??
         fallbackCandidate;
 
+  const selectedEvidenceSet = new Set(selected.evidenceEventIds);
+
   const playableEventIds = stringArray(parsed?.playableEventIds, 32)
-    .filter((id) => allowedEventIds.has(id));
+    .filter((id) => allowedEventIds.has(id))
+    .filter((id) => selectedEvidenceSet.has(id));
 
   const playableSet = new Set(playableEventIds);
   const requestedBackground = stringArray(parsed?.backgroundEventIds, 64)
     .filter((id) => allowedEventIds.has(id))
+    .filter((id) => selectedEvidenceSet.has(id))
     .filter((id) => !playableSet.has(id));
 
   const backgroundEventIds = requestedBackground.length
     ? requestedBackground
-    : input.events
-        .map((event) => event.id)
-        .filter((id) => !playableSet.has(id));
+    : selected.evidenceEventIds.filter((id) => !playableSet.has(id));
 
   return {
     discovery: {
