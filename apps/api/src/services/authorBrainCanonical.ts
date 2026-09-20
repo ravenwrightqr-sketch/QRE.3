@@ -293,6 +293,11 @@ export async function authorBrainCanonical(
     domainContext: input.domainContext,
   });
 
+  const discoveryReady =
+    Boolean(discoveryResult.discovery.selected.perception) &&
+    Boolean(discoveryResult.discovery.selected.relationship) &&
+    discoveryResult.discovery.candidates.length > 0;
+
   const selectedPlayableIds = new Set(
     unique([
       ...discoveryResult.discovery.playableEventIds,
@@ -304,14 +309,20 @@ export async function authorBrainCanonical(
   const playableIdSet = new Set(playableEvents.map((event) => event.id));
   const backgroundEvents = events.filter((event) => !playableIdSet.has(event.id));
 
-  const creativeResult = await createAuthorExperience({
-    subject,
-    playableEvents,
-    backgroundEvents,
-    creativeDiscovery: discoveryResult.discovery,
-    memory: input.memoryContext ?? [],
-    domainContext: input.domainContext,
-  });
+  const creativeResult = discoveryReady
+    ? await createAuthorExperience({
+        subject,
+        playableEvents,
+        backgroundEvents,
+        creativeDiscovery: discoveryResult.discovery,
+        memory: input.memoryContext ?? [],
+        domainContext: input.domainContext,
+      })
+    : {
+        scenes: [],
+        model: discoveryResult.model,
+        modelCalls: 0,
+      };
 
   const usedEvidenceIds = new Set(
     creativeResult.scenes.flatMap((scene) => scene.sourceEventIds),
