@@ -165,9 +165,8 @@ export async function discoverAuthorCreativeDirection(input: {
     "",
     "LENS comes AFTER selection. Return requested lens or NONE; lens does not choose the idea.",
     "",
-    "Keep every field concise.",
-    "Return JSON only:",
-    "{\"candidates\":[{\"id\":\"candidate-1\",\"mode\":\"RELATIONAL\",\"perception\":\"...\",\"relationship\":\"...\",\"observerInference\":\"...\",\"evidenceEventIds\":[\"event-1\"],\"whyItHits\":\"...\",\"risk\":\"...\"}],\"selectedCandidateId\":\"candidate-1\",\"playableEventIds\":[],\"backgroundEventIds\":[\"event-1\"],\"experienceShape\":[\"...\"],\"lens\":\"NONE\",\"confidence\":0.0,\"selectionReason\":\"...\",\"risk\":\"...\"}.",
+    "Keep every field concise. One sentence maximum per text field.",
+    "Return only the requested structured object.",
   ].join("\n");
 
   const result = await localModelGenerate(
@@ -188,7 +187,76 @@ export async function discoverAuthorCreativeDirection(input: {
       },
     ],
     "json",
-    { numPredict: 850, temperature: 0.82 },
+    {
+      numPredict: 950,
+      temperature: 0.82,
+      jsonSchema: {
+        type: "object",
+        additionalProperties: false,
+        required: [
+          "candidates",
+          "selectedCandidateId",
+          "playableEventIds",
+          "backgroundEventIds",
+          "experienceShape",
+          "lens",
+          "confidence",
+          "selectionReason",
+          "risk",
+        ],
+        properties: {
+          candidates: {
+            type: "array",
+            minItems: 4,
+            maxItems: 4,
+            items: {
+              type: "object",
+              additionalProperties: false,
+              required: [
+                "id",
+                "mode",
+                "perception",
+                "relationship",
+                "observerInference",
+                "evidenceEventIds",
+                "whyItHits",
+                "risk",
+              ],
+              properties: {
+                id: { type: "string" },
+                mode: { type: "string", enum: ["RELATIONAL", "METAMORPHIC"] },
+                perception: { type: "string" },
+                relationship: { type: "string" },
+                observerInference: { type: "string" },
+                evidenceEventIds: {
+                  type: "array",
+                  items: { type: "string" },
+                },
+                whyItHits: { type: "string" },
+                risk: { type: "string" },
+              },
+            },
+          },
+          selectedCandidateId: { type: "string" },
+          playableEventIds: {
+            type: "array",
+            items: { type: "string" },
+          },
+          backgroundEventIds: {
+            type: "array",
+            items: { type: "string" },
+          },
+          experienceShape: {
+            type: "array",
+            items: { type: "string" },
+          },
+          lens: { type: "string" },
+          confidence: { type: "number" },
+          selectionReason: { type: "string" },
+          risk: { type: "string" },
+        },
+      },
+    },
   );
 
   const parsed = parseJson(result.text);
