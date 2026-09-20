@@ -84,6 +84,33 @@ function normalizeMode(value: unknown): "RELATIONAL" | "METAMORPHIC" {
     : "RELATIONAL";
 }
 
+const RECORD_SHAPE_LANGUAGE =
+  /\b(list|prompt|input|record|document|format|formatting|field|fields|wording|phrasing|sentence|sentences)\b/i;
+
+const EXPLICIT_RELATION_CLAIMS =
+  /\b(priorit(?:y|ize|ized|ization)|rank(?:ed|ing)?|hierarch(?:y|ical)|curat(?:e|ed|es|ion)|deliberat(?:e|ely)|step\s+up|escalat(?:e|ed|es|ing|ion))\b/i;
+
+function candidateCrossesDeterministicTruthFloor(
+  candidate: AuthorCreativeCandidate,
+  suppliedRealityText: string,
+): boolean {
+  const candidateText = clean([
+    candidate.perception,
+    candidate.relationship,
+    candidate.observerInference,
+  ].join(" "));
+
+  const inventsRecordShape =
+    RECORD_SHAPE_LANGUAGE.test(candidateText) &&
+    !RECORD_SHAPE_LANGUAGE.test(suppliedRealityText);
+
+  const inventsExplicitRelation =
+    EXPLICIT_RELATION_CLAIMS.test(candidateText) &&
+    !EXPLICIT_RELATION_CLAIMS.test(suppliedRealityText);
+
+  return inventsRecordShape || inventsExplicitRelation;
+}
+
 function normalizeCandidate(
   value: unknown,
   index: number,
@@ -265,9 +292,13 @@ export async function discoverAuthorCreativeDirection(input: {
 
   const parsed = parseJson(result.text);
   const rawCandidates = Array.isArray(parsed?.candidates) ? parsed.candidates : [];
+  const suppliedRealityText = clean(input.events.map((event) => event.text).join(" "));
   const candidates = rawCandidates
     .map((value, index) => normalizeCandidate(value, index, allowedEventIds))
     .filter((value): value is AuthorCreativeCandidate => Boolean(value))
+    .filter((candidate) =>
+      !candidateCrossesDeterministicTruthFloor(candidate, suppliedRealityText),
+    )
     .slice(0, 4);
 
   const fallbackCandidate: AuthorCreativeCandidate = {
