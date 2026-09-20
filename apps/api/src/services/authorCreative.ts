@@ -60,6 +60,9 @@ function presentationAffordance(domainContext?: AuthorDomainContext): string {
     "The surface is a living dog tag. Treat that only as presentation context, never as factual reality.",
     "When it fits the supplied character material, you may embody preferences and traits as thought-like reactions, tiny fixations, recurring wants, direct voice, playful repetition, anticipation, or subject-centered micro-moments.",
     "The goal is to let the viewer meet the subject through the supplied truths rather than hear an explanation of those truths.",
+    "Leave negative space. Prefer implication, interruption, callback, and unfinished-feeling fragments over labels that tell the viewer what the subject is.",
+    "Do not translate sparse character facts into generic pet praise or species clichés such as good boy, happy tail, adorable, loyal friend, sunshine, paws, wagging, sniffing, barking, or similar unless those concrete ideas are actually supplied.",
+    "When a strange little beat can stand without explanation, let it stand. The viewer should sometimes have to complete the character themselves.",
     "These are creative embodiments, not claims that literal internal thoughts occurred.",
     "Use this affordance only because DOG TAG context is present; otherwise write from the universal Author behavior alone.",
   ].join("\n");
