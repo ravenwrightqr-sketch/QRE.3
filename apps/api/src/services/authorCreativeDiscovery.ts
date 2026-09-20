@@ -145,6 +145,8 @@ export async function discoverAuthorCreativeDirection(input: {
     "GROUND EACH READ.",
     "Cite the supplied event IDs that carry the idea.",
     "Build the read from what is actually supplied.",
+    "Let actions establish that the action happened; do not treat an action by itself as proof of an unseen prior condition, motive, or backstory.",
+    "When a read needs status or drama, create it figuratively from the supplied action instead of converting it into an unsupported literal before-state.",
     "Literal claims stay inside supplied reality; figurative meaning can range widely.",
     "BUSINESS_CONTEXT may clarify vocabulary.",
     "",
@@ -179,7 +181,7 @@ export async function discoverAuthorCreativeDirection(input: {
             requestedLens: requestedLens || undefined,
           },
           instruction:
-            "Find four genuinely different grounded reads in the supplied reality. Keep each concise: what you noticed, the playable relation, and its evidence. Favor reads that make the facts feel different through status, tension, contrast, character, reversal, escalation, repetition, excess, or another felt dynamic. Select the one with the most life and creative potential. Do not write final cuts.",
+            "Find four genuinely different grounded reads in the supplied reality. Keep each concise: what you noticed, the playable relation, and its evidence. Favor reads that make the facts feel different through status, tension, contrast, character, reversal, escalation, repetition, excess, or another felt dynamic. Keep literal premises supported; use figurative status rather than inventing unseen prior conditions. Select the one with the most life and creative potential. Do not write final cuts.",
         }),
       },
     ],
