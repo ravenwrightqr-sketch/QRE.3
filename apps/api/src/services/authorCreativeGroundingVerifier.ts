@@ -41,6 +41,7 @@ type Verification = {
 };
 
 const ABSOLUTE_RELATION_LANGUAGE = /\b(always|never|first|last)\b/i;
+const TEMPORAL_STATE_LANGUAGE = /\b(still|already|yet)\b/i;
 const SENSORY_CLAIM_LANGUAGE =
   /\b(smell|smells|smelled|scent|scents|scented|taste|tastes|tasted|flavor|flavors|sound|sounds|sounded|noise|noises|texture|textures|touch|touches|touched|feel|feels|felt)\b/i;
 
@@ -50,6 +51,19 @@ function hasUnsupportedAbsoluteClaim(
 ): boolean {
   const sceneMatches = clean(sceneText).match(
     new RegExp(ABSOLUTE_RELATION_LANGUAGE.source, "ig"),
+  );
+  if (!sceneMatches?.length) return false;
+
+  const reality = clean(suppliedRealityText).toLowerCase();
+  return sceneMatches.some((claim) => !reality.includes(claim.toLowerCase()));
+}
+
+function hasUnsupportedTemporalStateClaim(
+  sceneText: string,
+  suppliedRealityText: string,
+): boolean {
+  const sceneMatches = clean(sceneText).match(
+    new RegExp(TEMPORAL_STATE_LANGUAGE.source, "ig"),
   );
   if (!sceneMatches?.length) return false;
 
@@ -99,7 +113,8 @@ export async function verifyAuthorCreativeGrounding(input: {
     "Words that name a sensory property or bodily state/action are concrete claims even when written as shorthand. Examples: 'bacon smell', 'happy tail', 'tiny paws', 'sniffs', 'crunch' all require explicit support.",
     "Preserve metaphor, personification, idiom, status language, exaggeration, attitude, and playful framing when a reasonable viewer reads them as nonliteral.",
     "A beat is grounded only when every concrete real-world claim inside it is supported by SUPPLIED_REALITY.",
-    "Relational claims are concrete too. Priority, ranking, first/last, always/never, preference strength, exclusivity, deliberate choice, curation, ownership, and repeated selection require explicit support; they are not free figurative overlays merely because the underlying items are supplied.",
+    "Relational claims are concrete too. Priority, ranking, first/last, always/never, temporal persistence such as still/already/yet, preference strength, exclusivity, deliberate choice, curation, ownership, and repeated selection require explicit support; they are not free figurative overlays merely because the underlying items are supplied.",
+    "An associated place or setting is also a concrete claim. A walk does not establish a park, street, trail, yard, or any other setting unless supplied reality names it.",
     "Figurative framing does not excuse an embedded unsupported literal claim.",
     "A supplied action proves the action occurred; it does not by itself prove an unseen prior condition, cause, motive, history, sensory state, or aftermath.",
     "A beat may freely add figurative meaning around supplied facts.",
@@ -177,6 +192,7 @@ export async function verifyAuthorCreativeGrounding(input: {
     const item = value as Verification;
     if (item.grounded !== true) return [];
     if (hasUnsupportedAbsoluteClaim(scene.text, suppliedRealityText)) return [];
+    if (hasUnsupportedTemporalStateClaim(scene.text, suppliedRealityText)) return [];
     if (hasUnsupportedSensoryClaim(scene.text, suppliedRealityText)) return [];
 
     const sourceEventIds = Array.isArray(item.sourceEventIds)
