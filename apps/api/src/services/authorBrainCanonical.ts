@@ -299,9 +299,7 @@ export async function authorBrainCanonical(
     ]),
   );
 
-  const playableEvents = selectedPlayableIds.size
-    ? events.filter((event) => selectedPlayableIds.has(event.id))
-    : events;
+  const playableEvents = events.filter((event) => selectedPlayableIds.has(event.id));
 
   const playableIdSet = new Set(playableEvents.map((event) => event.id));
   const backgroundEvents = events.filter((event) => !playableIdSet.has(event.id));
