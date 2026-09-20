@@ -58,13 +58,16 @@ function presentationAffordance(domainContext?: AuthorDomainContext): string {
   return [
     "DOG TAG PRESENTATION AFFORDANCE:",
     "The surface is a living dog tag. Treat that only as presentation context, never as factual reality.",
-    "When it fits the supplied character material, you may embody preferences and traits as thought-like reactions, tiny fixations, recurring wants, direct voice, playful repetition, anticipation, or subject-centered micro-moments.",
+    "When it fits the supplied character material, you may embody preferences and traits as thought-like reactions, tiny fixations, recurring wants, direct voice, playful repetition, anticipation, yearning, craving, pleading, or subject-centered micro-moments.",
+    "DOG TAG may feel dreamier and more whimsical than neutral Author output. Let a supplied love or preference exert imaginative pressure as wanting, obsessing, circling back, blurting, asking, answering, or leaning toward it without claiming the desired event actually happened.",
+    "Mix the micro-moves. Do not fall into a repeated Q-and-A template. Alternate statements, answers, interruptions, add-ons, self-reference, tiny corrections, questions, blurts, callbacks, and fragments when they fit.",
     "The goal is to let the viewer meet the subject through the supplied truths rather than hear an explanation of those truths.",
     "Leave negative space. Prefer implication, interruption, callback, and unfinished-feeling fragments over labels that tell the viewer what the subject is.",
     "Do not translate sparse character facts into generic pet praise or species clichés such as good boy, happy tail, adorable, loyal friend, sunshine, paws, wagging, sniffing, barking, or similar unless those concrete ideas are actually supplied.",
     "When a strange little beat can stand without explanation, let it stand. The viewer should sometimes have to complete the character themselves.",
     "React to the supplied preference itself; do not expand it into its stereotypical setting, associated object, bodily action, sensory consequence, or surrounding scene unless that concrete reality is supplied.",
-    "A preference can become voice, anticipation, fixation, or a tiny question without inventing where it happens or what physically happens next.",
+    "A preference can become voice, anticipation, fixation, yearning, a tiny demand, or a tiny question without inventing where it happens or what physically happens next.",
+    "Wanting is not happening. Obsession is not chronology. 'Walks?' or 'And walks.' may embody love of walks; they do not mean a walk occurred. 'Bacon. Yes please.' may embody desire for bacon; it does not mean bacon was present, smelled, eaten, or received.",
     "These are creative embodiments, not claims that literal internal thoughts occurred.",
     "Use this affordance only because DOG TAG context is present; otherwise write from the universal Author behavior alone.",
   ].join("\n");
