@@ -9,6 +9,7 @@ const required = [
   "apps/api/src/services/authorRealityGraph.ts",
   "apps/api/src/services/authorCreativeDiscovery.ts",
   "apps/api/src/services/authorCreative.ts",
+  "apps/api/src/services/authorCreativeGroundingVerifier.ts",
   "apps/api/src/services/authorBrainCanonical.ts",
   "apps/api/src/services/experienceService.ts",
   "apps/api/src/routes/experience.ts",
@@ -55,6 +56,7 @@ const allowedAuthorServiceFiles = new Set([
   "authorRealityGraph.ts",
   "authorCreativeDiscovery.ts",
   "authorCreative.ts",
+  "authorCreativeGroundingVerifier.ts",
   "authorBrainCanonical.ts",
   "authorReadout.ts",
   "authorTruth.ts",
@@ -78,8 +80,8 @@ function walk(dir, out = []) {
 for (const p of required) if (!existsSync(join(root, p))) failures.push(`missing-required: ${p}`);
 for (const p of forbiddenFiles) if (existsSync(join(root, p))) failures.push(`forbidden-legacy-file: ${p}`);
 
-const brain = existsSync(join(root, required[4])) ? read(required[4]) : "";
-for (const token of ["authorRealityExtractor.js", "authorRealityGraph.js", "authorCreativeDiscovery.js", "authorCreative.js"]) {
+const brain = existsSync(join(root, required[5])) ? read(required[5]) : "";
+for (const token of ["authorRealityExtractor.js", "authorRealityGraph.js", "authorCreativeDiscovery.js", "authorCreative.js", "authorCreativeGroundingVerifier.js"]) {
   if (!brain.includes(token)) failures.push(`canonical-brain missing ${token}`);
 }
 if (/localModelGenerate\s*\(/.test(brain)) failures.push("canonical-brain must orchestrate, not call the model directly");
