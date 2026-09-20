@@ -65,7 +65,8 @@ export async function verifyAuthorCreativeGrounding(input: {
     "A figurative beat may be grounded even when its exact words never appear in reality, as long as its metaphor clearly transforms one or more supplied entities, actions, states, or relations and does not smuggle in a new concrete fact.",
     "The concrete carrier of a metaphor must come from supplied reality. Figurative freedom may personify or reframe supplied material; it may not introduce a new physical object, body part, actor, action, sensory detail, inhabitant, sound, smell, taste, or texture merely as decoration.",
     "If a beat contains any concrete noun, bodily action, or sensory event not established by supplied reality, treat that concrete content as a new claim even when the surrounding line is playful or metaphorical.",
-    "A supplied object does not automatically supply every sensory property or interaction associated with it. Bacon being supplied does not establish its smell, taste, grease, crunch, or anyone sensing it; a dog being supplied does not establish wagging, sniffing, barking, paws, or movement.",
+    "A supplied object does not automatically supply every sensory property or interaction associated with it. Bacon being supplied does not establish its smell, taste, grease, crunch, or anyone sensing it; a dog being supplied does not establish wagging, sniffing, barking, paws, tail movement, bodily posture, or movement.",
+    "Words that name a sensory property or bodily state/action are concrete claims even when written as shorthand. Examples: 'bacon smell', 'happy tail', 'tiny paws', 'sniffs', 'crunch' all require explicit support.",
     "Preserve metaphor, personification, idiom, status language, exaggeration, attitude, and playful framing when a reasonable viewer reads them as nonliteral.",
     "A beat is grounded only when every concrete real-world claim inside it is supported by SUPPLIED_REALITY.",
     "Figurative framing does not excuse an embedded unsupported literal claim.",
@@ -93,7 +94,7 @@ export async function verifyAuthorCreativeGrounding(input: {
             groundingHint: scene.sourceEventIds,
           })),
           instruction:
-            "Verify every beat in the same order. groundingHint is only a clue from the writer; correct it when needed. For each beat, identify the supplied entity, action, state, or relation that carries the metaphor, then separate the figurative overlay. Preserve figurative language when its concrete carrier is supplied. Scan the actual words for newly introduced concrete nouns, bodily actions, sounds, smells, tastes, textures, and other sensory events. Do not infer sensory properties or physical behaviors merely because a related object or subject is supplied. Return grounded=false when any such concrete content is unsupported by supplied reality.",
+            "Verify every beat in the same order. groundingHint is only a clue from the writer; correct it when needed. For each beat, identify the supplied entity, action, state, or relation that carries the metaphor, then separate the figurative overlay. Preserve figurative language when its concrete carrier is supplied. Scan the actual words for newly introduced concrete nouns, body parts, bodily states/actions, sounds, smells, tastes, textures, and other sensory events. Treat shorthand phrases such as 'bacon smell' or 'happy tail' as literal concrete claims about smell or bodily state. Do not infer sensory properties or physical behaviors merely because a related object or subject is supplied. Return grounded=false when any such concrete content is unsupported by supplied reality.",
         }),
       },
     ],
