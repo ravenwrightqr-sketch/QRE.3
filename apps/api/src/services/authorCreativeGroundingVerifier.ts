@@ -69,6 +69,7 @@ export async function verifyAuthorCreativeGrounding(input: {
     "Words that name a sensory property or bodily state/action are concrete claims even when written as shorthand. Examples: 'bacon smell', 'happy tail', 'tiny paws', 'sniffs', 'crunch' all require explicit support.",
     "Preserve metaphor, personification, idiom, status language, exaggeration, attitude, and playful framing when a reasonable viewer reads them as nonliteral.",
     "A beat is grounded only when every concrete real-world claim inside it is supported by SUPPLIED_REALITY.",
+    "Relational claims are concrete too. Priority, ranking, first/last, always/never, preference strength, exclusivity, deliberate choice, curation, ownership, and repeated selection require explicit support; they are not free figurative overlays merely because the underlying items are supplied.",
     "Figurative framing does not excuse an embedded unsupported literal claim.",
     "A supplied action proves the action occurred; it does not by itself prove an unseen prior condition, cause, motive, history, sensory state, or aftermath.",
     "A beat may freely add figurative meaning around supplied facts.",
@@ -94,7 +95,7 @@ export async function verifyAuthorCreativeGrounding(input: {
             groundingHint: scene.sourceEventIds,
           })),
           instruction:
-            "Verify every beat in the same order. groundingHint is only a clue from the writer; correct it when needed. For each beat, identify the supplied entity, action, state, or relation that carries the metaphor, then separate the figurative overlay. Preserve figurative language when its concrete carrier is supplied. Scan the actual words for newly introduced concrete nouns, body parts, bodily states/actions, sounds, smells, tastes, textures, and other sensory events. Treat shorthand phrases such as 'bacon smell' or 'happy tail' as literal concrete claims about smell or bodily state. Do not infer sensory properties or physical behaviors merely because a related object or subject is supplied. Return grounded=false when any such concrete content is unsupported by supplied reality.",
+            "Verify every beat in the same order. groundingHint is only a clue from the writer; correct it when needed. For each beat, identify the supplied entity, action, state, or relation that carries the metaphor, then separate the figurative overlay. Preserve figurative language when its concrete carrier is supplied. Scan the actual words for newly introduced concrete nouns, body parts, bodily states/actions, sounds, smells, tastes, textures, and other sensory events. Also scan for unsupported relational claims such as priority, first/last, always/never, stronger preference, exclusivity, deliberate choice, curation, ownership, or repeated selection. Treat shorthand phrases such as 'bacon smell' or 'happy tail' as literal concrete claims about smell or bodily state. Do not infer sensory properties, physical behaviors, or relational structure merely because related items are supplied. Return grounded=false when any such concrete content is unsupported by supplied reality.",
         }),
       },
     ],
