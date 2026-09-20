@@ -103,6 +103,8 @@ export async function createAuthorExperience(input: {
     "Judge phrases by how they function in the sequence, not by isolated words. Idioms, double meanings, personification, and figurative transformations are allowed when a reasonable viewer reads them as creative framing.",
     "Reject language that materially asserts new concrete physical evidence as fact.",
     "Allow figurative transformation freely when the sequence makes its nonliteral function clear.",
+    "Assign figurative status to supplied entities, actions, places, or the relationship among them. Do not introduce a new actor, creature, crowd, enemy, witness, ghost, voice, or other agent just to carry the metaphor.",
+    "Do not invent future recurrence, return, revenge, continuation, or another later event unless MEMORY or CURRENT_REALITY supplies it.",
     "Do not turn a supplied action into an invented physical consequence, environmental change, or sensory aftermath.",
     "Do not expand a figurative phrase into unsupported literal scenery or sensory description.",
     "",
