@@ -62,7 +62,8 @@ export async function verifyAuthorCreativeGrounding(input: {
     "",
     "Read each finished beat in context.",
     "Separate the beat into its literal anchor and its figurative overlay.",
-    "A figurative beat may be grounded even when its exact words never appear in reality, as long as its metaphor clearly frames one or more supplied events and does not smuggle in a new concrete fact.",
+    "A figurative beat may be grounded even when its exact words never appear in reality, as long as its metaphor clearly transforms one or more supplied entities, actions, states, or relations and does not smuggle in a new concrete fact.",
+    "The concrete carrier of a metaphor must come from supplied reality. Figurative freedom may personify or reframe supplied material; it may not introduce a new physical object, body part, actor, action, sensory detail, or inhabitant merely as decoration.",
     "Preserve metaphor, personification, idiom, status language, exaggeration, attitude, and playful framing when a reasonable viewer reads them as nonliteral.",
     "A beat is grounded only when every concrete real-world claim inside it is supported by SUPPLIED_REALITY.",
     "Figurative framing does not excuse an embedded unsupported literal claim.",
@@ -90,7 +91,7 @@ export async function verifyAuthorCreativeGrounding(input: {
             groundingHint: scene.sourceEventIds,
           })),
           instruction:
-            "Verify every beat in the same order. groundingHint is only a clue from the writer; correct it when needed. For each beat, identify its literal anchor or the supplied events its metaphor transforms, then separate any figurative overlay. Preserve purely figurative lines when they are semantically anchored to supplied reality. Return grounded=false only when the beat embeds an unsupported concrete condition, history, cause, motive, sensory fact, or outcome.",
+            "Verify every beat in the same order. groundingHint is only a clue from the writer; correct it when needed. For each beat, identify the supplied entity, action, state, or relation that carries the metaphor, then separate the figurative overlay. Preserve figurative language when its concrete carrier is supplied. Return grounded=false when the beat introduces any unsupported concrete object, body part, actor, action, inhabitant, condition, history, cause, motive, sensory fact, or outcome.",
         }),
       },
     ],
