@@ -38,6 +38,7 @@ function parseJson(text: string): Record<string, unknown> | undefined {
 
 type RawBeat = {
   text?: unknown;
+  support?: unknown;
   sourceEventIds?: unknown;
 };
 
@@ -81,6 +82,9 @@ export async function createAuthorExperience(input: {
     "backgroundEventIds remain off-screen as individual facts. They may jointly support a higher-level interpretive cut when multiple background facts create the selected relation.",
     "Do not revive rejected candidates or invent a new story in realization.",
     "Do not make a beat merely because a fact exists. Compress operational detail upward into the larger transformation when Creative Discovery found one.",
+    "Label every beat support as FACT or RELATION.",
+    "FACT = a line transforms or presents one supplied fact; one source event may be enough.",
+    "RELATION = a line expresses the selected relationship, accumulation, callback, status shift, or whole-experience metaphor; cite TWO OR MORE supporting source events.",
     "When a line is supported by several mundane facts, cite those event IDs together instead of turning each fact into its own line.",
     "Do not open with arrival or close with completion merely because those facts are available. Use them only when they actively improve the experience.",
     "Quality beats coverage. Fewer stronger cuts are better than complete representation of the input.",
@@ -111,7 +115,7 @@ export async function createAuthorExperience(input: {
     "Do not explain the joke, metaphor, meaning, or creative mechanism.",
     "Do not optimize for a fixed beat count or fixed word count. Stop when it lands.",
     "The realization should make the selected relationship perceptible through sequence, implication, status, rhythm, contrast, or callback without turning the relationship label itself into prose.",
-    "Return JSON only: {\"beats\":[{\"text\":\"...\",\"sourceEventIds\":[\"event-1\"]}]}.",
+    "Return JSON only: {\"beats\":[{\"text\":\"...\",\"support\":\"FACT\",\"sourceEventIds\":[\"event-1\"]}]}.",
   ].join("\n");
 
   const result = await localModelGenerate(
@@ -126,7 +130,7 @@ export async function createAuthorExperience(input: {
           MEMORY: (input.memory ?? []).slice(0, 20),
           BUSINESS_CONTEXT: input.domainContext,
           CREATIVE_DISCOVERY: input.creativeDiscovery,
-          instruction: "Realize CREATIVE_DISCOVERY.selected. If the selected read is metamorphic, perform the figurative status/relationship clearly enough that it cannot be mistaken for new literal reality. Create the QRE experience from PLAYABLE_REALITY plus relationships supported by BACKGROUND_EVIDENCE. A single background fact must not become its own beat; when background evidence supports a higher-level perception, cite multiple background event IDs together. Do not invent chronology or adjacency. Apply the lens only as pressure to the already-selected relation. Use tiny moving-text cuts and stop before explaining the observer inference.",
+          instruction: "Realize CREATIVE_DISCOVERY.selected. If the selected read is metamorphic, perform the figurative status/relationship clearly enough that it cannot be mistaken for new literal reality. Mark each beat FACT or RELATION. A whole-read or relationship line must be RELATION and cite multiple supporting events; do not hang a global metaphor on one event. Create the QRE experience from PLAYABLE_REALITY plus relationships supported by BACKGROUND_EVIDENCE. A single background fact must not become its own beat; when background evidence supports a higher-level perception, cite multiple background event IDs together. Do not invent chronology or adjacency. Apply the lens only as pressure to the already-selected relation. Use tiny moving-text cuts and stop before explaining the observer inference.",
         }),
       },
     ],
@@ -160,6 +164,10 @@ export async function createAuthorExperience(input: {
         )
       : [];
 
+    const support = clean(beat.support).toUpperCase() === "RELATION"
+      ? "RELATION"
+      : "FACT";
+
     const backgroundOnly = suppliedIds.length > 0 &&
       suppliedIds.every((id) => backgroundIdSet.has(id));
 
@@ -169,6 +177,7 @@ export async function createAuthorExperience(input: {
      * one-fact-one-caption failure QRE must prevent.
      */
     if (backgroundOnly && suppliedIds.length < 2) return [];
+    if (support === "RELATION" && suppliedIds.length < 2) return [];
 
     /*
      * Never invent provenance for a beat. If the model cannot identify the
