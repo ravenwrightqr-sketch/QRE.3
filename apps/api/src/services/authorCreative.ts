@@ -36,8 +36,8 @@ function parseJson(text: string): Record<string, unknown> | undefined {
   }
 }
 
-type RawBeat = {
-  text?: unknown;
+type RawGrounding = {
+  beatIndex?: unknown;
   support?: unknown;
   sourceEventIds?: unknown;
 };
@@ -49,8 +49,7 @@ export type AuthorCreativeEvent = {
 
 export async function createAuthorExperience(input: {
   subject: string;
-  playableEvents: readonly AuthorCreativeEvent[];
-  backgroundEvents?: readonly AuthorCreativeEvent[];
+  selectedEvidence: readonly AuthorCreativeEvent[];
   creativeDiscovery: AuthorCreativeDiscovery;
   memory?: readonly string[];
   domainContext?: AuthorDomainContext;
@@ -64,17 +63,17 @@ export async function createAuthorExperience(input: {
     "Turn the selected grounded perception into a short viewer-facing sequence.",
     "Reality is fixed. Interpretation is free.",
     "",
+    "WRITE FIRST.",
+    "Create the experience before you do provenance bookkeeping.",
+    "The beats array is the creative act. Finish it before grounding it.",
+    "",
     "YOUR JOB:",
     "Do not summarize evidence. Do not write a receipt. Do not explain the idea.",
     "Find what is alive in the selected perception and build around that.",
-    "The interesting thing may be one odd detail, a character signal, an excess, a reversal, a status change, a strange combination, or a relationship between facts.",
-    "Do not cover the input. Use only what helps the discovered idea land.",
-    "One moment may become attitude. Another may become compression. Another may become status, callback, reversal, implication, or afterimage.",
-    "Do not force one creative device across the whole experience.",
-    "The sequence should feel like something is happening even when the source reality is ordinary.",
+    "Do not cover the input. Use only what helps the idea land.",
+    "Different moments may use different creative moves: attitude, compression, status, callback, reversal, implication, afterimage.",
+    "Do not force one gimmick across the whole experience.",
     "Prefer bold, compressed, memorable language over polite description.",
-    "The stronger the metaphor gets, the more clearly figurative it should become.",
-    "Overstatement is allowed when it is unmistakably figurative.",
     "Playfulness, swagger, absurd seriousness, attitude, and dramatic escalation are allowed when they fit the selected read.",
     "",
     "SEQUENCE:",
@@ -82,50 +81,30 @@ export async function createAuthorExperience(input: {
     "Usually 3-7 cuts, but let the material decide.",
     "Default to 1-7 words per cut.",
     "Do not allocate one cut to each supplied fact.",
-    "Some supplied facts should disappear completely when they do not help the idea.",
-    "Several facts may collapse into one moment, and one strong supplied detail may carry more than one moment when the sequence earns it.",
-    "Keep the experience coherent, but coherence may come from subject, attitude, tension, or implication; it does not require repeating one metaphor or gimmick.",
-    "Do not restart from zero on every line.",
-    "Build pressure, callback, contrast, surprise, or recontextualization only when the material supports it.",
+    "Some evidence may never appear directly.",
+    "Several facts may collapse into one moment.",
     "A later cut may sharpen or change how an earlier cut reads.",
     "Land hard. Stop before explaining.",
     "",
     "GROUNDING:",
-    "PLAYABLE_REALITY and BACKGROUND_EVIDENCE are the only current-event evidence.",
-    "CREATIVE_DISCOVERY.selected gives the perception to realize. Do not invent a different story.",
+    "SELECTED_EVIDENCE is the entire factual support available to this realization.",
+    "CREATIVE_DISCOVERY.selected is the idea to realize.",
     "Do not invent literal people, objects, actions, dialogue, motives, psychology, sensory details, before-states, after-states, or chronology.",
-    "Do not paraphrase a supplied action into a new concrete action.",
-    "Do not use first/then/next/before/after/finally unless the evidence establishes that relation.",
-    "",
-    "METAPHOR:",
-    "If selected.mode is METAMORPHIC, commit to the figurative world.",
-    "Do not timidly describe the metaphor. Perform it.",
-    "A phrase may have both literal and figurative readings when the sequence clearly makes the figurative reading dominant.",
-    "Do not ban idioms or double meanings merely because the words could also be literal.",
-    "Invent language and meaning freely. Do not invent the world.",
-    "Keep metaphor attached to supplied entities/actions or to clearly figurative status language.",
-    "Judge phrases by how they function in the sequence, not by isolated words. Idioms, double meanings, personification, and figurative transformations are allowed when a reasonable viewer reads them as creative framing.",
-    "Reject language that materially asserts new concrete physical evidence as fact.",
-    "Allow figurative transformation freely when the sequence makes its nonliteral function clear.",
-    "Do not turn a supplied action into an invented physical consequence, environmental change, or sensory aftermath.",
-    "Do not expand a figurative phrase into unsupported literal scenery or sensory description.",
-    "",
-    "PROVENANCE:",
-    "Mark each beat support as FACT or RELATION.",
-    "FACT = one supplied fact is being transformed or presented; one source ID may be enough.",
-    "RELATION = the line expresses accumulation, status shift, callback, whole-read metaphor, or a relationship across facts; cite at least TWO source IDs.",
-    "Do not hang a global claim on one event.",
-    "A single background event cannot become its own beat.",
+    "Metaphor may change status or meaning. It may not invent the world.",
+    "After the beats are complete, ground each beat by beatIndex.",
+    "FACT = the beat rests on one supplied fact.",
+    "RELATION = the beat rests on a relationship, accumulation, callback, status shift, or whole-read metaphor across two or more supplied facts.",
+    "Every grounding sourceEventId must come from SELECTED_EVIDENCE.",
+    "A RELATION grounding must cite at least two sourceEventIds.",
     "",
     "ANTI-FAILURES:",
     "A shorter checklist is still a checklist.",
     "Do not emit task nouns or verbs merely because they were supplied.",
-    "If every cut could appear on a receipt, try again internally.",
-    "Do not write faux-profound poetry for its own sake.",
+    "If the beats could appear on a receipt, rewrite them before grounding.",
     "Do not expose labels like lens, relationship, perception, payoff, mechanic, or beat.",
     "",
-    "Silently consider several realizations. Output only the strongest.",
-    "Return JSON only: {\"beats\":[{\"text\":\"...\",\"support\":\"RELATION\",\"sourceEventIds\":[\"event-1\",\"event-2\"]}]}.",
+    "Return JSON only with beats first and grounding second.",
+    "Shape: {\"beats\":[\"...\",\"...\"],\"grounding\":[{\"beatIndex\":0,\"support\":\"RELATION\",\"sourceEventIds\":[\"event-1\",\"event-2\"]}]}",
   ].join("\n");
 
   const result = await localModelGenerate(
@@ -135,73 +114,103 @@ export async function createAuthorExperience(input: {
         role: "user",
         content: JSON.stringify({
           subject: input.subject,
-          PLAYABLE_REALITY: input.playableEvents,
-          BACKGROUND_EVIDENCE: input.backgroundEvents ?? [],
+          SELECTED_EVIDENCE: input.selectedEvidence,
           MEMORY: (input.memory ?? []).slice(0, 20),
           BUSINESS_CONTEXT: input.domainContext,
-          CREATIVE_DISCOVERY: input.creativeDiscovery,
-          instruction: "Realize CREATIVE_DISCOVERY.selected by finding what is alive in it. Do not cover the evidence and do not map one fact to one cut. Let different moments use different creative moves when that serves the material: attitude, compression, status, callback, reversal, implication, or afterimage. If the read is metamorphic, commit to figurative consequence without inventing literal reality. Preserve truth, keep provenance exact, and stop when the idea lands.",
+          CREATIVE_DISCOVERY: {
+            selected: input.creativeDiscovery.selected,
+            lens: input.creativeDiscovery.lens,
+          },
+          instruction: "Write the viewer-facing beats first. Only after the beats are finished, produce grounding for those beats from SELECTED_EVIDENCE. Do not turn the evidence list into the sequence. Make the selected idea felt, then prove it.",
         }),
       },
     ],
     "json",
-    { numPredict: 800, temperature: 0.88 },
+    {
+      numPredict: 800,
+      temperature: 0.88,
+      jsonSchema: {
+        type: "object",
+        additionalProperties: false,
+        required: ["beats", "grounding"],
+        properties: {
+          beats: {
+            type: "array",
+            minItems: 1,
+            maxItems: 10,
+            items: { type: "string", maxLength: 120 },
+          },
+          grounding: {
+            type: "array",
+            minItems: 1,
+            maxItems: 10,
+            items: {
+              type: "object",
+              additionalProperties: false,
+              required: ["beatIndex", "support", "sourceEventIds"],
+              properties: {
+                beatIndex: { type: "integer", minimum: 0, maximum: 9 },
+                support: { type: "string", enum: ["FACT", "RELATION"] },
+                sourceEventIds: {
+                  type: "array",
+                  minItems: 1,
+                  maxItems: 32,
+                  items: { type: "string", maxLength: 64 },
+                },
+              },
+            },
+          },
+        },
+      },
+    },
   );
 
   const parsed = parseJson(result.text);
-  const raw = Array.isArray(parsed?.beats) ? parsed!.beats : [];
-  const playableIds = input.playableEvents.map((event) => event.id);
-  const backgroundIds = (input.backgroundEvents ?? []).map((event) => event.id);
-  const eventIds = unique([...playableIds, ...backgroundIds]);
-  const backgroundIdSet = new Set(backgroundIds);
+  const beats = Array.isArray(parsed?.beats)
+    ? parsed!.beats.map(clean).filter(Boolean).slice(0, 10)
+    : [];
+  const rawGrounding = Array.isArray(parsed?.grounding)
+    ? parsed!.grounding
+    : [];
 
-  const scenes = raw.flatMap((value, index): Array<AuthorScene & { sourceEventIds: string[] }> => {
-    const beat: RawBeat =
-      typeof value === "string"
-        ? { text: value }
-        : value && typeof value === "object"
-          ? value as RawBeat
-          : {};
+  const eventIds = new Set(input.selectedEvidence.map((event) => event.id));
+  const groundingByBeat = new Map<number, { support: "FACT" | "RELATION"; sourceEventIds: string[] }>();
 
-    const text = clean(beat.text);
-    if (!text) return [];
+  for (const value of rawGrounding) {
+    if (!value || typeof value !== "object") continue;
+    const grounding = value as RawGrounding;
+    const beatIndex = Number(grounding.beatIndex);
+    if (!Number.isInteger(beatIndex) || beatIndex < 0 || beatIndex >= beats.length) continue;
 
-    const suppliedIds = Array.isArray(beat.sourceEventIds)
+    const support: "FACT" | "RELATION" =
+      clean(grounding.support).toUpperCase() === "RELATION"
+        ? "RELATION"
+        : "FACT";
+
+    const sourceEventIds = Array.isArray(grounding.sourceEventIds)
       ? unique(
-          beat.sourceEventIds
+          grounding.sourceEventIds
             .filter((id): id is string => typeof id === "string")
-            .filter((id) => eventIds.includes(id)),
+            .filter((id) => eventIds.has(id)),
         )
       : [];
 
-    const support = clean(beat.support).toUpperCase() === "RELATION"
-      ? "RELATION"
-      : "FACT";
+    if (!sourceEventIds.length) continue;
+    if (support === "RELATION" && sourceEventIds.length < 2) continue;
 
-    const backgroundOnly = suppliedIds.length > 0 &&
-      suppliedIds.every((id) => backgroundIdSet.has(id));
+    groundingByBeat.set(beatIndex, { support, sourceEventIds });
+  }
 
-    /*
-     * Background evidence may create a higher-order perception only as a set.
-     * A single background event becoming its own beat is exactly the
-     * one-fact-one-caption failure QRE must prevent.
-     */
-    if (backgroundOnly && suppliedIds.length < 2) return [];
-    if (support === "RELATION" && suppliedIds.length < 2) return [];
-
-    /*
-     * Never invent provenance for a beat. If the model cannot identify the
-     * supplied evidence that supports a line, the line is not grounded enough
-     * to enter the canonical experience.
-     */
-    if (!suppliedIds.length) return [];
+  const scenes = beats.flatMap((text, index): Array<AuthorScene & { sourceEventIds: string[] }> => {
+    const grounding = groundingByBeat.get(index);
+    if (!grounding) return [];
 
     return [{
       text,
-      kind: index === 0 ? "hook" : index === raw.length - 1 ? "payoff" : "line",
-      sourceEventIds: suppliedIds,
+      kind: index === 0 ? "hook" : index === beats.length - 1 ? "payoff" : "line",
+      sourceEventIds: grounding.sourceEventIds,
     }];
-  }).slice(0, 20);
+  });
 
   return {
     scenes,
