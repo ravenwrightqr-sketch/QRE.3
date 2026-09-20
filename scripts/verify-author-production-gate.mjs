@@ -45,7 +45,7 @@ if (required.every((p) => existsSync(join(root, p)))) {
   const service = readFileSync(join(root, required[4]), "utf8");
 
   if (!/temperature:\s*0\.18/.test(extractor)) failures.push("Reality Extractor must remain low-temperature factual extraction");
-  if (!/organizingIdea/.test(discovery) || !/subjectPattern/.test(discovery)) failures.push("Creative Discovery must search for organizing idea and subject pattern");
+  if (!/candidates/.test(discovery) || !/selectedCandidateId/.test(discovery) || !/observerInference/.test(discovery)) failures.push("Creative Discovery must search competing grounded perceptions and select one");
   if (!/Silently consider several genuinely different realizations/.test(creative)) failures.push("QRE Creative must privately search multiple realizations");
   if (!/Reality is fixed\. Creative interpretation is free\./.test(creative)) failures.push("QRE Creative missing fixed-reality/free-interpretation law");
   if (/localModelGenerate\s*\(/.test(brain)) failures.push("Canonical brain may not directly call model");
