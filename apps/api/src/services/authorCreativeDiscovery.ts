@@ -623,19 +623,26 @@ export async function discoverAuthorCreativeDirection(input: {
 
   const selectedEvidenceSet = new Set(selected.evidenceEventIds);
 
-  const playableEventIds = stringArray(parsed?.playableEventIds, 32)
-    .filter((id) => allowedEventIds.has(id))
-    .filter((id) => selectedEvidenceSet.has(id));
+  const selectedChangedAfterModelChoice = !selectedMatchesModelChoice;
+  const playableEventIds = selectedChangedAfterModelChoice
+    ? selected.evidenceEventIds.filter((id) => allowedEventIds.has(id))
+    : stringArray(parsed?.playableEventIds, 32)
+        .filter((id) => allowedEventIds.has(id))
+        .filter((id) => selectedEvidenceSet.has(id));
 
   const playableSet = new Set(playableEventIds);
-  const requestedBackground = stringArray(parsed?.backgroundEventIds, 64)
-    .filter((id) => allowedEventIds.has(id))
-    .filter((id) => selectedEvidenceSet.has(id))
-    .filter((id) => !playableSet.has(id));
+  const requestedBackground = selectedChangedAfterModelChoice
+    ? []
+    : stringArray(parsed?.backgroundEventIds, 64)
+        .filter((id) => allowedEventIds.has(id))
+        .filter((id) => selectedEvidenceSet.has(id))
+        .filter((id) => !playableSet.has(id));
 
-  const backgroundEventIds = requestedBackground.length
-    ? requestedBackground
-    : selected.evidenceEventIds.filter((id) => !playableSet.has(id));
+  const backgroundEventIds = selectedChangedAfterModelChoice
+    ? selected.evidenceEventIds.filter((id) => !playableSet.has(id))
+    : requestedBackground.length
+      ? requestedBackground
+      : selected.evidenceEventIds.filter((id) => !playableSet.has(id));
 
   return {
     discovery: {
