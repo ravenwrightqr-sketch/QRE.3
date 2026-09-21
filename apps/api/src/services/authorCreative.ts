@@ -9,6 +9,14 @@ const clean = (value: unknown): string =>
 const unique = (values: readonly string[]): string[] =>
   [...new Set(values.map(clean).filter(Boolean))];
 
+function debug(label: string, value: unknown): void {
+  if (process.env.QRE_AUTHOR_DEBUG_RAW !== "true") return;
+  const text = typeof value === "string"
+    ? value
+    : JSON.stringify(value, null, 2);
+  console.log(`\n--- QRE ${label} ---\n${text}\n--- END QRE ${label} ---\n`);
+}
+
 function parseJson(text: string): Record<string, unknown> | undefined {
   const source = clean(text)
     .replace(/^\`\`\`(?:json)?/i, "")
@@ -291,6 +299,11 @@ export async function createAuthorExperience(input: {
     normalizePlan(parseJson(planResult.text), allowedEventIds) ??
     fallbackPlan(input.suppliedReality, input.creativeDiscovery);
 
+  debug("BARE-AUTHOR-PLAN", {
+    raw: planResult.text,
+    selectedPlan: plan,
+  });
+
   const mouthResult = await localModelGenerate(
     [
       {
@@ -359,6 +372,8 @@ export async function createAuthorExperience(input: {
     },
   );
 
+  debug("MOUTH-CANDIDATES", mouthResult.text);
+
   const parsedMouth = parseJson(mouthResult.text);
   const rawVariants = Array.isArray(parsedMouth?.variantsByBeat)
     ? parsedMouth!.variantsByBeat
@@ -393,13 +408,22 @@ export async function createAuthorExperience(input: {
       .map(clean)
       .filter(Boolean);
 
-    const ranked = (variantsByOrder.get(beat.order) ?? [])
+    const evaluated = (variantsByOrder.get(beat.order) ?? [])
       .map((text) => ({
         text,
         ...variantScore(text, beatFacts, input.subject, prior),
-      }))
+      }));
+
+    const ranked = evaluated
       .filter((candidate) => candidate.accepted)
       .sort((a, b) => b.score - a.score);
+
+    debug(`MOUTH-BEAT-${beat.order}-CHOICE`, {
+      beat,
+      beatFacts,
+      candidates: evaluated,
+      selected: ranked[0]?.text ?? "FACT-FALLBACK",
+    });
 
     const text = ranked[0]?.text ?? safeFallbackText(beat, input.suppliedReality);
     if (!text) continue;
