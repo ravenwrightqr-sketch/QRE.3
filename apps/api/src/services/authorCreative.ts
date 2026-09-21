@@ -305,10 +305,7 @@ export async function createAuthorExperience(input: {
 }> {
   const allowedEventIds = new Set(input.suppliedReality.map((event) => event.id));
   const presentationContext = presentationAffordance(input.domainContext);
-  const contextRecord = (input.domainContext ?? {}) as Record<string, unknown>;
-  const experienceMode = clean(contextRecord.experienceMode).toUpperCase();
   const selected = input.creativeDiscovery.selected;
-  const realityDirect = clean(selected.id).toLowerCase() === "reality-direct";
   const selectedEvidence = input.suppliedReality.filter((event) =>
     selected.evidenceEventIds.includes(event.id),
   );
