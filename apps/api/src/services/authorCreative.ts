@@ -129,6 +129,7 @@ export async function createAuthorExperience(input: {
     "Use the supplied entities and actions as the real-world cast.",
     "The selected perception leads the experience; it does not forbid other supplied facts from becoming useful material.",
     "Keep literal reality anchored to SUPPLIED_REALITY while allowing interpretation to move freely around it.",
+    "When a supplied fact is an emotion or state, do not turn it into an unsupplied bodily manifestation or physical behavior. Happy is not wagging, smiling, jumping, moving, or posture unless those actions are supplied. If you want to dramatize a state, use voice, attitude, compression, metaphor, or reaction instead of inventing body behavior.",
     "",
     "GROUND AFTER WRITING:",
     "Once the beats are complete, map each beat to the evidence that supports it.",
@@ -157,7 +158,7 @@ export async function createAuthorExperience(input: {
             lens: input.creativeDiscovery.lens,
           },
           instruction: realityDirect
-            ? "Write the viewer-facing beats first from the supplied reality itself. There is no approved hidden thesis, so do not invent one and do not repeat the fallback meta wording. Find the strongest playable movement already inside the facts. Use attitude, reaction, implication, compression, hyperbole, and contextual story texture where they do not rewrite material history. Do not make one beat per fact, do not end in abstract labels, and do not pad after the strongest landing. Then ground each beat from the supplied reality actually used."
+            ? "Write the viewer-facing beats first from the supplied reality itself. There is no approved hidden thesis, so do not invent one and do not repeat the fallback meta wording. Find the strongest playable movement already inside the facts. Use attitude, reaction, implication, compression, hyperbole, and contextual story texture where they do not rewrite material history. If the ending fact is an emotion or state, realize that state through language or attitude, not an invented bodily action. Do not make one beat per fact, do not end in abstract labels, and do not pad after the strongest landing. Then ground each beat from the supplied reality actually used."
             : "Write the viewer-facing beats first as a moving sequence of compact screen moments. Use the selected read as the creative seed and the full supplied reality as material. Let supplied facts arrive across the sequence rather than dumping them together. Prefer lived voice, reaction, fragments, and compressed identity over explanation. Follow the most alive possibility, shift status, surprise, and land. After the beats are finished, ground each one from the supplied reality actually used.",
         }),
       },
