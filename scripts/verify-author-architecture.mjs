@@ -93,8 +93,13 @@ if (/localModelGenerate\s*\(/.test(brain)) failures.push("canonical-brain must o
 if (!/authorCutFloor\.js/.test(creative) || !/evaluateAuthorCut\s*\(/.test(creative)) {
   failures.push("QRE Creative must pass Mouth candidates through deterministic cut policy");
 }
-if (!/You are QRE Bare Author\./.test(creative) || !/You are QRE Mouth\./.test(creative)) {
-  failures.push("QRE Creative must separate semantic planning from Mouth realization");
+if (
+  !/You are QRE Bare Author Structure Planner\./.test(creative) ||
+  !/Discovery already owns meaning\./.test(creative) ||
+  !/You are QRE Mouth\./.test(creative) ||
+  !/DETERMINISTIC_SPARSE/.test(creative)
+) {
+  failures.push("QRE Creative must separate Discovery meaning, Author structure, and Mouth realization");
 }
 
 const authorServiceDir = join(root, "apps/api/src/services");
@@ -132,4 +137,4 @@ if (failures.length) {
   console.error(`AUTHOR ARCHITECTURE GUARD FAILED · ${failures.length}`);
   process.exit(1);
 }
-console.log("GREEN · ONE AUTHOR PATH · REALITY -> DISCOVERY -> SEMANTIC PLAN -> MOUTH -> CUT FLOOR -> GROUNDING -> RUNTIME");
+console.log("GREEN · ONE AUTHOR PATH · REALITY -> DISCOVERY -> AUTHOR STRUCTURE -> MOUTH -> CUT FLOOR -> GROUNDING -> RUNTIME");
