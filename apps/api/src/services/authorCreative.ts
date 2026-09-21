@@ -48,12 +48,15 @@ export type AuthorCreativeEvent = {
 };
 
 function presentationAffordance(domainContext?: AuthorDomainContext): string {
-  const contextText = clean(JSON.stringify(domainContext ?? {})).toLowerCase();
+  const contextRecord = (domainContext ?? {}) as Record<string, unknown>;
+  const contextText = clean(JSON.stringify(contextRecord)).toLowerCase();
   const isDogTag =
     /\bdog[\s_-]*tag\b/.test(contextText) ||
     /\bliving[\s_-]*dog[\s_-]*tag\b/.test(contextText);
+  const experienceMode = clean(contextRecord.experienceMode).toUpperCase();
+  const isIdentity = experienceMode === "IDENTITY";
 
-  if (!isDogTag) return "";
+  if (!isDogTag || !isIdentity) return "";
 
   return [
     "DOG TAG PRESENTATION AFFORDANCE:",
@@ -70,7 +73,7 @@ function presentationAffordance(domainContext?: AuthorDomainContext): string {
     "A preference can become voice, anticipation, fixation, yearning, a tiny demand, or a tiny question without inventing where it happens or what physically happens next.",
     "Wanting is not happening. Obsession is not chronology. 'Walks?' or 'And walks.' may embody love of walks; they do not mean a walk occurred. 'Bacon. Yes please.' may embody desire for bacon; it does not mean bacon was present, smelled, eaten, or received.",
     "These are creative embodiments, not claims that literal internal thoughts occurred.",
-    "Use this affordance only because DOG TAG context is present; otherwise write from the universal Author behavior alone.",
+    "Use this affordance only because DOG TAG + IDENTITY context is present. DOG TAG memories do not use this affordance; they return to universal memory behavior.",
   ].join("\n");
 }
 
