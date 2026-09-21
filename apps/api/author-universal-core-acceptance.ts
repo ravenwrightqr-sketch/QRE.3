@@ -17,9 +17,31 @@ const cases: Case[] = [
       "cleaned two bathrooms",
       "finished at 11:47",
     ],
+    domainContext: {
+      experienceMode: "MEMORY",
+      category: "SERVICE",
+      serviceType: "HOUSEKEEPING",
+    },
   },
   {
     name: "COCO",
+    subject: "Coco",
+    facts: [
+      "Coco was nervous",
+      "Coco got a bath",
+      "a bow was added",
+      "Coco tried to remove the bow",
+      "Coco left happy",
+    ],
+    domainContext: {
+      experienceMode: "MEMORY",
+      category: "PET GROOMING",
+      subjectType: "DOG",
+      serviceType: "PET GROOMING",
+    },
+  },
+  {
+    name: "COCO_BLIND",
     subject: "Coco",
     facts: [
       "Coco was nervous",
@@ -38,7 +60,9 @@ const cases: Case[] = [
       "Milo loves small dogs",
     ],
     domainContext: {
+      experienceMode: "IDENTITY",
       category: "DOG TAG",
+      subjectType: "DOG",
       outputType: "LIVING DOG TAG",
     },
   },
@@ -51,6 +75,11 @@ const cases: Case[] = [
       "felt lighter afterward",
       "met Alex again the next week",
     ],
+    domainContext: {
+      experienceMode: "MEMORY",
+      category: "RELATIONSHIP MEMORY",
+      subjectType: "PERSON",
+    },
   },
 ];
 
