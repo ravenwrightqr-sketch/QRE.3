@@ -51,11 +51,21 @@ if (required.every((p) => existsSync(join(root, p)))) {
 
   if (!/temperature:\s*0\.18/.test(extractor)) failures.push("Reality Extractor must remain low-temperature factual extraction");
   if (!/candidates/.test(discovery) || !/selectedCandidateId/.test(discovery) || !/evidenceEventIds/.test(discovery)) failures.push("Creative Discovery must search competing grounded perceptions and select one with evidence");
-  if (!/You are QRE Bare Author\./.test(creative) || !/You are QRE Mouth\./.test(creative) || !/APPROVED_BEATS/.test(creative) || !/SUPPLIED_REALITY/.test(creative)) {
-    failures.push("QRE Creative must separate semantic beat planning from Mouth realization");
+  if (
+    !/You are QRE Bare Author Structure Planner\./.test(creative) ||
+    !/Discovery already owns meaning\./.test(creative) ||
+    !/You are QRE Mouth\./.test(creative) ||
+    !/APPROVED_BEATS/.test(creative) ||
+    !/SUPPLIED_REALITY/.test(creative) ||
+    !/DETERMINISTIC_SPARSE/.test(creative)
+  ) {
+    failures.push("QRE Creative must separate Discovery meaning, Author structure, sparse deterministic planning, and Mouth realization");
   }
-  if (!/Reality is fixed\./.test(creative) || !/Interpretation is free\./.test(creative)) {
-    failures.push("QRE Creative missing fixed-reality/free-interpretation law");
+  if (
+    !/Concrete reality comes ONLY from the beat's supplied event labels\./.test(creative) ||
+    !/SEMANTIC AUTHORITY IS BEAT-SCOPED/.test(creative)
+  ) {
+    failures.push("QRE Creative missing factual-reality and beat-scoped semantic authority boundary");
   }
   if (!/evaluateAuthorCut\s*\(/.test(creative) || !/invented-concrete-reality/.test(cutPolicy)) {
     failures.push("deterministic cut floor missing from Mouth boundary");
@@ -77,4 +87,4 @@ if (failures.length) {
   console.error(`AUTHOR PRODUCTION GATE FAILED · ${failures.length}`);
   process.exit(1);
 }
-console.log("GREEN · FACT EXTRACTION · DISCOVERY · SEMANTIC PLAN · MOUTH · CUT FLOOR · GROUNDING · PERSISTENCE");
+console.log("GREEN · FACT EXTRACTION · DISCOVERY · AUTHOR STRUCTURE · MOUTH · CUT FLOOR · GROUNDING · PERSISTENCE");
