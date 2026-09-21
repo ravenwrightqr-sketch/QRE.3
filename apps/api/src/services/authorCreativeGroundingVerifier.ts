@@ -45,13 +45,19 @@ type AtomicVerification = {
   unsupportedClaims?: unknown;
 };
 
-function beatClauses(text: string): string[] {
-  const clauses = clean(text)
+function beatClauseFragments(text: string): string[] {
+  const fragments = clean(text)
     .split(/(?<=[.!?])\s+|\s*[;|]\s*/g)
-    .map((part) => clean(part.replace(/[.!?]+$/g, "")))
+    .map((part) => clean(part))
     .filter(Boolean);
 
-  return clauses.length ? clauses.slice(0, 12) : [clean(text)].filter(Boolean);
+  return fragments.length ? fragments.slice(0, 12) : [clean(text)].filter(Boolean);
+}
+
+function beatClauses(text: string): string[] {
+  return beatClauseFragments(text)
+    .map((part) => clean(part.replace(/[.!?]+$/g, "")))
+    .filter(Boolean);
 }
 
 const ABSOLUTE_RELATION_LANGUAGE = /\b(always|never|first|last)\b/i;
@@ -258,12 +264,14 @@ export async function verifyAuthorCreativeGrounding(input: {
   }
 
   const scenes = input.scenes.flatMap((scene, sceneIndex) => {
+    const fragments = beatClauseFragments(scene.text);
     const clauses = beatClauses(scene.text);
     const supportedIds = new Set<string>();
+    const supportedFragments: string[] = [];
 
     for (let clauseIndex = 0; clauseIndex < clauses.length; clauseIndex += 1) {
       const item = verificationByClause.get(`${sceneIndex}:${clauseIndex}`);
-      if (!item) return [];
+      if (!item) continue;
 
       const unsupportedClaims = Array.isArray(item.unsupportedClaims)
         ? item.unsupportedClaims
@@ -279,7 +287,9 @@ export async function verifyAuthorCreativeGrounding(input: {
         supportKind === "FIGURATIVE" ||
         supportKind === "CONTEXTUAL_TEXTURE";
 
-      if (item.supported !== true || !allowedSupportKind || unsupportedClaims.length) return [];
+      if (item.supported !== true || !allowedSupportKind || unsupportedClaims.length) {
+        continue;
+      }
 
       const sourceEventIds = Array.isArray(item.sourceEventIds)
         ? unique(
@@ -289,16 +299,26 @@ export async function verifyAuthorCreativeGrounding(input: {
           )
         : [];
 
-      if (!sourceEventIds.length) return [];
+      if (!sourceEventIds.length) continue;
+
+      const fragment = fragments[clauseIndex];
+      if (!fragment) continue;
+
+      supportedFragments.push(fragment);
       sourceEventIds.forEach((id) => supportedIds.add(id));
     }
 
-    if (hasUnsupportedAbsoluteClaim(scene.text, suppliedRealityText)) return [];
-    if (hasUnsupportedTemporalStateClaim(scene.text, suppliedRealityText)) return [];
-    if (hasUnsupportedSensoryClaim(scene.text, suppliedRealityText)) return [];
+    if (!supportedFragments.length || !supportedIds.size) return [];
+
+    const text = clean(supportedFragments.join(" "));
+
+    if (hasUnsupportedAbsoluteClaim(text, suppliedRealityText)) return [];
+    if (hasUnsupportedTemporalStateClaim(text, suppliedRealityText)) return [];
+    if (hasUnsupportedSensoryClaim(text, suppliedRealityText)) return [];
 
     return [{
       ...scene,
+      text,
       sourceEventIds: [...supportedIds],
     }];
   });
