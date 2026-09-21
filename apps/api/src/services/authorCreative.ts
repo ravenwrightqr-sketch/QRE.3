@@ -1,6 +1,7 @@
 import type { AuthorDomainContext, AuthorScene } from "@qre/contracts";
 import { localModelGenerate } from "./localModelRuntime.js";
 import type { AuthorCreativeDiscovery } from "./authorCreativeDiscovery.js";
+import { evaluateAuthorCut } from "./authorCutPolicy.js";
 
 const clean = (value: unknown): string =>
   String(value ?? "").replace(/\s+/g, " ").trim();
@@ -10,8 +11,8 @@ const unique = (values: readonly string[]): string[] =>
 
 function parseJson(text: string): Record<string, unknown> | undefined {
   const source = clean(text)
-    .replace(/^```(?:json)?/i, "")
-    .replace(/```$/i, "")
+    .replace(/^\`\`\`(?:json)?/i, "")
+    .replace(/\`\`\`$/i, "")
     .trim();
 
   if (!source) return undefined;
@@ -25,6 +26,7 @@ function parseJson(text: string): Record<string, unknown> | undefined {
     const start = source.indexOf("{");
     const end = source.lastIndexOf("}");
     if (start < 0 || end <= start) return undefined;
+
     try {
       const value = JSON.parse(source.slice(start, end + 1));
       return value && typeof value === "object"
@@ -36,15 +38,24 @@ function parseJson(text: string): Record<string, unknown> | undefined {
   }
 }
 
-type RawGrounding = {
-  beatIndex?: unknown;
-  support?: unknown;
-  sourceEventIds?: unknown;
-};
-
 export type AuthorCreativeEvent = {
   id: string;
   text: string;
+};
+
+type AuthorBeatRole = "HOOK" | "BUILD" | "TURN" | "PAYOFF";
+
+type AuthorSemanticBeat = {
+  order: number;
+  role: AuthorBeatRole;
+  eventIds: string[];
+  attention: string;
+  change: string;
+};
+
+type AuthorSemanticPlan = {
+  thesis: string;
+  beats: AuthorSemanticBeat[];
 };
 
 function presentationAffordance(domainContext?: AuthorDomainContext): string {
@@ -59,86 +70,129 @@ function presentationAffordance(domainContext?: AuthorDomainContext): string {
   if (!isDogTag || !isIdentity) return "";
 
   return [
-    "DOG TAG PRESENTATION AFFORDANCE:",
-    "The surface is a living dog tag. Treat that only as presentation context, never as factual reality.",
-    "When it fits the supplied character material, you may embody preferences and traits as thought-like reactions, tiny fixations, recurring wants, direct voice, playful repetition, anticipation, yearning, craving, pleading, or subject-centered micro-moments.",
-    "DOG TAG may feel dreamier and more whimsical than neutral Author output. Let a supplied love or preference exert imaginative pressure as wanting, obsessing, circling back, blurting, asking, answering, or leaning toward it without claiming the desired event actually happened.",
-    "Mix the micro-moves. Do not fall into a repeated Q-and-A template. Alternate statements, answers, interruptions, add-ons, self-reference, tiny corrections, questions, blurts, callbacks, and fragments when they fit.",
-    "Do not merely cycle the supplied nouns as standalone beats. When a preference returns, change the stance: answer it, add to it, interrupt it, personalize it, tease it, contradict yourself, or let it become a callback. Repetition should evolve the character rather than replay the input.",
-    "The goal is to let the viewer meet the subject through the supplied truths rather than hear an explanation of those truths.",
-    "Leave negative space. Prefer implication, interruption, callback, and unfinished-feeling fragments over labels that tell the viewer what the subject is.",
-    "Do not translate sparse character facts into generic pet praise or species clichés such as good boy, happy tail, adorable, loyal friend, sunshine, paws, wagging, sniffing, barking, or similar unless those concrete ideas are actually supplied.",
-    "When a strange little beat can stand without explanation, let it stand. The viewer should sometimes have to complete the character themselves.",
-    "React to the supplied preference itself; do not expand it into its stereotypical setting, associated object, bodily action, sensory consequence, or surrounding scene unless that concrete reality is supplied.",
-    "A preference can become voice, anticipation, fixation, yearning, a tiny demand, or a tiny question without inventing where it happens or what physically happens next.",
-    "Wanting is not happening. Obsession is not chronology. 'Walks?' or 'And walks.' may embody love of walks; they do not mean a walk occurred. 'Bacon. Yes please.' may embody desire for bacon; it does not mean bacon was present, smelled, eaten, or received.",
-    "These are creative embodiments, not claims that literal internal thoughts occurred.",
-    "Use this affordance only because DOG TAG + IDENTITY context is present. DOG TAG memories do not use this affordance; they return to universal memory behavior.",
+    "DOG TAG IDENTITY PRESENTATION:",
+    "Preferences and stable character facts may become thought-like reactions, fixation, wanting, direct voice, tiny questions, callbacks, or playful self-presentation.",
+    "Wanting is not happening. A love of walks does not mean a walk occurred. A love of bacon does not mean bacon is present.",
+    "Do not add species clichés, body actions, associated settings, or stereotypical pet imagery.",
+    "The viewer should meet the subject through supplied truths, not hear a profile summary.",
   ].join("\n");
 }
 
-async function chooseCreativeDraft(input: {
-  suppliedReality: readonly AuthorCreativeEvent[];
-  firstBeats: string[];
-  firstGrounding: unknown[];
-  retryBeats: string[];
-  retryGrounding: unknown[];
-}): Promise<{ bestDraft: 0 | 1; model: string; modelCalls: number }> {
-  const result = await localModelGenerate(
-    [
-      {
-        role: "system",
-        content: [
-          "You are QRE Creative Draft Critic.",
-          "Choose which complete draft better realizes the SAME supplied reality.",
-          "Truth is mandatory, but bland literalism is not enough.",
-          "Reward: source-specific attitude, implication, juxtaposition, compression, character, perceptual reframe, afterimage, and lines that could only plausibly come from this supplied material.",
-          "Penalize: generic summaries, one-label-per-fact structure, decorative imagery, cute/domain clichés, imported scenery, weather, light, body parts, sensory detail, objects, motives, causes, outcomes, or physical actions not supplied.",
-          "Creative transformation may change perception, framing, attitude, metaphor, status, or emotional pressure. It may not become a new concrete fact.",
-          "A simpler grounded line beats a prettier invented line.",
-          "Judge the draft as a sequence, not isolated vocabulary.",
-          "Return bestDraft=0 for FIRST_DRAFT or bestDraft=1 for RETRY_DRAFT.",
-        ].join("\n"),
-      },
-      {
-        role: "user",
-        content: JSON.stringify({
-          SUPPLIED_REALITY: input.suppliedReality,
-          FIRST_DRAFT: {
-            beats: input.firstBeats,
-            grounding: input.firstGrounding,
-          },
-          RETRY_DRAFT: {
-            beats: input.retryBeats,
-            grounding: input.retryGrounding,
-          },
-          instruction:
-            "Pick the draft with the strongest grounded creative force. Do not prefer novelty merely because it is more poetic.",
-        }),
-      },
-    ],
-    "json",
-    {
-      numPredict: 220,
-      temperature: 0.08,
-      jsonSchema: {
-        type: "object",
-        additionalProperties: false,
-        required: ["bestDraft", "reason"],
-        properties: {
-          bestDraft: { type: "integer", minimum: 0, maximum: 1 },
-          reason: { type: "string", maxLength: 220 },
-        },
-      },
-    },
-  );
+function normalizeRole(value: unknown, index: number, total: number): AuthorBeatRole {
+  const role = clean(value).toUpperCase();
+  if (role === "HOOK" || role === "BUILD" || role === "TURN" || role === "PAYOFF") {
+    return role;
+  }
+  if (index === 0) return "HOOK";
+  if (index === total - 1) return "PAYOFF";
+  return "BUILD";
+}
 
-  const parsed = parseJson(result.text);
+function normalizePlan(
+  value: Record<string, unknown> | undefined,
+  allowedEventIds: Set<string>,
+): AuthorSemanticPlan | undefined {
+  const rawBeats = Array.isArray(value?.beats) ? value!.beats : [];
+  const beats: AuthorSemanticBeat[] = [];
+
+  for (const [index, raw] of rawBeats.entries()) {
+    if (!raw || typeof raw !== "object") continue;
+    const record = raw as Record<string, unknown>;
+    const eventIds = Array.isArray(record.eventIds)
+      ? unique(
+          record.eventIds
+            .filter((id): id is string => typeof id === "string")
+            .filter((id) => allowedEventIds.has(id)),
+        )
+      : [];
+
+    if (!eventIds.length) continue;
+
+    beats.push({
+      order: beats.length + 1,
+      role: normalizeRole(record.role, index, rawBeats.length),
+      eventIds,
+      attention: clean(record.attention),
+      change: clean(record.change),
+    });
+  }
+
+  if (!beats.length) return undefined;
+
   return {
-    bestDraft: Number(parsed?.bestDraft) === 1 ? 1 : 0,
-    model: result.model,
-    modelCalls: 1,
+    thesis: clean(value?.thesis),
+    beats: beats.slice(0, 6),
   };
+}
+
+function fallbackPlan(
+  events: readonly AuthorCreativeEvent[],
+  discovery: AuthorCreativeDiscovery,
+): AuthorSemanticPlan {
+  const selected = new Set(discovery.selected.evidenceEventIds);
+  const preferred = events.filter((event) => selected.has(event.id));
+  const source = preferred.length ? preferred : [...events];
+  const limited = source.slice(0, Math.min(5, source.length));
+
+  return {
+    thesis:
+      discovery.selected.id === "reality-direct"
+        ? "Use supplied reality directly."
+        : discovery.selected.perception || discovery.selected.relationship,
+    beats: limited.map((event, index) => ({
+      order: index + 1,
+      role:
+        index === 0
+          ? "HOOK"
+          : index === limited.length - 1
+            ? "PAYOFF"
+            : "BUILD",
+      eventIds: [event.id],
+      attention: "Make this supplied evidence felt without adding a new event.",
+      change: event.text,
+    })),
+  };
+}
+
+function beatKind(role: AuthorBeatRole, index: number, total: number): AuthorScene["kind"] {
+  if (role === "HOOK" || index === 0) return "hook";
+  if (role === "PAYOFF" || index === total - 1) return "payoff";
+  if (role === "TURN") return "turn";
+  return "line";
+}
+
+function variantScore(
+  text: string,
+  beatFacts: readonly string[],
+  subject: string,
+  prior: readonly string[],
+): { accepted: boolean; score: number } {
+  const policy = evaluateAuthorCut(text, {
+    subject,
+    facts: beatFacts,
+  });
+
+  if (!policy.accepted) {
+    return { accepted: false, score: 0 };
+  }
+
+  const normalized = clean(text).toLowerCase();
+  const repeated = prior.some((value) => clean(value).toLowerCase() === normalized);
+  const score = Math.max(0, policy.score - (repeated ? 0.35 : 0));
+
+  return { accepted: !repeated, score };
+}
+
+function safeFallbackText(
+  beat: AuthorSemanticBeat,
+  events: readonly AuthorCreativeEvent[],
+): string {
+  return (
+    beat.eventIds
+      .map((id) => events.find((event) => event.id === id)?.text ?? "")
+      .map(clean)
+      .find(Boolean) ?? ""
+  );
 }
 
 export async function createAuthorExperience(input: {
@@ -152,120 +206,150 @@ export async function createAuthorExperience(input: {
   model: string;
   modelCalls: number;
 }> {
+  const allowedEventIds = new Set(input.suppliedReality.map((event) => event.id));
   const presentationContext = presentationAffordance(input.domainContext);
   const contextRecord = (input.domainContext ?? {}) as Record<string, unknown>;
   const experienceMode = clean(contextRecord.experienceMode).toUpperCase();
-  const isMemoryExperience = experienceMode === "MEMORY";
-  const realityDirect =
-    clean(input.creativeDiscovery.selected.id).toLowerCase() === "reality-direct";
+  const selected = input.creativeDiscovery.selected;
+  const realityDirect = clean(selected.id).toLowerCase() === "reality-direct";
 
-  const system = [
-    "You are QRE Creative.",
-    "Reality is fixed. Interpretation is free.",
-    "",
-    "MAKE THE EXPERIENCE FIRST.",
-    realityDirect
-      ? "DISCOVERY FOUND NO SAFE HIDDEN THESIS. Do not use the fallback's meta wording as creative content. Shape the supplied reality itself: notice the strongest tension, attitude, contrast, reaction, status shift, or strange little turn already present and make that felt."
-      : "Treat the selected perception as the creative seed, then use the supplied reality freely to make the strongest grounded experience before thinking about provenance.",
-    "The beats are the creative act.",
-    ...(presentationContext ? ["", presentationContext, ""] : [""]),
-    "QRE WRITING:",
-    isMemoryExperience
-      ? "This is a moving text-by-text memory experience. Each beat is one screen moment, not a paragraph or caption."
-      : "This is a moving text-by-text experience. Each beat is one screen moment, not a paragraph or caption.",
-    "Prefer compact bursts that can be felt in motion; most beats should land in roughly 2 to 7 words. A slightly longer line is allowed only when it clearly hits harder than splitting it.",
-    "Compress pronouns, setup, and explanation when the viewer already knows who or what is present.",
-    "A beat may be a reaction, thought, cue, fragment, direct address, tiny reveal, or character voice rather than a complete sentence.",
-    "Do not front-load the experience by dumping all supplied facts into one opening line. Let facts arrive, react, echo, or reveal themselves across the moving sequence.",
-    "When several facts describe a character, embody them one by one through voice, reaction, contrast, or implication instead of reciting the list.",
-    "First person, second person, and implied subject are available when they make the experience feel lived rather than described.",
-    "Find the fun, tension, attitude, character, excess, reversal, status, implication, or strange little truth already present in the material.",
-    "Let the strongest detail carry more weight when it deserves it.",
-    "Use compression. Let several facts become one move when that creates a stronger line.",
-    "Let different moments use different creative moves: attitude, status, callback, reversal, implication, understatement, overstatement, direct voice, or afterimage.",
-    "Give the viewer room to complete the thought.",
-    "Make each beat playable on its own screen and strong enough to arrive, disappear, and make room for the next.",
-    "Do not shorten a genuinely strong line just to satisfy a word count; compress explanation, not impact.",
-    "Let the sequence develop rather than merely enumerate.",
-    "Do not assign one beat to every fact. Facts may disappear, fuse, echo, or become setup for another beat.",
-    "Do not label the facts when you can stage their attitude. Prefer a lived reaction, turn, or implication over abstract nouns such as resistance, contentment, transformation, freedom, or victory.",
-    "Do not force novelty for its own sake. If the supplied reality already has a clean playable turn, use it instead of adding decorative imagery or unrelated texture.",
-    "Contextual texture must grow directly out of the physical envelope of a supplied event. It may intensify what is already inherent in that event, but it may not import unrelated scenery, weather, light, body parts, sensory details, objects, or surroundings merely to make a state feel prettier or more cinematic.",
-    "A strong beat may be simple. Prefer specific, grounded attitude over ornamental wording.",
-    "Do not pad the sequence. Small memories usually need only enough beats to create movement and a residue; stop once the experience lands.",
-    "A later beat can change how an earlier beat feels.",
-    "End on the line that leaves the strongest residue. Do not append explanatory, reflective, rhetorical-question, or maybe/finally epilogues after the payoff.",
-    "",
-    "CREATIVE FREEDOM:",
-    "Metaphor, idiom, personification, double meaning, swagger, absurd seriousness, playfulness, and dramatic status are available tools.",
-    "Use the supplied entities and actions as the real-world cast.",
-    "The selected perception leads the experience; it does not forbid other supplied facts from becoming useful material.",
-    "Keep literal reality anchored to SUPPLIED_REALITY while allowing interpretation to move freely around it.",
-    "When a supplied fact is an emotion or state, do not turn it into an unsupplied bodily manifestation or physical behavior. Happy is not wagging, smiling, jumping, moving, or posture unless those actions are supplied. If you want to dramatize a state, use voice, attitude, compression, metaphor, or reaction instead of inventing body behavior.",
-    "",
-    "GROUND AFTER WRITING:",
-    "Once the beats are complete, map each beat to the evidence that supports it.",
-    "FACT means one supplied fact carries the beat.",
-    "RELATION means the beat is carried by a relationship, accumulation, callback, status shift, or whole-read metaphor across two or more supplied facts.",
-    "Use only sourceEventIds from SUPPLIED_REALITY.",
-    "Give RELATION beats at least two supporting sourceEventIds.",
-    "",
-    "Return JSON with beats first and grounding second.",
-    "Shape: {\"beats\":[\"...\",\"...\"],\"grounding\":[{\"beatIndex\":0,\"support\":\"RELATION\",\"sourceEventIds\":[\"event-1\",\"event-2\"]}]}",
-  ].join("\n");
-
-  const result = await localModelGenerate(
+  const planResult = await localModelGenerate(
     [
-      { role: "system", content: system },
+      {
+        role: "system",
+        content: [
+          "You are QRE Bare Author.",
+          "You decide semantic sequence and observer movement. You do NOT write final viewer-facing copy.",
+          "Reality is fixed. Interpretation is free.",
+          "CREATIVE_DISCOVERY is an interpretive opportunity, never factual evidence.",
+          "Build 2 to 5 useful beats from supplied reality. Facts may disappear, fuse, or support the same beat.",
+          "Each beat must cite the event IDs that authorize it.",
+          "attention says what the beat should make the observer notice.",
+          "change says how the observer's reading should change. It is not permission to add a new event.",
+          "Do not turn chronology into causality, action into motive, attempt into success, emotion into body behavior, or context into hidden history.",
+          "Do not add scenery, weather, lighting, body parts, sensory details, people, places, objects, dialogue, outcomes, or physical actions.",
+          "A perceptual frame may create status, absurdity, ceremony, tension, intimacy, contrast, implication, or character without claiming that frame literally happened.",
+          "Prefer the distinctive supplied object/action/tension over a generic before-and-after emotional arc.",
+          "Do not write the final lines. Mouth will do that later.",
+          ...(presentationContext ? [presentationContext] : []),
+        ].join("\n"),
+      },
       {
         role: "user",
         content: JSON.stringify({
-          subject: input.subject,
+          SUBJECT: input.subject,
           SUPPLIED_REALITY: input.suppliedReality,
-          MEMORY: (input.memory ?? []).slice(0, 20),
-          BUSINESS_CONTEXT: input.domainContext,
-          PRESENTATION_CONTEXT: presentationContext || undefined,
           CREATIVE_DISCOVERY: {
-            selected: input.creativeDiscovery.selected,
-            lens: input.creativeDiscovery.lens,
+            selected,
+            experienceShape: input.creativeDiscovery.experienceShape,
           },
+          EXPERIENCE_MODE: experienceMode || undefined,
           instruction: realityDirect
-            ? "Write the viewer-facing beats first from the supplied reality itself. There is no approved hidden thesis, so do not invent one and do not repeat the fallback meta wording. Find the strongest playable movement already inside the facts. Use attitude, reaction, implication, compression, hyperbole, and contextual story texture where they do not rewrite material history. Do not simply rename every fact, but do not force extra creativity either: prefer a clean grounded turn over decorative imagery. Let some facts disappear or fuse if that makes the experience stronger. If the ending fact is an emotion or state, realize that state through language or attitude, not an invented bodily action. Do not end in abstract labels, and do not pad after the strongest landing. Then ground each beat from the supplied reality actually used."
-            : "Write the viewer-facing beats first as a moving sequence of compact screen moments. Use the selected read as the creative seed and the full supplied reality as material. Let supplied facts arrive across the sequence rather than dumping them together. Prefer lived voice, reaction, fragments, and compressed identity over explanation. Follow the most alive possibility, shift status, surprise, and land. After the beats are finished, ground each one from the supplied reality actually used.",
+            ? "No hidden thesis has been approved. Build the strongest factual/perceptual movement available directly from the supplied events without inventing a hidden explanation."
+            : "Use the selected perception as a framing opportunity, but make every beat depend on supplied event IDs. Preserve creative perception while removing any unsupported literal premise.",
         }),
       },
     ],
     "json",
     {
-      numPredict: 800,
-      temperature: 0.88,
+      numPredict: 620,
+      temperature: 0.5,
       jsonSchema: {
         type: "object",
         additionalProperties: false,
-        required: ["beats", "grounding"],
+        required: ["thesis", "beats"],
         properties: {
+          thesis: { type: "string", maxLength: 180 },
           beats: {
             type: "array",
             minItems: 1,
-            maxItems: 10,
-            items: { type: "string", maxLength: 120 },
-          },
-          grounding: {
-            type: "array",
-            minItems: 1,
-            maxItems: 10,
+            maxItems: 6,
             items: {
               type: "object",
               additionalProperties: false,
-              required: ["beatIndex", "support", "sourceEventIds"],
+              required: ["order", "role", "eventIds", "attention", "change"],
               properties: {
-                beatIndex: { type: "integer", minimum: 0, maximum: 9 },
-                support: { type: "string", enum: ["FACT", "RELATION"] },
-                sourceEventIds: {
+                order: { type: "integer", minimum: 1, maximum: 6 },
+                role: { type: "string", enum: ["HOOK", "BUILD", "TURN", "PAYOFF"] },
+                eventIds: {
                   type: "array",
                   minItems: 1,
                   maxItems: 32,
                   items: { type: "string", maxLength: 64 },
+                },
+                attention: { type: "string", maxLength: 180 },
+                change: { type: "string", maxLength: 180 },
+              },
+            },
+          },
+        },
+      },
+    },
+  );
+
+  const plan =
+    normalizePlan(parseJson(planResult.text), allowedEventIds) ??
+    fallbackPlan(input.suppliedReality, input.creativeDiscovery);
+
+  const mouthResult = await localModelGenerate(
+    [
+      {
+        role: "system",
+        content: [
+          "You are QRE Mouth.",
+          "The Author already chose the semantic beats. Do not re-plan the story and do not invent a second meaning.",
+          "Generate four radically different short realizations for every approved beat.",
+          "Most candidates should be 2 to 7 words. A tiny one-word attitude beat is allowed when it lands.",
+          "Concrete reality comes ONLY from the beat's supplied event labels.",
+          "Do not invent scenery, weather, light, temperature, body parts, gestures, sensory details, objects, people, places, causes, motives, outcomes, or successful completion.",
+          "An attempt remains an attempt. Do not turn trying into freedom, escape, removal, victory, or success.",
+          "An emotion/state does not authorize wagging, smiling, trembling, shaking, jumping, posture, heartbeat, or another bodily manifestation.",
+          "Creative freedom is high for phrasing: implication, attitude, metaphor, personification, status, understatement, absurd seriousness, compressed voice, callback, and recontextualization.",
+          "Use the supplied material as the cast. Do not replace it with generic atmosphere.",
+          "Prefer source-specific cleverness over prettiness.",
+          "Do not explain the joke or meaning.",
+          "Do not mention receipts, prompts, models, beats, grounding, Author, Mouth, viewers, or internal process.",
+          ...(presentationContext ? [presentationContext] : []),
+        ].join("\n"),
+      },
+      {
+        role: "user",
+        content: JSON.stringify({
+          SUBJECT: input.subject,
+          SUPPLIED_REALITY: input.suppliedReality,
+          APPROVED_THESIS: plan.thesis,
+          APPROVED_BEATS: plan.beats,
+          CREATIVE_OPPORTUNITY: selected.perception,
+          RELATION: selected.relationship,
+          instruction:
+            "Return four candidate lines per beat. The semantic plan controls meaning; the supplied event IDs control factual reality.",
+        }),
+      },
+    ],
+    "json",
+    {
+      numPredict: 1050,
+      temperature: 0.78,
+      jsonSchema: {
+        type: "object",
+        additionalProperties: false,
+        required: ["variantsByBeat"],
+        properties: {
+          variantsByBeat: {
+            type: "array",
+            minItems: plan.beats.length,
+            maxItems: plan.beats.length,
+            items: {
+              type: "object",
+              additionalProperties: false,
+              required: ["order", "variants"],
+              properties: {
+                order: { type: "integer", minimum: 1, maximum: 6 },
+                variants: {
+                  type: "array",
+                  minItems: 4,
+                  maxItems: 4,
+                  items: { type: "string", maxLength: 120 },
                 },
               },
             },
@@ -275,178 +359,62 @@ export async function createAuthorExperience(input: {
     },
   );
 
-  let selectedResult = result;
-  let extraModelCalls = 0;
-  let parsed = parseJson(result.text);
-  let beats = Array.isArray(parsed?.beats)
-    ? parsed!.beats.map(clean).filter(Boolean).slice(0, 10)
+  const parsedMouth = parseJson(mouthResult.text);
+  const rawVariants = Array.isArray(parsedMouth?.variantsByBeat)
+    ? parsedMouth!.variantsByBeat
     : [];
-  let rawGrounding = Array.isArray(parsed?.grounding)
-    ? parsed!.grounding
-    : [];
-  const firstParsed = parsed;
-  const firstBeats = [...beats];
-  const firstGrounding = [...rawGrounding];
 
-  const flatSequenceGrounding = rawGrounding.filter((value) => {
-    if (!value || typeof value !== "object") return false;
-    const grounding = value as RawGrounding;
-    const beatIndex = Number(grounding.beatIndex);
-    const support = clean(grounding.support).toUpperCase();
-    const sourceEventIds = Array.isArray(grounding.sourceEventIds)
-      ? grounding.sourceEventIds.filter((id): id is string => typeof id === "string")
-      : [];
-    return (
-      Number.isInteger(beatIndex) &&
-      beatIndex >= 0 &&
-      beatIndex < beats.length &&
-      support === "FACT" &&
-      sourceEventIds.length === 1
-    );
-  }).length;
+  const variantsByOrder = new Map<number, string[]>();
 
-  const flatSequence =
-    realityDirect &&
-    beats.length >= 4 &&
-    flatSequenceGrounding >= Math.ceil(beats.length * 0.8);
-
-  if (flatSequence) {
-    const retry = await localModelGenerate(
-      [
-        { role: "system", content: system },
-        {
-          role: "user",
-          content: JSON.stringify({
-            subject: input.subject,
-            SUPPLIED_REALITY: input.suppliedReality,
-            MEMORY: (input.memory ?? []).slice(0, 20),
-            BUSINESS_CONTEXT: input.domainContext,
-            PRESENTATION_CONTEXT: presentationContext || undefined,
-            CREATIVE_DISCOVERY: {
-              selected: input.creativeDiscovery.selected,
-              lens: input.creativeDiscovery.lens,
-            },
-            FLAT_DRAFT: {
-              beats,
-              grounding: rawGrounding,
-            },
-            instruction:
-              "Revise the FLAT_DRAFT; do not reimagine it from scratch. Its problem is one-beat-per-fact structure, not lack of decoration. Preserve any clean grounded beats that already work, then improve only the weak transitions or combinations. Use fewer, stronger moves when possible. Do not solve flatness by importing imagery. Do not invent new physical events, body behavior, causes, motives, places, outcomes, scenery, weather, light, body parts, sensory details, or objects. Contextual texture is allowed only when it directly intensifies the physical envelope of a supplied event. Prefer attitude, implication, juxtaposition, voice, compression, callback, or recontextualization of supplied material over new imagery. Let facts fuse or disappear when stronger. Stop when the memory lands. Return only the revised beats and their grounding.",
-          }),
-        },
-      ],
-      "json",
-      {
-        numPredict: 700,
-        temperature: 0.76,
-        jsonSchema: {
-          type: "object",
-          additionalProperties: false,
-          required: ["beats", "grounding"],
-          properties: {
-            beats: {
-              type: "array",
-              minItems: 1,
-              maxItems: 10,
-              items: { type: "string", maxLength: 120 },
-            },
-            grounding: {
-              type: "array",
-              minItems: 1,
-              maxItems: 10,
-              items: {
-                type: "object",
-                additionalProperties: false,
-                required: ["beatIndex", "support", "sourceEventIds"],
-                properties: {
-                  beatIndex: { type: "integer", minimum: 0, maximum: 9 },
-                  support: { type: "string", enum: ["FACT", "RELATION"] },
-                  sourceEventIds: {
-                    type: "array",
-                    minItems: 1,
-                    maxItems: 32,
-                    items: { type: "string", maxLength: 64 },
-                  },
-                },
-              },
-            },
-          },
-        },
-      },
-    );
-
-    const retryParsed = parseJson(retry.text);
-    const retryBeats = Array.isArray(retryParsed?.beats)
-      ? retryParsed!.beats.map(clean).filter(Boolean).slice(0, 10)
-      : [];
-    const retryGrounding = Array.isArray(retryParsed?.grounding)
-      ? retryParsed!.grounding
+  for (const raw of rawVariants) {
+    if (!raw || typeof raw !== "object") continue;
+    const record = raw as Record<string, unknown>;
+    const order = Number(record.order);
+    const variants = Array.isArray(record.variants)
+      ? unique(
+          record.variants
+            .filter((value): value is string => typeof value === "string")
+            .map(clean)
+            .filter(Boolean),
+        ).slice(0, 4)
       : [];
 
-    if (retryBeats.length && retryGrounding.length) {
-      const choice = await chooseCreativeDraft({
-        suppliedReality: input.suppliedReality,
-        firstBeats,
-        firstGrounding,
-        retryBeats,
-        retryGrounding,
-      });
-      extraModelCalls += choice.modelCalls;
-
-      if (choice.bestDraft === 1) {
-        selectedResult = retry;
-        parsed = retryParsed;
-        beats = retryBeats;
-        rawGrounding = retryGrounding;
-      } else {
-        selectedResult = result;
-        parsed = firstParsed;
-        beats = firstBeats;
-        rawGrounding = firstGrounding;
-      }
+    if (Number.isInteger(order) && variants.length) {
+      variantsByOrder.set(order, variants);
     }
   }
 
-  const eventIds = new Set(input.suppliedReality.map((event) => event.id));
-  const groundingByBeat = new Map<number, { support: "FACT" | "RELATION"; sourceEventIds: string[] }>();
+  const prior: string[] = [];
+  const scenes: Array<AuthorScene & { sourceEventIds: string[] }> = [];
 
-  for (const value of rawGrounding) {
-    if (!value || typeof value !== "object") continue;
-    const grounding = value as RawGrounding;
-    const beatIndex = Number(grounding.beatIndex);
-    if (!Number.isInteger(beatIndex) || beatIndex < 0 || beatIndex >= beats.length) continue;
+  for (const [index, beat] of plan.beats.entries()) {
+    const beatFacts = beat.eventIds
+      .map((id) => input.suppliedReality.find((event) => event.id === id)?.text ?? "")
+      .map(clean)
+      .filter(Boolean);
 
-    const support: "FACT" | "RELATION" =
-      clean(grounding.support).toUpperCase() === "RELATION"
-        ? "RELATION"
-        : "FACT";
+    const ranked = (variantsByOrder.get(beat.order) ?? [])
+      .map((text) => ({
+        text,
+        ...variantScore(text, beatFacts, input.subject, prior),
+      }))
+      .filter((candidate) => candidate.accepted)
+      .sort((a, b) => b.score - a.score);
 
-    const sourceEventIds = Array.isArray(grounding.sourceEventIds)
-      ? unique(
-          grounding.sourceEventIds
-            .filter((id): id is string => typeof id === "string")
-            .filter((id) => eventIds.has(id)),
-        )
-      : [];
+    const text = ranked[0]?.text ?? safeFallbackText(beat, input.suppliedReality);
+    if (!text) continue;
 
-    if (!sourceEventIds.length) continue;
-
-    groundingByBeat.set(beatIndex, { support, sourceEventIds });
-  }
-
-  const scenes = beats.map((text, index): AuthorScene & { sourceEventIds: string[] } => {
-    const grounding = groundingByBeat.get(index);
-
-    return {
+    scenes.push({
       text,
-      kind: index === 0 ? "hook" : index === beats.length - 1 ? "payoff" : "line",
-      sourceEventIds: grounding?.sourceEventIds ?? [],
-    };
-  });
+      kind: beatKind(beat.role, index, plan.beats.length),
+      sourceEventIds: beat.eventIds,
+    });
+    prior.push(text);
+  }
 
   return {
     scenes,
-    model: selectedResult.model,
-    modelCalls: (flatSequence ? 2 : 1) + extraModelCalls,
+    model: mouthResult.model || planResult.model,
+    modelCalls: 2,
   };
 }
