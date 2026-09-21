@@ -169,6 +169,7 @@ export async function verifyAuthorCreativeGrounding(input: {
     "4. cite sourceEventIds that anchor the clause;",
     "5. set supported=true only when supportKind is not UNSUPPORTED, unsupportedClaims is empty, and at least one supplied event semantically anchors the clause.",
     "Your fields must agree. If supported=true, unsupportedClaims MUST be []. If any unsupported material claim exists, set supported=false and supportKind=UNSUPPORTED.",
+    "If supportKind is FIGURATIVE or CONTEXTUAL_TEXTURE, concreteClaims should normally be [] because the clause is being accepted as nonliteral framing rather than as a material assertion. Do not label a metaphorical word itself as a concrete claim while also accepting it as figurative texture.",
     "Do not put the clause itself into unsupportedClaims merely because it is compressed, figurative, or contextual texture. unsupportedClaims is only for material claims that exceed reality.",
     "CONTEXTUAL_TEXTURE is allowed only for non-material scene texture. Never use it to excuse a new action, body behavior, outcome, motive, ownership, cause, chronology, or state change.",
     "",
@@ -319,7 +320,16 @@ export async function verifyAuthorCreativeGrounding(input: {
         unsupportedClaims: rawUnsupportedClaims,
       });
 
-      if (item.supported !== true || !allowedSupportKind || unsupportedClaims.length) {
+      const contradictoryConcreteFraming =
+        (supportKind === "FIGURATIVE" || supportKind === "CONTEXTUAL_TEXTURE") &&
+        concreteClaims.length > 0;
+
+      if (
+        item.supported !== true ||
+        !allowedSupportKind ||
+        unsupportedClaims.length ||
+        contradictoryConcreteFraming
+      ) {
         continue;
       }
 
