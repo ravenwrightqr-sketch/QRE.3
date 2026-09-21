@@ -60,36 +60,8 @@ function beatClauses(text: string): string[] {
     .filter(Boolean);
 }
 
-const ABSOLUTE_RELATION_LANGUAGE = /\b(always|never|first|last)\b/i;
-const TEMPORAL_STATE_LANGUAGE = /\b(still|already|yet)\b/i;
 const SENSORY_CLAIM_LANGUAGE =
   /\b(smell|smells|smelled|scent|scents|scented|taste|tastes|tasted|flavor|flavors|sound|sounds|sounded|noise|noises|texture|textures|touch|touches|touched|feel|feels|felt)\b/i;
-
-function hasUnsupportedAbsoluteClaim(
-  sceneText: string,
-  suppliedRealityText: string,
-): boolean {
-  const sceneMatches = clean(sceneText).match(
-    new RegExp(ABSOLUTE_RELATION_LANGUAGE.source, "ig"),
-  );
-  if (!sceneMatches?.length) return false;
-
-  const reality = clean(suppliedRealityText).toLowerCase();
-  return sceneMatches.some((claim) => !reality.includes(claim.toLowerCase()));
-}
-
-function hasUnsupportedTemporalStateClaim(
-  sceneText: string,
-  suppliedRealityText: string,
-): boolean {
-  const sceneMatches = clean(sceneText).match(
-    new RegExp(TEMPORAL_STATE_LANGUAGE.source, "ig"),
-  );
-  if (!sceneMatches?.length) return false;
-
-  const reality = clean(suppliedRealityText).toLowerCase();
-  return sceneMatches.some((claim) => !reality.includes(claim.toLowerCase()));
-}
 
 function hasUnsupportedSensoryClaim(
   sceneText: string,
@@ -188,6 +160,7 @@ export async function verifyAuthorCreativeGrounding(input: {
     "APPROVED_SEMANTIC_AUTHORITY is upstream non-factual meaning already accepted by QRE Discovery. It may authorize abstract framing, implication, status language, metaphor, performed attitude, or relation words that express that approved meaning. It NEVER authorizes a new actor, object, body action, physical action, location, cause, chronology, motive, ownership fact, completed outcome, or other concrete occurrence.",
     "Voice and personification may use words that would be material if read literally, but only when the full sequence makes the nonliteral performance clear. Example: a character-like 'Mine.' can be FIGURATIVE voice anchored to interaction with a supplied object without asserting legal or factual ownership. Do not call that PARAPHRASE. If the sequence instead reads as a factual ownership claim, reject it.",
     "Questions, reactions, fragments, attitude, metaphor, understatement, and exaggeration are allowed only when they do not assert hidden reality.",
+    "Words such as always, never, still, already, yet, first, or last are not violations by vocabulary alone. Decide whether the clause actually asserts unsupported chronology or an absolute material history. Performed preference, emphasis, or compressed voice may use them nonliterally.",
     "",
     "For each atomic clause:",
     "1. extract concreteClaims: every material real-world claim or relational premise carried by the clause;",
@@ -371,8 +344,6 @@ export async function verifyAuthorCreativeGrounding(input: {
 
     const text = clean(supportedFragments.join(" "));
 
-    if (hasUnsupportedAbsoluteClaim(text, suppliedRealityText)) return [];
-    if (hasUnsupportedTemporalStateClaim(text, suppliedRealityText)) return [];
     if (hasUnsupportedSensoryClaim(text, suppliedRealityText)) return [];
 
     return [{
