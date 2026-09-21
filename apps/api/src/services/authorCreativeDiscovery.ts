@@ -311,7 +311,7 @@ async function repairDiscoveryCandidates(input: {
             evidenceEventIds: candidate.evidenceEventIds,
           })),
           instruction:
-            "Repair only the perceptual relation. State it as what the supplied facts can READ LIKE or FEEL LIKE, not as an explanation of why anything happened. Preserve distinctive supplied material. Do not write final cuts.",
+            "Repair only the perceptual relation. State it as what the supplied facts can READ LIKE or FEEL LIKE, not as an explanation of why anything happened. Preserve distinctive supplied material. For MEMORY material, do not add unsupported duration labels or temporal compression such as brief, briefly, long, quick, quickly, sudden, suddenly, prompt, promptly, instant, instantly, final, finally, or still unless the supplied reality establishes that relation. Preserve the multi-event shape when it carries the memory. Do not write final cuts.",
         }),
       },
     ],
