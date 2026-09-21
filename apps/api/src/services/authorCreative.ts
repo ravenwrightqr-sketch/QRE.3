@@ -333,6 +333,23 @@ function lockPlanToApprovedMeaning(
   };
 }
 
+function memoryPayoffReplayPenalty(
+  text: string,
+  beatFacts: readonly string[],
+  isMemoryMode: boolean,
+  isFinalBeat: boolean,
+  semanticMove: string,
+): number {
+  if (!isMemoryMode || !isFinalBeat || !clean(semanticMove)) return 0;
+  const candidate = replayTokens(text);
+  if (!candidate.length) return 0;
+  const source = new Set(replayTokens(beatFacts.join(" ")));
+  const overlap = candidate.filter((token) => source.has(token)).length / candidate.length;
+  if (overlap >= 0.8) return 0.24;
+  if (overlap >= 0.6) return 0.16;
+  return 0;
+}
+
 function safeFallbackText(
   beat: AuthorSemanticBeat,
   events: readonly AuthorCreativeEvent[],
@@ -388,6 +405,7 @@ export async function createAuthorExperience(input: {
     useDeterministicSparsePlan &&
     experienceMode === "IDENTITY" &&
     selectedEvidence.length > 1;
+  const isMemoryMode = experienceMode === "MEMORY";
 
   const planResult = useDeterministicSparsePlan
     ? {
@@ -507,6 +525,14 @@ export async function createAuthorExperience(input: {
           "Creative freedom is high for phrasing: implication, attitude, metaphor, personification, status, understatement, absurd seriousness, compressed voice, callback, and recontextualization.",
           "Use the supplied material as the cast. Do not replace it with generic atmosphere.",
           "Prefer source-specific cleverness over prettiness.",
+          ...(isMemoryMode ? [
+            "MEMORY REALIZATION: these beats are parts of ONE remembered experience, not independent caption slots. Make the sequence accumulate meaning across cuts.",
+            "Neutral encounters may become juxtaposition, texture, density, oddity, accumulation, or contrast, but do not make them cause a reaction in the subject unless that reaction is supplied or approved.",
+            "When a supplied fact is explicitly positive, negative, praised, criticized, liked, feared, or otherwise valenced, do not flatten away that valence merely to sound clever.",
+            "The final beat is a payoff for the whole approved memory. If its local fact is a timestamp, duration, count, or other measurement, use it as material for the payoff rather than merely restating the measurement.",
+            "Do not produce a final-beat candidate that is only a literal replay of the local fact when semanticMove asks you to land a broader approved relation.",
+            "Across the whole sequence, prefer progression: establish -> enrich -> land. Do not make three interchangeable labels.",
+          ] : []),
           "Do not explain the joke or meaning.",
           "Do not mention receipts, prompts, models, beats, grounding, Author, Mouth, viewers, or internal process.",
           ...(presentationContext ? [presentationContext] : []),
@@ -530,7 +556,9 @@ export async function createAuthorExperience(input: {
           RELATION: selected.relationship,
           instruction: useIdentityClusterPlan
             ? "This is one IDENTITY character cluster, not a checklist. Return four short candidate realizations that synthesize the combination into character. Do not enumerate every supplied preference or simply restate them. The viewer should infer personality from the combination. Do not invent an event."
-            : "Return four candidate lines per beat. The semantic plan controls meaning; the supplied event IDs control factual reality.",
+            : isMemoryMode
+              ? "Return four candidate lines per beat as parts of one cohesive memory sequence. Earlier beats establish and enrich; the final beat must land the approved memory relation using its local evidence plus already-established prior evidence. Keep factual reality inside supplied event IDs, but make the sequence feel authored rather than enumerated."
+              : "Return four candidate lines per beat. The semantic plan controls meaning; the supplied event IDs control factual reality.",
         }),
       },
     ],
@@ -611,16 +639,30 @@ export async function createAuthorExperience(input: {
       .filter(Boolean);
 
     const evaluated = (variantsByOrder.get(beat.order) ?? [])
-      .map((text) => ({
-        text,
-        ...variantScore(
+      .map((text) => {
+        const base = variantScore(
           text,
           beatFacts,
           [beat.change].map(clean).filter(Boolean),
           input.subject,
           prior,
-        ),
-      }));
+        );
+        const payoffPenalty = memoryPayoffReplayPenalty(
+          text,
+          beatFacts,
+          isMemoryMode,
+          index === plan.beats.length - 1,
+          beat.change,
+        );
+        return {
+          text,
+          ...base,
+          score: Math.max(0, base.score - payoffPenalty),
+          reasons: payoffPenalty > 0
+            ? [...base.reasons, "memory-payoff-replay"]
+            : base.reasons,
+        };
+      });
 
     const ranked = evaluated
       .filter((candidate) => candidate.accepted)
