@@ -350,6 +350,10 @@ export async function authorBrainCanonical(
   const verifiedCreative = await verifyAuthorCreativeGrounding({
     scenes: creativeResult.scenes,
     suppliedReality: events,
+    semanticAuthority: unique([
+      discoveryResult.discovery.selected.perception,
+      discoveryResult.discovery.selected.relationship,
+    ]),
     domainContext: input.domainContext,
   });
 
