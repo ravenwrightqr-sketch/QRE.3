@@ -58,6 +58,8 @@ const COMPLETED_OUTCOME =
   /\b(?:free|freed|escaped|released|removed|gone|won|victory|succeeded|successfully)\b/i;
 const ATTITUDE_ONLY =
   /^(?:no|yes|mine|ours|absolutely not|not happening|really|seriously|apparently|okay|fine|fight)[.!?]*$/i;
+const TEMPORAL_COMPARISON =
+  /\b(?:long|short|brief|briefly|quick|quickly|slow|slowly|fast|faster|slower)\b/i;
 
 function words(value: string): string[] {
   return clean(value)
@@ -146,6 +148,12 @@ export function evaluateAuthorCut(
   if (invented >= 0.6) reasons.push("invented-concrete-reality");
   if (explained >= 1) reasons.push("explanation");
   if (wordCount > 10) reasons.push("too-long");
+  if (
+    TEMPORAL_COMPARISON.test(text) &&
+    !TEMPORAL_COMPARISON.test(factualSourceText(world))
+  ) {
+    reasons.push("unsupported-temporal-comparison");
+  }
   const hasSemanticAuthority = (world.semanticAuthority ?? [])
     .map(clean)
     .some(Boolean);
