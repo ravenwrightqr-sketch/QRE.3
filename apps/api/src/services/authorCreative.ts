@@ -527,11 +527,14 @@ export async function createAuthorExperience(input: {
           "Prefer source-specific cleverness over prettiness.",
           ...(isMemoryMode ? [
             "MEMORY REALIZATION: these beats are parts of ONE remembered experience, not independent caption slots. Make the sequence accumulate meaning across cuts.",
-            "Neutral encounters may become juxtaposition, texture, density, oddity, accumulation, or contrast, but do not make them cause a reaction in the subject unless that reaction is supplied or approved.",
+            "Neutral encounters may become juxtaposition, texture, density, oddity, accumulation, contrast, or title-like framing, but do not turn that framing into a literal claim about the subject's internal state or behavior.",
+            "TITLE-LIKE FRAMING VS MATERIAL CLAIM: 'Squirrelly distraction.' can function as playful framing of a supplied squirrel encounter; 'Milo was distracted by the squirrels.' asserts a real attentional state and requires support. Prefer the first kind of freedom when it helps.",
             "When a supplied fact is explicitly positive, negative, praised, criticized, liked, feared, or otherwise valenced, do not flatten away that valence merely to sound clever.",
             "The final beat is a payoff for the whole approved memory. If its local fact is a timestamp, duration, count, or other measurement, use it as material for the payoff rather than merely restating the measurement.",
             "Do not produce a final-beat candidate that is only a literal replay of the local fact when semanticMove asks you to land a broader approved relation.",
             "Across the whole sequence, prefer progression: establish -> enrich -> land. Do not make three interchangeable labels.",
+            "DIVERSIFY THE FOUR VARIANTS. Do not return four near-synonyms. Try four different creative moves: (1) bold figurative framing, (2) compressed attitude or voice, (3) recontextualization/status shift, (4) sequence-aware continuation or payoff. Keep all four grounded.",
+            "Do not play safe merely because a fact is neutral. Neutral facts may still become funny, strange, ceremonial, suspicious, grand, tiny, absurdly official, or otherwise perceptually transformed as long as the transformation is clearly nonliteral and does not rewrite material reality.",
           ] : []),
           "Do not explain the joke or meaning.",
           "Do not mention receipts, prompts, models, beats, grounding, Author, Mouth, viewers, or internal process.",
@@ -565,7 +568,7 @@ export async function createAuthorExperience(input: {
     "json",
     {
       numPredict: 1050,
-      temperature: 0.78,
+      temperature: isMemoryMode ? 0.9 : 0.78,
       jsonSchema: {
         type: "object",
         additionalProperties: false,
