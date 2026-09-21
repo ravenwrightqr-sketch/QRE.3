@@ -449,6 +449,126 @@ function scoreMemorySequence(
   };
 }
 
+async function repairNominatedMemoryProduction(input: {
+  production: MemorySequenceCandidate;
+  plan: AuthorSemanticPlan;
+  suppliedReality: readonly AuthorCreativeEvent[];
+  subject: string;
+  thesis: string;
+}): Promise<{
+  replacements: Map<number, string>;
+  model: string;
+  modelCalls: number;
+}> {
+  const failed = input.production.lines
+    .map((line, index) => ({ line, index }))
+    .filter(({ line }) => !line.accepted || !clean(line.text));
+
+  if (!failed.length) {
+    return {
+      replacements: new Map<number, string>(),
+      model: "none",
+      modelCalls: 0,
+    };
+  }
+
+  const result = await localModelGenerate(
+    [
+      {
+        role: "system",
+        content: [
+          "You are QRE Memory Production Repair.",
+          "The creative conception has already been chosen. Preserve it.",
+          "Repair ONLY the failed cuts. Do not rewrite successful cuts.",
+          "Stay inside each failed beat's supplied evidence plus meaning already established by earlier successful cuts.",
+          "Keep the production's voice, rhythm, attitude, and trajectory.",
+          "Prefer a bold grounded transformation over literal replay.",
+          "Preserve distinctive source anchors when useful.",
+          "Nonliteral title-like framing, metaphor, status, attitude, compression, and recontextualization are welcome.",
+          "Do not add new actors, body parts, sensory details, scenery, actions, motives, causes, outcomes, or chronology.",
+          "A repair should feel like the line the original production was trying to write, only grounded.",
+          "Return one replacement for every failed beat and nothing else.",
+        ].join("\n"),
+      },
+      {
+        role: "user",
+        content: JSON.stringify({
+          SUBJECT: input.subject,
+          APPROVED_THESIS: input.thesis,
+          FULL_PRODUCTION: input.production.lines.map((line, index) => ({
+            order: line.beat.order,
+            text: line.text,
+            accepted: line.accepted,
+            reasons: line.reasons,
+            suppliedEvidence: line.beatFacts,
+            semanticMove: line.beat.change,
+            keepExactly: line.accepted,
+            priorLines: input.production.lines
+              .slice(0, index)
+              .map((prior) => prior.text)
+              .filter(Boolean),
+          })),
+          FAILED_BEATS: failed.map(({ line }) => ({
+            order: line.beat.order,
+            rejectedText: line.text,
+            reasons: line.reasons,
+            suppliedEvidence: line.beatFacts,
+            semanticMove: line.beat.change,
+          })),
+          instruction:
+            "Repair only FAILED_BEATS. Keep the same production conception and creative energy. Return short viewer-facing replacements, normally 2-7 words.",
+        }),
+      },
+    ],
+    "json",
+    {
+      numPredict: Math.max(220, failed.length * 90),
+      temperature: 0.72,
+      jsonSchema: {
+        type: "object",
+        additionalProperties: false,
+        required: ["repairs"],
+        properties: {
+          repairs: {
+            type: "array",
+            minItems: failed.length,
+            maxItems: failed.length,
+            items: {
+              type: "object",
+              additionalProperties: false,
+              required: ["order", "text"],
+              properties: {
+                order: { type: "integer", minimum: 1, maximum: 6 },
+                text: { type: "string", maxLength: 120 },
+              },
+            },
+          },
+        },
+      },
+    },
+  );
+
+  const parsed = parseJson(result.text);
+  const rawRepairs = Array.isArray(parsed?.repairs) ? parsed.repairs : [];
+  const failedOrders = new Set(failed.map(({ line }) => line.beat.order));
+  const replacements = new Map<number, string>();
+
+  for (const raw of rawRepairs) {
+    if (!raw || typeof raw !== "object") continue;
+    const record = raw as Record<string, unknown>;
+    const order = Number(record.order);
+    const text = clean(record.text);
+    if (!Number.isInteger(order) || !failedOrders.has(order) || !text) continue;
+    replacements.set(order, text);
+  }
+
+  return {
+    replacements,
+    model: result.model,
+    modelCalls: 1,
+  };
+}
+
 function safeFallbackText(
   beat: AuthorSemanticBeat,
   events: readonly AuthorCreativeEvent[],
@@ -744,6 +864,7 @@ export async function createAuthorExperience(input: {
   }
 
   const scenes: Array<AuthorScene & { sourceEventIds: string[] }> = [];
+  let memoryRepairModelCalls = 0;
   const choices: Array<{
     order: number;
     beat: AuthorSemanticBeat;
@@ -769,13 +890,77 @@ export async function createAuthorExperience(input: {
       });
 
     const nominatedProductionNumber = Number(parsedMouth?.selectedProduction);
-    const nominatedProduction = Number.isInteger(nominatedProductionNumber)
+    const nominatedAny = Number.isInteger(nominatedProductionNumber)
       ? productions.find(
           (production) =>
-            production.variantIndex === nominatedProductionNumber - 1 &&
-            production.accepted,
+            production.variantIndex === nominatedProductionNumber - 1,
         )
       : undefined;
+
+    let repairedNomination: MemorySequenceCandidate | undefined;
+
+    if (nominatedAny && !nominatedAny.accepted) {
+      const repair = await repairNominatedMemoryProduction({
+        production: nominatedAny,
+        plan,
+        suppliedReality: input.suppliedReality,
+        subject: input.subject,
+        thesis: plan.thesis,
+      });
+      memoryRepairModelCalls += repair.modelCalls;
+
+      if (repair.replacements.size) {
+        const repairedVariantsByOrder = new Map<number, string[]>(
+          [...variantsByOrder.entries()].map(([order, variants]) => [
+            order,
+            [...variants],
+          ]),
+        );
+
+        for (const [order, replacement] of repair.replacements.entries()) {
+          const variants = [...(repairedVariantsByOrder.get(order) ?? [])];
+          while (variants.length < 4) variants.push("");
+          variants[nominatedAny.variantIndex] = replacement;
+          repairedVariantsByOrder.set(order, variants);
+        }
+
+        const rescored = scoreMemorySequence(
+          nominatedAny.variantIndex,
+          plan,
+          repairedVariantsByOrder,
+          input.suppliedReality,
+          input.subject,
+        );
+
+        debug("MEMORY-PRODUCTION-REPAIR", {
+          production: String.fromCharCode(65 + nominatedAny.variantIndex),
+          before: nominatedAny.lines.map((line) => ({
+            text: line.text,
+            accepted: line.accepted,
+            reasons: line.reasons,
+          })),
+          replacements: [...repair.replacements.entries()].map(([order, text]) => ({
+            order,
+            text,
+          })),
+          after: rescored.lines.map((line) => ({
+            text: line.text,
+            accepted: line.accepted,
+            reasons: line.reasons,
+          })),
+          accepted: rescored.accepted,
+          score: rescored.score,
+        });
+
+        if (rescored.accepted) {
+          repairedNomination = rescored;
+        }
+      }
+    }
+
+    const nominatedProduction = nominatedAny?.accepted
+      ? nominatedAny
+      : repairedNomination;
     const winner = nominatedProduction ?? productions[0];
 
     debug("MEMORY-PRODUCTIONS", {
@@ -914,7 +1099,7 @@ export async function createAuthorExperience(input: {
   return {
     scenes,
     model: mouthResult.model || planResult.model,
-    modelCalls: useDeterministicSparsePlan ? 1 : 2,
+    modelCalls: (useDeterministicSparsePlan ? 1 : 2) + memoryRepairModelCalls,
     diagnostics: {
       plan,
       variantsByBeat: [...variantsByOrder.entries()]
