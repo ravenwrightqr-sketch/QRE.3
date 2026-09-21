@@ -243,6 +243,26 @@ function lockPlanToApprovedMeaning(
   discovery: AuthorCreativeDiscovery,
 ): AuthorSemanticPlan {
   const selected = discovery.selected;
+  const allowEvidenceCallback = discovery.experienceShape.some((hint) =>
+    /callback|recurrence|repetition|echo/i.test(clean(hint)),
+  );
+  const seenEventIds = new Set<string>();
+  const uniquePlanBeats = plan.beats
+    .map((beat) => ({
+      ...beat,
+      eventIds: beat.eventIds.filter((id) => {
+        const key = clean(id);
+        if (allowEvidenceCallback) return true;
+        if (seenEventIds.has(key)) return false;
+        seenEventIds.add(key);
+        return true;
+      }),
+    }))
+    .filter((beat) => beat.eventIds.length > 0);
+  const planWithUniqueEvidence = {
+    ...plan,
+    beats: uniquePlanBeats,
+  };
   const approvedMeaning = clean(selected.perception || selected.relationship);
   const approvedRelation = clean(selected.relationship);
   const realityDirect = clean(selected.id).toLowerCase() === "reality-direct";
@@ -250,7 +270,7 @@ function lockPlanToApprovedMeaning(
   if (realityDirect) {
     return {
       thesis: "Use supplied reality directly.",
-      beats: plan.beats.map((beat) => ({
+      beats: planWithUniqueEvidence.beats.map((beat) => ({
         ...beat,
         attention: beat.eventIds
           .map((id) => events.find((event) => event.id === id)?.text ?? "")
@@ -270,7 +290,7 @@ function lockPlanToApprovedMeaning(
     ).map(clean).filter(Boolean),
   );
 
-  const scopedBeats = plan.beats
+  const scopedBeats = planWithUniqueEvidence.beats
     .map((beat) => ({
       ...beat,
       eventIds: beat.eventIds.filter((id) => authorizedEventIds.has(clean(id))),
@@ -385,6 +405,7 @@ export async function createAuthorExperience(input: {
           "You may fuse adjacent or tightly related evidence into one beat or omit evidence that does not need screen time.",
           "Do not write a thesis, interpretation, psychology, causality, motive, emotional explanation, or viewer-facing language.",
           "Do not invent or rename events. Output structure only.",
+          "Use each evidence event ID at most once unless EXPERIENCE_SHAPE explicitly calls for callback, recurrence, repetition, or echo.",
           ...(presentationContext ? [presentationContext] : []),
         ].join("\n"),
       },
@@ -480,6 +501,8 @@ export async function createAuthorExperience(input: {
           "Do not invent scenery, weather, light, temperature, body parts, gestures, sensory details, objects, people, places, causes, motives, outcomes, or successful completion.",
           "An attempt remains an attempt. Do not turn trying into freedom, escape, removal, victory, or success.",
           "Do not add comparative duration or temporal compression unless supplied. Avoid words like brief, briefly, long, quickly, suddenly, promptly, instantly, finally, or still when the beat facts do not establish that timing relation.",
+          "A stated duration is not a countdown or deadline. Do not say 'time's up', 'clock ran out', 'deadline', or imply a timer merely because a duration is supplied.",
+          "Do not invent manner of movement. A supplied walk does not authorize ambled, trotted, bounded, dragged, hurried, strolled, or another gait/manner unless supplied.",
           "An emotion/state does not authorize wagging, smiling, trembling, shaking, jumping, posture, heartbeat, or another bodily manifestation.",
           "Creative freedom is high for phrasing: implication, attitude, metaphor, personification, status, understatement, absurd seriousness, compressed voice, callback, and recontextualization.",
           "Use the supplied material as the cast. Do not replace it with generic atmosphere.",
