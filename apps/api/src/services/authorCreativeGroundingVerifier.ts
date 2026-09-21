@@ -38,6 +38,8 @@ function parseJson(text: string): Record<string, unknown> | undefined {
 type Verification = {
   grounded?: unknown;
   sourceEventIds?: unknown;
+  literalClaims?: unknown;
+  unsupportedClaims?: unknown;
 };
 
 const ABSOLUTE_RELATION_LANGUAGE = /\b(always|never|first|last)\b/i;
@@ -125,6 +127,9 @@ export async function verifyAuthorCreativeGrounding(input: {
     "The writer may provide groundingHint IDs. Treat them as clues, not authority; keep, replace, or expand them based on the actual words.",
     "Do not judge style, quality, humor, or taste.",
     "Do not rewrite the beat.",
+    "For each beat, explicitly extract every literal or concrete real-world claim carried by the words, including implied state changes, body actions, objects, settings, sensory details, chronology, outcomes, and causal relations.",
+    "Then list every extracted claim that is not directly established by SUPPLIED_REALITY in unsupportedClaims.",
+    "A beat is grounded only when unsupportedClaims is empty.",
     "Return exactly one verification entry per beat, in the same order as BEATS.",
   ].join("\n");
 
@@ -140,7 +145,7 @@ export async function verifyAuthorCreativeGrounding(input: {
             groundingHint: scene.sourceEventIds,
           })),
           instruction:
-            "Verify every beat in the same order. groundingHint is only a clue from the writer; correct it when needed. For each beat, identify the supplied entity, action, state, or relation that carries the metaphor, then separate the figurative overlay. Preserve figurative language when its concrete carrier is supplied. Scan the actual words for newly introduced concrete nouns, body parts, bodily states/actions, sounds, smells, tastes, textures, and other sensory events. Also scan for unsupported relational claims such as priority, first/last, always/never, stronger preference, exclusivity, deliberate choice, curation, ownership, or repeated selection. Treat shorthand phrases such as 'bacon smell' or 'happy tail' as literal concrete claims about smell or bodily state. Do not infer sensory properties, physical behaviors, or relational structure merely because related items are supplied. Return grounded=false when any such concrete content is unsupported by supplied reality.",
+            "Verify every beat in the same order. groundingHint is only a clue from the writer; correct it when needed. First extract literalClaims from the exact words: every concrete object, place, body part, bodily action/state, sensory event, chronology marker, outcome, status change, causal relation, or physical condition asserted or implied. Then compare each claim to SUPPLIED_REALITY. Put every unsupported one in unsupportedClaims. Preserve figurative language only when its concrete carrier is supplied and unsupportedClaims is empty. A bath does not automatically establish water everywhere, stillness, soap, towels, shaking, or any surrounding scene. A dog does not establish tail wagging or other body behavior. A happy ending does not establish sunshine, freedom, release, acceptance, or why the happiness occurred. Return grounded=true only when unsupportedClaims is empty.",
         }),
       },
     ],
@@ -160,13 +165,23 @@ export async function verifyAuthorCreativeGrounding(input: {
             items: {
               type: "object",
               additionalProperties: false,
-              required: ["grounded", "sourceEventIds"],
+              required: ["grounded", "sourceEventIds", "literalClaims", "unsupportedClaims"],
               properties: {
                 grounded: { type: "boolean" },
                 sourceEventIds: {
                   type: "array",
                   maxItems: 32,
                   items: { type: "string", maxLength: 64 },
+                },
+                literalClaims: {
+                  type: "array",
+                  maxItems: 16,
+                  items: { type: "string", maxLength: 120 },
+                },
+                unsupportedClaims: {
+                  type: "array",
+                  maxItems: 16,
+                  items: { type: "string", maxLength: 120 },
                 },
               },
             },
@@ -190,7 +205,15 @@ export async function verifyAuthorCreativeGrounding(input: {
     if (!value || typeof value !== "object") return [];
 
     const item = value as Verification;
+    const unsupportedClaims = Array.isArray(item.unsupportedClaims)
+      ? item.unsupportedClaims
+          .filter((claim): claim is string => typeof claim === "string")
+          .map(clean)
+          .filter(Boolean)
+      : [];
+
     if (item.grounded !== true) return [];
+    if (unsupportedClaims.length) return [];
     if (hasUnsupportedAbsoluteClaim(scene.text, suppliedRealityText)) return [];
     if (hasUnsupportedTemporalStateClaim(scene.text, suppliedRealityText)) return [];
     if (hasUnsupportedSensoryClaim(scene.text, suppliedRealityText)) return [];
