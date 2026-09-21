@@ -741,7 +741,7 @@ function buildStructuralRelations(
         );
 
       if (
-        longShared.length >= 1
+        shared.length >= 1
       ) {
         addRelation(
           relations,
@@ -749,10 +749,10 @@ function buildStructuralRelations(
           other.id,
           "converges",
           Math.min(
-            0.82,
-            0.42 +
-              longShared.length *
-                0.12,
+            0.84,
+            0.46 +
+              longShared.length * 0.12 +
+              Math.max(0, shared.length - longShared.length) * 0.06,
           ),
         );
       }
