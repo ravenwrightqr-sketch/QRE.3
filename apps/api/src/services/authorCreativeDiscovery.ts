@@ -54,6 +54,13 @@ function stringArray(value: unknown, limit: number): string[] {
     : [];
 }
 
+export type AuthorDiscoveryRelation = {
+  from: string;
+  to: string;
+  kind: string;
+  strength: number;
+};
+
 export type AuthorCreativeCandidate = {
   id: string;
   mode: "RELATIONAL" | "METAMORPHIC";
@@ -90,6 +97,9 @@ const RECORD_SHAPE_LANGUAGE =
 const EXPLICIT_RELATION_CLAIMS =
   /\b(priorit(?:y|ize|ized|ization)|rank(?:ed|ing)?|hierarch(?:y|ical)|curat(?:e|ed|es|ion)|deliberat(?:e|ely)|step\s+up|escalat(?:e|ed|es|ing|ion))\b/i;
 
+const AGENCY_OUTCOME_RELATION =
+  /\b(forced|imposed|subjugat(?:e|ed|ion)|rebel(?:led|lion)?|defi(?:ed|ance)|submit(?:ted|sion)?|liberat(?:e|ed|ion)|autonom(?:y|ous)|constrain(?:ed|t)|escape(?:d)?|freed?|release|relief|endured?|vanity|domesticity|wildness)\b/i;
+
 function candidateCrossesDeterministicTruthFloor(
   candidate: AuthorCreativeCandidate,
   suppliedRealityText: string,
@@ -108,7 +118,15 @@ function candidateCrossesDeterministicTruthFloor(
     EXPLICIT_RELATION_CLAIMS.test(candidateText) &&
     !EXPLICIT_RELATION_CLAIMS.test(suppliedRealityText);
 
-  return inventsRecordShape || inventsExplicitRelation;
+  const inventsAgencyOrOutcomeRelation =
+    AGENCY_OUTCOME_RELATION.test(candidate.relationship) &&
+    !AGENCY_OUTCOME_RELATION.test(suppliedRealityText);
+
+  return (
+    inventsRecordShape ||
+    inventsExplicitRelation ||
+    inventsAgencyOrOutcomeRelation
+  );
 }
 
 function normalizeCandidate(
@@ -141,6 +159,7 @@ function normalizeCandidate(
 async function verifyDiscoveryCandidates(input: {
   candidates: readonly AuthorCreativeCandidate[];
   events: ReadonlyArray<{ id: string; text: string }>;
+  relations?: readonly AuthorDiscoveryRelation[];
 }): Promise<{ groundedIds: Set<string>; modelCalls: number }> {
   if (!input.candidates.length) {
     return { groundedIds: new Set(), modelCalls: 0 };
@@ -179,6 +198,7 @@ async function verifyDiscoveryCandidates(input: {
         role: "user",
         content: JSON.stringify({
           SUPPLIED_REALITY: input.events,
+          SUPPLIED_RELATIONS: input.relations ?? [],
           CANDIDATES: input.candidates.map((candidate) => ({
             id: candidate.id,
             mode: candidate.mode,
@@ -260,6 +280,7 @@ async function verifyDiscoveryCandidates(input: {
 async function repairDiscoveryCandidates(input: {
   candidates: readonly AuthorCreativeCandidate[];
   events: ReadonlyArray<{ id: string; text: string }>;
+  relations?: readonly AuthorDiscoveryRelation[];
   allowedEventIds: Set<string>;
 }): Promise<{ candidates: AuthorCreativeCandidate[]; model: string; modelCalls: number }> {
   if (!input.candidates.length) {
@@ -286,6 +307,7 @@ async function repairDiscoveryCandidates(input: {
         role: "user",
         content: JSON.stringify({
           SUPPLIED_REALITY: input.events,
+          SUPPLIED_RELATIONS: input.relations ?? [],
           FAILED_DISCOVERY: input.candidates.map((candidate) => ({
             id: candidate.id,
             mode: candidate.mode,
@@ -353,6 +375,7 @@ async function repairDiscoveryCandidates(input: {
 
 export async function discoverAuthorCreativeDirection(input: {
   events: ReadonlyArray<{ id: string; text: string }>;
+  relations?: readonly AuthorDiscoveryRelation[];
   requestedLens?: string;
   memory?: readonly string[];
   domainContext?: AuthorDomainContext;
@@ -372,6 +395,7 @@ export async function discoverAuthorCreativeDirection(input: {
     "Study CURRENT_REALITY and find the specific detail, contrast, character signal, excess, awkwardness, reversal, recurrence, status change, strange combination, or relationship that gives this material energy.",
     "A strong read may live in one supplied detail or in a relationship across several facts.",
     "Relationships between facts may be literal relationships established by supplied reality OR perceptual relationships created by a clearly figurative read of supplied reality.",
+    "SUPPLIED_RELATIONS are graph-backed structural evidence. Use them as anchors when combining events. They establish connection, not motive or cause unless the relation explicitly says causes.",
     "A perceptual relationship changes how the viewer experiences the supplied facts without claiming that the transformation itself literally happened.",
     "When several facts merely coexist, keep them coexisting unless supplied reality establishes order, rank, cause, urgency, preference strength, escalation, deliberateness, selection, exclusivity, or curation.",
     "Coexistence itself can be creatively meaningful. Several specific likes, traits, objects, or memories may form character, contrast, texture, or a strange combination without any one being stronger, later, chosen, or more important.",
@@ -427,6 +451,7 @@ export async function discoverAuthorCreativeDirection(input: {
         role: "user",
         content: JSON.stringify({
           CURRENT_REALITY: input.events,
+          SUPPLIED_RELATIONS: input.relations ?? [],
           MEMORY: (input.memory ?? []).slice(0, 12),
           BUSINESS_CONTEXT: input.domainContext,
           CREATIVE_INTENT: {
@@ -519,12 +544,24 @@ export async function discoverAuthorCreativeDirection(input: {
     )
     .slice(0, 4);
 
-  const semanticVerification = await verifyDiscoveryCandidates({
-    candidates: deterministicCandidates,
-    events: input.events,
+  const structurallyAnchoredCandidates = deterministicCandidates.filter((candidate) => {
+    if (candidate.mode !== "RELATIONAL" || candidate.evidenceEventIds.length < 2) {
+      return true;
+    }
+
+    const evidence = new Set(candidate.evidenceEventIds);
+    return (input.relations ?? []).some((relation) =>
+      evidence.has(relation.from) && evidence.has(relation.to),
+    );
   });
 
-  let candidates = deterministicCandidates.filter((candidate) =>
+  const semanticVerification = await verifyDiscoveryCandidates({
+    candidates: structurallyAnchoredCandidates,
+    events: input.events,
+    relations: input.relations,
+  });
+
+  let candidates = structurallyAnchoredCandidates.filter((candidate) =>
     semanticVerification.groundedIds.has(candidate.id),
   );
 
@@ -535,6 +572,7 @@ export async function discoverAuthorCreativeDirection(input: {
     const repair = await repairDiscoveryCandidates({
       candidates: deterministicCandidates,
       events: input.events,
+      relations: input.relations,
       allowedEventIds,
     });
     repairModel = repair.model === "none" ? result.model : repair.model;
@@ -544,6 +582,7 @@ export async function discoverAuthorCreativeDirection(input: {
       const repairedVerification = await verifyDiscoveryCandidates({
         candidates: repair.candidates,
         events: input.events,
+        relations: input.relations,
       });
       repairModelCalls += repairedVerification.modelCalls;
       candidates = repair.candidates.filter((candidate) =>
