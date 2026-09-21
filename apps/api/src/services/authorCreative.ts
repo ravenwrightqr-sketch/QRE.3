@@ -309,8 +309,18 @@ export async function createAuthorExperience(input: {
   const experienceMode = clean(contextRecord.experienceMode).toUpperCase();
   const selected = input.creativeDiscovery.selected;
   const realityDirect = clean(selected.id).toLowerCase() === "reality-direct";
+  const selectedEvidence = input.suppliedReality.filter((event) =>
+    selected.evidenceEventIds.includes(event.id),
+  );
+  const useDeterministicSparsePlan =
+    selectedEvidence.length > 0 && selectedEvidence.length <= 3;
 
-  const planResult = await localModelGenerate(
+  const planResult = useDeterministicSparsePlan
+    ? {
+        text: "",
+        model: "deterministic-sparse-plan",
+      }
+    : await localModelGenerate(
     [
       {
         role: "system",
@@ -384,9 +394,10 @@ export async function createAuthorExperience(input: {
     },
   );
 
-  const rawPlan =
-    normalizePlan(parseJson(planResult.text), allowedEventIds) ??
-    fallbackPlan(input.suppliedReality, input.creativeDiscovery);
+  const rawPlan = useDeterministicSparsePlan
+    ? fallbackPlan(selectedEvidence, input.creativeDiscovery)
+    : normalizePlan(parseJson(planResult.text), allowedEventIds) ??
+      fallbackPlan(input.suppliedReality, input.creativeDiscovery);
 
   const plan = lockPlanToApprovedMeaning(
     rawPlan,
@@ -395,7 +406,8 @@ export async function createAuthorExperience(input: {
   );
 
   debug("BARE-AUTHOR-PLAN", {
-    raw: planResult.text,
+    mode: useDeterministicSparsePlan ? "DETERMINISTIC_SPARSE" : "MODEL_STRUCTURE",
+    raw: useDeterministicSparsePlan ? "SKIPPED_MODEL_PLAN" : planResult.text,
     selectedPlan: plan,
   });
 
@@ -565,7 +577,7 @@ export async function createAuthorExperience(input: {
   return {
     scenes,
     model: mouthResult.model || planResult.model,
-    modelCalls: 2,
+    modelCalls: useDeterministicSparsePlan ? 1 : 2,
     diagnostics: {
       plan,
       variantsByBeat: [...variantsByOrder.entries()]
