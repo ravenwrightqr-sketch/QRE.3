@@ -5,6 +5,23 @@ import type { AuthorExperienceState } from "./authorExperienceState.js";
 export type AuthorRhythm = "hit" | "short" | "standard" | "long";
 export type AuthorPlayoutMode = "operational" | "experience";
 
+export type AuthorWorldScope = {
+  /** Stable semantic world identifier. Ownership/account identity is not enough to merge worlds. */
+  worldId: string;
+  /** Optional descriptive world kind for routing/presentation only. */
+  kind?: string;
+  /**
+   * Explicitly related worlds whose memory may be consulted for this authoring request.
+   * Cross-world access must be deliberate; shared account ownership never implies access.
+   */
+  relatedWorldIds?: string[];
+};
+
+export type AuthorScopedMemory = {
+  worldId: string;
+  text: string;
+};
+
 export type DogTagContext = {
   /** Persistent profile context. These are stable truths/background, never occurrence evidence by themselves. */
   name?: string;
@@ -88,7 +105,15 @@ export type AuthorBrainTruth = {
   presenceSummary?: string[];
   facts: string[];
   sourceMoments: string[];
+  /**
+   * Legacy unscoped memory. Used only when worldScope is absent.
+   * Once a request declares worldScope, unscoped memory is intentionally ignored.
+   */
   memoryContext?: string[];
+  /** World-scoped memory available to the active authoring request. */
+  scopedMemoryContext?: AuthorScopedMemory[];
+  /** Active semantic world. Same-account ownership does not authorize cross-world memory. */
+  worldScope?: AuthorWorldScope;
   trajectory?: string[];
   priorExperienceStates?: AuthorExperienceState[];
   creativeLearningContext?: string[];
