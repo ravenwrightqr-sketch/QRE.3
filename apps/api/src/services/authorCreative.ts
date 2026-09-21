@@ -479,6 +479,7 @@ export async function createAuthorExperience(input: {
           "Concrete reality comes ONLY from the beat's supplied event labels.",
           "Do not invent scenery, weather, light, temperature, body parts, gestures, sensory details, objects, people, places, causes, motives, outcomes, or successful completion.",
           "An attempt remains an attempt. Do not turn trying into freedom, escape, removal, victory, or success.",
+          "Do not add comparative duration or temporal compression unless supplied. Avoid words like brief, briefly, long, quickly, suddenly, promptly, instantly, finally, or still when the beat facts do not establish that timing relation.",
           "An emotion/state does not authorize wagging, smiling, trembling, shaking, jumping, posture, heartbeat, or another bodily manifestation.",
           "Creative freedom is high for phrasing: implication, attitude, metaphor, personification, status, understatement, absurd seriousness, compressed voice, callback, and recontextualization.",
           "Use the supplied material as the cast. Do not replace it with generic atmosphere.",
