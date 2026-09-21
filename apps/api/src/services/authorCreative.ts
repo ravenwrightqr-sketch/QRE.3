@@ -350,6 +350,105 @@ function memoryPayoffReplayPenalty(
   return 0;
 }
 
+type MemorySequenceCandidate = {
+  variantIndex: number;
+  lines: Array<{
+    beat: AuthorSemanticBeat;
+    beatFacts: string[];
+    text: string;
+    accepted: boolean;
+    score: number;
+    reasons: string[];
+  }>;
+  accepted: boolean;
+  score: number;
+  reasons: string[];
+};
+
+function scoreMemorySequence(
+  variantIndex: number,
+  plan: AuthorSemanticPlan,
+  variantsByOrder: Map<number, string[]>,
+  suppliedReality: readonly AuthorCreativeEvent[],
+  subject: string,
+): MemorySequenceCandidate {
+  const prior: string[] = [];
+  const lines = plan.beats.map((beat, index) => {
+    const beatFacts = beat.eventIds
+      .map((id) => suppliedReality.find((event) => event.id === id)?.text ?? "")
+      .map(clean)
+      .filter(Boolean);
+    const text = clean(variantsByOrder.get(beat.order)?.[variantIndex] ?? "");
+    const base = variantScore(
+      text,
+      beatFacts,
+      [beat.change].map(clean).filter(Boolean),
+      subject,
+      prior,
+    );
+    const payoffPenalty = memoryPayoffReplayPenalty(
+      text,
+      beatFacts,
+      true,
+      index === plan.beats.length - 1,
+      beat.change,
+    );
+    const line = {
+      beat,
+      beatFacts,
+      text,
+      ...base,
+      score: Math.max(0, base.score - payoffPenalty),
+      reasons: payoffPenalty > 0
+        ? [...base.reasons, "memory-payoff-replay"]
+        : base.reasons,
+    };
+    if (text) prior.push(text);
+    return line;
+  });
+
+  const acceptedLines = lines.filter((line) => line.accepted && line.text);
+  const completeness = plan.beats.length
+    ? acceptedLines.length / plan.beats.length
+    : 0;
+  const meanScore = acceptedLines.length
+    ? acceptedLines.reduce((sum, line) => sum + line.score, 0) / acceptedLines.length
+    : 0;
+  const normalizedLines = lines
+    .map((line) => clean(line.text).toLowerCase())
+    .filter(Boolean);
+  const uniqueRatio = normalizedLines.length
+    ? new Set(normalizedLines).size / normalizedLines.length
+    : 0;
+  const payoff = lines.length ? lines[lines.length - 1] : undefined;
+  const payoffStrength = payoff?.accepted ? payoff.score : 0;
+  const rejected = lines.length - acceptedLines.length;
+
+  const score = Math.max(
+    0,
+    meanScore * 0.5 +
+      completeness * 0.25 +
+      payoffStrength * 0.2 +
+      uniqueRatio * 0.05 -
+      rejected * 0.2,
+  );
+
+  const reasons: string[] = [];
+  if (completeness < 1) reasons.push("incomplete-sequence");
+  if (uniqueRatio < 1) reasons.push("repeated-line");
+  if ((payoff?.reasons ?? []).includes("memory-payoff-replay")) {
+    reasons.push("weak-payoff-replay");
+  }
+
+  return {
+    variantIndex,
+    lines,
+    accepted: completeness === 1,
+    score: Number(score.toFixed(3)),
+    reasons,
+  };
+}
+
 function safeFallbackText(
   beat: AuthorSemanticBeat,
   events: readonly AuthorCreativeEvent[],
@@ -533,7 +632,15 @@ export async function createAuthorExperience(input: {
             "The final beat is a payoff for the whole approved memory. If its local fact is a timestamp, duration, count, or other measurement, use it as material for the payoff rather than merely restating the measurement.",
             "Do not produce a final-beat candidate that is only a literal replay of the local fact when semanticMove asks you to land a broader approved relation.",
             "Across the whole sequence, prefer progression: establish -> enrich -> land. Do not make three interchangeable labels.",
-            "DIVERSIFY THE FOUR VARIANTS. Do not return four near-synonyms. Try four different creative moves: (1) bold figurative framing, (2) compressed attitude or voice, (3) recontextualization/status shift, (4) sequence-aware continuation or payoff. Keep all four grounded.",
+            "WRITE FOUR COMPLETE PRODUCTIONS IN PARALLEL. Variant position is persistent across beats: variant 1 of every beat belongs to Production A; variant 2 belongs to Production B; variant 3 belongs to Production C; variant 4 belongs to Production D. Each production must read coherently from first cut to payoff.",
+            "Give the four productions genuinely different creative approaches: A can lean bold figurative framing, B compressed attitude/voice, C recontextualization/status shift, D another strong sequence-aware conception. Do not make four near-synonymous productions.",
+            "Within each production, later cuts should feel aware of what earlier cuts established. Build progression, contrast, callback, accumulation, or recontextualization instead of isolated labels.",
+            "POSITIVE CREATIVE PATTERNS:",
+            "SUPPLIED: saw a pigeon. STRONG TITLE-LIKE FRAMING: 'Unexpected management.' The phrase changes perception without claiming the pigeon literally managed anything.",
+            "SUPPLIED: three friends arrived, then one brought cake. STRONG PROGRESSION: early cuts can establish the arrivals; the later cake cut can make the gathering feel newly significant without inventing why the cake came.",
+            "SUPPLIED: a task lasted 42 minutes. WEAK PAYOFF: '42 minutes.' STRONGER PAYOFF BEHAVIOR: use the duration as weight, punctuation, scale, or recontextualization of what the earlier cuts already established without labeling it objectively long or short.",
+            "SUPPLIED: someone was explicitly praised. Preserve the praise as positive evidence; do not flatten it into a neutral 'opinion'.",
+            "Aim for the transformation pattern, not these exact words.",
             "Do not play safe merely because a fact is neutral. Neutral facts may still become funny, strange, ceremonial, suspicious, grand, tiny, absurdly official, or otherwise perceptually transformed as long as the transformation is clearly nonliteral and does not rewrite material reality.",
           ] : []),
           "Do not explain the joke or meaning.",
@@ -560,7 +667,7 @@ export async function createAuthorExperience(input: {
           instruction: useIdentityClusterPlan
             ? "This is one IDENTITY character cluster, not a checklist. Return four short candidate realizations that synthesize the combination into character. Do not enumerate every supplied preference or simply restate them. The viewer should infer personality from the combination. Do not invent an event."
             : isMemoryMode
-              ? "Return four candidate lines per beat as parts of one cohesive memory sequence. Earlier beats establish and enrich; the final beat must land the approved memory relation using its local evidence plus already-established prior evidence. Keep factual reality inside supplied event IDs, but make the sequence feel authored rather than enumerated."
+              ? "Return four complete candidate productions encoded as four variants per beat. Keep variant index aligned across every beat: all first variants form Production A, all second variants form Production B, all third variants form Production C, all fourth variants form Production D. Each production should establish -> enrich -> land. The final cut must land the approved memory relation using its local evidence plus already-established prior evidence. Keep factual reality inside supplied event IDs, but make each production feel authored rather than enumerated."
               : "Return four candidate lines per beat. The semantic plan controls meaning; the supplied event IDs control factual reality.",
         }),
       },
@@ -625,7 +732,6 @@ export async function createAuthorExperience(input: {
     }
   }
 
-  const prior: string[] = [];
   const scenes: Array<AuthorScene & { sourceEventIds: string[] }> = [];
   const choices: Array<{
     order: number;
@@ -635,68 +741,146 @@ export async function createAuthorExperience(input: {
     selected: string;
   }> = [];
 
-  for (const [index, beat] of plan.beats.entries()) {
-    const beatFacts = beat.eventIds
-      .map((id) => input.suppliedReality.find((event) => event.id === id)?.text ?? "")
-      .map(clean)
-      .filter(Boolean);
-
-    const evaluated = (variantsByOrder.get(beat.order) ?? [])
-      .map((text) => {
-        const base = variantScore(
-          text,
-          beatFacts,
-          [beat.change].map(clean).filter(Boolean),
+  if (isMemoryMode && plan.beats.length > 1) {
+    const productions = [0, 1, 2, 3]
+      .map((variantIndex) =>
+        scoreMemorySequence(
+          variantIndex,
+          plan,
+          variantsByOrder,
+          input.suppliedReality,
           input.subject,
-          prior,
-        );
-        const payoffPenalty = memoryPayoffReplayPenalty(
-          text,
-          beatFacts,
-          isMemoryMode,
-          index === plan.beats.length - 1,
-          beat.change,
-        );
+        ),
+      )
+      .sort((a, b) => {
+        if (a.accepted !== b.accepted) return a.accepted ? -1 : 1;
+        return b.score - a.score;
+      });
+
+    const winner = productions[0];
+
+    debug("MEMORY-PRODUCTIONS", productions.map((production) => ({
+      production: String.fromCharCode(65 + production.variantIndex),
+      accepted: production.accepted,
+      score: production.score,
+      reasons: production.reasons,
+      lines: production.lines.map((line) => line.text),
+    })));
+
+    for (const [index, beat] of plan.beats.entries()) {
+      const beatFacts = beat.eventIds
+        .map((id) => input.suppliedReality.find((event) => event.id === id)?.text ?? "")
+        .map(clean)
+        .filter(Boolean);
+
+      const alternatives = productions.map((production) => {
+        const line = production.lines[index];
         return {
-          text,
-          ...base,
-          score: Math.max(0, base.score - payoffPenalty),
-          reasons: payoffPenalty > 0
-            ? [...base.reasons, "memory-payoff-replay"]
-            : base.reasons,
+          text: line?.text ?? "",
+          accepted: line?.accepted ?? false,
+          score: line?.score ?? 0,
+          reasons: line?.reasons ?? ["missing-production-line"],
         };
       });
 
-    const ranked = evaluated
-      .filter((candidate) => candidate.accepted)
-      .sort((a, b) => b.score - a.score);
+      const winnerLine = winner?.lines[index];
+      const selectedText = winnerLine?.accepted && winnerLine.text
+        ? winnerLine.text
+        : alternatives
+            .filter((candidate) => candidate.accepted)
+            .sort((a, b) => b.score - a.score)[0]?.text ??
+          safeFallbackText(beat, input.suppliedReality);
 
-    const selectedText = ranked[0]?.text ?? safeFallbackText(beat, input.suppliedReality);
+      debug(`MOUTH-BEAT-${beat.order}-CHOICE`, {
+        beat,
+        beatFacts,
+        candidates: alternatives,
+        selectedProduction: winner
+          ? String.fromCharCode(65 + winner.variantIndex)
+          : "NONE",
+        selected: selectedText || "FACT-FALLBACK",
+      });
 
-    debug(`MOUTH-BEAT-${beat.order}-CHOICE`, {
-      beat,
-      beatFacts,
-      candidates: evaluated,
-      selected: selectedText || "FACT-FALLBACK",
-    });
+      choices.push({
+        order: beat.order,
+        beat,
+        beatFacts,
+        candidates: alternatives,
+        selected: selectedText,
+      });
 
-    choices.push({
-      order: beat.order,
-      beat,
-      beatFacts,
-      candidates: evaluated,
-      selected: selectedText,
-    });
+      if (!selectedText) continue;
+      scenes.push({
+        text: selectedText,
+        kind: beatKind(beat.role, index, plan.beats.length),
+        sourceEventIds: beat.eventIds,
+      });
+    }
+  } else {
+    const prior: string[] = [];
 
-    const text = selectedText;
-    if (!text) continue;
+    for (const [index, beat] of plan.beats.entries()) {
+      const beatFacts = beat.eventIds
+        .map((id) => input.suppliedReality.find((event) => event.id === id)?.text ?? "")
+        .map(clean)
+        .filter(Boolean);
 
-    scenes.push({
-      text,
-      kind: beatKind(beat.role, index, plan.beats.length),
-      sourceEventIds: beat.eventIds,
-    });
-    prior.push(text);
+      const evaluated = (variantsByOrder.get(beat.order) ?? [])
+        .map((text) => {
+          const base = variantScore(
+            text,
+            beatFacts,
+            [beat.change].map(clean).filter(Boolean),
+            input.subject,
+            prior,
+          );
+          const payoffPenalty = memoryPayoffReplayPenalty(
+            text,
+            beatFacts,
+            isMemoryMode,
+            index === plan.beats.length - 1,
+            beat.change,
+          );
+          return {
+            text,
+            ...base,
+            score: Math.max(0, base.score - payoffPenalty),
+            reasons: payoffPenalty > 0
+              ? [...base.reasons, "memory-payoff-replay"]
+              : base.reasons,
+          };
+        });
+
+      const ranked = evaluated
+        .filter((candidate) => candidate.accepted)
+        .sort((a, b) => b.score - a.score);
+
+      const selectedText = ranked[0]?.text ?? safeFallbackText(beat, input.suppliedReality);
+
+      debug(`MOUTH-BEAT-${beat.order}-CHOICE`, {
+        beat,
+        beatFacts,
+        candidates: evaluated,
+        selected: selectedText || "FACT-FALLBACK",
+      });
+
+      choices.push({
+        order: beat.order,
+        beat,
+        beatFacts,
+        candidates: evaluated,
+        selected: selectedText,
+      });
+
+      if (!selectedText) continue;
+
+      scenes.push({
+        text: selectedText,
+        kind: beatKind(beat.role, index, plan.beats.length),
+        sourceEventIds: beat.eventIds,
+      });
+      prior.push(selectedText);
+    }
   }
 
   return {
