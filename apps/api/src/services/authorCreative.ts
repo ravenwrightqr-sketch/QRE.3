@@ -153,6 +153,9 @@ export async function createAuthorExperience(input: {
   modelCalls: number;
 }> {
   const presentationContext = presentationAffordance(input.domainContext);
+  const contextRecord = (input.domainContext ?? {}) as Record<string, unknown>;
+  const experienceMode = clean(contextRecord.experienceMode).toUpperCase();
+  const isMemoryExperience = experienceMode === "MEMORY";
   const realityDirect =
     clean(input.creativeDiscovery.selected.id).toLowerCase() === "reality-direct";
 
@@ -167,7 +170,9 @@ export async function createAuthorExperience(input: {
     "The beats are the creative act.",
     ...(presentationContext ? ["", presentationContext, ""] : [""]),
     "QRE WRITING:",
-    "This is a moving text-by-text memory experience. Each beat is one screen moment, not a paragraph or caption.",
+    isMemoryExperience
+      ? "This is a moving text-by-text memory experience. Each beat is one screen moment, not a paragraph or caption."
+      : "This is a moving text-by-text experience. Each beat is one screen moment, not a paragraph or caption.",
     "Prefer compact bursts that can be felt in motion; most beats should land in roughly 2 to 7 words. A slightly longer line is allowed only when it clearly hits harder than splitting it.",
     "Compress pronouns, setup, and explanation when the viewer already knows who or what is present.",
     "A beat may be a reaction, thought, cue, fragment, direct address, tiny reveal, or character voice rather than a complete sentence.",
