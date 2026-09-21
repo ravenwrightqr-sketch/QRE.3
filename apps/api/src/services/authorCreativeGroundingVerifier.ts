@@ -284,6 +284,10 @@ export async function verifyAuthorCreativeGrounding(input: {
     verificationByClause.set(`${sceneIndex}:${clauseIndex}`, item);
   }
 
+  const unsupportedTemporalComparison =
+    /\b(?:long|short|brief|briefly|quick|quickly|slow|slowly|fast|faster|slower)\b/i;
+  const suppliedTemporalComparison = unsupportedTemporalComparison.test(suppliedRealityText);
+
   const scenes = input.scenes.flatMap((scene, sceneIndex) => {
     const fragments = beatClauseFragments(scene.text);
     const clauses = beatClauses(scene.text);
@@ -348,6 +352,12 @@ export async function verifyAuthorCreativeGrounding(input: {
 
       const fragment = fragments[clauseIndex];
       if (!fragment) continue;
+      if (
+        unsupportedTemporalComparison.test(fragment) &&
+        !suppliedTemporalComparison
+      ) {
+        continue;
+      }
 
       supportedFragments.push(fragment);
       sourceEventIds.forEach((id) => supportedIds.add(id));
