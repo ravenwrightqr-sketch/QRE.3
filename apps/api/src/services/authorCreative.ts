@@ -223,7 +223,11 @@ function lockPlanToApprovedMeaning(
   }
 
   const authorizedEventIds = new Set(
-    selected.evidenceEventIds.map(clean).filter(Boolean),
+    (
+      discovery.playableEventIds.length
+        ? discovery.playableEventIds
+        : selected.evidenceEventIds
+    ).map(clean).filter(Boolean),
   );
 
   const scopedBeats = plan.beats
@@ -306,8 +310,15 @@ export async function createAuthorExperience(input: {
   const allowedEventIds = new Set(input.suppliedReality.map((event) => event.id));
   const presentationContext = presentationAffordance(input.domainContext);
   const selected = input.creativeDiscovery.selected;
+  const playableIds = new Set(
+    (
+      input.creativeDiscovery.playableEventIds.length
+        ? input.creativeDiscovery.playableEventIds
+        : selected.evidenceEventIds
+    ).map(clean).filter(Boolean),
+  );
   const selectedEvidence = input.suppliedReality.filter((event) =>
-    selected.evidenceEventIds.includes(event.id),
+    playableIds.has(clean(event.id)),
   );
   const useDeterministicSparsePlan =
     selectedEvidence.length > 0 && selectedEvidence.length <= 3;
