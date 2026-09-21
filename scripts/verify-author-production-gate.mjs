@@ -51,7 +51,12 @@ if (required.every((p) => existsSync(join(root, p)))) {
   if (!/candidates/.test(discovery) || !/selectedCandidateId/.test(discovery) || !/evidenceEventIds/.test(discovery)) failures.push("Creative Discovery must search competing grounded perceptions and select one with evidence");
   if (!/MAKE THE EXPERIENCE FIRST\./.test(creative) || !/GROUND AFTER WRITING:/.test(creative) || !/beats first and grounding second/.test(creative) || !/SUPPLIED_REALITY/.test(creative)) failures.push("QRE Creative must write the experience before grounding it against supplied reality");
   if (!/Reality is fixed\./.test(creative) || !/Interpretation is free\./.test(creative)) failures.push("QRE Creative missing fixed-reality/free-interpretation law");
-  if (!/Semantic Grounding/.test(verifier) || !/grounded/.test(verifier)) failures.push("Semantic grounding verifier missing from Author truth boundary");
+  if (
+    !/Atomic Semantic Grounding/.test(verifier) ||
+    !/ATOMIC_CLAUSES/.test(verifier) ||
+    !/unsupportedClaims/.test(verifier) ||
+    !/verifyAuthorCreativeGrounding\s*\(/.test(brain)
+  ) failures.push("Semantic grounding verifier missing from Author truth boundary");
   if (/localModelGenerate\s*\(/.test(brain)) failures.push("Canonical brain may not directly call model");
   if (!/authorBrainCanonical/.test(service)) failures.push("Production service not wired to canonical brain");
   if (!/authorExperienceStateToMemoryBatch/.test(service) || !/buildExperienceMemoryBatch/.test(service)) failures.push("Memory/persistence boundary lost");
