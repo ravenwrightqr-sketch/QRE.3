@@ -161,6 +161,9 @@ async function verifyDiscoveryCandidates(input: {
           "A subject leaving happy does not prove why the subject was happy.",
           "Nervousness before later events does not prove those later events caused the nervousness.",
           "Preserve a figurative read when a reasonable viewer would understand it as imaginative framing of supplied actions rather than a factual claim about hidden reality.",
+          "Judge the whole candidate, not just its strongest phrase. If either perception or relationship contains an unsupported hidden premise, reject the candidate even when another part is grounded.",
+          "Words such as imposed, accepted, rebelled, defied, submitted, escaped, freed, constrained, resisted, or liberated describe agency, stance, or state. They are allowed only when the supplied reality itself establishes that meaning, not merely because an action can be dramatized that way.",
+          "Trying to remove an added object can support a figurative beat of resistance to that object, but it does not establish that the object was imposed, that the subject accepted it later, that removal succeeded, or that later happiness was caused by freedom from it.",
           "Return one grounded decision for every candidate, in the same order.",
         ].join("\n"),
       },
@@ -176,7 +179,7 @@ async function verifyDiscoveryCandidates(input: {
             evidenceEventIds: candidate.evidenceEventIds,
           })),
           instruction:
-            "Keep only candidates whose underlying premise is supported by supplied reality. Reject unsupported causal, motivational, outcome, agency, constraint, emotional-cause, or hidden-state claims even when they sound narratively compelling.",
+            "Keep only candidates whose entire underlying premise is supported by supplied reality. Reject the whole candidate if any perception or relationship clause adds unsupported causality, motive, completed outcome, agency, acceptance, imposition, rebellion, constraint, emotional cause, or hidden state even when another clause is grounded or figurative.",
         }),
       },
     ],
