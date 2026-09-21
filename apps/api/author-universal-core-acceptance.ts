@@ -134,6 +134,15 @@ for (const test of selectedCases) {
   console.log("\nCREATIVE DISCOVERY");
   console.log(JSON.stringify(result.diagnostics.creativeDiscovery ?? null, null, 2));
 
+  console.log("\nBARE AUTHOR PLAN");
+  console.log(JSON.stringify(result.diagnostics.bareAuthorPlan ?? null, null, 2));
+
+  console.log("\nMOUTH VARIANTS");
+  console.log(JSON.stringify(result.diagnostics.mouthVariants ?? null, null, 2));
+
+  console.log("\nMOUTH CHOICES");
+  console.log(JSON.stringify(result.diagnostics.mouthChoices ?? null, null, 2));
+
   console.log("\nQRE EXPERIENCE");
   result.scenes.forEach((scene, index) => {
     console.log(`[${index + 1}] ${scene.text}`);
