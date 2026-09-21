@@ -523,6 +523,11 @@ export async function createAuthorExperience(input: {
           "Do not write a thesis, interpretation, psychology, causality, motive, emotional explanation, or viewer-facing language.",
           "Do not invent or rename events. Output structure only.",
           "Use each evidence event ID at most once unless EXPERIENCE_SHAPE explicitly calls for callback, recurrence, repetition, or echo.",
+          ...(isMemoryMode ? [
+            "MEMORY STRUCTURE: give a substantial lived memory enough screen space to feel remembered, not summarized.",
+            "When 4 or more authorized evidence events carry the selected memory, usually prefer 3 to 4 beats. Compress only when the grouping creates a stronger experience.",
+            "Avoid stuffing 3 or more distinct moments into one beat merely to shorten the sequence. Preserve room for setup, development, and payoff.",
+          ] : []),
           ...(presentationContext ? [presentationContext] : []),
         ].join("\n"),
       },
@@ -635,6 +640,8 @@ export async function createAuthorExperience(input: {
             "WRITE FOUR COMPLETE PRODUCTIONS IN PARALLEL. Variant position is persistent across beats: variant 1 of every beat belongs to Production A; variant 2 belongs to Production B; variant 3 belongs to Production C; variant 4 belongs to Production D. Each production must read coherently from first cut to payoff.",
             "Give the four productions genuinely different creative approaches: A can lean bold figurative framing, B compressed attitude/voice, C recontextualization/status shift, D another strong sequence-aware conception. Do not make four near-synonymous productions.",
             "Within each production, later cuts should feel aware of what earlier cuts established. Build progression, contrast, callback, accumulation, or recontextualization instead of isolated labels.",
+            "PRESERVE DISTINCTIVE ANCHORS. A multi-event beat should not dissolve into generic atmosphere. Keep at least one recognizable source-specific anchor—an animal, object, number, quoted evaluation, action, time, or other distinctive detail—unless the production has already established that anchor strongly enough for a clear callback.",
+            "Specificity is fuel. Transform it; do not erase it.",
             "POSITIVE CREATIVE PATTERNS:",
             "SUPPLIED: saw a pigeon. STRONG TITLE-LIKE FRAMING: 'Unexpected management.' The phrase changes perception without claiming the pigeon literally managed anything.",
             "SUPPLIED: three friends arrived, then one brought cake. STRONG PROGRESSION: early cuts can establish the arrivals; the later cake cut can make the gathering feel newly significant without inventing why the cake came.",
@@ -667,7 +674,7 @@ export async function createAuthorExperience(input: {
           instruction: useIdentityClusterPlan
             ? "This is one IDENTITY character cluster, not a checklist. Return four short candidate realizations that synthesize the combination into character. Do not enumerate every supplied preference or simply restate them. The viewer should infer personality from the combination. Do not invent an event."
             : isMemoryMode
-              ? "Return four complete candidate productions encoded as four variants per beat. Keep variant index aligned across every beat: all first variants form Production A, all second variants form Production B, all third variants form Production C, all fourth variants form Production D. Each production should establish -> enrich -> land. The final cut must land the approved memory relation using its local evidence plus already-established prior evidence. Keep factual reality inside supplied event IDs, but make each production feel authored rather than enumerated."
+              ? "Return four complete candidate productions encoded as four variants per beat. Keep variant index aligned across every beat: all first variants form Production A, all second variants form Production B, all third variants form Production C, all fourth variants form Production D. Each production should establish -> enrich -> land. Preserve distinctive source anchors while transforming them. The final cut must land the approved memory relation using its local evidence plus already-established prior evidence. Then nominate the strongest complete production by number 1-4 based on specificity, progression, surprise, payoff, and how alive it feels—not on literalness. Keep factual reality inside supplied event IDs, but make each production feel authored rather than enumerated."
               : "Return four candidate lines per beat. The semantic plan controls meaning; the supplied event IDs control factual reality.",
         }),
       },
@@ -679,7 +686,9 @@ export async function createAuthorExperience(input: {
       jsonSchema: {
         type: "object",
         additionalProperties: false,
-        required: ["variantsByBeat"],
+        required: isMemoryMode
+          ? ["variantsByBeat", "selectedProduction", "selectionReason"]
+          : ["variantsByBeat"],
         properties: {
           variantsByBeat: {
             type: "array",
@@ -700,6 +709,8 @@ export async function createAuthorExperience(input: {
               },
             },
           },
+          selectedProduction: { type: "integer", minimum: 1, maximum: 4 },
+          selectionReason: { type: "string", maxLength: 220 },
         },
       },
     },
@@ -757,15 +768,32 @@ export async function createAuthorExperience(input: {
         return b.score - a.score;
       });
 
-    const winner = productions[0];
+    const nominatedProductionNumber = Number(parsedMouth?.selectedProduction);
+    const nominatedProduction = Number.isInteger(nominatedProductionNumber)
+      ? productions.find(
+          (production) =>
+            production.variantIndex === nominatedProductionNumber - 1 &&
+            production.accepted,
+        )
+      : undefined;
+    const winner = nominatedProduction ?? productions[0];
 
-    debug("MEMORY-PRODUCTIONS", productions.map((production) => ({
+    debug("MEMORY-PRODUCTIONS", {
+      modelNomination: Number.isInteger(nominatedProductionNumber)
+        ? String.fromCharCode(64 + nominatedProductionNumber)
+        : "NONE",
+      modelSelectionReason: clean(parsedMouth?.selectionReason),
+      winner: winner
+        ? String.fromCharCode(65 + winner.variantIndex)
+        : "NONE",
+      productions: productions.map((production) => ({
       production: String.fromCharCode(65 + production.variantIndex),
       accepted: production.accepted,
       score: production.score,
       reasons: production.reasons,
-      lines: production.lines.map((line) => line.text),
-    })));
+        lines: production.lines.map((line) => line.text),
+      })),
+    });
 
     for (const [index, beat] of plan.beats.entries()) {
       const beatFacts = beat.eventIds
