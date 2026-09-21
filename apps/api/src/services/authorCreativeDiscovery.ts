@@ -138,6 +138,96 @@ function normalizeCandidate(
   };
 }
 
+async function verifyDiscoveryCandidates(input: {
+  candidates: readonly AuthorCreativeCandidate[];
+  events: ReadonlyArray<{ id: string; text: string }>;
+}): Promise<{ groundedIds: Set<string>; modelCalls: number }> {
+  if (!input.candidates.length) {
+    return { groundedIds: new Set(), modelCalls: 0 };
+  }
+
+  const result = await localModelGenerate(
+    [
+      {
+        role: "system",
+        content: [
+          "You are QRE Discovery Semantic Grounding.",
+          "Reality is authority.",
+          "Judge whether each candidate's perception and relationship are supported interpretations of SUPPLIED_REALITY.",
+          "A candidate may be figurative, playful, compressed, or personified.",
+          "But it must be rejected if it turns sequence into causality, a later state into the result of an earlier event, an action into motive, an attempt into a completed outcome, or supplied facts into an unseen condition, backstory, preference strength, agency claim, constraint, liberation, ownership, ranking, or emotional cause that reality does not establish.",
+          "Chronology permits before/after only when the supplied events establish it; chronology alone does not establish because/therefore.",
+          "An attempt to remove something does not prove it was removed.",
+          "A subject leaving happy does not prove why the subject was happy.",
+          "Nervousness before later events does not prove those later events caused the nervousness.",
+          "Preserve a figurative read when a reasonable viewer would understand it as imaginative framing of supplied actions rather than a factual claim about hidden reality.",
+          "Return one grounded decision for every candidate, in the same order.",
+        ].join("\n"),
+      },
+      {
+        role: "user",
+        content: JSON.stringify({
+          SUPPLIED_REALITY: input.events,
+          CANDIDATES: input.candidates.map((candidate) => ({
+            id: candidate.id,
+            mode: candidate.mode,
+            perception: candidate.perception,
+            relationship: candidate.relationship,
+            evidenceEventIds: candidate.evidenceEventIds,
+          })),
+          instruction:
+            "Keep only candidates whose underlying premise is supported by supplied reality. Reject unsupported causal, motivational, outcome, agency, constraint, emotional-cause, or hidden-state claims even when they sound narratively compelling.",
+        }),
+      },
+    ],
+    "json",
+    {
+      numPredict: 320,
+      temperature: 0.08,
+      jsonSchema: {
+        type: "object",
+        additionalProperties: false,
+        required: ["verifications"],
+        properties: {
+          verifications: {
+            type: "array",
+            minItems: input.candidates.length,
+            maxItems: input.candidates.length,
+            items: {
+              type: "object",
+              additionalProperties: false,
+              required: ["candidateId", "grounded"],
+              properties: {
+                candidateId: { type: "string", maxLength: 48 },
+                grounded: { type: "boolean" },
+              },
+            },
+          },
+        },
+      },
+    },
+  );
+
+  const parsed = parseJson(result.text);
+  const raw = Array.isArray(parsed?.verifications)
+    ? parsed.verifications
+    : [];
+
+  const candidateIds = new Set(input.candidates.map((candidate) => candidate.id));
+  const groundedIds = new Set<string>();
+
+  for (const value of raw) {
+    if (!value || typeof value !== "object") continue;
+    const record = value as Record<string, unknown>;
+    const candidateId = clean(record.candidateId);
+    if (record.grounded === true && candidateIds.has(candidateId)) {
+      groundedIds.add(candidateId);
+    }
+  }
+
+  return { groundedIds, modelCalls: 1 };
+}
+
 export async function discoverAuthorCreativeDirection(input: {
   events: ReadonlyArray<{ id: string; text: string }>;
   requestedLens?: string;
@@ -293,7 +383,7 @@ export async function discoverAuthorCreativeDirection(input: {
   const parsed = parseJson(result.text);
   const rawCandidates = Array.isArray(parsed?.candidates) ? parsed.candidates : [];
   const suppliedRealityText = clean(input.events.map((event) => event.text).join(" "));
-  const candidates = rawCandidates
+  const deterministicCandidates = rawCandidates
     .map((value, index) => normalizeCandidate(value, index, allowedEventIds))
     .filter((value): value is AuthorCreativeCandidate => Boolean(value))
     .filter((candidate) =>
@@ -301,15 +391,24 @@ export async function discoverAuthorCreativeDirection(input: {
     )
     .slice(0, 4);
 
+  const semanticVerification = await verifyDiscoveryCandidates({
+    candidates: deterministicCandidates,
+    events: input.events,
+  });
+
+  const candidates = deterministicCandidates.filter((candidate) =>
+    semanticVerification.groundedIds.has(candidate.id),
+  );
+
   const fallbackCandidate: AuthorCreativeCandidate = {
-    id: "candidate-1",
+    id: "reality-direct",
     mode: "RELATIONAL",
-    perception: "",
+    perception: "Use the supplied reality directly; no additional hidden relationship is established.",
     relationship: "",
     observerInference: "",
-    evidenceEventIds: [],
+    evidenceEventIds: input.events.map((event) => event.id),
     whyItHits: "",
-    risk: "creative_discovery_parse_failure",
+    risk: "no_grounded_discovery_candidate",
   };
 
   const requestedSelectedId = clean(parsed?.selectedCandidateId);
@@ -360,6 +459,6 @@ export async function discoverAuthorCreativeDirection(input: {
         : selected.risk,
     },
     model: result.model,
-    modelCalls: 1,
+    modelCalls: 1 + semanticVerification.modelCalls,
   };
 }
