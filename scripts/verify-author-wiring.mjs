@@ -11,6 +11,7 @@ const files = {
   graph: "apps/api/src/services/authorRealityGraph.ts",
   discovery: "apps/api/src/services/authorCreativeDiscovery.ts",
   creative: "apps/api/src/services/authorCreative.ts",
+  cutPolicy: "apps/api/src/services/authorCutPolicy.ts",
   brain: "apps/api/src/services/authorBrainCanonical.ts",
   service: "apps/api/src/services/experienceService.ts",
   route: "apps/api/src/routes/experience.ts",
@@ -23,6 +24,7 @@ for (const [role, path] of Object.entries(files)) {
 
 if (!failures.length) {
   const brain = read(files.brain);
+  const creative = read(files.creative);
   const service = read(files.service);
   const route = read(files.route);
   const acceptance = read(files.acceptance);
@@ -40,6 +42,8 @@ if (!failures.length) {
   if (!/buildAuthorRealityGraph\s*\(/.test(brain)) failures.push("brain does not build RealityGraph");
   if (!/discoverAuthorCreativeDirection\s*\(/.test(brain)) failures.push("brain does not execute Creative Discovery");
   if (!/createAuthorExperience\s*\(/.test(brain)) failures.push("brain does not execute QRE Creative");
+  if (!/You are QRE Bare Author\./.test(creative) || !/You are QRE Mouth\./.test(creative)) failures.push("creative does not separate Author plan from Mouth");
+  if (!/evaluateAuthorCut\s*\(/.test(creative)) failures.push("creative does not execute deterministic cut floor");
   if (!/authorBrainCanonical\s*\(/.test(service)) failures.push("experienceService does not execute canonical brain");
   if (!/compileExperience\s*\(/.test(route)) failures.push("experience route does not execute compileExperience");
   if (!/authorBrainCanonical/.test(acceptance)) failures.push("universal acceptance does not call canonical brain");
@@ -51,4 +55,4 @@ if (failures.length) {
   console.error(`AUTHOR WIRING GUARD FAILED · ${failures.length}`);
   process.exit(1);
 }
-console.log("GREEN · ROUTE -> SERVICE -> BRAIN -> REALITY -> DISCOVERY -> CREATIVE");
+console.log("GREEN · ROUTE -> SERVICE -> BRAIN -> REALITY -> DISCOVERY -> AUTHOR PLAN -> MOUTH -> CUT FLOOR");
