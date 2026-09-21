@@ -145,6 +145,7 @@ async function verifyDiscoveryCandidates(input: {
   candidates: readonly AuthorCreativeCandidate[];
   events: ReadonlyArray<{ id: string; text: string }>;
   relations?: readonly AuthorDiscoveryRelation[];
+  domainContext?: AuthorDomainContext;
 }): Promise<{ groundedIds: Set<string>; modelCalls: number }> {
   if (!input.candidates.length) {
     return { groundedIds: new Set(), modelCalls: 0 };
@@ -176,6 +177,9 @@ async function verifyDiscoveryCandidates(input: {
           "For every candidate, extract unsupportedClaims: each causal, motivational, agency, outcome, state-change, ranking, chronology, hidden-condition, or other real-world premise that is not established by SUPPLIED_REALITY.",
           "Also judge worthRealizing. A candidate is worth realizing only when it extracts a specific perceptual opportunity from distinctive supplied material. Generic before/after summaries, broad emotional transitions, service/process descriptions, category labels, or restatements such as 'nervous then happy is a contrast' are grounded but NOT worth realizing when they ignore more specific supplied actions, objects, tensions, oddities, or character material.",
           "A tiny specific relation can be worth realizing even when it uses only one or two events. Specificity matters more than coverage.",
+          "IDENTITY MODE: stable supplied preferences and traits are character evidence. A candidate may make a clearly perceptual character inference from their specificity or combination—such as reading the pattern as curated, precise, particular, discerning, indulgent, or having a recognizable taste—without that inference becoming literal biography. Do NOT put 'infers personality/character/taste' into unsupportedClaims merely because it was not typed verbatim. This is the point of Identity Discovery.",
+          "IDENTITY MODE still may not invent an event, chronology, physical action, hidden history, diagnosis, literal motive, causal explanation, or claim that the subject consciously selected or deliberately arranged the supplied traits. 'Reads like a curated collection' can be framing; 'Milo deliberately curated these preferences' is a factual intentionality claim.",
+          "A desire, need, intention, or reason remains a motive claim and needs evidence even in IDENTITY mode.",
           "grounded is only a truth summary. unsupportedClaims is authoritative: grounded should be true exactly when unsupportedClaims is empty.",
           "Return one verification for every candidate, in the same order.",
         ].join("\n"),
@@ -185,6 +189,7 @@ async function verifyDiscoveryCandidates(input: {
         content: JSON.stringify({
           SUPPLIED_REALITY: input.events,
           SUPPLIED_RELATIONS: input.relations ?? [],
+          EXPERIENCE_MODE: clean((input.domainContext as Record<string, unknown> | undefined)?.experienceMode).toUpperCase() || undefined,
           CANDIDATES: input.candidates.map((candidate) => ({
             id: candidate.id,
             mode: candidate.mode,
@@ -193,7 +198,7 @@ async function verifyDiscoveryCandidates(input: {
             evidenceEventIds: candidate.evidenceEventIds,
           })),
           instruction:
-            "Audit every perception and relationship clause. Put each unsupported premise in unsupportedClaims, including invented causality, motive, completed outcome, agency, acceptance, imposition, rebellion, constraint, emotional cause, hidden state, or inferred resolution. grounded must equal unsupportedClaims.length === 0. Separately set worthRealizing=true only when the candidate gives QRE a specific perceptual relation or metamorphic opportunity worth turning into an experience. Do not reward a candidate merely for being true. Generic emotional transitions, broad service summaries, category descriptions, or obvious start/end contrasts are not enough when they fail to use the distinctive supplied material.",
+            "Audit every perception and relationship clause. Put each unsupported MATERIAL premise in unsupportedClaims, including invented causality, motive, completed outcome, agency, acceptance, imposition, constraint, emotional cause, hidden state, or inferred resolution. In IDENTITY mode, do not treat grounded perceptual character inference from stable preferences as unsupported merely because the personality word was not supplied verbatim. grounded must equal unsupportedClaims.length === 0. Separately set worthRealizing=true only when the candidate gives QRE a specific perceptual relation or metamorphic opportunity worth turning into an experience. Do not reward a candidate merely for being true. Generic emotional transitions, broad service summaries, category descriptions, or obvious start/end contrasts are not enough when they fail to use the distinctive supplied material.",
         }),
       },
     ],
@@ -286,6 +291,7 @@ async function repairDiscoveryCandidates(input: {
           "A perceptual relation may change status, significance, atmosphere, role, absurdity, intimacy, tension, ceremony, suspicion, tenderness, or another felt reading without asserting that the transformed frame literally happened.",
           "Never add motive, causality, ownership, successful outcome, hidden emotional cause, unseen condition, literal rank, literal role, or completed action.",
           "Prefer a small specific relation carried by supplied objects/actions over a broad emotional arc.",
+          "For IDENTITY material, preserve grounded character inference from stable preferences; do not repair it down into generic 'shared experiences' or 'simple pleasures' merely because the character word was not typed verbatim.",
           "Return up to two repaired candidates. If no candidate can be repaired without becoming bland or false, return an empty candidates array.",
         ].join("\n"),
       },
@@ -546,6 +552,7 @@ export async function discoverAuthorCreativeDirection(input: {
     candidates: structurallyAnchoredCandidates,
     events: input.events,
     relations: input.relations,
+    domainContext: input.domainContext,
   });
 
   let candidates = structurallyAnchoredCandidates.filter((candidate) =>
@@ -570,6 +577,7 @@ export async function discoverAuthorCreativeDirection(input: {
         candidates: repair.candidates,
         events: input.events,
         relations: input.relations,
+        domainContext: input.domainContext,
       });
       repairModelCalls += repairedVerification.modelCalls;
       candidates = repair.candidates.filter((candidate) =>
