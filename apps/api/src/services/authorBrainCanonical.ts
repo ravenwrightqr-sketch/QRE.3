@@ -319,6 +319,7 @@ export async function authorBrainCanonical(
   const verifiedCreative = await verifyAuthorCreativeGrounding({
     scenes: creativeResult.scenes,
     suppliedReality: events,
+    domainContext: input.domainContext,
   });
 
   const usedEvidenceIds = new Set(
