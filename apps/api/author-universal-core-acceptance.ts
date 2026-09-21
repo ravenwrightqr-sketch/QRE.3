@@ -67,6 +67,23 @@ const cases: Case[] = [
     },
   },
   {
+    name: "MILO_MEMORY",
+    subject: "Milo",
+    facts: [
+      "Milo went for a walk at 5 PM",
+      "Milo saw squirrels",
+      "Milo met five dogs",
+      "two people said Milo was cute",
+      "the walk lasted 56 minutes",
+    ],
+    domainContext: {
+      experienceMode: "MEMORY",
+      category: "DOG TAG",
+      subjectType: "DOG",
+      outputType: "LIVING DOG TAG",
+    },
+  },
+  {
     name: "RELATIONSHIP",
     subject: "Alex",
     facts: [
