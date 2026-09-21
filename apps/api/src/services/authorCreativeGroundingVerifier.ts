@@ -149,6 +149,8 @@ export async function verifyAuthorCreativeGrounding(input: {
     "3. list unsupportedClaims: every material claim not established by SUPPLIED_REALITY;",
     "4. cite sourceEventIds that anchor the clause;",
     "5. set supported=true only when supportKind is not UNSUPPORTED, unsupportedClaims is empty, and at least one supplied event semantically anchors the clause.",
+    "Your fields must agree. If supported=true, unsupportedClaims MUST be []. If any unsupported material claim exists, set supported=false and supportKind=UNSUPPORTED.",
+    "Do not put the clause itself into unsupportedClaims merely because it is compressed, figurative, or contextual texture. unsupportedClaims is only for material claims that exceed reality.",
     "CONTEXTUAL_TEXTURE is allowed only for non-material scene texture. Never use it to excuse a new action, body behavior, outcome, motive, ownership, cause, chronology, or state change.",
     "",
     "groundingHint is only a clue from the writer. Never treat it as evidence by itself.",
@@ -165,7 +167,7 @@ export async function verifyAuthorCreativeGrounding(input: {
           WORLD_CONTEXT: input.domainContext,
           ATOMIC_CLAUSES: atomicClauses,
           instruction:
-            "Audit every atomic clause independently. Protect material truth while preserving imaginative story texture. 'Nerves' may paraphrase supplied nervousness; 'joy' may paraphrase supplied happiness. In a grooming-memory context, 'Water. Everywhere.' may be CONTEXTUAL_TEXTURE around a supplied bath because it heightens the physical atmosphere without changing the event. A bow may support a playful aesthetic question or figurative adornment language. But trying to remove a bow does not establish ownership, motive, rebellion, successful removal, or freedom; leaving happy does not establish relief, tail wagging, sunshine, or the cause of happiness. WORLD_CONTEXT helps interpret texture and vocabulary but never becomes historical evidence.",
+            "Audit every atomic clause independently. Protect material truth while preserving imaginative story texture. Keep your own fields logically consistent: supported=true requires unsupportedClaims=[]. 'Nerves' is a clean PARAPHRASE of supplied nervousness and therefore has no unsupported claim. 'Joy' or 'content' may paraphrase supplied happiness when the wording does not add a cause or new event. In a grooming-memory context, 'Water. Everywhere.' may be CONTEXTUAL_TEXTURE around a supplied bath because it heightens physical atmosphere without changing material history; do not list 'Everywhere' as unsupported if you classify the line as allowed contextual texture. A playful aesthetic reaction to a supplied bow can be FIGURATIVE. But an attempted action does not establish ownership, motive, rebellion, successful completion, or freedom; happiness does not establish tail wagging, relief, sunshine, or why the happiness occurred. WORLD_CONTEXT helps interpret texture and vocabulary but never becomes historical evidence.",
         }),
       },
     ],
