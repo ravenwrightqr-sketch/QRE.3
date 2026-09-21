@@ -9,7 +9,7 @@ const required = [
   "apps/api/src/services/authorRealityGraph.ts",
   "apps/api/src/services/authorCreativeDiscovery.ts",
   "apps/api/src/services/authorCreative.ts",
-  "apps/api/src/services/authorCutPolicy.ts",
+  "apps/api/src/services/authorCutFloor.ts",
   "apps/api/src/services/authorCreativeGroundingVerifier.ts",
   "apps/api/src/services/authorBrainCanonical.ts",
   "apps/api/src/services/experienceService.ts",
@@ -55,7 +55,7 @@ const allowedAuthorServiceFiles = new Set([
   "authorRealityGraph.ts",
   "authorCreativeDiscovery.ts",
   "authorCreative.ts",
-  "authorCutPolicy.ts",
+  "authorCutFloor.ts",
   "authorCreativeGroundingVerifier.ts",
   "authorBrainCanonical.ts",
   "authorReadout.ts",
@@ -90,7 +90,7 @@ for (const token of ["authorRealityExtractor.js", "authorRealityGraph.js", "auth
   if (!brain.includes(token)) failures.push(`canonical-brain missing ${token}`);
 }
 if (/localModelGenerate\s*\(/.test(brain)) failures.push("canonical-brain must orchestrate, not call the model directly");
-if (!/authorCutPolicy\.js/.test(creative) || !/evaluateAuthorCut\s*\(/.test(creative)) {
+if (!/authorCutFloor\.js/.test(creative) || !/evaluateAuthorCut\s*\(/.test(creative)) {
   failures.push("QRE Creative must pass Mouth candidates through deterministic cut policy");
 }
 if (!/You are QRE Bare Author\./.test(creative) || !/You are QRE Mouth\./.test(creative)) {
