@@ -169,6 +169,39 @@ function beatKind(role: AuthorBeatRole, index: number, total: number): AuthorSce
   return "line";
 }
 
+
+function replayTokens(value: string): string[] {
+  return clean(value)
+    .toLowerCase()
+    .split(/[^a-z0-9'’-]+/i)
+    .map((token) => {
+      if (token === "tried" || token === "tries" || token === "attempted" || token === "attempt") return "try";
+      if (token === "removal" || token === "removed" || token === "removing") return "remove";
+      if (token.length > 5 && token.endsWith("ing")) return token.slice(0, -3);
+      if (token.length > 4 && token.endsWith("ed")) return token.slice(0, -2);
+      if (token.length > 4 && token.endsWith("es")) return token.slice(0, -2);
+      if (token.length > 3 && token.endsWith("s")) return token.slice(0, -1);
+      return token;
+    })
+    .filter((token) =>
+      token.length >= 3 &&
+      !new Set(["the", "and", "for", "with", "from", "that", "this", "just", "was", "were", "got", "had", "has"]).has(token)
+    );
+}
+
+function sourceReplayPenalty(text: string, beatFacts: readonly string[]): number {
+  const candidate = replayTokens(text);
+  if (!candidate.length) return 0;
+
+  const source = new Set(replayTokens(beatFacts.join(" ")));
+  const overlap = candidate.filter((token) => source.has(token)).length / candidate.length;
+
+  if (overlap >= 0.8) return 0.18;
+  if (overlap >= 0.6) return 0.12;
+  if (overlap >= 0.4) return 0.06;
+  return 0;
+}
+
 function variantScore(
   text: string,
   beatFacts: readonly string[],
@@ -188,7 +221,13 @@ function variantScore(
 
   const normalized = clean(text).toLowerCase();
   const repeated = prior.some((value) => clean(value).toLowerCase() === normalized);
-  const score = Math.max(0, policy.score - (repeated ? 0.35 : 0));
+  const replayPenalty = sourceReplayPenalty(text, beatFacts);
+  const score = Math.max(
+    0,
+    policy.score -
+      (repeated ? 0.35 : 0) -
+      replayPenalty,
+  );
 
   return {
     accepted: !repeated,
