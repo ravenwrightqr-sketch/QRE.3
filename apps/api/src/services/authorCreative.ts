@@ -349,6 +349,8 @@ export async function createAuthorExperience(input: {
   const allowedEventIds = new Set(input.suppliedReality.map((event) => event.id));
   const presentationContext = presentationAffordance(input.domainContext);
   const selected = input.creativeDiscovery.selected;
+  const contextRecord = (input.domainContext ?? {}) as Record<string, unknown>;
+  const experienceMode = clean(contextRecord.experienceMode).toUpperCase();
   const playableIds = new Set(
     (
       input.creativeDiscovery.playableEventIds.length
@@ -361,6 +363,10 @@ export async function createAuthorExperience(input: {
   );
   const useDeterministicSparsePlan =
     selectedEvidence.length > 0 && selectedEvidence.length <= 3;
+  const useIdentityClusterPlan =
+    useDeterministicSparsePlan &&
+    experienceMode === "IDENTITY" &&
+    selectedEvidence.length > 1;
 
   const planResult = useDeterministicSparsePlan
     ? {
@@ -427,9 +433,20 @@ export async function createAuthorExperience(input: {
     },
   );
 
-  const rawPlan = useDeterministicSparsePlan
-    ? fallbackPlan(selectedEvidence, input.creativeDiscovery)
-    : normalizePlan(parseJson(planResult.text), allowedEventIds) ??
+  const rawPlan = useIdentityClusterPlan
+    ? {
+        thesis: selected.perception || selected.relationship,
+        beats: [{
+          order: 1,
+          role: "PAYOFF" as AuthorBeatRole,
+          eventIds: selectedEvidence.map((event) => event.id),
+          attention: selectedEvidence.map((event) => event.text).join(" | "),
+          change: selected.perception || selected.relationship,
+        }],
+      }
+    : useDeterministicSparsePlan
+      ? fallbackPlan(selectedEvidence, input.creativeDiscovery)
+      : normalizePlan(parseJson(planResult.text), allowedEventIds) ??
       fallbackPlan(input.suppliedReality, input.creativeDiscovery);
 
   const plan = lockPlanToApprovedMeaning(
@@ -439,7 +456,11 @@ export async function createAuthorExperience(input: {
   );
 
   debug("BARE-AUTHOR-PLAN", {
-    mode: useDeterministicSparsePlan ? "DETERMINISTIC_SPARSE" : "MODEL_STRUCTURE",
+    mode: useIdentityClusterPlan
+      ? "DETERMINISTIC_IDENTITY_CLUSTER"
+      : useDeterministicSparsePlan
+        ? "DETERMINISTIC_SPARSE"
+        : "MODEL_STRUCTURE",
     raw: useDeterministicSparsePlan ? "SKIPPED_MODEL_PLAN" : planResult.text,
     selectedPlan: plan,
   });
