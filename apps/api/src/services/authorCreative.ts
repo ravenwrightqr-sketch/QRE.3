@@ -103,8 +103,8 @@ export async function createAuthorExperience(input: {
     "The beats are the creative act.",
     ...(presentationContext ? ["", presentationContext, ""] : [""]),
     "QRE WRITING:",
-    "This is a moving text-by-text experience. Each beat is one screen moment, not a paragraph or caption.",
-    "Prefer compact bursts that can be felt in motion; most beats should land in roughly 2 to 7 words, but a longer line is welcome when it earns the screen and hits harder than breaking it apart.",
+    "This is a moving text-by-text memory experience. Each beat is one screen moment, not a paragraph or caption.",
+    "Prefer compact bursts that can be felt in motion; most beats should land in roughly 2 to 7 words. A slightly longer line is allowed only when it clearly hits harder than splitting it.",
     "Compress pronouns, setup, and explanation when the viewer already knows who or what is present.",
     "A beat may be a reaction, thought, cue, fragment, direct address, tiny reveal, or character voice rather than a complete sentence.",
     "Do not front-load the experience by dumping all supplied facts into one opening line. Let facts arrive, react, echo, or reveal themselves across the moving sequence.",
@@ -214,7 +214,7 @@ export async function createAuthorExperience(input: {
     ? parsed!.grounding
     : [];
 
-  const receiptLikeGrounding = rawGrounding.filter((value) => {
+  const flatSequenceGrounding = rawGrounding.filter((value) => {
     if (!value || typeof value !== "object") return false;
     const grounding = value as RawGrounding;
     const beatIndex = Number(grounding.beatIndex);
@@ -231,12 +231,12 @@ export async function createAuthorExperience(input: {
     );
   }).length;
 
-  const receiptLike =
+  const flatSequence =
     realityDirect &&
     beats.length >= 4 &&
-    receiptLikeGrounding >= Math.ceil(beats.length * 0.8);
+    flatSequenceGrounding >= Math.ceil(beats.length * 0.8);
 
-  if (receiptLike) {
+  if (flatSequence) {
     const retry = await localModelGenerate(
       [
         { role: "system", content: system },
@@ -257,7 +257,7 @@ export async function createAuthorExperience(input: {
               grounding: rawGrounding,
             },
             instruction:
-              "Rewrite the FLAT_DRAFT because it maps almost one beat to each fact and reads like a compressed receipt. Keep the same supplied reality and truth boundary. Do not decorate randomly and do not invent new physical events, body behavior, causes, motives, places, or outcomes. Instead make the existing material feel lived: let facts fuse or disappear, use reaction or attitude where naturally supported, let one beat change the meaning of another, and stop when the sequence lands. The revision must feel more like an experience than a renamed list. Return only the revised beats and their grounding.",
+              "Rewrite the FLAT_DRAFT because it maps almost one beat to each fact and does not yet feel like a QRE memory experience. Keep the same supplied reality and truth boundary. Perform this exactly as you would any other memory: short screen moments, usually about 2 to 7 words, each carrying feeling, attitude, implication, tension, reaction, or a change in how the viewer reads the reality. Do not decorate randomly and do not invent new physical events, body behavior, causes, motives, places, or outcomes. Let facts fuse or disappear when stronger. Stop when the memory lands. Return only the revised beats and their grounding.",
           }),
         },
       ],
