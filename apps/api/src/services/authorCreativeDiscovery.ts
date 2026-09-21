@@ -257,6 +257,100 @@ async function verifyDiscoveryCandidates(input: {
   return { groundedIds, modelCalls: 1 };
 }
 
+async function repairDiscoveryCandidates(input: {
+  candidates: readonly AuthorCreativeCandidate[];
+  events: ReadonlyArray<{ id: string; text: string }>;
+  allowedEventIds: Set<string>;
+}): Promise<{ candidates: AuthorCreativeCandidate[]; model: string; modelCalls: number }> {
+  if (!input.candidates.length) {
+    return { candidates: [], model: "none", modelCalls: 0 };
+  }
+
+  const result = await localModelGenerate(
+    [
+      {
+        role: "system",
+        content: [
+          "You are QRE Creative Discovery Repair.",
+          "Reality is fixed. Interpretation is free.",
+          "The first discovery pass found creative possibilities, but none survived semantic grounding.",
+          "Do not invent a new story. Salvage the strongest perceptual opportunity by removing the unsupported premise that poisoned it.",
+          "Keep the creative leap; remove fake history.",
+          "A perceptual relation may change status, significance, atmosphere, role, absurdity, intimacy, tension, ceremony, suspicion, tenderness, or another felt reading without asserting that the transformed frame literally happened.",
+          "Never add motive, causality, ownership, successful outcome, hidden emotional cause, unseen condition, literal rank, literal role, or completed action.",
+          "Prefer a small specific relation carried by supplied objects/actions over a broad emotional arc.",
+          "Return up to two repaired candidates. If no candidate can be repaired without becoming bland or false, return an empty candidates array.",
+        ].join("\n"),
+      },
+      {
+        role: "user",
+        content: JSON.stringify({
+          SUPPLIED_REALITY: input.events,
+          FAILED_DISCOVERY: input.candidates.map((candidate) => ({
+            id: candidate.id,
+            mode: candidate.mode,
+            perception: candidate.perception,
+            relationship: candidate.relationship,
+            evidenceEventIds: candidate.evidenceEventIds,
+          })),
+          instruction:
+            "Repair only the perceptual relation. State it as what the supplied facts can READ LIKE or FEEL LIKE, not as an explanation of why anything happened. Preserve distinctive supplied material. Do not write final cuts.",
+        }),
+      },
+    ],
+    "json",
+    {
+      numPredict: 360,
+      temperature: 0.46,
+      jsonSchema: {
+        type: "object",
+        additionalProperties: false,
+        required: ["candidates"],
+        properties: {
+          candidates: {
+            type: "array",
+            maxItems: 2,
+            items: {
+              type: "object",
+              additionalProperties: false,
+              required: ["id", "mode", "perception", "relationship", "evidenceEventIds"],
+              properties: {
+                id: { type: "string", maxLength: 48 },
+                mode: { type: "string", enum: ["RELATIONAL", "METAMORPHIC"] },
+                perception: { type: "string", maxLength: 180 },
+                relationship: { type: "string", maxLength: 140 },
+                evidenceEventIds: {
+                  type: "array",
+                  minItems: 1,
+                  maxItems: 32,
+                  items: { type: "string", maxLength: 64 },
+                },
+              },
+            },
+          },
+        },
+      },
+    },
+  );
+
+  const parsed = parseJson(result.text);
+  const raw = Array.isArray(parsed?.candidates) ? parsed.candidates : [];
+  const suppliedRealityText = clean(input.events.map((event) => event.text).join(" "));
+  const candidates = raw
+    .map((value, index) => normalizeCandidate(value, index, input.allowedEventIds))
+    .filter((value): value is AuthorCreativeCandidate => Boolean(value))
+    .filter((candidate) =>
+      !candidateCrossesDeterministicTruthFloor(candidate, suppliedRealityText),
+    )
+    .slice(0, 2);
+
+  return {
+    candidates,
+    model: result.model,
+    modelCalls: 1,
+  };
+}
+
 export async function discoverAuthorCreativeDirection(input: {
   events: ReadonlyArray<{ id: string; text: string }>;
   requestedLens?: string;
@@ -430,9 +524,33 @@ export async function discoverAuthorCreativeDirection(input: {
     events: input.events,
   });
 
-  const candidates = deterministicCandidates.filter((candidate) =>
+  let candidates = deterministicCandidates.filter((candidate) =>
     semanticVerification.groundedIds.has(candidate.id),
   );
+
+  let repairModel = result.model;
+  let repairModelCalls = 0;
+
+  if (!candidates.length && deterministicCandidates.length) {
+    const repair = await repairDiscoveryCandidates({
+      candidates: deterministicCandidates,
+      events: input.events,
+      allowedEventIds,
+    });
+    repairModel = repair.model === "none" ? result.model : repair.model;
+    repairModelCalls += repair.modelCalls;
+
+    if (repair.candidates.length) {
+      const repairedVerification = await verifyDiscoveryCandidates({
+        candidates: repair.candidates,
+        events: input.events,
+      });
+      repairModelCalls += repairedVerification.modelCalls;
+      candidates = repair.candidates.filter((candidate) =>
+        repairedVerification.groundedIds.has(candidate.id),
+      );
+    }
+  }
 
   const fallbackCandidate: AuthorCreativeCandidate = {
     id: "reality-direct",
@@ -492,7 +610,7 @@ export async function discoverAuthorCreativeDirection(input: {
         ? clean(parsed?.risk) || selected.risk
         : selected.risk,
     },
-    model: result.model,
-    modelCalls: 1 + semanticVerification.modelCalls,
+    model: repairModel,
+    modelCalls: 1 + semanticVerification.modelCalls + repairModelCalls,
   };
 }
