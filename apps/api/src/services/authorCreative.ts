@@ -89,13 +89,17 @@ export async function createAuthorExperience(input: {
   modelCalls: number;
 }> {
   const presentationContext = presentationAffordance(input.domainContext);
+  const realityDirect =
+    clean(input.creativeDiscovery.selected.id).toLowerCase() === "reality-direct";
 
   const system = [
     "You are QRE Creative.",
     "Reality is fixed. Interpretation is free.",
     "",
     "MAKE THE EXPERIENCE FIRST.",
-    "Treat the selected perception as the creative seed, then use the supplied reality freely to make the strongest grounded experience before thinking about provenance.",
+    realityDirect
+      ? "DISCOVERY FOUND NO SAFE HIDDEN THESIS. Do not use the fallback's meta wording as creative content. Shape the supplied reality itself: notice the strongest tension, attitude, contrast, reaction, status shift, or strange little turn already present and make that felt."
+      : "Treat the selected perception as the creative seed, then use the supplied reality freely to make the strongest grounded experience before thinking about provenance.",
     "The beats are the creative act.",
     ...(presentationContext ? ["", presentationContext, ""] : [""]),
     "QRE WRITING:",
@@ -114,8 +118,11 @@ export async function createAuthorExperience(input: {
     "Make each beat playable on its own screen and strong enough to arrive, disappear, and make room for the next.",
     "Do not shorten a genuinely strong line just to satisfy a word count; compress explanation, not impact.",
     "Let the sequence develop rather than merely enumerate.",
+    "Do not assign one beat to every fact. Facts may disappear, fuse, echo, or become setup for another beat.",
+    "Do not label the facts when you can stage their attitude. Prefer a lived reaction, turn, or implication over abstract nouns such as resistance, contentment, transformation, freedom, or victory.",
+    "Do not pad the sequence. Small memories usually need only enough beats to create movement and a residue; stop once the experience lands.",
     "A later beat can change how an earlier beat feels.",
-    "End on the line that leaves the strongest residue.",
+    "End on the line that leaves the strongest residue. Do not append explanatory, reflective, rhetorical-question, or maybe/finally epilogues after the payoff.",
     "",
     "CREATIVE FREEDOM:",
     "Metaphor, idiom, personification, double meaning, swagger, absurd seriousness, playfulness, and dramatic status are available tools.",
@@ -149,7 +156,9 @@ export async function createAuthorExperience(input: {
             selected: input.creativeDiscovery.selected,
             lens: input.creativeDiscovery.lens,
           },
-          instruction: "Write the viewer-facing beats first as a moving sequence of compact screen moments. Use the selected read as the creative seed and the full supplied reality as material. Let supplied facts arrive across the sequence rather than dumping them together. Prefer lived voice, reaction, fragments, and compressed identity over explanation. Follow the most alive possibility, shift status, surprise, and land. After the beats are finished, ground each one from the supplied reality actually used.",
+          instruction: realityDirect
+            ? "Write the viewer-facing beats first from the supplied reality itself. There is no approved hidden thesis, so do not invent one and do not repeat the fallback meta wording. Find the strongest playable movement already inside the facts. Use attitude, reaction, implication, compression, hyperbole, and contextual story texture where they do not rewrite material history. Do not make one beat per fact, do not end in abstract labels, and do not pad after the strongest landing. Then ground each beat from the supplied reality actually used."
+            : "Write the viewer-facing beats first as a moving sequence of compact screen moments. Use the selected read as the creative seed and the full supplied reality as material. Let supplied facts arrive across the sequence rather than dumping them together. Prefer lived voice, reaction, fragments, and compressed identity over explanation. Follow the most alive possibility, shift status, surprise, and land. After the beats are finished, ground each one from the supplied reality actually used.",
         }),
       },
     ],
