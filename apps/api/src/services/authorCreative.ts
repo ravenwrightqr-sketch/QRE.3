@@ -213,6 +213,17 @@ export async function createAuthorExperience(input: {
   scenes: Array<AuthorScene & { sourceEventIds: string[] }>;
   model: string;
   modelCalls: number;
+  diagnostics: {
+    plan: AuthorSemanticPlan;
+    variantsByBeat: Array<{ order: number; variants: string[] }>;
+    choices: Array<{
+      order: number;
+      beat: AuthorSemanticBeat;
+      beatFacts: string[];
+      candidates: Array<{ text: string; accepted: boolean; score: number }>;
+      selected: string;
+    }>;
+  };
 }> {
   const allowedEventIds = new Set(input.suppliedReality.map((event) => event.id));
   const presentationContext = presentationAffordance(input.domainContext);
@@ -401,6 +412,13 @@ export async function createAuthorExperience(input: {
 
   const prior: string[] = [];
   const scenes: Array<AuthorScene & { sourceEventIds: string[] }> = [];
+  const choices: Array<{
+    order: number;
+    beat: AuthorSemanticBeat;
+    beatFacts: string[];
+    candidates: Array<{ text: string; accepted: boolean; score: number }>;
+    selected: string;
+  }> = [];
 
   for (const [index, beat] of plan.beats.entries()) {
     const beatFacts = beat.eventIds
@@ -418,14 +436,24 @@ export async function createAuthorExperience(input: {
       .filter((candidate) => candidate.accepted)
       .sort((a, b) => b.score - a.score);
 
+    const selectedText = ranked[0]?.text ?? safeFallbackText(beat, input.suppliedReality);
+
     debug(`MOUTH-BEAT-${beat.order}-CHOICE`, {
       beat,
       beatFacts,
       candidates: evaluated,
-      selected: ranked[0]?.text ?? "FACT-FALLBACK",
+      selected: selectedText || "FACT-FALLBACK",
     });
 
-    const text = ranked[0]?.text ?? safeFallbackText(beat, input.suppliedReality);
+    choices.push({
+      order: beat.order,
+      beat,
+      beatFacts,
+      candidates: evaluated,
+      selected: selectedText,
+    });
+
+    const text = selectedText;
     if (!text) continue;
 
     scenes.push({
@@ -440,5 +468,12 @@ export async function createAuthorExperience(input: {
     scenes,
     model: mouthResult.model || planResult.model,
     modelCalls: 2,
+    diagnostics: {
+      plan,
+      variantsByBeat: [...variantsByOrder.entries()]
+        .sort(([a], [b]) => a - b)
+        .map(([order, variants]) => ({ order, variants })),
+      choices,
+    },
   };
 }
