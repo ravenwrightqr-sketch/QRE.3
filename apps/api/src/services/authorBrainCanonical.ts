@@ -40,6 +40,26 @@ const clean = (value: unknown): string =>
 const unique = (values: readonly string[]): string[] =>
   [...new Set(values.map(clean).filter(Boolean))];
 
+function memoryForActiveWorld(input: AuthorBrainTruth): string[] {
+  const activeWorldId = clean(input.worldScope?.worldId);
+
+  if (!activeWorldId) {
+    return unique(activeMemory);
+  }
+
+  const allowedWorldIds = new Set([
+    activeWorldId,
+    ...(input.worldScope?.relatedWorldIds ?? []).map(clean).filter(Boolean),
+  ]);
+
+  return unique(
+    (input.scopedMemoryContext ?? [])
+      .filter((entry) => allowedWorldIds.has(clean(entry.worldId)))
+      .map((entry) => clean(entry.text))
+      .filter(Boolean),
+  );
+}
+
 type CreativeSelection = {
   relationship: string;
   latentMovie: string;
@@ -251,6 +271,7 @@ export async function authorBrainCanonical(
   const prompt = clean(input.prompt);
   const suppliedFacts = unique(input.facts);
   const suppliedMoments = unique(input.sourceMoments);
+  const activeMemory = memoryForActiveWorld(input);
 
   const receipt = input.realityGraph
     ? {
@@ -276,7 +297,7 @@ export async function authorBrainCanonical(
       place: clean(input.place),
       facts: receipt.facts,
       sourceMoments: [],
-      memoryContext: input.memoryContext ?? [],
+      memoryContext: activeMemory,
       trajectory: input.trajectory ?? [],
     });
 
@@ -290,7 +311,7 @@ export async function authorBrainCanonical(
   const discoveryResult = await discoverAuthorCreativeDirection({
     events,
     requestedLens: input.lens,
-    memory: input.memoryContext ?? [],
+    memory: activeMemory,
     domainContext: input.domainContext,
   });
 
@@ -307,7 +328,7 @@ export async function authorBrainCanonical(
         subject,
         suppliedReality: events,
         creativeDiscovery: discoveryResult.discovery,
-        memory: input.memoryContext ?? [],
+        memory: activeMemory,
         domainContext: input.domainContext,
       })
     : {
