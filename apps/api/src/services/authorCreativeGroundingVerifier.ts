@@ -1,4 +1,4 @@
-import type { AuthorScene } from "@qre/contracts";
+import type { AuthorDomainContext, AuthorScene } from "@qre/contracts";
 import { localModelGenerate } from "./localModelRuntime.js";
 
 const clean = (value: unknown): string =>
@@ -39,6 +39,7 @@ type AtomicVerification = {
   sceneIndex?: unknown;
   clauseIndex?: unknown;
   supported?: unknown;
+  supportKind?: unknown;
   sourceEventIds?: unknown;
   concreteClaims?: unknown;
   unsupportedClaims?: unknown;
@@ -100,6 +101,7 @@ function hasUnsupportedSensoryClaim(
 export async function verifyAuthorCreativeGrounding(input: {
   scenes: Array<AuthorScene & { sourceEventIds: string[] }>;
   suppliedReality: readonly { id: string; text: string }[];
+  domainContext?: AuthorDomainContext;
 }): Promise<{
   scenes: Array<AuthorScene & { sourceEventIds: string[] }>;
   model: string;
@@ -127,9 +129,12 @@ export async function verifyAuthorCreativeGrounding(input: {
     "Reality is authority.",
     "",
     "You receive ATOMIC_CLAUSES. Judge every clause independently.",
-    "Support means the clause is directly established by SUPPLIED_REALITY or is an unavoidable semantic paraphrase of an explicitly supplied fact.",
-    "Typicality, common sense association, world knowledge, likely ingredients, likely body behavior, likely setting, and plausible aftermath are NOT support.",
-    "Do not unpack an event into conventional ingredients that were not stated. A bath does not establish water, soap, towels, wetness, shaking, a tub, or a grooming room.",
+    "Distinguish MATERIAL REALITY from STORY TEXTURE.",
+    "MATERIAL REALITY includes actors, deliberate actions, body actions, objects materially introduced into the event, ownership, motive, causality, chronology, success/failure, completed outcomes, relational status, and physical state changes. Material reality must be directly established by SUPPLIED_REALITY or be an unavoidable semantic paraphrase.",
+    "STORY TEXTURE may be allowed when a clause is clearly a nonliteral or hyperbolic rendering of the physical envelope, atmosphere, or dramatic feel of an explicitly supplied event AND WORLD_CONTEXT makes that rendering natural.",
+    "Story texture must not change what happened. It cannot add a new actor, deliberate action, body action, ownership, motive, causal relation, successful outcome, chronology, or consequential state.",
+    "Typicality alone is not enough for material reality, but ordinary event texture can support non-material creative language. Example: in a supplied bath inside grooming context, 'Water. Everywhere.' can function as hyperbolic texture around the bath; it does not mean QRE knows a literal flood occurred.",
+    "By contrast, a supplied bath does not establish that the subject shook, wagged, escaped, resisted, liked it, hated it, or became free.",
     "Do not convert emotion into body behavior. Happy does not establish wagging, smiling, jumping, posture, movement, or excitement.",
     "Do not convert an attempted action into motive, ownership, success, completion, release, freedom, rebellion, resistance, or preference unless reality explicitly establishes that claim.",
     "Do not convert chronology or an ending into causality, resolution, finally, freedom, relief, acceptance, or a reason for the later state unless reality explicitly establishes it.",
@@ -139,10 +144,12 @@ export async function verifyAuthorCreativeGrounding(input: {
     "Questions, reactions, fragments, attitude, metaphor, understatement, and exaggeration are allowed only when they do not assert hidden reality.",
     "",
     "For each atomic clause:",
-    "1. extract concreteClaims: every real-world claim or relational premise actually carried by the clause;",
-    "2. list unsupportedClaims: every such claim not established by SUPPLIED_REALITY;",
-    "3. cite sourceEventIds that support the clause when it is supported;",
-    "4. set supported=true exactly when unsupportedClaims is empty AND at least one supplied event semantically anchors the clause.",
+    "1. extract concreteClaims: every material real-world claim or relational premise carried by the clause;",
+    "2. choose supportKind: DIRECT, PARAPHRASE, FIGURATIVE, CONTEXTUAL_TEXTURE, or UNSUPPORTED;",
+    "3. list unsupportedClaims: every material claim not established by SUPPLIED_REALITY;",
+    "4. cite sourceEventIds that anchor the clause;",
+    "5. set supported=true only when supportKind is not UNSUPPORTED, unsupportedClaims is empty, and at least one supplied event semantically anchors the clause.",
+    "CONTEXTUAL_TEXTURE is allowed only for non-material scene texture. Never use it to excuse a new action, body behavior, outcome, motive, ownership, cause, chronology, or state change.",
     "",
     "groundingHint is only a clue from the writer. Never treat it as evidence by itself.",
     "Return exactly one verification for every atomic clause, preserving sceneIndex and clauseIndex.",
@@ -155,9 +162,10 @@ export async function verifyAuthorCreativeGrounding(input: {
         role: "user",
         content: JSON.stringify({
           SUPPLIED_REALITY: input.suppliedReality,
+          WORLD_CONTEXT: input.domainContext,
           ATOMIC_CLAUSES: atomicClauses,
           instruction:
-            "Audit every atomic clause independently. Explicit fact or unavoidable paraphrase is support; typical association is not. Examples: 'nerves' may paraphrase explicitly supplied nervousness; 'joy' may paraphrase explicitly supplied happiness. But bath does not supply water, a bow does not supply prettiness or a crown, trying to remove does not supply ownership or rebellion, and leaving happy does not supply freedom, relief, tail wagging, sunshine, or the cause of happiness.",
+            "Audit every atomic clause independently. Protect material truth while preserving imaginative story texture. 'Nerves' may paraphrase supplied nervousness; 'joy' may paraphrase supplied happiness. In a grooming-memory context, 'Water. Everywhere.' may be CONTEXTUAL_TEXTURE around a supplied bath because it heightens the physical atmosphere without changing the event. A bow may support a playful aesthetic question or figurative adornment language. But trying to remove a bow does not establish ownership, motive, rebellion, successful removal, or freedom; leaving happy does not establish relief, tail wagging, sunshine, or the cause of happiness. WORLD_CONTEXT helps interpret texture and vocabulary but never becomes historical evidence.",
         }),
       },
     ],
@@ -181,6 +189,7 @@ export async function verifyAuthorCreativeGrounding(input: {
                 "sceneIndex",
                 "clauseIndex",
                 "supported",
+                "supportKind",
                 "sourceEventIds",
                 "concreteClaims",
                 "unsupportedClaims",
@@ -197,6 +206,10 @@ export async function verifyAuthorCreativeGrounding(input: {
                   maximum: 11,
                 },
                 supported: { type: "boolean" },
+                supportKind: {
+                  type: "string",
+                  enum: ["DIRECT", "PARAPHRASE", "FIGURATIVE", "CONTEXTUAL_TEXTURE", "UNSUPPORTED"],
+                },
                 sourceEventIds: {
                   type: "array",
                   maxItems: 32,
@@ -256,7 +269,14 @@ export async function verifyAuthorCreativeGrounding(input: {
             .filter(Boolean)
         : [];
 
-      if (item.supported !== true || unsupportedClaims.length) return [];
+      const supportKind = clean(item.supportKind).toUpperCase();
+      const allowedSupportKind =
+        supportKind === "DIRECT" ||
+        supportKind === "PARAPHRASE" ||
+        supportKind === "FIGURATIVE" ||
+        supportKind === "CONTEXTUAL_TEXTURE";
+
+      if (item.supported !== true || !allowedSupportKind || unsupportedClaims.length) return [];
 
       const sourceEventIds = Array.isArray(item.sourceEventIds)
         ? unique(
