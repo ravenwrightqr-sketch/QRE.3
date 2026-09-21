@@ -121,6 +121,7 @@ export async function createAuthorExperience(input: {
     "Do not assign one beat to every fact. Facts may disappear, fuse, echo, or become setup for another beat.",
     "Do not label the facts when you can stage their attitude. Prefer a lived reaction, turn, or implication over abstract nouns such as resistance, contentment, transformation, freedom, or victory.",
     "Do not force novelty for its own sake. If the supplied reality already has a clean playable turn, use it instead of adding decorative imagery or unrelated texture.",
+    "Contextual texture must grow directly out of the physical envelope of a supplied event. It may intensify what is already inherent in that event, but it may not import unrelated scenery, weather, light, body parts, sensory details, objects, or surroundings merely to make a state feel prettier or more cinematic.",
     "A strong beat may be simple. Prefer specific, grounded attitude over ornamental wording.",
     "Do not pad the sequence. Small memories usually need only enough beats to create movement and a residue; stop once the experience lands.",
     "A later beat can change how an earlier beat feels.",
@@ -257,7 +258,7 @@ export async function createAuthorExperience(input: {
               grounding: rawGrounding,
             },
             instruction:
-              "Rewrite the FLAT_DRAFT because it maps almost one beat to each fact and does not yet feel like a QRE memory experience. Keep the same supplied reality and truth boundary. Perform this exactly as you would any other memory: short screen moments, usually about 2 to 7 words, each carrying feeling, attitude, implication, tension, reaction, or a change in how the viewer reads the reality. Do not decorate randomly and do not invent new physical events, body behavior, causes, motives, places, or outcomes. Let facts fuse or disappear when stronger. Stop when the memory lands. Return only the revised beats and their grounding.",
+              "Rewrite the FLAT_DRAFT because it maps almost one beat to each fact and does not yet feel like a QRE memory experience. Keep the same supplied reality and truth boundary. Perform this exactly as you would any other memory: short screen moments, usually about 2 to 7 words, each carrying feeling, attitude, implication, tension, reaction, or a change in how the viewer reads the reality. Do not decorate randomly and do not invent new physical events, body behavior, causes, motives, places, outcomes, scenery, weather, light, body parts, sensory details, or objects. Contextual texture is allowed only when it directly intensifies the physical envelope of a supplied event. Let facts fuse or disappear when stronger. Stop when the memory lands. Return only the revised beats and their grounding.",
           }),
         },
       ],
