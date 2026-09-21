@@ -205,13 +205,117 @@ export async function createAuthorExperience(input: {
     },
   );
 
-  const parsed = parseJson(result.text);
-  const beats = Array.isArray(parsed?.beats)
+  let selectedResult = result;
+  let parsed = parseJson(result.text);
+  let beats = Array.isArray(parsed?.beats)
     ? parsed!.beats.map(clean).filter(Boolean).slice(0, 10)
     : [];
-  const rawGrounding = Array.isArray(parsed?.grounding)
+  let rawGrounding = Array.isArray(parsed?.grounding)
     ? parsed!.grounding
     : [];
+
+  const receiptLikeGrounding = rawGrounding.filter((value) => {
+    if (!value || typeof value !== "object") return false;
+    const grounding = value as RawGrounding;
+    const beatIndex = Number(grounding.beatIndex);
+    const support = clean(grounding.support).toUpperCase();
+    const sourceEventIds = Array.isArray(grounding.sourceEventIds)
+      ? grounding.sourceEventIds.filter((id): id is string => typeof id === "string")
+      : [];
+    return (
+      Number.isInteger(beatIndex) &&
+      beatIndex >= 0 &&
+      beatIndex < beats.length &&
+      support === "FACT" &&
+      sourceEventIds.length === 1
+    );
+  }).length;
+
+  const receiptLike =
+    realityDirect &&
+    beats.length >= 4 &&
+    receiptLikeGrounding >= Math.ceil(beats.length * 0.8);
+
+  if (receiptLike) {
+    const retry = await localModelGenerate(
+      [
+        { role: "system", content: system },
+        {
+          role: "user",
+          content: JSON.stringify({
+            subject: input.subject,
+            SUPPLIED_REALITY: input.suppliedReality,
+            MEMORY: (input.memory ?? []).slice(0, 20),
+            BUSINESS_CONTEXT: input.domainContext,
+            PRESENTATION_CONTEXT: presentationContext || undefined,
+            CREATIVE_DISCOVERY: {
+              selected: input.creativeDiscovery.selected,
+              lens: input.creativeDiscovery.lens,
+            },
+            FLAT_DRAFT: {
+              beats,
+              grounding: rawGrounding,
+            },
+            instruction:
+              "Rewrite the FLAT_DRAFT because it maps almost one beat to each fact and reads like a compressed receipt. Keep the same supplied reality and truth boundary. Do not decorate randomly and do not invent new physical events, body behavior, causes, motives, places, or outcomes. Instead make the existing material feel lived: let facts fuse or disappear, use reaction or attitude where naturally supported, let one beat change the meaning of another, and stop when the sequence lands. The revision must feel more like an experience than a renamed list. Return only the revised beats and their grounding.",
+          }),
+        },
+      ],
+      "json",
+      {
+        numPredict: 700,
+        temperature: 0.92,
+        jsonSchema: {
+          type: "object",
+          additionalProperties: false,
+          required: ["beats", "grounding"],
+          properties: {
+            beats: {
+              type: "array",
+              minItems: 1,
+              maxItems: 10,
+              items: { type: "string", maxLength: 120 },
+            },
+            grounding: {
+              type: "array",
+              minItems: 1,
+              maxItems: 10,
+              items: {
+                type: "object",
+                additionalProperties: false,
+                required: ["beatIndex", "support", "sourceEventIds"],
+                properties: {
+                  beatIndex: { type: "integer", minimum: 0, maximum: 9 },
+                  support: { type: "string", enum: ["FACT", "RELATION"] },
+                  sourceEventIds: {
+                    type: "array",
+                    minItems: 1,
+                    maxItems: 32,
+                    items: { type: "string", maxLength: 64 },
+                  },
+                },
+              },
+            },
+          },
+        },
+      },
+    );
+
+    const retryParsed = parseJson(retry.text);
+    const retryBeats = Array.isArray(retryParsed?.beats)
+      ? retryParsed!.beats.map(clean).filter(Boolean).slice(0, 10)
+      : [];
+    const retryGrounding = Array.isArray(retryParsed?.grounding)
+      ? retryParsed!.grounding
+      : [];
+
+    if (retryBeats.length && retryGrounding.length) {
+      selectedResult = retry;
+      parsed = retryParsed;
+      beats = retryBeats;
+      rawGrounding = retryGrounding;
+    }
+  }
 
   const eventIds = new Set(input.suppliedReality.map((event) => event.id));
   const groundingByBeat = new Map<number, { support: "FACT" | "RELATION"; sourceEventIds: string[] }>();
@@ -252,7 +356,7 @@ export async function createAuthorExperience(input: {
 
   return {
     scenes,
-    model: result.model,
-    modelCalls: 1,
+    model: selectedResult.model,
+    modelCalls: selectedResult === result ? 1 : 2,
   };
 }
