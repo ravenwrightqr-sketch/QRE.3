@@ -129,7 +129,8 @@ export async function verifyAuthorCreativeGrounding(input: {
     "Do not rewrite the beat.",
     "For each beat, explicitly extract every literal or concrete real-world claim carried by the words, including implied state changes, body actions, objects, settings, sensory details, chronology, outcomes, and causal relations.",
     "Then list every extracted claim that is not directly established by SUPPLIED_REALITY in unsupportedClaims.",
-    "A beat is grounded only when unsupportedClaims is empty.",
+    "A beat is grounded exactly when unsupportedClaims is empty.",
+    "grounded is only a summary field. QRE will trust the explicit unsupportedClaims audit over the summary boolean if they disagree.",
     "Return exactly one verification entry per beat, in the same order as BEATS.",
   ].join("\n");
 
@@ -145,7 +146,7 @@ export async function verifyAuthorCreativeGrounding(input: {
             groundingHint: scene.sourceEventIds,
           })),
           instruction:
-            "Verify every beat in the same order. groundingHint is only a clue from the writer; correct it when needed. First extract literalClaims from the exact words: every concrete object, place, body part, bodily action/state, sensory event, chronology marker, outcome, status change, causal relation, or physical condition asserted or implied. Then compare each claim to SUPPLIED_REALITY. Put every unsupported one in unsupportedClaims. Preserve figurative language only when its concrete carrier is supplied and unsupportedClaims is empty. A bath does not automatically establish water everywhere, stillness, soap, towels, shaking, or any surrounding scene. A dog does not establish tail wagging or other body behavior. A happy ending does not establish sunshine, freedom, release, acceptance, or why the happiness occurred. Return grounded=true only when unsupportedClaims is empty.",
+            "Verify every beat in the same order. groundingHint is only a clue from the writer; correct it when needed. First extract literalClaims from the exact words: every concrete object, place, body part, bodily action/state, sensory event, chronology marker, outcome, status change, causal relation, or physical condition asserted or implied. Then compare each claim to SUPPLIED_REALITY. Put every unsupported one in unsupportedClaims. Preserve figurative language only when its concrete carrier is supplied and unsupportedClaims is empty. A bath does not automatically establish water everywhere, stillness, soap, towels, shaking, or any surrounding scene. A dog does not establish tail wagging or other body behavior. A happy ending does not establish sunshine, freedom, release, acceptance, or why the happiness occurred. Set grounded to true exactly when unsupportedClaims is empty; do not reject a figurative beat merely because its wording is not literal when its concrete carrier is supplied.",
         }),
       },
     ],
@@ -212,7 +213,6 @@ export async function verifyAuthorCreativeGrounding(input: {
           .filter(Boolean)
       : [];
 
-    if (item.grounded !== true) return [];
     if (unsupportedClaims.length) return [];
     if (hasUnsupportedAbsoluteClaim(scene.text, suppliedRealityText)) return [];
     if (hasUnsupportedTemporalStateClaim(scene.text, suppliedRealityText)) return [];
