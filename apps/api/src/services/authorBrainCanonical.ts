@@ -295,9 +295,12 @@ export async function authorBrainCanonical(
   });
 
   const discoveryReady =
-    Boolean(discoveryResult.discovery.selected.perception) &&
-    Boolean(discoveryResult.discovery.selected.relationship) &&
-    discoveryResult.discovery.candidates.length > 0;
+    events.length > 0 &&
+    discoveryResult.discovery.selected.evidenceEventIds.length > 0 &&
+    Boolean(
+      discoveryResult.discovery.selected.perception ||
+      discoveryResult.discovery.selected.relationship,
+    );
 
   const creativeResult = discoveryReady
     ? await createAuthorExperience({
