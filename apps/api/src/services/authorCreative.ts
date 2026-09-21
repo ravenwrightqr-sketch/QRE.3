@@ -1,7 +1,7 @@
 import type { AuthorDomainContext, AuthorScene } from "@qre/contracts";
 import { localModelGenerate } from "./localModelRuntime.js";
 import type { AuthorCreativeDiscovery } from "./authorCreativeDiscovery.js";
-import { evaluateAuthorCut } from "./authorCutPolicy.js";
+import { evaluateAuthorCut } from "./authorCutFloor.js";
 
 const clean = (value: unknown): string =>
   String(value ?? "").replace(/\s+/g, " ").trim();
