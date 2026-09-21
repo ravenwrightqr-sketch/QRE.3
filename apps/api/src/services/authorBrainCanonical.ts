@@ -310,6 +310,12 @@ export async function authorBrainCanonical(
 
   const discoveryResult = await discoverAuthorCreativeDirection({
     events,
+    relations: world.relations.map((relation) => ({
+      from: relation.from,
+      to: relation.to,
+      kind: relation.kind,
+      strength: relation.strength,
+    })),
     requestedLens: input.lens,
     memory: activeMemory,
     domainContext: input.domainContext,
@@ -366,7 +372,7 @@ export async function authorBrainCanonical(
 
   const brief: AuthorCreativeBrief = {
     angle: discoveryResult.discovery.lens,
-    engine: "Reality -> Creative Discovery -> QRE Creative",
+    engine: "Reality -> Creative Discovery -> Semantic Beat Plan -> Mouth -> Grounding",
     question: "",
     strongestImage: events[0]?.text ?? "",
     tension:
