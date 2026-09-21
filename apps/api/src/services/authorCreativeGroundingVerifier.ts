@@ -40,7 +40,17 @@ type Verification = {
   sourceEventIds?: unknown;
   literalClaims?: unknown;
   unsupportedClaims?: unknown;
+  clauseAudits?: unknown;
 };
+
+function beatClauses(text: string): string[] {
+  const clauses = clean(text)
+    .split(/(?<=[.!?])\s+|\s*[;|]\s*/g)
+    .map((part) => clean(part.replace(/[.!?]+$/g, "")))
+    .filter(Boolean);
+
+  return clauses.length ? clauses.slice(0, 12) : [clean(text)].filter(Boolean);
+}
 
 const ABSOLUTE_RELATION_LANGUAGE = /\b(always|never|first|last)\b/i;
 const TEMPORAL_STATE_LANGUAGE = /\b(still|already|yet)\b/i;
@@ -131,6 +141,8 @@ export async function verifyAuthorCreativeGrounding(input: {
     "Then list every extracted claim that is not directly established by SUPPLIED_REALITY in unsupportedClaims.",
     "A beat is grounded exactly when unsupportedClaims is empty.",
     "grounded is only a summary field. QRE will trust the explicit unsupportedClaims audit over the summary boolean if they disagree.",
+    "Every beat arrives with CLAUSES. Audit every clause by clauseIndex. Do not merge away, skip, or forget a later clause. A compound beat survives only when every clause audit has zero unsupportedClaims.",
+    "Emotion does not establish body behavior. Happy does not establish wagging, smiling, jumping, posture, movement, or any other bodily manifestation.",
     "Return exactly one verification entry per beat, in the same order as BEATS.",
   ].join("\n");
 
@@ -143,10 +155,14 @@ export async function verifyAuthorCreativeGrounding(input: {
           SUPPLIED_REALITY: input.suppliedReality,
           BEATS: input.scenes.map((scene) => ({
             text: scene.text,
+            clauses: beatClauses(scene.text).map((clause, clauseIndex) => ({
+              clauseIndex,
+              text: clause,
+            })),
             groundingHint: scene.sourceEventIds,
           })),
           instruction:
-            "Verify every beat in the same order. groundingHint is only a clue from the writer; correct it when needed. First extract literalClaims from the exact words: every concrete object, place, body part, bodily action/state, sensory event, chronology marker, outcome, status change, causal relation, or physical condition asserted or implied. Then compare each claim to SUPPLIED_REALITY. Put every unsupported one in unsupportedClaims. Preserve figurative language only when its concrete carrier is supplied and unsupportedClaims is empty. A bath does not automatically establish water everywhere, stillness, soap, towels, shaking, or any surrounding scene. A dog does not establish tail wagging or other body behavior. A happy ending does not establish sunshine, freedom, release, acceptance, or why the happiness occurred. Set grounded to true exactly when unsupportedClaims is empty; do not reject a figurative beat merely because its wording is not literal when its concrete carrier is supplied.",
+            "Verify every beat in the same order. groundingHint is only a clue from the writer; correct it when needed. Audit EVERY provided clause by clauseIndex before deciding the beat. For each clause, extract its concrete or relational claims and put any unsupported premise in that clause's unsupportedClaims. Then produce aggregate literalClaims and unsupportedClaims for the whole beat. Do not skip trailing fragments: 'Tail wags. Free.' requires separate audits for 'Tail wags' and 'Free'. A bath does not automatically establish water everywhere, stillness, soap, towels, shaking, or any surrounding scene. A dog or a happy emotional state does not establish tail wagging or other bodily behavior. A happy ending does not establish sunshine, freedom, release, acceptance, or why the happiness occurred. Preserve figurative language when its concrete carrier is supplied and every clause is clean. Set grounded to true exactly when the aggregate unsupportedClaims is empty.",
         }),
       },
     ],
@@ -166,7 +182,7 @@ export async function verifyAuthorCreativeGrounding(input: {
             items: {
               type: "object",
               additionalProperties: false,
-              required: ["grounded", "sourceEventIds", "literalClaims", "unsupportedClaims"],
+              required: ["grounded", "sourceEventIds", "literalClaims", "unsupportedClaims", "clauseAudits"],
               properties: {
                 grounded: { type: "boolean" },
                 sourceEventIds: {
@@ -183,6 +199,24 @@ export async function verifyAuthorCreativeGrounding(input: {
                   type: "array",
                   maxItems: 16,
                   items: { type: "string", maxLength: 120 },
+                },
+                clauseAudits: {
+                  type: "array",
+                  minItems: 1,
+                  maxItems: 12,
+                  items: {
+                    type: "object",
+                    additionalProperties: false,
+                    required: ["clauseIndex", "unsupportedClaims"],
+                    properties: {
+                      clauseIndex: { type: "integer", minimum: 0, maximum: 11 },
+                      unsupportedClaims: {
+                        type: "array",
+                        maxItems: 8,
+                        items: { type: "string", maxLength: 120 },
+                      },
+                    },
+                  },
                 },
               },
             },
@@ -213,7 +247,32 @@ export async function verifyAuthorCreativeGrounding(input: {
           .filter(Boolean)
       : [];
 
+    const clauses = beatClauses(scene.text);
+    const clauseAudits = Array.isArray(item.clauseAudits)
+      ? item.clauseAudits.filter(
+          (audit): audit is Record<string, unknown> =>
+            Boolean(audit) && typeof audit === "object",
+        )
+      : [];
+
+    const everyClauseAudited = clauses.every((_, clauseIndex) => {
+      const audit = clauseAudits.find(
+        (candidate) => Number(candidate.clauseIndex) === clauseIndex,
+      );
+      if (!audit) return false;
+
+      const clauseUnsupported = Array.isArray(audit.unsupportedClaims)
+        ? audit.unsupportedClaims
+            .filter((claim): claim is string => typeof claim === "string")
+            .map(clean)
+            .filter(Boolean)
+        : [];
+
+      return clauseUnsupported.length === 0;
+    });
+
     if (unsupportedClaims.length) return [];
+    if (!everyClauseAudited) return [];
     if (hasUnsupportedAbsoluteClaim(scene.text, suppliedRealityText)) return [];
     if (hasUnsupportedTemporalStateClaim(scene.text, suppliedRealityText)) return [];
     if (hasUnsupportedSensoryClaim(scene.text, suppliedRealityText)) return [];
