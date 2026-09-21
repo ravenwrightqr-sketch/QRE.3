@@ -44,7 +44,7 @@ function memoryForActiveWorld(input: AuthorBrainTruth): string[] {
   const activeWorldId = clean(input.worldScope?.worldId);
 
   if (!activeWorldId) {
-    return unique(activeMemory);
+    return unique(input.memoryContext ?? []);
   }
 
   const allowedWorldIds = new Set([
