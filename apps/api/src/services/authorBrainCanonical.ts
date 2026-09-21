@@ -260,6 +260,9 @@ export type CanonicalAuthorResult = {
     creativeDiscovery?: AuthorCreativeDiscovery;
     realityModel?: string;
     creativeDiscoveryModel?: string;
+    bareAuthorPlan?: unknown;
+    mouthVariants?: unknown;
+    mouthChoices?: unknown;
   };
   adaptiveQuestions: Array<{ kind: string; question: string; reason: string }>;
   world: ReturnType<typeof buildAuthorRealityGraph>;
@@ -341,6 +344,7 @@ export async function authorBrainCanonical(
         scenes: [],
         model: discoveryResult.model,
         modelCalls: 0,
+        diagnostics: undefined,
       };
 
   const verifiedCreative = await verifyAuthorCreativeGrounding({
@@ -418,6 +422,9 @@ export async function authorBrainCanonical(
       creativeDiscovery: discoveryResult.discovery,
       realityModel: receipt.model,
       creativeDiscoveryModel: discoveryResult.model,
+      bareAuthorPlan: creativeResult.diagnostics?.plan,
+      mouthVariants: creativeResult.diagnostics?.variantsByBeat,
+      mouthChoices: creativeResult.diagnostics?.choices,
     },
     adaptiveQuestions: [],
     world,
