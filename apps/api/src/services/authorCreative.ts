@@ -242,16 +242,30 @@ function lockPlanToApprovedMeaning(
 
   return {
     thesis: approvedMeaning || approvedRelation || "Approved grounded perception.",
-    beats: beats.map((beat, index) => ({
-      ...beat,
-      order: index + 1,
-      attention: beat.eventIds
+    beats: beats.map((beat, index) => {
+      const isFirst = index === 0;
+      const isLast = index === beats.length - 1;
+      const attention = beat.eventIds
         .map((id) => events.find((event) => event.id === id)?.text ?? "")
         .map(clean)
         .filter(Boolean)
-        .join(" | "),
-      change: approvedMeaning || approvedRelation || "Advance the approved grounded perception.",
-    })),
+        .join(" | ");
+
+      const change = beats.length === 1
+        ? approvedMeaning || approvedRelation || "Realize this supplied evidence."
+        : isFirst
+          ? "Establish only this beat's supplied evidence. Do not import later evidence or state the full relation yet."
+          : isLast
+            ? approvedMeaning || approvedRelation || "Land the approved relation using only this beat and prior established evidence."
+            : "Advance the approved relation using only this beat and already-established prior evidence. Do not import later evidence.";
+
+      return {
+        ...beat,
+        order: index + 1,
+        attention,
+        change,
+      };
+    }),
   };
 }
 
@@ -392,6 +406,7 @@ export async function createAuthorExperience(input: {
         content: [
           "You are QRE Mouth.",
           "The Author already chose the semantic beats. Do not re-plan the story and do not invent a second meaning.",
+          "SEMANTIC AUTHORITY IS BEAT-SCOPED: a beat may use only its semanticMove plus evidence already established by earlier beats. Never pull a later beat's fact, reaction, payoff, or relation backward into an earlier cut.",
           "Generate four radically different short realizations for every approved beat.",
           "Most candidates should be 2 to 7 words. A tiny one-word attitude beat is allowed when it lands.",
           "Concrete reality comes ONLY from the beat's supplied event labels.",
@@ -411,16 +426,14 @@ export async function createAuthorExperience(input: {
         content: JSON.stringify({
           SUBJECT: input.subject,
           SUPPLIED_REALITY: input.suppliedReality,
-          APPROVED_SEMANTIC_AUTHORITY: {
-            perception: selected.perception,
-            relationship: selected.relationship,
-          },
           APPROVED_THESIS: plan.thesis,
-          APPROVED_BEATS: plan.beats.map((beat) => ({
+          APPROVED_BEATS: plan.beats.map((beat, index) => ({
             order: beat.order,
             role: beat.role,
             eventIds: beat.eventIds,
             attentionEvidence: beat.attention,
+            semanticMove: beat.change,
+            mayUseFullRelation: index === plan.beats.length - 1,
           })),
           CREATIVE_OPPORTUNITY: selected.perception,
           RELATION: selected.relationship,
@@ -511,7 +524,7 @@ export async function createAuthorExperience(input: {
         ...variantScore(
           text,
           beatFacts,
-          [selected.perception, selected.relationship].map(clean).filter(Boolean),
+          [beat.change].map(clean).filter(Boolean),
           input.subject,
           prior,
         ),
