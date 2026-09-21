@@ -258,14 +258,14 @@ export async function createAuthorExperience(input: {
               grounding: rawGrounding,
             },
             instruction:
-              "Rewrite the FLAT_DRAFT because it maps almost one beat to each fact and does not yet feel like a QRE memory experience. Keep the same supplied reality and truth boundary. Perform this exactly as you would any other memory: short screen moments, usually about 2 to 7 words, each carrying feeling, attitude, implication, tension, reaction, or a change in how the viewer reads the reality. Do not decorate randomly and do not invent new physical events, body behavior, causes, motives, places, outcomes, scenery, weather, light, body parts, sensory details, or objects. Contextual texture is allowed only when it directly intensifies the physical envelope of a supplied event. Let facts fuse or disappear when stronger. Stop when the memory lands. Return only the revised beats and their grounding.",
+              "Revise the FLAT_DRAFT; do not reimagine it from scratch. Its problem is one-beat-per-fact structure, not lack of decoration. Preserve any clean grounded beats that already work, then improve only the weak transitions or combinations. Use fewer, stronger moves when possible. Do not solve flatness by importing imagery. Do not invent new physical events, body behavior, causes, motives, places, outcomes, scenery, weather, light, body parts, sensory details, or objects. Contextual texture is allowed only when it directly intensifies the physical envelope of a supplied event. Prefer attitude, implication, juxtaposition, voice, compression, callback, or recontextualization of supplied material over new imagery. Let facts fuse or disappear when stronger. Stop when the memory lands. Return only the revised beats and their grounding.",
           }),
         },
       ],
       "json",
       {
         numPredict: 700,
-        temperature: 0.92,
+        temperature: 0.76,
         jsonSchema: {
           type: "object",
           additionalProperties: false,
