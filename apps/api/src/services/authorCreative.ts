@@ -325,19 +325,12 @@ export async function createAuthorExperience(input: {
       {
         role: "system",
         content: [
-          "You are QRE Bare Author.",
-          "You sequence an already-approved semantic opportunity. You do NOT invent a second thesis and you do NOT write final viewer-facing copy.",
-          "Reality is fixed. Interpretation is free.",
-          "CREATIVE_DISCOVERY is an interpretive opportunity, never factual evidence.",
-          "Build 2 to 5 useful beats from supplied reality. Facts may disappear, fuse, or support the same beat.",
-          "Each beat must cite the event IDs that authorize it.",
-          "attention should point at supplied evidence, not invent psychology.",
-          "change must stay inside the approved CREATIVE_DISCOVERY perception/relationship. Do not introduce a new emotional state, motive, identity claim, acceptance, rebellion, autonomy, vulnerability, surrender, or causal explanation unless that exact meaning is already supplied or explicitly approved upstream.",
-          "Do not turn chronology into causality, action into motive, attempt into success, emotion into body behavior, or context into hidden history.",
-          "Do not add scenery, weather, lighting, body parts, sensory details, people, places, objects, dialogue, outcomes, or physical actions.",
-          "A perceptual frame may create status, absurdity, ceremony, tension, intimacy, contrast, implication, or character without claiming that frame literally happened.",
-          "Prefer the distinctive supplied object/action/tension over a generic before-and-after emotional arc.",
-          "Do not write the final lines. Mouth will do that later.",
+          "You are QRE Bare Author Structure Planner.",
+          "Discovery already owns meaning. You own ONLY evidence grouping and sequence shape.",
+          "Return 2 to 5 beats using only supplied authorized event IDs.",
+          "You may fuse adjacent or tightly related evidence into one beat or omit evidence that does not need screen time.",
+          "Do not write a thesis, interpretation, psychology, causality, motive, emotional explanation, or viewer-facing language.",
+          "Do not invent or rename events. Output structure only.",
           ...(presentationContext ? [presentationContext] : []),
         ].join("\n"),
       },
@@ -345,28 +338,22 @@ export async function createAuthorExperience(input: {
         role: "user",
         content: JSON.stringify({
           SUBJECT: input.subject,
-          SUPPLIED_REALITY: input.suppliedReality,
-          CREATIVE_DISCOVERY: {
-            selected,
-            experienceShape: input.creativeDiscovery.experienceShape,
-          },
-          EXPERIENCE_MODE: experienceMode || undefined,
-          instruction: realityDirect
-            ? "No hidden thesis has been approved. Build the strongest factual/perceptual movement available directly from the supplied events without inventing a hidden explanation."
-            : "Use the selected perception as a framing opportunity, but make every beat depend on supplied event IDs. Preserve creative perception while removing any unsupported literal premise.",
+          AUTHORIZED_EVIDENCE: selectedEvidence,
+          EXPERIENCE_SHAPE: input.creativeDiscovery.experienceShape,
+          instruction:
+            "Return only the structural beat sequence. Use authorized evidence IDs only. Group evidence when useful; do not explain meaning.",
         }),
       },
     ],
     "json",
     {
-      numPredict: 620,
-      temperature: 0.5,
+      numPredict: 260,
+      temperature: 0.18,
       jsonSchema: {
         type: "object",
         additionalProperties: false,
-        required: ["thesis", "beats"],
+        required: ["beats"],
         properties: {
-          thesis: { type: "string", maxLength: 180 },
           beats: {
             type: "array",
             minItems: 1,
@@ -374,7 +361,7 @@ export async function createAuthorExperience(input: {
             items: {
               type: "object",
               additionalProperties: false,
-              required: ["order", "role", "eventIds", "attention", "change"],
+              required: ["order", "role", "eventIds"],
               properties: {
                 order: { type: "integer", minimum: 1, maximum: 6 },
                 role: { type: "string", enum: ["HOOK", "BUILD", "TURN", "PAYOFF"] },
@@ -384,8 +371,7 @@ export async function createAuthorExperience(input: {
                   maxItems: 32,
                   items: { type: "string", maxLength: 64 },
                 },
-                attention: { type: "string", maxLength: 180 },
-                change: { type: "string", maxLength: 180 },
+
               },
             },
           },
