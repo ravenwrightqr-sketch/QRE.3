@@ -77,6 +77,70 @@ function presentationAffordance(domainContext?: AuthorDomainContext): string {
   ].join("\n");
 }
 
+async function chooseCreativeDraft(input: {
+  suppliedReality: readonly AuthorCreativeEvent[];
+  firstBeats: string[];
+  firstGrounding: unknown[];
+  retryBeats: string[];
+  retryGrounding: unknown[];
+}): Promise<{ bestDraft: 0 | 1; model: string; modelCalls: number }> {
+  const result = await localModelGenerate(
+    [
+      {
+        role: "system",
+        content: [
+          "You are QRE Creative Draft Critic.",
+          "Choose which complete draft better realizes the SAME supplied reality.",
+          "Truth is mandatory, but bland literalism is not enough.",
+          "Reward: source-specific attitude, implication, juxtaposition, compression, character, perceptual reframe, afterimage, and lines that could only plausibly come from this supplied material.",
+          "Penalize: generic summaries, one-label-per-fact structure, decorative imagery, cute/domain clichés, imported scenery, weather, light, body parts, sensory detail, objects, motives, causes, outcomes, or physical actions not supplied.",
+          "Creative transformation may change perception, framing, attitude, metaphor, status, or emotional pressure. It may not become a new concrete fact.",
+          "A simpler grounded line beats a prettier invented line.",
+          "Judge the draft as a sequence, not isolated vocabulary.",
+          "Return bestDraft=0 for FIRST_DRAFT or bestDraft=1 for RETRY_DRAFT.",
+        ].join("\n"),
+      },
+      {
+        role: "user",
+        content: JSON.stringify({
+          SUPPLIED_REALITY: input.suppliedReality,
+          FIRST_DRAFT: {
+            beats: input.firstBeats,
+            grounding: input.firstGrounding,
+          },
+          RETRY_DRAFT: {
+            beats: input.retryBeats,
+            grounding: input.retryGrounding,
+          },
+          instruction:
+            "Pick the draft with the strongest grounded creative force. Do not prefer novelty merely because it is more poetic.",
+        }),
+      },
+    ],
+    "json",
+    {
+      numPredict: 220,
+      temperature: 0.08,
+      jsonSchema: {
+        type: "object",
+        additionalProperties: false,
+        required: ["bestDraft", "reason"],
+        properties: {
+          bestDraft: { type: "integer", minimum: 0, maximum: 1 },
+          reason: { type: "string", maxLength: 220 },
+        },
+      },
+    },
+  );
+
+  const parsed = parseJson(result.text);
+  return {
+    bestDraft: Number(parsed?.bestDraft) === 1 ? 1 : 0,
+    model: result.model,
+    modelCalls: 1,
+  };
+}
+
 export async function createAuthorExperience(input: {
   subject: string;
   suppliedReality: readonly AuthorCreativeEvent[];
@@ -207,6 +271,7 @@ export async function createAuthorExperience(input: {
   );
 
   let selectedResult = result;
+  let extraModelCalls = 0;
   let parsed = parseJson(result.text);
   let beats = Array.isArray(parsed?.beats)
     ? parsed!.beats.map(clean).filter(Boolean).slice(0, 10)
@@ -214,6 +279,9 @@ export async function createAuthorExperience(input: {
   let rawGrounding = Array.isArray(parsed?.grounding)
     ? parsed!.grounding
     : [];
+  const firstParsed = parsed;
+  const firstBeats = [...beats];
+  const firstGrounding = [...rawGrounding];
 
   const flatSequenceGrounding = rawGrounding.filter((value) => {
     if (!value || typeof value !== "object") return false;
@@ -311,10 +379,26 @@ export async function createAuthorExperience(input: {
       : [];
 
     if (retryBeats.length && retryGrounding.length) {
-      selectedResult = retry;
-      parsed = retryParsed;
-      beats = retryBeats;
-      rawGrounding = retryGrounding;
+      const choice = await chooseCreativeDraft({
+        suppliedReality: input.suppliedReality,
+        firstBeats,
+        firstGrounding,
+        retryBeats,
+        retryGrounding,
+      });
+      extraModelCalls += choice.modelCalls;
+
+      if (choice.bestDraft === 1) {
+        selectedResult = retry;
+        parsed = retryParsed;
+        beats = retryBeats;
+        rawGrounding = retryGrounding;
+      } else {
+        selectedResult = result;
+        parsed = firstParsed;
+        beats = firstBeats;
+        rawGrounding = firstGrounding;
+      }
     }
   }
 
@@ -358,6 +442,6 @@ export async function createAuthorExperience(input: {
   return {
     scenes,
     model: selectedResult.model,
-    modelCalls: selectedResult === result ? 1 : 2,
+    modelCalls: (flatSequence ? 2 : 1) + extraModelCalls,
   };
 }
