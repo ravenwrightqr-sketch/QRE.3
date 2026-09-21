@@ -7,6 +7,11 @@
 export type AuthorCutWorld = {
   subject?: string;
   facts: readonly string[];
+  /**
+   * Approved non-factual semantic authority from upstream Discovery.
+   * This may authorize framing language, but never concrete reality.
+   */
+  semanticAuthority?: readonly string[];
 };
 
 export type AuthorCutPolicyResult = {
@@ -68,14 +73,22 @@ function normalizedRoot(value: string): string {
   return word;
 }
 
-function sourceText(world: AuthorCutWorld): string {
+function factualSourceText(world: AuthorCutWorld): string {
   return [world.subject, ...world.facts].map(clean).filter(Boolean).join(" ");
+}
+
+function groundingSourceText(world: AuthorCutWorld): string {
+  return [
+    world.subject,
+    ...world.facts,
+    ...(world.semanticAuthority ?? []),
+  ].map(clean).filter(Boolean).join(" ");
 }
 
 function groundedRatio(text: string, world: AuthorCutWorld): number {
   const candidate = words(text);
   if (!candidate.length) return 0;
-  const source = new Set(words(sourceText(world)).map(normalizedRoot));
+  const source = new Set(words(groundingSourceText(world)).map(normalizedRoot));
   const grounded = candidate.filter((word) => source.has(normalizedRoot(word)));
   return grounded.length / candidate.length;
 }
@@ -99,7 +112,7 @@ function implication(text: string): number {
 }
 
 function inventionRisk(text: string, world: AuthorCutWorld): number {
-  const source = sourceText(world);
+  const source = factualSourceText(world);
   let risk = 0;
 
   if (PHYSICAL_ACTION.test(text) && !PHYSICAL_ACTION.test(source)) risk += 0.65;
