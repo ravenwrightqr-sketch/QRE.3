@@ -104,6 +104,37 @@ function hasUnsupportedSensoryClaim(
   return sceneMatches.some((claim) => !reality.includes(claim.toLowerCase()));
 }
 
+
+function comparableClaim(value: unknown): string {
+  return clean(value)
+    .toLowerCase()
+    .replace(/[.!?;:,"'’“”()[\]{}]/g, "")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+function reconciledUnsupportedClaims(input: {
+  clauseText: string;
+  supported: unknown;
+  supportKind: string;
+  concreteClaims: string[];
+  unsupportedClaims: string[];
+}): string[] {
+  if (
+    input.supported !== true ||
+    input.supportKind === "UNSUPPORTED" ||
+    input.concreteClaims.length > 0
+  ) {
+    return input.unsupportedClaims;
+  }
+
+  const clause = comparableClaim(input.clauseText);
+  return input.unsupportedClaims.filter((claim) => {
+    const normalized = comparableClaim(claim);
+    return Boolean(normalized) && normalized !== clause;
+  });
+}
+
 export async function verifyAuthorCreativeGrounding(input: {
   scenes: Array<AuthorScene & { sourceEventIds: string[] }>;
   suppliedReality: readonly { id: string; text: string }[];
@@ -286,8 +317,15 @@ export async function verifyAuthorCreativeGrounding(input: {
       const item = verificationByClause.get(`${sceneIndex}:${clauseIndex}`);
       if (!item) continue;
 
-      const unsupportedClaims = Array.isArray(item.unsupportedClaims)
+      const rawUnsupportedClaims = Array.isArray(item.unsupportedClaims)
         ? item.unsupportedClaims
+            .filter((claim): claim is string => typeof claim === "string")
+            .map(clean)
+            .filter(Boolean)
+        : [];
+
+      const concreteClaims = Array.isArray(item.concreteClaims)
+        ? item.concreteClaims
             .filter((claim): claim is string => typeof claim === "string")
             .map(clean)
             .filter(Boolean)
@@ -299,6 +337,14 @@ export async function verifyAuthorCreativeGrounding(input: {
         supportKind === "PARAPHRASE" ||
         supportKind === "FIGURATIVE" ||
         supportKind === "CONTEXTUAL_TEXTURE";
+
+      const unsupportedClaims = reconciledUnsupportedClaims({
+        clauseText: clauses[clauseIndex] ?? "",
+        supported: item.supported,
+        supportKind,
+        concreteClaims,
+        unsupportedClaims: rawUnsupportedClaims,
+      });
 
       if (item.supported !== true || !allowedSupportKind || unsupportedClaims.length) {
         continue;
