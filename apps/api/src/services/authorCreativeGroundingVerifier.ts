@@ -134,7 +134,7 @@ export async function verifyAuthorCreativeGrounding(input: {
     "You are QRE Atomic Semantic Grounding.",
     "Reality is authority.",
     "",
-    "You receive ATOMIC_CLAUSES. Judge every clause independently.",
+    "You receive ATOMIC_CLAUSES plus the full SEQUENCE. Audit every clause independently, but interpret each clause pragmatically in the context of the full sequence."
     "Distinguish MATERIAL REALITY from STORY TEXTURE.",
     "MATERIAL REALITY includes actors, deliberate actions, body actions, objects materially introduced into the event, ownership, motive, causality, chronology, success/failure, completed outcomes, relational status, and physical state changes. Material reality must be directly established by SUPPLIED_REALITY or be an unavoidable semantic paraphrase.",
     "STORY TEXTURE may be allowed when a clause is clearly a nonliteral or hyperbolic rendering of the physical envelope, atmosphere, or dramatic feel of an explicitly supplied event AND WORLD_CONTEXT makes that rendering natural.",
@@ -143,11 +143,14 @@ export async function verifyAuthorCreativeGrounding(input: {
     "By contrast, a supplied bath does not establish that the subject shook, wagged, escaped, resisted, liked it, hated it, or became free.",
     "Do not convert emotion into body behavior. Happy does not establish wagging, smiling, jumping, posture, movement, or excitement.",
     "PARAPHRASE must preserve predicate type. An emotion/state may paraphrase to another emotion/state word, but never to a physical action. A physical action may paraphrase to another description of that same action, but not to a merely associated action.",
+    "Physiological or bodily manifestations are material actions/states. Nervousness does not establish a racing pulse, shaking, sweating, trembling, pacing, widened eyes, or any other bodily manifestation unless that manifestation is supplied.",
+    "Near-completion language still makes a material claim. Words such as almost, nearly, about to, close to, or on the verge of an outcome require reality to establish that trajectory toward the outcome. An attempted action does not by itself establish that success was nearly achieved.",
     "Do not convert an attempted action into motive, ownership, success, completion, release, freedom, rebellion, resistance, or preference unless reality explicitly establishes that claim.",
     "Do not convert chronology or an ending into causality, resolution, finally, freedom, relief, acceptance, or a reason for the later state unless reality explicitly establishes it.",
     "An associated place, object, body part, sensory property, actor, or physical consequence is a new concrete claim unless supplied.",
     "",
     "Creative figurative language may survive when a reasonable viewer reads it as nonliteral framing of supplied reality and it carries no unsupported concrete or relational premise.",
+    "Voice and personification may use words that would be material if read literally, but only when the full sequence makes the nonliteral performance clear. Example: a character-like 'Mine.' can be FIGURATIVE voice anchored to interaction with a supplied object without asserting legal or factual ownership. Do not call that PARAPHRASE. If the sequence instead reads as a factual ownership claim, reject it.",
     "Questions, reactions, fragments, attitude, metaphor, understatement, and exaggeration are allowed only when they do not assert hidden reality.",
     "",
     "For each atomic clause:",
@@ -172,9 +175,13 @@ export async function verifyAuthorCreativeGrounding(input: {
         content: JSON.stringify({
           SUPPLIED_REALITY: input.suppliedReality,
           WORLD_CONTEXT: input.domainContext,
+          SEQUENCE: input.scenes.map((scene, sceneIndex) => ({
+            sceneIndex,
+            text: scene.text,
+          })),
           ATOMIC_CLAUSES: atomicClauses,
           instruction:
-            "Audit every atomic clause independently. Protect material truth while preserving imaginative story texture. Keep your own fields logically consistent: supported=true requires unsupportedClaims=[]. 'Nerves' is a clean PARAPHRASE of supplied nervousness and therefore has no unsupported claim. 'Joy' or 'content' may paraphrase supplied happiness when the wording does not add a cause or new event. PARAPHRASE must preserve predicate type: a supplied emotion/state can become another state-word, but it cannot become an unsupplied bodily action. Therefore 'Tail wags' is UNSUPPORTED when the only anchor is 'left happy'. In a grooming-memory context, 'Water. Everywhere.' may be CONTEXTUAL_TEXTURE around a supplied bath because it heightens physical atmosphere without changing material history; do not list 'Everywhere' as unsupported if you classify the line as allowed contextual texture. A playful aesthetic reaction to a supplied bow can be FIGURATIVE. But an attempted action does not establish ownership, motive, rebellion, successful completion, or freedom. WORLD_CONTEXT helps interpret texture and vocabulary but never becomes historical evidence.",
+            "Audit every atomic clause independently, but read the whole SEQUENCE before deciding what each clause pragmatically means. Protect material truth while preserving imaginative story texture and performed voice. Keep your own fields logically consistent: supported=true requires unsupportedClaims=[]. 'Nerves' is a clean PARAPHRASE of supplied nervousness. 'Joy' or 'content' may paraphrase supplied happiness when wording does not add cause or event. Predicate type must be preserved: nervousness cannot become 'Pulse quickens' because that invents a physiological response; happiness cannot become 'Tail wags'. An attempted action cannot become 'Almost free' unless reality establishes near-success, because near-completion is still a material outcome claim. In a grooming-memory context, 'Water. Everywhere.' may be CONTEXTUAL_TEXTURE around a supplied bath because it heightens atmosphere without changing history. A playful 'Mine.' may be FIGURATIVE performed voice when the sequence makes it clearly nonliteral and anchored to a supplied object interaction; it must not be labeled PARAPHRASE or treated as factual ownership. WORLD_CONTEXT helps interpret texture and vocabulary but never becomes historical evidence.",
         }),
       },
     ],
