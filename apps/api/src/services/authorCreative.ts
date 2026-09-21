@@ -172,12 +172,14 @@ function beatKind(role: AuthorBeatRole, index: number, total: number): AuthorSce
 function variantScore(
   text: string,
   beatFacts: readonly string[],
+  semanticAuthority: readonly string[],
   subject: string,
   prior: readonly string[],
 ): { accepted: boolean; score: number } {
   const policy = evaluateAuthorCut(text, {
     subject,
     facts: beatFacts,
+    semanticAuthority,
   });
 
   if (!policy.accepted) {
@@ -189,6 +191,45 @@ function variantScore(
   const score = Math.max(0, policy.score - (repeated ? 0.35 : 0));
 
   return { accepted: !repeated, score };
+}
+
+function lockPlanToApprovedMeaning(
+  plan: AuthorSemanticPlan,
+  events: readonly AuthorCreativeEvent[],
+  discovery: AuthorCreativeDiscovery,
+): AuthorSemanticPlan {
+  const selected = discovery.selected;
+  const approvedMeaning = clean(selected.perception || selected.relationship);
+  const approvedRelation = clean(selected.relationship);
+  const realityDirect = clean(selected.id).toLowerCase() === "reality-direct";
+
+  if (realityDirect) {
+    return {
+      thesis: "Use supplied reality directly.",
+      beats: plan.beats.map((beat) => ({
+        ...beat,
+        attention: beat.eventIds
+          .map((id) => events.find((event) => event.id === id)?.text ?? "")
+          .map(clean)
+          .filter(Boolean)
+          .join(" | "),
+        change: "Advance only supplied reality; do not add a hidden explanation.",
+      })),
+    };
+  }
+
+  return {
+    thesis: approvedMeaning || approvedRelation || "Approved grounded perception.",
+    beats: plan.beats.map((beat) => ({
+      ...beat,
+      attention: beat.eventIds
+        .map((id) => events.find((event) => event.id === id)?.text ?? "")
+        .map(clean)
+        .filter(Boolean)
+        .join(" | "),
+      change: approvedMeaning || approvedRelation || "Advance the approved grounded perception.",
+    })),
+  };
 }
 
 function safeFallbackText(
@@ -238,13 +279,13 @@ export async function createAuthorExperience(input: {
         role: "system",
         content: [
           "You are QRE Bare Author.",
-          "You decide semantic sequence and observer movement. You do NOT write final viewer-facing copy.",
+          "You sequence an already-approved semantic opportunity. You do NOT invent a second thesis and you do NOT write final viewer-facing copy.",
           "Reality is fixed. Interpretation is free.",
           "CREATIVE_DISCOVERY is an interpretive opportunity, never factual evidence.",
           "Build 2 to 5 useful beats from supplied reality. Facts may disappear, fuse, or support the same beat.",
           "Each beat must cite the event IDs that authorize it.",
-          "attention says what the beat should make the observer notice.",
-          "change says how the observer's reading should change. It is not permission to add a new event.",
+          "attention should point at supplied evidence, not invent psychology.",
+          "change must stay inside the approved CREATIVE_DISCOVERY perception/relationship. Do not introduce a new emotional state, motive, identity claim, acceptance, rebellion, autonomy, vulnerability, surrender, or causal explanation unless that exact meaning is already supplied or explicitly approved upstream.",
           "Do not turn chronology into causality, action into motive, attempt into success, emotion into body behavior, or context into hidden history.",
           "Do not add scenery, weather, lighting, body parts, sensory details, people, places, objects, dialogue, outcomes, or physical actions.",
           "A perceptual frame may create status, absurdity, ceremony, tension, intimacy, contrast, implication, or character without claiming that frame literally happened.",
@@ -306,9 +347,15 @@ export async function createAuthorExperience(input: {
     },
   );
 
-  const plan =
+  const rawPlan =
     normalizePlan(parseJson(planResult.text), allowedEventIds) ??
     fallbackPlan(input.suppliedReality, input.creativeDiscovery);
+
+  const plan = lockPlanToApprovedMeaning(
+    rawPlan,
+    input.suppliedReality,
+    input.creativeDiscovery,
+  );
 
   debug("BARE-AUTHOR-PLAN", {
     raw: planResult.text,
@@ -341,8 +388,17 @@ export async function createAuthorExperience(input: {
         content: JSON.stringify({
           SUBJECT: input.subject,
           SUPPLIED_REALITY: input.suppliedReality,
+          APPROVED_SEMANTIC_AUTHORITY: {
+            perception: selected.perception,
+            relationship: selected.relationship,
+          },
           APPROVED_THESIS: plan.thesis,
-          APPROVED_BEATS: plan.beats,
+          APPROVED_BEATS: plan.beats.map((beat) => ({
+            order: beat.order,
+            role: beat.role,
+            eventIds: beat.eventIds,
+            attentionEvidence: beat.attention,
+          })),
           CREATIVE_OPPORTUNITY: selected.perception,
           RELATION: selected.relationship,
           instruction:
@@ -429,7 +485,13 @@ export async function createAuthorExperience(input: {
     const evaluated = (variantsByOrder.get(beat.order) ?? [])
       .map((text) => ({
         text,
-        ...variantScore(text, beatFacts, input.subject, prior),
+        ...variantScore(
+          text,
+          beatFacts,
+          [selected.perception, selected.relationship].map(clean).filter(Boolean),
+          input.subject,
+          prior,
+        ),
       }));
 
     const ranked = evaluated
