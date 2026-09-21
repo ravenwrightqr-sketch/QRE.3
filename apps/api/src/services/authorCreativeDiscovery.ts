@@ -182,6 +182,8 @@ async function verifyDiscoveryCandidates(input: {
           "IDENTITY MODE: stable supplied preferences and traits are character evidence. A candidate may make a clearly perceptual character inference from their specificity or combination—such as reading the pattern as curated, precise, particular, discerning, indulgent, or having a recognizable taste—without that inference becoming literal biography. Do NOT put 'infers personality/character/taste' into unsupportedClaims merely because it was not typed verbatim. This is the point of Identity Discovery.",
           "IDENTITY MODE still may not invent an event, chronology, physical action, hidden history, diagnosis, literal motive, causal explanation, or claim that the subject consciously selected or deliberately arranged the supplied traits. 'Reads like a curated collection' can be framing; 'Milo deliberately curated these preferences' is a factual intentionality claim.",
           "A desire, need, intention, or reason remains a motive claim and needs evidence even in IDENTITY mode.",
+          "MEMORY MODE: structural descriptions of supplied co-occurrence are allowed. If one lived event contains several supplied observations or encounters, it may truthfully read as a sequence, accumulation, cluster, mix, run, or series of encounters without implying that anyone deliberately curated, gathered, arranged, or caused them. Do not manufacture intentionality merely from words such as sequence or accumulation.",
+          "MEMORY MODE may preserve the shape of the outing across multiple facts while keeping their valence neutral. Reject invented praise, success, excitement, motive, or causal connection; do not reject neutral structural compression simply because it groups supplied events.",
           "grounded is only a truth summary. unsupportedClaims is authoritative: grounded should be true exactly when unsupportedClaims is empty.",
           "Return one verification for every candidate, in the same order.",
         ].join("\n"),
@@ -200,13 +202,13 @@ async function verifyDiscoveryCandidates(input: {
             evidenceEventIds: candidate.evidenceEventIds,
           })),
           instruction:
-            "Audit every perception and relationship clause. Put each unsupported MATERIAL premise in unsupportedClaims, including invented causality, motive, completed outcome, agency, acceptance, imposition, constraint, emotional cause, hidden state, inferred resolution, invented approval/validation from neutral encounters, or unsupported claims that a supplied duration is objectively short/long. In IDENTITY mode, do not treat grounded perceptual character inference from stable preferences as unsupported merely because the personality word was not supplied verbatim. grounded must equal unsupportedClaims.length === 0. Separately set worthRealizing=true only when the candidate gives QRE a specific perceptual relation or metamorphic opportunity worth turning into an experience. Do not reward a candidate merely for being true. Generic emotional transitions, broad service summaries, category descriptions, or obvious start/end contrasts are not enough when they fail to use the distinctive supplied material.",
+            "Audit every perception and relationship clause. Put each unsupported MATERIAL premise in unsupportedClaims, including invented causality, motive, completed outcome, agency, acceptance, imposition, constraint, emotional cause, hidden state, inferred resolution, invented approval/validation from neutral encounters, or unsupported claims that a supplied duration is objectively short/long. In MEMORY mode, a sequence/accumulation/cluster of supplied encounters is structural compression and does NOT imply deliberate curation or gathering unless the candidate explicitly claims intent. In IDENTITY mode, do not treat grounded perceptual character inference from stable preferences as unsupported merely because the personality word was not supplied verbatim. grounded must equal unsupportedClaims.length === 0. Separately set worthRealizing=true only when the candidate gives QRE a specific perceptual relation or metamorphic opportunity worth turning into an experience. Do not reward a candidate merely for being true. Generic emotional transitions, broad service summaries, category descriptions, or obvious start/end contrasts are not enough when they fail to use the distinctive supplied material.",
         }),
       },
     ],
     "json",
     {
-      numPredict: 320,
+      numPredict: Math.max(420, input.candidates.length * 105),
       temperature: 0.08,
       jsonSchema: {
         type: "object",
