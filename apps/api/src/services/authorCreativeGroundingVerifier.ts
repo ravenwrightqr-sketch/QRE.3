@@ -35,12 +35,13 @@ function parseJson(text: string): Record<string, unknown> | undefined {
   }
 }
 
-type Verification = {
-  grounded?: unknown;
+type AtomicVerification = {
+  sceneIndex?: unknown;
+  clauseIndex?: unknown;
+  supported?: unknown;
   sourceEventIds?: unknown;
-  literalClaims?: unknown;
+  concreteClaims?: unknown;
   unsupportedClaims?: unknown;
-  clauseAudits?: unknown;
 };
 
 function beatClauses(text: string): string[] {
@@ -112,38 +113,39 @@ export async function verifyAuthorCreativeGrounding(input: {
     };
   }
 
+  const atomicClauses = input.scenes.flatMap((scene, sceneIndex) =>
+    beatClauses(scene.text).map((text, clauseIndex) => ({
+      sceneIndex,
+      clauseIndex,
+      text,
+      groundingHint: scene.sourceEventIds,
+    })),
+  );
+
   const system = [
-    "You are QRE Semantic Grounding.",
-    "Protect literal truth without flattening creative language.",
+    "You are QRE Atomic Semantic Grounding.",
+    "Reality is authority.",
     "",
-    "Read each finished beat in context.",
-    "Separate the beat into its literal anchor and its figurative overlay.",
-    "A figurative beat may be grounded even when its exact words never appear in reality, as long as its metaphor clearly transforms one or more supplied entities, actions, states, or relations and does not smuggle in a new concrete fact.",
-    "The concrete carrier of a metaphor must come from supplied reality. Figurative freedom may personify or reframe supplied material; it may not introduce a new physical object, body part, actor, action, sensory detail, inhabitant, sound, smell, taste, or texture merely as decoration.",
-    "If a beat contains any concrete noun, bodily action, or sensory event not established by supplied reality, treat that concrete content as a new claim even when the surrounding line is playful or metaphorical.",
-    "A supplied object does not automatically supply every sensory property or interaction associated with it. Bacon being supplied does not establish its smell, taste, grease, crunch, or anyone sensing it; a dog being supplied does not establish wagging, sniffing, barking, paws, tail movement, bodily posture, or movement.",
-    "Words that name a sensory property or bodily state/action are concrete claims even when written as shorthand. Examples: 'bacon smell', 'happy tail', 'tiny paws', 'sniffs', 'crunch' all require explicit support.",
-    "Preserve metaphor, personification, idiom, status language, exaggeration, attitude, and playful framing when a reasonable viewer reads them as nonliteral.",
-    "A beat is grounded only when every concrete real-world claim inside it is supported by SUPPLIED_REALITY.",
-    "Relational claims are concrete too. Priority, ranking, first/last, always/never, temporal persistence such as still/already/yet, preference strength, exclusivity, deliberate choice, curation, ownership, and repeated selection require explicit support; they are not free figurative overlays merely because the underlying items are supplied.",
-    "An associated place or setting is also a concrete claim. A walk does not establish a park, street, trail, yard, or any other setting unless supplied reality names it.",
-    "Figurative framing does not excuse an embedded unsupported literal claim.",
-    "A supplied action proves the action occurred; it does not by itself prove an unseen prior condition, cause, motive, history, sensory state, or aftermath.",
-    "A beat may freely add figurative meaning around supplied facts.",
-    "Mark grounded=false when any concrete claim in the beat goes beyond supplied reality, even if other words in the same beat are metaphorical.",
+    "You receive ATOMIC_CLAUSES. Judge every clause independently.",
+    "Support means the clause is directly established by SUPPLIED_REALITY or is an unavoidable semantic paraphrase of an explicitly supplied fact.",
+    "Typicality, common sense association, world knowledge, likely ingredients, likely body behavior, likely setting, and plausible aftermath are NOT support.",
+    "Do not unpack an event into conventional ingredients that were not stated. A bath does not establish water, soap, towels, wetness, shaking, a tub, or a grooming room.",
+    "Do not convert emotion into body behavior. Happy does not establish wagging, smiling, jumping, posture, movement, or excitement.",
+    "Do not convert an attempted action into motive, ownership, success, completion, release, freedom, rebellion, resistance, or preference unless reality explicitly establishes that claim.",
+    "Do not convert chronology or an ending into causality, resolution, finally, freedom, relief, acceptance, or a reason for the later state unless reality explicitly establishes it.",
+    "An associated place, object, body part, sensory property, actor, or physical consequence is a new concrete claim unless supplied.",
     "",
-    "For every grounded beat, cite the supplied event IDs that carry its literal anchor or, for a purely figurative beat, the supplied events being transformed by the metaphor.",
-    "Purely figurative lines do not need a literal noun or verb match; they do need a clear semantic anchor in supplied reality.",
-    "The writer may provide groundingHint IDs. Treat them as clues, not authority; keep, replace, or expand them based on the actual words.",
-    "Do not judge style, quality, humor, or taste.",
-    "Do not rewrite the beat.",
-    "For each beat, explicitly extract every literal or concrete real-world claim carried by the words, including implied state changes, body actions, objects, settings, sensory details, chronology, outcomes, and causal relations.",
-    "Then list every extracted claim that is not directly established by SUPPLIED_REALITY in unsupportedClaims.",
-    "A beat is grounded exactly when unsupportedClaims is empty.",
-    "grounded is only a summary field. QRE will trust the explicit unsupportedClaims audit over the summary boolean if they disagree.",
-    "Every beat arrives with CLAUSES. Audit every clause by clauseIndex. Do not merge away, skip, or forget a later clause. A compound beat survives only when every clause audit has zero unsupportedClaims.",
-    "Emotion does not establish body behavior. Happy does not establish wagging, smiling, jumping, posture, movement, or any other bodily manifestation.",
-    "Return exactly one verification entry per beat, in the same order as BEATS.",
+    "Creative figurative language may survive when a reasonable viewer reads it as nonliteral framing of supplied reality and it carries no unsupported concrete or relational premise.",
+    "Questions, reactions, fragments, attitude, metaphor, understatement, and exaggeration are allowed only when they do not assert hidden reality.",
+    "",
+    "For each atomic clause:",
+    "1. extract concreteClaims: every real-world claim or relational premise actually carried by the clause;",
+    "2. list unsupportedClaims: every such claim not established by SUPPLIED_REALITY;",
+    "3. cite sourceEventIds that support the clause when it is supported;",
+    "4. set supported=true exactly when unsupportedClaims is empty AND at least one supplied event semantically anchors the clause.",
+    "",
+    "groundingHint is only a clue from the writer. Never treat it as evidence by itself.",
+    "Return exactly one verification for every atomic clause, preserving sceneIndex and clauseIndex.",
   ].join("\n");
 
   const result = await localModelGenerate(
@@ -153,23 +155,16 @@ export async function verifyAuthorCreativeGrounding(input: {
         role: "user",
         content: JSON.stringify({
           SUPPLIED_REALITY: input.suppliedReality,
-          BEATS: input.scenes.map((scene) => ({
-            text: scene.text,
-            clauses: beatClauses(scene.text).map((clause, clauseIndex) => ({
-              clauseIndex,
-              text: clause,
-            })),
-            groundingHint: scene.sourceEventIds,
-          })),
+          ATOMIC_CLAUSES: atomicClauses,
           instruction:
-            "Verify every beat in the same order. groundingHint is only a clue from the writer; correct it when needed. Audit EVERY provided clause by clauseIndex before deciding the beat. For each clause, extract its concrete or relational claims and put any unsupported premise in that clause's unsupportedClaims. Then produce aggregate literalClaims and unsupportedClaims for the whole beat. Do not skip trailing fragments: 'Tail wags. Free.' requires separate audits for 'Tail wags' and 'Free'. A bath does not automatically establish water everywhere, stillness, soap, towels, shaking, or any surrounding scene. A dog or a happy emotional state does not establish tail wagging or other bodily behavior. A happy ending does not establish sunshine, freedom, release, acceptance, or why the happiness occurred. Preserve figurative language when its concrete carrier is supplied and every clause is clean. Set grounded to true exactly when the aggregate unsupportedClaims is empty.",
+            "Audit every atomic clause independently. Explicit fact or unavoidable paraphrase is support; typical association is not. Examples: 'nerves' may paraphrase explicitly supplied nervousness; 'joy' may paraphrase explicitly supplied happiness. But bath does not supply water, a bow does not supply prettiness or a crown, trying to remove does not supply ownership or rebellion, and leaving happy does not supply freedom, relief, tail wagging, sunshine, or the cause of happiness.",
         }),
       },
     ],
     "json",
     {
-      numPredict: 420,
-      temperature: 0.12,
+      numPredict: Math.max(420, atomicClauses.length * 90),
+      temperature: 0.06,
       jsonSchema: {
         type: "object",
         additionalProperties: false,
@@ -177,46 +172,45 @@ export async function verifyAuthorCreativeGrounding(input: {
         properties: {
           verifications: {
             type: "array",
-            minItems: input.scenes.length,
-            maxItems: input.scenes.length,
+            minItems: atomicClauses.length,
+            maxItems: atomicClauses.length,
             items: {
               type: "object",
               additionalProperties: false,
-              required: ["grounded", "sourceEventIds", "literalClaims", "unsupportedClaims", "clauseAudits"],
+              required: [
+                "sceneIndex",
+                "clauseIndex",
+                "supported",
+                "sourceEventIds",
+                "concreteClaims",
+                "unsupportedClaims",
+              ],
               properties: {
-                grounded: { type: "boolean" },
+                sceneIndex: {
+                  type: "integer",
+                  minimum: 0,
+                  maximum: Math.max(0, input.scenes.length - 1),
+                },
+                clauseIndex: {
+                  type: "integer",
+                  minimum: 0,
+                  maximum: 11,
+                },
+                supported: { type: "boolean" },
                 sourceEventIds: {
                   type: "array",
                   maxItems: 32,
                   items: { type: "string", maxLength: 64 },
                 },
-                literalClaims: {
+                concreteClaims: {
                   type: "array",
-                  maxItems: 16,
+                  maxItems: 12,
                   items: { type: "string", maxLength: 120 },
                 },
                 unsupportedClaims: {
                   type: "array",
-                  maxItems: 16,
-                  items: { type: "string", maxLength: 120 },
-                },
-                clauseAudits: {
-                  type: "array",
-                  minItems: 1,
                   maxItems: 12,
-                  items: {
-                    type: "object",
-                    additionalProperties: false,
-                    required: ["clauseIndex", "unsupportedClaims"],
-                    properties: {
-                      clauseIndex: { type: "integer", minimum: 0, maximum: 11 },
-                      unsupportedClaims: {
-                        type: "array",
-                        maxItems: 8,
-                        items: { type: "string", maxLength: 120 },
-                      },
-                    },
-                  },
+                  items: { type: "string", maxLength: 120 },
                 },
               },
             },
@@ -228,68 +222,61 @@ export async function verifyAuthorCreativeGrounding(input: {
 
   const parsed = parseJson(result.text);
   const raw = Array.isArray(parsed?.verifications)
-    ? parsed!.verifications
+    ? parsed.verifications
     : [];
 
   const allowedIds = new Set(input.suppliedReality.map((event) => event.id));
   const suppliedRealityText = input.suppliedReality
     .map((event) => event.text)
     .join(" ");
-  const scenes = input.scenes.flatMap((scene, index) => {
-    const value = raw[index];
-    if (!value || typeof value !== "object") return [];
 
-    const item = value as Verification;
-    const unsupportedClaims = Array.isArray(item.unsupportedClaims)
-      ? item.unsupportedClaims
-          .filter((claim): claim is string => typeof claim === "string")
-          .map(clean)
-          .filter(Boolean)
-      : [];
+  const verificationByClause = new Map<string, AtomicVerification>();
 
+  for (const value of raw) {
+    if (!value || typeof value !== "object") continue;
+    const item = value as AtomicVerification;
+    const sceneIndex = Number(item.sceneIndex);
+    const clauseIndex = Number(item.clauseIndex);
+    if (!Number.isInteger(sceneIndex) || !Number.isInteger(clauseIndex)) continue;
+    verificationByClause.set(`${sceneIndex}:${clauseIndex}`, item);
+  }
+
+  const scenes = input.scenes.flatMap((scene, sceneIndex) => {
     const clauses = beatClauses(scene.text);
-    const clauseAudits = Array.isArray(item.clauseAudits)
-      ? item.clauseAudits.filter(
-          (audit): audit is Record<string, unknown> =>
-            Boolean(audit) && typeof audit === "object",
-        )
-      : [];
+    const supportedIds = new Set<string>();
 
-    const everyClauseAudited = clauses.every((_, clauseIndex) => {
-      const audit = clauseAudits.find(
-        (candidate) => Number(candidate.clauseIndex) === clauseIndex,
-      );
-      if (!audit) return false;
+    for (let clauseIndex = 0; clauseIndex < clauses.length; clauseIndex += 1) {
+      const item = verificationByClause.get(`${sceneIndex}:${clauseIndex}`);
+      if (!item) return [];
 
-      const clauseUnsupported = Array.isArray(audit.unsupportedClaims)
-        ? audit.unsupportedClaims
+      const unsupportedClaims = Array.isArray(item.unsupportedClaims)
+        ? item.unsupportedClaims
             .filter((claim): claim is string => typeof claim === "string")
             .map(clean)
             .filter(Boolean)
         : [];
 
-      return clauseUnsupported.length === 0;
-    });
+      if (item.supported !== true || unsupportedClaims.length) return [];
 
-    if (unsupportedClaims.length) return [];
-    if (!everyClauseAudited) return [];
+      const sourceEventIds = Array.isArray(item.sourceEventIds)
+        ? unique(
+            item.sourceEventIds
+              .filter((id): id is string => typeof id === "string")
+              .filter((id) => allowedIds.has(id)),
+          )
+        : [];
+
+      if (!sourceEventIds.length) return [];
+      sourceEventIds.forEach((id) => supportedIds.add(id));
+    }
+
     if (hasUnsupportedAbsoluteClaim(scene.text, suppliedRealityText)) return [];
     if (hasUnsupportedTemporalStateClaim(scene.text, suppliedRealityText)) return [];
     if (hasUnsupportedSensoryClaim(scene.text, suppliedRealityText)) return [];
 
-    const sourceEventIds = Array.isArray(item.sourceEventIds)
-      ? unique(
-          item.sourceEventIds
-            .filter((id): id is string => typeof id === "string")
-            .filter((id) => allowedIds.has(id)),
-        )
-      : [];
-
-    if (!sourceEventIds.length) return [];
-
     return [{
       ...scene,
-      sourceEventIds,
+      sourceEventIds: [...supportedIds],
     }];
   });
 
@@ -299,3 +286,4 @@ export async function verifyAuthorCreativeGrounding(input: {
     modelCalls: 1,
   };
 }
+
