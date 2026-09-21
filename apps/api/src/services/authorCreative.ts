@@ -222,10 +222,29 @@ function lockPlanToApprovedMeaning(
     };
   }
 
+  const authorizedEventIds = new Set(
+    selected.evidenceEventIds.map(clean).filter(Boolean),
+  );
+
+  const scopedBeats = plan.beats
+    .map((beat) => ({
+      ...beat,
+      eventIds: beat.eventIds.filter((id) => authorizedEventIds.has(clean(id))),
+    }))
+    .filter((beat) => beat.eventIds.length > 0);
+
+  const beats = scopedBeats.length
+    ? scopedBeats
+    : fallbackPlan(
+        events.filter((event) => authorizedEventIds.has(clean(event.id))),
+        discovery,
+      ).beats;
+
   return {
     thesis: approvedMeaning || approvedRelation || "Approved grounded perception.",
-    beats: plan.beats.map((beat) => ({
+    beats: beats.map((beat, index) => ({
       ...beat,
+      order: index + 1,
       attention: beat.eventIds
         .map((id) => events.find((event) => event.id === id)?.text ?? "")
         .map(clean)
