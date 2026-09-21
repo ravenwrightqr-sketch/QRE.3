@@ -294,6 +294,7 @@ async function repairDiscoveryCandidates(input: {
           "Never add motive, causality, ownership, successful outcome, hidden emotional cause, unseen condition, literal rank, literal role, or completed action.",
           "Prefer a small specific relation carried by supplied objects/actions over a broad emotional arc.",
           "For IDENTITY material, preserve grounded character inference from stable preferences; do not repair it down into generic 'shared experiences' or 'simple pleasures' merely because the character word was not typed verbatim.",
+          "For MEMORY material with several supplied events, preserve the shape of the lived event across multiple relevant facts when possible. Do not repair a multi-fact memory down to one isolated quirky detail unless that detail genuinely carries the memory by itself. Prefer neutral structural patterns such as accumulation, variety, juxtaposition, sequence, recurrence, or density over invented evaluation.",
           "Return up to two repaired candidates. If no candidate can be repaired without becoming bland or false, return an empty candidates array.",
         ].join("\n"),
       },
@@ -564,6 +565,7 @@ export async function discoverAuthorCreativeDirection(input: {
 
   let repairModel = result.model;
   let repairModelCalls = 0;
+  let usedRepair = false;
 
   if (!candidates.length && deterministicCandidates.length) {
     const repair = await repairDiscoveryCandidates({
@@ -574,6 +576,7 @@ export async function discoverAuthorCreativeDirection(input: {
     });
     repairModel = repair.model === "none" ? result.model : repair.model;
     repairModelCalls += repair.modelCalls;
+    usedRepair = repair.modelCalls > 0;
 
     if (repair.candidates.length) {
       const repairedVerification = await verifyDiscoveryCandidates({
@@ -601,9 +604,11 @@ export async function discoverAuthorCreativeDirection(input: {
   };
 
   const requestedSelectedId = clean(parsed?.selectedCandidateId);
-  const requestedSelected = candidates.find(
-    (candidate) => candidate.id === requestedSelectedId,
-  );
+  const requestedSelected = usedRepair
+    ? undefined
+    : candidates.find(
+        (candidate) => candidate.id === requestedSelectedId,
+      );
 
   const selected =
     requestedSelected ??
