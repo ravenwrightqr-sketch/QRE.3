@@ -175,7 +175,7 @@ function variantScore(
   semanticAuthority: readonly string[],
   subject: string,
   prior: readonly string[],
-): { accepted: boolean; score: number } {
+): { accepted: boolean; score: number; reasons: string[] } {
   const policy = evaluateAuthorCut(text, {
     subject,
     facts: beatFacts,
@@ -183,14 +183,18 @@ function variantScore(
   });
 
   if (!policy.accepted) {
-    return { accepted: false, score: 0 };
+    return { accepted: false, score: 0, reasons: policy.reasons };
   }
 
   const normalized = clean(text).toLowerCase();
   const repeated = prior.some((value) => clean(value).toLowerCase() === normalized);
   const score = Math.max(0, policy.score - (repeated ? 0.35 : 0));
 
-  return { accepted: !repeated, score };
+  return {
+    accepted: !repeated,
+    score,
+    reasons: repeated ? ["repetition"] : [],
+  };
 }
 
 function lockPlanToApprovedMeaning(
@@ -261,7 +265,7 @@ export async function createAuthorExperience(input: {
       order: number;
       beat: AuthorSemanticBeat;
       beatFacts: string[];
-      candidates: Array<{ text: string; accepted: boolean; score: number }>;
+      candidates: Array<{ text: string; accepted: boolean; score: number; reasons: string[] }>;
       selected: string;
     }>;
   };
@@ -472,7 +476,7 @@ export async function createAuthorExperience(input: {
     order: number;
     beat: AuthorSemanticBeat;
     beatFacts: string[];
-    candidates: Array<{ text: string; accepted: boolean; score: number }>;
+    candidates: Array<{ text: string; accepted: boolean; score: number; reasons: string[] }>;
     selected: string;
   }> = [];
 
