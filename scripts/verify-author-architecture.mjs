@@ -41,7 +41,6 @@ const forbiddenTokens = [
   "authorMeaningPressure",
   "authorCreativeLensBrief",
   "authorMovieDifferentiation",
-  "authorCutPolicy",
   "authorRealityEnvelope",
   "authorCharacterLensEngine",
   "authorMetamorphicSearch",
@@ -56,6 +55,7 @@ const allowedAuthorServiceFiles = new Set([
   "authorRealityGraph.ts",
   "authorCreativeDiscovery.ts",
   "authorCreative.ts",
+  "authorCutPolicy.ts",
   "authorCreativeGroundingVerifier.ts",
   "authorBrainCanonical.ts",
   "authorReadout.ts",
@@ -80,11 +80,22 @@ function walk(dir, out = []) {
 for (const p of required) if (!existsSync(join(root, p))) failures.push(`missing-required: ${p}`);
 for (const p of forbiddenFiles) if (existsSync(join(root, p))) failures.push(`forbidden-legacy-file: ${p}`);
 
-const brain = existsSync(join(root, required[5])) ? read(required[5]) : "";
+const brain = existsSync(join(root, "apps/api/src/services/authorBrainCanonical.ts"))
+  ? read("apps/api/src/services/authorBrainCanonical.ts")
+  : "";
+const creative = existsSync(join(root, "apps/api/src/services/authorCreative.ts"))
+  ? read("apps/api/src/services/authorCreative.ts")
+  : "";
 for (const token of ["authorRealityExtractor.js", "authorRealityGraph.js", "authorCreativeDiscovery.js", "authorCreative.js", "authorCreativeGroundingVerifier.js"]) {
   if (!brain.includes(token)) failures.push(`canonical-brain missing ${token}`);
 }
 if (/localModelGenerate\s*\(/.test(brain)) failures.push("canonical-brain must orchestrate, not call the model directly");
+if (!/authorCutPolicy\.js/.test(creative) || !/evaluateAuthorCut\s*\(/.test(creative)) {
+  failures.push("QRE Creative must pass Mouth candidates through deterministic cut policy");
+}
+if (!/You are QRE Bare Author\./.test(creative) || !/You are QRE Mouth\./.test(creative)) {
+  failures.push("QRE Creative must separate semantic planning from Mouth realization");
+}
 
 const authorServiceDir = join(root, "apps/api/src/services");
 for (const file of walk(authorServiceDir).filter((p) => /author[^/\\]*\.ts$/i.test(p))) {
@@ -121,4 +132,4 @@ if (failures.length) {
   console.error(`AUTHOR ARCHITECTURE GUARD FAILED · ${failures.length}`);
   process.exit(1);
 }
-console.log("GREEN · ONE AUTHOR PATH · REALITY -> CREATIVE DISCOVERY -> QRE CREATIVE -> RUNTIME");
+console.log("GREEN · ONE AUTHOR PATH · REALITY -> DISCOVERY -> SEMANTIC PLAN -> MOUTH -> CUT FLOOR -> GROUNDING -> RUNTIME");
