@@ -94,12 +94,6 @@ function normalizeMode(value: unknown): "RELATIONAL" | "METAMORPHIC" {
 const RECORD_SHAPE_LANGUAGE =
   /\b(list|prompt|input|record|document|format|formatting|field|fields|wording|phrasing|sentence|sentences|repetition|repeated|repeating)\b/i;
 
-const EXPLICIT_RELATION_CLAIMS =
-  /\b(priorit(?:y|ize|ized|ization)|rank(?:ed|ing)?|hierarch(?:y|ical)|curat(?:e|ed|es|ion)|deliberat(?:e|ely)|step\s+up|escalat(?:e|ed|es|ing|ion))\b/i;
-
-const AGENCY_OUTCOME_RELATION =
-  /\b(forced|imposed|subjugat(?:e|ed|ion)|rebel(?:led|lion)?|defi(?:ed|ance)|submit(?:ted|sion)?|liberat(?:e|ed|ion)|autonom(?:y|ous)|constrain(?:ed|t)|escape(?:d)?|freed?|release|relief|endured?|vanity|domesticity|wildness)\b/i;
-
 function candidateCrossesDeterministicTruthFloor(
   candidate: AuthorCreativeCandidate,
   suppliedRealityText: string,
@@ -110,22 +104,13 @@ function candidateCrossesDeterministicTruthFloor(
     candidate.observerInference,
   ].join(" "));
 
-  const inventsRecordShape =
-    RECORD_SHAPE_LANGUAGE.test(candidateText) &&
-    !RECORD_SHAPE_LANGUAGE.test(suppliedRealityText);
-
-  const inventsExplicitRelation =
-    EXPLICIT_RELATION_CLAIMS.test(candidateText) &&
-    !EXPLICIT_RELATION_CLAIMS.test(suppliedRealityText);
-
-  const inventsAgencyOrOutcomeRelation =
-    AGENCY_OUTCOME_RELATION.test(candidate.relationship) &&
-    !AGENCY_OUTCOME_RELATION.test(suppliedRealityText);
-
+  // Deterministic Discovery rejection is intentionally structural only.
+  // Semantic words such as curation, rank, rebellion, resistance, ceremony,
+  // priority, or liberation can be either figurative framing or factual claims.
+  // The semantic verifier decides which. Do not blacklist meaning by vocabulary.
   return (
-    inventsRecordShape ||
-    inventsExplicitRelation ||
-    inventsAgencyOrOutcomeRelation
+    RECORD_SHAPE_LANGUAGE.test(candidateText) &&
+    !RECORD_SHAPE_LANGUAGE.test(suppliedRealityText)
   );
 }
 
@@ -184,6 +169,7 @@ async function verifyDiscoveryCandidates(input: {
           "Preserve a figurative read when a reasonable viewer would understand it as imaginative framing of supplied actions rather than a factual claim about hidden reality.",
           "Distinguish 'X was intentionally done for Y' from 'X makes the moment feel like Y.' The first needs factual support; the second can be a grounded perceptual transformation.",
           "Do not reject a candidate merely because its metaphor is not literally true. Reject it only when the metaphor promotes itself into unsupported material history, motive, cause, ownership, outcome, chronology, or hidden condition.",
+          "Do not decide by trigger words. Terms such as curated, priority, rank, ceremony, rebellion, resistance, liberation, or status may be valid figurative framing. Reject them only when the candidate uses them as unsupported literal history, intent, hierarchy, agency, or outcome.",
           "Judge the whole candidate, not just its strongest phrase. If either perception or relationship contains an unsupported hidden premise, reject the candidate even when another part is grounded.",
           "Words such as imposed, accepted, rebelled, defied, submitted, escaped, freed, constrained, resisted, or liberated describe agency, stance, or state. They are allowed only when the supplied reality itself establishes that meaning, not merely because an action can be dramatized that way.",
           "Trying to remove an added object can support a figurative beat of resistance to that object, but it does not establish that the object was imposed, that the subject accepted it later, that removal succeeded, or that later happiness was caused by freedom from it.",
