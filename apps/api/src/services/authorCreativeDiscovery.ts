@@ -164,7 +164,9 @@ async function verifyDiscoveryCandidates(input: {
           "Judge the whole candidate, not just its strongest phrase. If either perception or relationship contains an unsupported hidden premise, reject the candidate even when another part is grounded.",
           "Words such as imposed, accepted, rebelled, defied, submitted, escaped, freed, constrained, resisted, or liberated describe agency, stance, or state. They are allowed only when the supplied reality itself establishes that meaning, not merely because an action can be dramatized that way.",
           "Trying to remove an added object can support a figurative beat of resistance to that object, but it does not establish that the object was imposed, that the subject accepted it later, that removal succeeded, or that later happiness was caused by freedom from it.",
-          "Return one grounded decision for every candidate, in the same order.",
+          "For every candidate, extract unsupportedClaims: each causal, motivational, agency, outcome, state-change, ranking, chronology, hidden-condition, or other real-world premise that is not established by SUPPLIED_REALITY.",
+          "grounded is only a summary. unsupportedClaims is authoritative: grounded should be true exactly when unsupportedClaims is empty.",
+          "Return one verification for every candidate, in the same order.",
         ].join("\n"),
       },
       {
@@ -179,7 +181,7 @@ async function verifyDiscoveryCandidates(input: {
             evidenceEventIds: candidate.evidenceEventIds,
           })),
           instruction:
-            "Keep only candidates whose entire underlying premise is supported by supplied reality. Reject the whole candidate if any perception or relationship clause adds unsupported causality, motive, completed outcome, agency, acceptance, imposition, rebellion, constraint, emotional cause, or hidden state even when another clause is grounded or figurative.",
+            "Audit every perception and relationship clause. Put each unsupported premise in unsupportedClaims, including invented causality, motive, completed outcome, agency, acceptance, imposition, rebellion, constraint, emotional cause, hidden state, or inferred resolution. grounded must equal unsupportedClaims.length === 0.",
         }),
       },
     ],
@@ -199,10 +201,15 @@ async function verifyDiscoveryCandidates(input: {
             items: {
               type: "object",
               additionalProperties: false,
-              required: ["candidateId", "grounded"],
+              required: ["candidateId", "grounded", "unsupportedClaims"],
               properties: {
                 candidateId: { type: "string", maxLength: 48 },
                 grounded: { type: "boolean" },
+                unsupportedClaims: {
+                  type: "array",
+                  maxItems: 16,
+                  items: { type: "string", maxLength: 140 },
+                },
               },
             },
           },
@@ -223,7 +230,14 @@ async function verifyDiscoveryCandidates(input: {
     if (!value || typeof value !== "object") continue;
     const record = value as Record<string, unknown>;
     const candidateId = clean(record.candidateId);
-    if (record.grounded === true && candidateIds.has(candidateId)) {
+    const unsupportedClaims = Array.isArray(record.unsupportedClaims)
+      ? record.unsupportedClaims
+          .filter((claim): claim is string => typeof claim === "string")
+          .map(clean)
+          .filter(Boolean)
+      : [];
+
+    if (!unsupportedClaims.length && candidateIds.has(candidateId)) {
       groundedIds.add(candidateId);
     }
   }
