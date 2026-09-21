@@ -3,6 +3,8 @@
  *
  * Deterministic viewer-facing safety/quality floor.
  * The model may invent language and perception; it may not invent concrete reality.
+ * Semantic authority may license nonliteral framing even when surface words do not
+ * overlap the source. Concrete-world authorization remains factual only.
  */
 export type AuthorCutWorld = {
   subject?: string;
@@ -144,8 +146,13 @@ export function evaluateAuthorCut(
   if (invented >= 0.6) reasons.push("invented-concrete-reality");
   if (explained >= 1) reasons.push("explanation");
   if (wordCount > 10) reasons.push("too-long");
+  const hasSemanticAuthority = (world.semanticAuthority ?? [])
+    .map(clean)
+    .some(Boolean);
+
   if (
     grounded === 0 &&
+    !hasSemanticAuthority &&
     wordCount >= 2 &&
     !ATTITUDE_ONLY.test(text)
   ) {
