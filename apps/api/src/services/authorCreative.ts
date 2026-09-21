@@ -83,6 +83,7 @@ function presentationAffordance(domainContext?: AuthorDomainContext): string {
     "Wanting is not happening. A love of walks does not mean a walk occurred. A love of bacon does not mean bacon is present.",
     "Do not add species clichés, body actions, associated settings, or stereotypical pet imagery.",
     "The viewer should meet the subject through supplied truths, not hear a profile summary.",
+    "When multiple stable preferences are supplied together, synthesize their combination into character. Do not output one dressed-up line per preference. Let the viewer infer something about the subject that was not literally typed.",
   ].join("\n");
 }
 
@@ -503,8 +504,9 @@ export async function createAuthorExperience(input: {
           })),
           CREATIVE_OPPORTUNITY: selected.perception,
           RELATION: selected.relationship,
-          instruction:
-            "Return four candidate lines per beat. The semantic plan controls meaning; the supplied event IDs control factual reality.",
+          instruction: useIdentityClusterPlan
+            ? "This is one IDENTITY character cluster, not a checklist. Return four short candidate realizations that synthesize the combination into character. Do not enumerate every supplied preference or simply restate them. The viewer should infer personality from the combination. Do not invent an event."
+            : "Return four candidate lines per beat. The semantic plan controls meaning; the supplied event IDs control factual reality.",
         }),
       },
     ],
