@@ -410,6 +410,61 @@ function lockPlanToApprovedMeaning(
   };
 }
 
+function ensurePostLockMemoryCanvas(
+  plan: AuthorSemanticPlan,
+  selectedEvidence: readonly AuthorCreativeEvent[],
+): AuthorSemanticPlan {
+  if (selectedEvidence.length < 4 || plan.beats.length >= 3) {
+    return {
+      ...plan,
+      beats: plan.beats.map((beat, index, all) => ({
+        ...beat,
+        order: index + 1,
+        role:
+          index === 0
+            ? "HOOK"
+            : index === all.length - 1
+              ? "PAYOFF"
+              : beat.role === "TURN"
+                ? "TURN"
+                : "BUILD",
+      })),
+    };
+  }
+
+  const targetBeatCount = Math.min(
+    4,
+    Math.max(3, Math.ceil(selectedEvidence.length / 2)),
+  );
+  const groups: string[][] = Array.from({ length: targetBeatCount }, () => []);
+
+  selectedEvidence.forEach((event, index) => {
+    const groupIndex = Math.min(
+      targetBeatCount - 1,
+      Math.floor(index * targetBeatCount / selectedEvidence.length),
+    );
+    groups[groupIndex].push(event.id);
+  });
+
+  return {
+    ...plan,
+    beats: groups
+      .filter((eventIds) => eventIds.length > 0)
+      .map((eventIds, index, all) => ({
+        order: index + 1,
+        role:
+          index === 0
+            ? "HOOK"
+            : index === all.length - 1
+              ? "PAYOFF"
+              : "BUILD",
+        eventIds,
+        attention: "",
+        change: "",
+      })),
+  };
+}
+
 function memoryPayoffReplayPenalty(
   text: string,
   beatFacts: readonly string[],
@@ -794,11 +849,23 @@ export async function createAuthorExperience(input: {
     ? enforceMemoryStructure(rawPlan, selectedEvidence)
     : rawPlan;
 
-  const plan = lockPlanToApprovedMeaning(
+  const initiallyLockedPlan = lockPlanToApprovedMeaning(
     structurallySafePlan,
     input.suppliedReality,
     input.creativeDiscovery,
   );
+
+  const postLockPlan = isMemoryMode
+    ? ensurePostLockMemoryCanvas(initiallyLockedPlan, selectedEvidence)
+    : initiallyLockedPlan;
+
+  const plan = postLockPlan === initiallyLockedPlan
+    ? initiallyLockedPlan
+    : lockPlanToApprovedMeaning(
+        postLockPlan,
+        input.suppliedReality,
+        input.creativeDiscovery,
+      );
 
   debug("BARE-AUTHOR-PLAN", {
     mode: useIdentityClusterPlan
@@ -809,8 +876,12 @@ export async function createAuthorExperience(input: {
     raw: useDeterministicSparsePlan ? "SKIPPED_MODEL_PLAN" : planResult.text,
     memoryStructureAdjusted:
       isMemoryMode &&
-      JSON.stringify(structurallySafePlan.beats.map((beat) => beat.eventIds)) !==
-        JSON.stringify(rawPlan.beats.map((beat) => beat.eventIds)),
+      (
+        JSON.stringify(structurallySafePlan.beats.map((beat) => beat.eventIds)) !==
+          JSON.stringify(rawPlan.beats.map((beat) => beat.eventIds)) ||
+        JSON.stringify(plan.beats.map((beat) => beat.eventIds)) !==
+          JSON.stringify(initiallyLockedPlan.beats.map((beat) => beat.eventIds))
+      ),
     selectedPlan: plan,
   });
 
@@ -836,6 +907,11 @@ export async function createAuthorExperience(input: {
           "Prefer source-specific cleverness over prettiness.",
           ...(isMemoryMode ? [
             "MEMORY REALIZATION: these beats are parts of ONE remembered experience, not independent caption slots. Make the sequence accumulate meaning across cuts.",
+            "THINK PRODUCT, NOT LINES. The finished sequence is the product. Every cut is one component of that product and must earn its place by setting up, deepening, turning, or landing the SAME experience.",
+            "A cut does not need to be impressive alone. It needs to make the surrounding cuts stronger. Prefer a sequence whose parts depend on each other over a stack of individually clever captions.",
+            "Read each production vertically before choosing it: CUT 1 changes what CUT 2 means; CUT 2 changes what CUT 3 means; the last cut should make the earlier cuts feel more intentional in retrospect.",
+            "Use restraint strategically. One cut may be simple so another can hit harder. Do not make every cut compete for attention.",
+            "The viewer should feel one authored object unfolding through time, not several captions placed next to each other.",
             "Neutral encounters may become juxtaposition, texture, density, oddity, accumulation, contrast, or title-like framing, but do not turn that framing into a literal claim about the subject's internal state or behavior.",
             "TITLE-LIKE FRAMING VS MATERIAL CLAIM: 'Squirrelly distraction.' can function as playful framing of a supplied squirrel encounter; 'Milo was distracted by the squirrels.' asserts a real attentional state and requires support. Prefer the first kind of freedom when it helps.",
             "When a supplied fact is explicitly positive, negative, praised, criticized, liked, feared, or otherwise valenced, do not flatten away that valence merely to sound clever.",
@@ -879,7 +955,7 @@ export async function createAuthorExperience(input: {
           instruction: useIdentityClusterPlan
             ? "This is one IDENTITY character cluster, not a checklist. Return four short candidate realizations that synthesize the combination into character. Do not enumerate every supplied preference or simply restate them. The viewer should infer personality from the combination. Do not invent an event."
             : isMemoryMode
-              ? "Return four complete candidate productions encoded as four variants per beat. Keep variant index aligned across every beat: all first variants form Production A, all second variants form Production B, all third variants form Production C, all fourth variants form Production D. Each production should establish -> enrich -> land. Preserve distinctive source anchors while transforming them. The final cut must land the approved memory relation using its local evidence plus already-established prior evidence. Then nominate the strongest complete production by number 1-4 based on specificity, progression, surprise, payoff, and how alive it feels—not on literalness. Keep factual reality inside supplied event IDs, but make each production feel authored rather than enumerated."
+              ? "Return four complete candidate productions encoded as four variants per beat. Keep variant index aligned across every beat: all first variants form Production A, all second variants form Production B, all third variants form Production C, all fourth variants form Production D. Treat each production as one finished QRE object unfolding cut by cut, not as separate lines. Each cut should perform a different job in the same experience: establish, deepen/turn, then land. Preserve distinctive source anchors while transforming them. The final cut must land the approved memory relation using its local evidence plus already-established prior evidence. Then nominate the strongest complete production by number 1-4 based on whole-product coherence, specificity, progression, surprise, payoff, and how alive it feels—not on whether every individual line sounds impressive. Keep factual reality inside supplied event IDs, but make each production feel authored rather than enumerated."
               : "Return four candidate lines per beat. The semantic plan controls meaning; the supplied event IDs control factual reality.",
         }),
       },
