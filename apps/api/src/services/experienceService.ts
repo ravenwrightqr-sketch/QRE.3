@@ -245,6 +245,7 @@ export async function compileExperience(input: {
   /** @deprecated Compatibility only. Prefer playoutMode. */
   movieMode?: boolean;
   lens?: string;
+  experienceMode?: "IDENTITY" | "MEMORY";
 }): Promise<CompiledExperienceResult> {
   const operationId =
   input.operationId ??
@@ -287,6 +288,13 @@ export async function compileExperience(input: {
       });
       domainContext = buildAssetDomainContext(asset);
       const assetData = asRecord(asset?.templateData);
+      const assetExperienceMode = clean(assetData?.experienceMode).toUpperCase();
+      if (assetExperienceMode === "IDENTITY" || assetExperienceMode === "MEMORY") {
+        domainContext = {
+          ...(domainContext ?? {}),
+          experienceMode: assetExperienceMode,
+        };
+      }
       assetIdentity = clean(
         assetData?.subjectName ||
         assetData?.subject ||
@@ -359,6 +367,12 @@ export async function compileExperience(input: {
 
   const learningLines = learningContext ? learningContextLines(learningContext) : [];
   const learnedProfile = buildAuthorBehaviorProfile(learningLines);
+  if (input.experienceMode) {
+    domainContext = {
+      ...(domainContext ?? {}),
+      experienceMode: input.experienceMode,
+    };
+  }
   const subject = inferSubject(prompt, memoryContext, assetIdentity);
   const place = clean(input.geoAnchor?.label) || clean(presence?.places?.[0]);
   const subjectTruth = resolveSubjectTruth(subject, prompt, memoryContext);
