@@ -360,6 +360,13 @@ export async function verifyAuthorCreativeGrounding(input: {
       ) {
         continue;
       }
+      if (
+        hasUnsupportedSensoryClaim(fragment, suppliedRealityText) &&
+        supportKind !== "FIGURATIVE" &&
+        supportKind !== "CONTEXTUAL_TEXTURE"
+      ) {
+        continue;
+      }
 
       supportedFragments.push(fragment);
       sourceEventIds.forEach((id) => supportedIds.add(id));
@@ -368,8 +375,6 @@ export async function verifyAuthorCreativeGrounding(input: {
     if (!supportedFragments.length || !supportedIds.size) return [];
 
     const text = clean(supportedFragments.join(" "));
-
-    if (hasUnsupportedSensoryClaim(text, suppliedRealityText)) return [];
 
     return [{
       ...scene,
