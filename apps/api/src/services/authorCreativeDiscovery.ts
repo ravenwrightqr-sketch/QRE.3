@@ -595,6 +595,15 @@ export async function discoverAuthorCreativeDirection(input: {
     semanticVerification.groundedIds.has(candidate.id),
   );
 
+  const requestedSelectedId = clean(parsed?.selectedCandidateId);
+  const modelPlayableEventIds = stringArray(parsed?.playableEventIds, 32)
+    .filter((id) => allowedEventIds.has(id));
+  const modelBackgroundEventIds = stringArray(parsed?.backgroundEventIds, 64)
+    .filter((id) => allowedEventIds.has(id));
+  const experienceMode = clean(
+    (input.domainContext as Record<string, unknown> | undefined)?.experienceMode,
+  ).toUpperCase();
+
   let repairModel = result.model;
   let repairModelCalls = 0;
   let usedRepair = false;
@@ -636,15 +645,20 @@ export async function discoverAuthorCreativeDirection(input: {
     risk: "no_grounded_discovery_candidate",
   };
 
-  const requestedSelectedId = clean(parsed?.selectedCandidateId);
-  const requestedSelected = usedRepair
-    ? undefined
-    : candidates.find(
-        (candidate) => candidate.id === requestedSelectedId,
-      );
+  const requestedSelected = !usedRepair
+    ? candidates.find((candidate) => candidate.id === requestedSelectedId)
+    : undefined;
+
+  const repairedSelected = usedRepair
+    ? candidates.find((candidate) => {
+        const baseId = clean(candidate.id).replace(/-repair(?:ed)?$/i, "");
+        return baseId === requestedSelectedId;
+      })
+    : undefined;
 
   const selected =
     requestedSelected ??
+    repairedSelected ??
     candidates[0] ??
     fallbackCandidate;
 
@@ -652,28 +666,49 @@ export async function discoverAuthorCreativeDirection(input: {
     Boolean(requestedSelected) &&
     selected.id === requestedSelectedId;
 
+  const selectedRepairsModelChoice = Boolean(repairedSelected) &&
+    selected.id === repairedSelected?.id;
+
   const selectedEvidenceSet = new Set(selected.evidenceEventIds);
 
-  const selectedChangedAfterModelChoice = !selectedMatchesModelChoice;
-  const playableEventIds = selectedChangedAfterModelChoice
-    ? selected.evidenceEventIds.filter((id) => allowedEventIds.has(id))
-    : stringArray(parsed?.playableEventIds, 32)
-        .filter((id) => allowedEventIds.has(id))
-        .filter((id) => selectedEvidenceSet.has(id));
+  const preserveChosenMemoryCorridor =
+    experienceMode === "MEMORY" &&
+    selectedRepairsModelChoice;
+
+  const repairedChosenCorridor = preserveChosenMemoryCorridor
+    ? unique([
+        ...selected.evidenceEventIds,
+        ...modelPlayableEventIds,
+        ...modelBackgroundEventIds,
+      ]).filter((id) => allowedEventIds.has(id))
+    : [];
+
+  const selectedChangedAfterModelChoice =
+    !selectedMatchesModelChoice && !selectedRepairsModelChoice;
+
+  const playableEventIds = preserveChosenMemoryCorridor
+    ? repairedChosenCorridor
+    : selectedChangedAfterModelChoice
+      ? selected.evidenceEventIds.filter((id) => allowedEventIds.has(id))
+      : modelPlayableEventIds
+          .filter((id) => selectedEvidenceSet.has(id));
 
   const playableSet = new Set(playableEventIds);
-  const requestedBackground = selectedChangedAfterModelChoice
+
+  const requestedBackground = selectedChangedAfterModelChoice ||
+    preserveChosenMemoryCorridor
     ? []
-    : stringArray(parsed?.backgroundEventIds, 64)
-        .filter((id) => allowedEventIds.has(id))
+    : modelBackgroundEventIds
         .filter((id) => selectedEvidenceSet.has(id))
         .filter((id) => !playableSet.has(id));
 
-  const backgroundEventIds = selectedChangedAfterModelChoice
-    ? selected.evidenceEventIds.filter((id) => !playableSet.has(id))
-    : requestedBackground.length
-      ? requestedBackground
-      : selected.evidenceEventIds.filter((id) => !playableSet.has(id));
+  const backgroundEventIds = preserveChosenMemoryCorridor
+    ? []
+    : selectedChangedAfterModelChoice
+      ? selected.evidenceEventIds.filter((id) => !playableSet.has(id))
+      : requestedBackground.length
+        ? requestedBackground
+        : selected.evidenceEventIds.filter((id) => !playableSet.has(id));
 
   return {
     discovery: {
