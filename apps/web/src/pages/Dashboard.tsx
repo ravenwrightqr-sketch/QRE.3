@@ -33,6 +33,7 @@ export default function Dashboard() {
   const [objects, setObjects] = useState<Experience[]>([]);
   const [loading, setLoading] = useState(true);
   const [prompt, setPrompt] = useState("");
+  const [experienceMode, setExperienceMode] = useState<"MEMORY" | "IDENTITY">("MEMORY");
   const [creating, setCreating] = useState(false);
   const [planning, setPlanning] = useState(false);
   const [activeAsset, setActiveAsset] = useState("");
@@ -128,7 +129,12 @@ export default function Dashboard() {
     try {
       setCreating(true);
       const finalGeo = geo ? { ...geo, label: geoLabel || geo.label, role: geoRole, time: timeAnchor || geo.time } : undefined;
-      const compiled = await compileExperience({ prompt: text, assetId: activeObject?.id, geo: finalGeo });
+      const compiled = await compileExperience({
+        prompt: text,
+        assetId: activeObject?.id,
+        geo: finalGeo,
+        experienceMode,
+      });
       sessionStorage.setItem("experiencePreview", JSON.stringify(compiled));
       sessionStorage.setItem("experienceSourcePrompt", prompt.trim());
       if (activeObject?.slug) sessionStorage.setItem("experienceAssetSlug", activeObject.slug);
@@ -188,6 +194,27 @@ export default function Dashboard() {
           <div style={eyebrow}>QRE LIVING WORLDS</div>
           <h1 style={titleStyle}>What do you want to make?</h1>
           <p style={subStyle}>Say it normally. QRE figures out what would make it better.</p>
+          <div style={modeSwitch} aria-label="Author synthesis mode">
+            <button
+              type="button"
+              onClick={() => setExperienceMode("MEMORY")}
+              style={{ ...modeButton, ...(experienceMode === "MEMORY" ? modeButtonActive : {}) }}
+            >
+              MEMORY
+            </button>
+            <button
+              type="button"
+              onClick={() => setExperienceMode("IDENTITY")}
+              style={{ ...modeButton, ...(experienceMode === "IDENTITY" ? modeButtonActive : {}) }}
+            >
+              IDENTITY
+            </button>
+          </div>
+          <div style={modeHint}>
+            {experienceMode === "MEMORY"
+              ? "Accumulated truths → one experience."
+              : "Simultaneous truths → one character read."}
+          </div>
           <div style={promptShell}>
             <textarea ref={promptRef} value={prompt} onChange={(event) => { setPrompt(event.target.value); requestAnimationFrame(resizePrompt); }} onKeyDown={(event) => { if (event.key === "Enter" && !event.shiftKey) { event.preventDefault(); void beginCreate(); } }} placeholder="Create a memory, make a video, bring a place to life…" spellCheck maxLength={30000} rows={3} style={promptStyle} />
             <div style={promptFooter}>
@@ -230,6 +257,10 @@ const titleStyle = { fontSize: "clamp(38px, 8vw, 74px)", fontWeight: 500, letter
 const seedTitle = { margin: 0, fontSize: "clamp(34px, 7vw, 62px)", fontWeight: 500, letterSpacing: "-2px", textAlign: "center" as const };
 const subStyle = { margin: "18px 0 32px", opacity: .46, textAlign: "center" as const, maxWidth: 520, fontSize: 15 };
 const seedPrompt = { width: "min(760px, 92vw)", margin: "12px 0 26px", textAlign: "center" as const, opacity: .42, lineHeight: 1.5 };
+const modeSwitch = { display: "flex", gap: 6, marginBottom: 8, padding: 4, border: "1px solid rgba(255,255,255,.08)", borderRadius: 999, background: "rgba(255,255,255,.025)" };
+const modeButton = { border: 0, borderRadius: 999, padding: "7px 11px", background: "transparent", color: "rgba(255,255,255,.42)", cursor: "pointer", fontSize: 9, letterSpacing: 1.6 };
+const modeButtonActive = { background: "rgba(185,255,241,.12)", color: "#d9fff7", boxShadow: "inset 0 0 0 1px rgba(185,255,241,.25)" };
+const modeHint = { marginBottom: 16, fontSize: 10, letterSpacing: 1.2, opacity: .34 };
 const promptShell = { width: "min(900px, 92vw)", border: "1px solid rgba(255,255,255,.12)", background: "rgba(8,10,13,.72)", backdropFilter: "blur(24px)", borderRadius: 26, padding: "14px 16px 12px", boxShadow: "0 25px 100px rgba(0,0,0,.35)" };
 const promptStyle = { width: "100%", boxSizing: "border-box" as const, minHeight: 74, maxHeight: 320, resize: "none" as const, overflowY: "auto" as const, background: "transparent", border: 0, outline: 0, color: "#fff", fontFamily: "inherit", fontSize: "clamp(18px, 2.3vw, 24px)", lineHeight: 1.45, padding: "8px 8px 4px" };
 const promptFooter = { display: "flex", justifyContent: "space-between", alignItems: "center", gap: 15, padding: "8px 6px 2px", fontSize: 10, letterSpacing: 1.2 };
