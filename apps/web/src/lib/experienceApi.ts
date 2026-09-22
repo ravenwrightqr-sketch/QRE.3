@@ -28,6 +28,7 @@ type ExperienceIntent = {
   /** @deprecated Compatibility only. Prefer playoutMode. */
   movieMode?: boolean;
   lens?: string;
+  experienceMode?: "IDENTITY" | "MEMORY";
 };
 
 export async function compileExperience(intent: ExperienceIntent): Promise<Experience> {
@@ -36,6 +37,7 @@ export async function compileExperience(intent: ExperienceIntent): Promise<Exper
     ...(intent.assetId ? { assetId: intent.assetId } : {}),
     ...(intent.geo ? { geo: intent.geo } : {}),
     ...(intent.lens ? { lens: intent.lens } : {}),
+    ...(intent.experienceMode ? { experienceMode: intent.experienceMode } : {}),
     ...(intent.playoutMode ? { playoutMode: intent.playoutMode } : {}),
     movieMode:
       intent.playoutMode
