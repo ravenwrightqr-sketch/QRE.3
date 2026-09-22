@@ -92,7 +92,7 @@ function normalizeMode(value: unknown): "RELATIONAL" | "METAMORPHIC" {
 }
 
 const RECORD_SHAPE_LANGUAGE =
-  /\b(list|prompt|input|record|document|format|formatting|field|fields|wording|phrasing|sentence|sentences|repetition|repeated|repeating)\b/i;
+  /\b(list|prompt|input|record|document|format|formatting|field|fields|wording|phrasing|sentence|sentences)\b/i;
 
 function candidateCrossesDeterministicTruthFloor(
   candidate: AuthorCreativeCandidate,
@@ -188,6 +188,7 @@ async function verifyDiscoveryCandidates(input: {
           "A desire, need, intention, or reason remains a motive claim and needs evidence even in IDENTITY mode.",
           "MEMORY MODE: structural descriptions of supplied co-occurrence are allowed. If one lived event contains several supplied observations or encounters, it may truthfully read as a sequence, accumulation, cluster, mix, run, series, contrast, recurrence, or return without implying that anyone deliberately curated, gathered, arranged, or caused them. Do not manufacture intentionality merely from structural shape.",
           "MEMORY MODE may preserve the shape of the lived event across multiple facts while keeping unknown causes and motives unknown. A supplied state-before / lived-middle / state-after / recurrence pattern is itself meaningful structure. It may be realized through juxtaposition and callback without claiming what caused the state change or why the recurrence happened.",
+          "RECURRENCE CAN BE PAYOFF. A later supplied return may retrospectively change how the earlier encounter reads simply because it happened again. This recontextualization is allowed even when motive, attraction, success, importance, and causality remain unknown.",
           "Reject invented praise, success, excitement, motive, causal connection, persistence of state, intimacy, urgency, deliberation, or relationship status; do not reject neutral structural compression simply because it groups supplied events.",
           "grounded is only a truth summary. unsupportedClaims is authoritative: grounded should be true exactly when unsupportedClaims is empty.",
           "Return one verification for every candidate, in the same order.",
