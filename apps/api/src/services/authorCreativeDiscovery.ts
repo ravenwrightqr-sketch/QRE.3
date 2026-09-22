@@ -277,6 +277,7 @@ async function repairDiscoveryCandidates(input: {
   events: ReadonlyArray<{ id: string; text: string }>;
   relations?: readonly AuthorDiscoveryRelation[];
   allowedEventIds: Set<string>;
+  domainContext?: AuthorDomainContext;
 }): Promise<{ candidates: AuthorCreativeCandidate[]; model: string; modelCalls: number }> {
   if (!input.candidates.length) {
     return { candidates: [], model: "none", modelCalls: 0 };
@@ -294,9 +295,12 @@ async function repairDiscoveryCandidates(input: {
           "Keep the creative leap; remove fake history.",
           "A perceptual relation may change status, significance, atmosphere, role, absurdity, intimacy, tension, ceremony, suspicion, tenderness, or another felt reading without asserting that the transformed frame literally happened.",
           "Never add motive, causality, ownership, successful outcome, hidden emotional cause, unseen condition, literal rank, literal role, or completed action.",
-          "Prefer a small specific relation carried by supplied objects/actions over a broad emotional arc.",
+          "Prefer a specific relation carried by supplied reality over a vague generic emotional summary.",
+          "Do NOT confuse a generic emotional arc with an explicitly supplied state contrast. If reality supplies one state before an encounter and another state afterward, that contrast is real evidence and may be creatively important even though the cause of the change is unknown.",
+          "When a memory contains a supplied before-state, an intervening lived event, a supplied after-state, and later recurrence/return, preserve those load-bearing anchors when they carry the perception. Remove invented because/therefore logic; do not delete the true contrast to make the repair safer.",
+          "A repaired perception may say the sequence changes how the encounter reads, or that the before/after contrast recontextualizes what came between, without claiming that the middle event caused the later state.",
           "For IDENTITY material, preserve grounded character inference from stable preferences; do not repair it down into generic 'shared experiences' or 'simple pleasures' merely because the character word was not typed verbatim.",
-          "For MEMORY material with several supplied events, preserve the shape of the lived event across multiple relevant facts when possible. Do not repair a multi-fact memory down to one isolated quirky detail unless that detail genuinely carries the memory by itself. Prefer neutral structural patterns such as accumulation, variety, juxtaposition, sequence, recurrence, or density over invented evaluation.",
+          "For MEMORY material with several supplied events, preserve the shape of the lived event across multiple relevant facts when possible. Do not repair a multi-fact memory down to one isolated quirky detail unless that detail genuinely carries the memory by itself. Prefer neutral structural patterns such as accumulation, variety, juxtaposition, sequence, recurrence, contrast, or density over invented evaluation.",
           "Return up to two repaired candidates. If no candidate can be repaired without becoming bland or false, return an empty candidates array.",
         ].join("\n"),
       },
@@ -305,6 +309,7 @@ async function repairDiscoveryCandidates(input: {
         content: JSON.stringify({
           SUPPLIED_REALITY: input.events,
           SUPPLIED_RELATIONS: input.relations ?? [],
+          EXPERIENCE_MODE: clean((input.domainContext as Record<string, unknown> | undefined)?.experienceMode).toUpperCase() || undefined,
           FAILED_DISCOVERY: input.candidates.map((candidate) => ({
             id: candidate.id,
             mode: candidate.mode,
@@ -313,7 +318,7 @@ async function repairDiscoveryCandidates(input: {
             evidenceEventIds: candidate.evidenceEventIds,
           })),
           instruction:
-            "Repair only the perceptual relation. State it as what the supplied facts can READ LIKE or FEEL LIKE, not as an explanation of why anything happened. Preserve distinctive supplied material. For MEMORY material, do not add unsupported duration labels or temporal compression such as brief, briefly, long, quick, quickly, sudden, suddenly, prompt, promptly, instant, instantly, final, finally, or still unless the supplied reality establishes that relation. Preserve the multi-event shape when it carries the memory. Do not write final cuts.",
+            "Repair only the perceptual relation. State it as what the supplied facts can READ LIKE or FEEL LIKE, not as an explanation of why anything happened. Preserve distinctive supplied material. If the failed read depended on a supplied before/after state contrast, preserve BOTH supplied state anchors and remove only the unsupported causal explanation between them. If later recurrence/return is supplied and contributes to the read, preserve that anchor too. For MEMORY material, do not add unsupported duration labels or temporal compression such as brief, briefly, long, quick, quickly, sudden, suddenly, prompt, promptly, instant, instantly, final, finally, or still unless the supplied reality establishes that relation. Preserve the multi-event shape when it carries the memory. Do not write final cuts.",
         }),
       },
     ],
@@ -355,9 +360,30 @@ async function repairDiscoveryCandidates(input: {
   const parsed = parseJson(result.text);
   const raw = Array.isArray(parsed?.candidates) ? parsed.candidates : [];
   const suppliedRealityText = clean(input.events.map((event) => event.text).join(" "));
+  const experienceMode = clean(
+    (input.domainContext as Record<string, unknown> | undefined)?.experienceMode,
+  ).toUpperCase();
+
   const candidates = raw
     .map((value, index) => normalizeCandidate(value, index, input.allowedEventIds))
     .filter((value): value is AuthorCreativeCandidate => Boolean(value))
+    .map((candidate) => {
+      if (experienceMode !== "MEMORY") return candidate;
+
+      const originalId = clean(candidate.id).replace(/-repaired$/i, "");
+      const original = input.candidates.find(
+        (failed) => clean(failed.id) === originalId,
+      );
+      if (!original) return candidate;
+
+      return {
+        ...candidate,
+        evidenceEventIds: unique([
+          ...original.evidenceEventIds,
+          ...candidate.evidenceEventIds,
+        ]).filter((id) => input.allowedEventIds.has(id)),
+      };
+    })
     .filter((candidate) =>
       !candidateCrossesDeterministicTruthFloor(candidate, suppliedRealityText),
     )
@@ -579,6 +605,7 @@ export async function discoverAuthorCreativeDirection(input: {
       events: input.events,
       relations: input.relations,
       allowedEventIds,
+      domainContext: input.domainContext,
     });
     repairModel = repair.model === "none" ? result.model : repair.model;
     repairModelCalls += repair.modelCalls;
