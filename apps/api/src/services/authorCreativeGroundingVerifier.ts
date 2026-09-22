@@ -296,11 +296,6 @@ export async function verifyAuthorCreativeGrounding(input: {
     /\b(?:long|short|brief|briefly|quick|quickly|slow|slowly|fast|faster|slower|sudden|suddenly|prompt|promptly|instant|instantly|immediate|immediately|final|finally|still)\b/i;
   const suppliedTemporalComparison = unsupportedTemporalComparison.test(suppliedRealityText);
 
-  const unsupportedRecurrenceRegularity =
-    /\b(?:inevitable|inevitably|predictable|predictably|routine|routinely|habit|habitual|habitually|regular|regularly|cadence)\b/i;
-  const suppliedRecurrenceRegularity =
-    unsupportedRecurrenceRegularity.test(suppliedRealityText);
-
   const scenes = input.scenes.flatMap((scene, sceneIndex) => {
     const fragments = beatClauseFragments(scene.text);
     const clauses = beatClauses(scene.text);
@@ -368,12 +363,6 @@ export async function verifyAuthorCreativeGrounding(input: {
       if (
         unsupportedTemporalComparison.test(fragment) &&
         !suppliedTemporalComparison
-      ) {
-        continue;
-      }
-      if (
-        unsupportedRecurrenceRegularity.test(fragment) &&
-        !suppliedRecurrenceRegularity
       ) {
         continue;
       }
