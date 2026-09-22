@@ -319,6 +319,29 @@ function temporalAnchorAdjustment(text: string, beatFacts: readonly string[]): n
   return -0.22;
 }
 
+function hasSpecificTemporalAnchor(value: string): boolean {
+  const text = clean(value).toLowerCase();
+  return (
+    /\b\d+(?:\.\d+)?\b/.test(text) ||
+    /\b(?:second|seconds|minute|minutes|hour|hours|day|days|week|weeks|month|months|year|years|monday|tuesday|wednesday|thursday|friday|saturday|sunday)\b/.test(text) ||
+    /\bnext\s+(?:day|week|month|year|morning|afternoon|evening|night)\b/.test(text)
+  );
+}
+
+function preservesSpecificTemporalAnchor(
+  text: string,
+  beatFacts: readonly string[],
+): boolean {
+  const sourceText = beatFacts.join(" ");
+  if (!hasSpecificTemporalAnchor(sourceText)) return true;
+
+  const sourceAnchors = temporalAnchorTokens(sourceText)
+    .filter((anchor) => anchor !== "recurrence");
+  const candidateAnchors = new Set(temporalAnchorTokens(text));
+
+  return sourceAnchors.some((anchor) => candidateAnchors.has(anchor));
+}
+
 function variantScore(
   text: string,
   beatFacts: readonly string[],
@@ -593,6 +616,10 @@ function scoreMemorySequence(
     : 0;
   const payoff = lines.length ? lines[lines.length - 1] : undefined;
   const payoffStrength = payoff?.accepted ? payoff.score : 0;
+  const payoffDropsSpecificTime = Boolean(
+    payoff &&
+    !preservesSpecificTemporalAnchor(payoff.text, payoff.beatFacts),
+  );
   const rejected = lines.length - acceptedLines.length;
 
   const score = Math.max(
@@ -610,11 +637,14 @@ function scoreMemorySequence(
   if ((payoff?.reasons ?? []).includes("memory-payoff-replay")) {
     reasons.push("weak-payoff-replay");
   }
+  if (payoffDropsSpecificTime) {
+    reasons.push("payoff-drops-specific-time-anchor");
+  }
 
   return {
     variantIndex,
     lines,
-    accepted: completeness === 1,
+    accepted: completeness === 1 && !payoffDropsSpecificTime,
     score: Number(score.toFixed(3)),
     reasons,
   };
