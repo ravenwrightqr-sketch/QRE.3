@@ -141,6 +141,38 @@ function enforceMemoryStructure(
   plan: AuthorSemanticPlan,
   selectedEvidence: readonly AuthorCreativeEvent[],
 ): AuthorSemanticPlan {
+  if (
+    selectedEvidence.length === 4 &&
+    plan.beats.length === 3
+  ) {
+    const plannedIds = plan.beats.flatMap((beat) => beat.eventIds);
+    const selectedIds = selectedEvidence.map((event) => event.id);
+    const sameEvidenceSet =
+      plannedIds.length === selectedIds.length &&
+      new Set(plannedIds).size === selectedIds.length &&
+      selectedIds.every((id) => plannedIds.includes(id));
+
+    if (sameEvidenceSet) {
+      return {
+        ...plan,
+        beats: selectedEvidence.map((event, index) => ({
+          order: index + 1,
+          role:
+            index === 0
+              ? "HOOK"
+              : index === selectedEvidence.length - 1
+                ? "PAYOFF"
+                : index === selectedEvidence.length - 2
+                  ? "TURN"
+                  : "BUILD",
+          eventIds: [event.id],
+          attention: "",
+          change: "",
+        })),
+      };
+    }
+  }
+
   if (selectedEvidence.length < 4) {
     return {
       ...plan,
@@ -362,11 +394,13 @@ function variantScore(
   const normalized = clean(text).toLowerCase();
   const repeated = prior.some((value) => clean(value).toLowerCase() === normalized);
   const replayPenalty = sourceReplayPenalty(text, beatFacts);
+  const anchorAdjustment = temporalAnchorAdjustment(text, beatFacts);
   const score = Math.max(
     0,
     policy.score -
       (repeated ? 0.35 : 0) -
-      replayPenalty,
+      replayPenalty +
+      anchorAdjustment,
   );
 
   return {
@@ -587,15 +621,20 @@ function scoreMemorySequence(
       index === plan.beats.length - 1,
       beat.change,
     );
+    const dropsSpecificTimeAnchor =
+      !preservesSpecificTemporalAnchor(text, beatFacts);
     const line = {
       beat,
       beatFacts,
       text,
       ...base,
+      accepted: base.accepted && !dropsSpecificTimeAnchor,
       score: Math.max(0, base.score - payoffPenalty),
-      reasons: payoffPenalty > 0
-        ? [...base.reasons, "memory-payoff-replay"]
-        : base.reasons,
+      reasons: [
+        ...base.reasons,
+        ...(payoffPenalty > 0 ? ["memory-payoff-replay"] : []),
+        ...(dropsSpecificTimeAnchor ? ["drops-specific-time-anchor"] : []),
+      ],
     };
     if (text) prior.push(text);
     return line;
