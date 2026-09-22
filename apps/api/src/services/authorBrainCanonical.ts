@@ -347,7 +347,7 @@ export async function authorBrainCanonical(
         diagnostics: undefined,
       };
 
-  const verifiedCreative = await verifyAuthorCreativeGrounding({
+  let verifiedCreative = await verifyAuthorCreativeGrounding({
     scenes: creativeResult.scenes,
     suppliedReality: events,
     semanticAuthority: unique([
@@ -356,6 +356,92 @@ export async function authorBrainCanonical(
     ]),
     domainContext: input.domainContext,
   });
+
+  let groundingRecoveryModelCalls = 0;
+
+  if (
+    verifiedCreative.scenes.length < creativeResult.scenes.length &&
+    creativeResult.diagnostics?.choices?.length
+  ) {
+    const verifiedSceneKeys = new Set(
+      verifiedCreative.scenes.map((scene) =>
+        `${scene.text}::${[...scene.sourceEventIds].sort().join(",")}`,
+      ),
+    );
+
+    const missingChoices = creativeResult.diagnostics.choices.filter((choice) => {
+      const original = creativeResult.scenes.find((scene) =>
+        scene.sourceEventIds.length === choice.beat.eventIds.length &&
+        scene.sourceEventIds.every((id) => choice.beat.eventIds.includes(id)),
+      );
+      if (!original) return false;
+      const key = `${original.text}::${[...original.sourceEventIds].sort().join(",")}`;
+      return !verifiedSceneKeys.has(key);
+    });
+
+    const recoveryCandidates = missingChoices.flatMap((choice) =>
+      choice.candidates
+        .filter((candidate) =>
+          candidate.accepted &&
+          candidate.text &&
+          candidate.text !== choice.selected,
+        )
+        .sort((a, b) => b.score - a.score)
+        .map((candidate) => ({
+          text: candidate.text,
+          kind: creativeResult.scenes.find((scene) =>
+            scene.sourceEventIds.length === choice.beat.eventIds.length &&
+            scene.sourceEventIds.every((id) => choice.beat.eventIds.includes(id)),
+          )?.kind ?? "line",
+          sourceEventIds: [...choice.beat.eventIds],
+        })),
+    );
+
+    if (recoveryCandidates.length) {
+      const recovered = await verifyAuthorCreativeGrounding({
+        scenes: recoveryCandidates,
+        suppliedReality: events,
+        semanticAuthority: unique([
+          discoveryResult.discovery.selected.perception,
+          discoveryResult.discovery.selected.relationship,
+        ]),
+        domainContext: input.domainContext,
+      });
+      groundingRecoveryModelCalls += recovered.modelCalls;
+
+      const recoveredByBeat = new Map<string, typeof recovered.scenes[number]>();
+      for (const scene of recovered.scenes) {
+        const key = [...scene.sourceEventIds].sort().join(",");
+        if (!recoveredByBeat.has(key)) {
+          recoveredByBeat.set(key, scene);
+        }
+      }
+
+      const verifiedByBeat = new Map(
+        verifiedCreative.scenes.map((scene) => [
+          [...scene.sourceEventIds].sort().join(","),
+          scene,
+        ]),
+      );
+
+      const restoredScenes = creativeResult.scenes.map((scene) => {
+        const key = [...scene.sourceEventIds].sort().join(",");
+        return verifiedByBeat.get(key) ?? recoveredByBeat.get(key) ?? {
+          ...scene,
+          text: scene.sourceEventIds
+            .map((id) => events.find((event) => event.id === id)?.text ?? "")
+            .map(clean)
+            .filter(Boolean)
+            .join(" "),
+        };
+      });
+
+      verifiedCreative = {
+        ...verifiedCreative,
+        scenes: restoredScenes,
+      };
+    }
+  }
 
   const usedEvidenceIds = new Set(
     verifiedCreative.scenes.flatMap((scene) => scene.sourceEventIds),
@@ -414,7 +500,8 @@ export async function authorBrainCanonical(
         receipt.modelCalls +
         discoveryResult.modelCalls +
         creativeResult.modelCalls +
-        verifiedCreative.modelCalls,
+        verifiedCreative.modelCalls +
+        groundingRecoveryModelCalls,
       candidateSequences: discoveryResult.discovery.candidates.length,
       acceptedCandidates: complete ? 1 : 0,
       qualityStatus: complete ? "ACCEPTED" : "REJECTED",
