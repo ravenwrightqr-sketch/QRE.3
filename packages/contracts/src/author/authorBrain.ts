@@ -48,6 +48,8 @@ export type DogTagContext = {
 };
 
 export type AuthorDomainContext = {
+  /** Semantic synthesis shape for the universal Author. */
+  experienceMode?: "IDENTITY" | "MEMORY";
   category?: string;
   businessType?: string;
   businessName?: string;
