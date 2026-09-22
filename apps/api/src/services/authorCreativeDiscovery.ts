@@ -167,6 +167,10 @@ async function verifyDiscoveryCandidates(input: {
           "An attempt to remove something does not prove it was removed.",
           "A subject leaving happy does not prove why the subject was happy.",
           "Nervousness before later events does not prove those later events caused the nervousness.",
+          "A supplied before-state and after-state establish contrast, not transformation mechanism. Do not accept language that says the earlier state dissolved, was shed, unlocked, released, resolved, or revealed a new hidden trait unless reality establishes that mechanism or trait.",
+          "Recurrence establishes that something happened again. Recurrence alone does not establish urgency, persistence as motive, deliberateness, ritual, attraction, intimacy, importance, relationship status, or a desire to continue.",
+          "A duration between two states establishes elapsed time or activity, not that the duration caused the later state, deepened a bond, created familiarity, made someone a confidante, or produced emotional safety.",
+          "Words such as armor, shield, harbor, opening, unlocking, release, relief, familiarity, connection, and openness may be valid figurative framing only when they do not smuggle in a hidden state-change mechanism, relational status, or personality conclusion.",
           "Preserve a figurative read when a reasonable viewer would understand it as imaginative framing of supplied actions rather than a factual claim about hidden reality.",
           "Distinguish 'X was intentionally done for Y' from 'X makes the moment feel like Y.' The first needs factual support; the second can be a grounded perceptual transformation.",
           "Do not reject a candidate merely because its metaphor is not literally true. Reject it only when the metaphor promotes itself into unsupported material history, motive, cause, ownership, outcome, chronology, or hidden condition.",
@@ -182,8 +186,9 @@ async function verifyDiscoveryCandidates(input: {
           "IDENTITY MODE: stable supplied preferences and traits are character evidence. A candidate may make a clearly perceptual character inference from their specificity or combination—such as reading the pattern as curated, precise, particular, discerning, indulgent, or having a recognizable taste—without that inference becoming literal biography. Do NOT put 'infers personality/character/taste' into unsupportedClaims merely because it was not typed verbatim. This is the point of Identity Discovery.",
           "IDENTITY MODE still may not invent an event, chronology, physical action, hidden history, diagnosis, literal motive, causal explanation, or claim that the subject consciously selected or deliberately arranged the supplied traits. 'Reads like a curated collection' can be framing; 'Milo deliberately curated these preferences' is a factual intentionality claim.",
           "A desire, need, intention, or reason remains a motive claim and needs evidence even in IDENTITY mode.",
-          "MEMORY MODE: structural descriptions of supplied co-occurrence are allowed. If one lived event contains several supplied observations or encounters, it may truthfully read as a sequence, accumulation, cluster, mix, run, or series of encounters without implying that anyone deliberately curated, gathered, arranged, or caused them. Do not manufacture intentionality merely from words such as sequence or accumulation.",
-          "MEMORY MODE may preserve the shape of the outing across multiple facts while keeping their valence neutral. Reject invented praise, success, excitement, motive, or causal connection; do not reject neutral structural compression simply because it groups supplied events.",
+          "MEMORY MODE: structural descriptions of supplied co-occurrence are allowed. If one lived event contains several supplied observations or encounters, it may truthfully read as a sequence, accumulation, cluster, mix, run, series, contrast, recurrence, or return without implying that anyone deliberately curated, gathered, arranged, or caused them. Do not manufacture intentionality merely from structural shape.",
+          "MEMORY MODE may preserve the shape of the lived event across multiple facts while keeping unknown causes and motives unknown. A supplied state-before / lived-middle / state-after / recurrence pattern is itself meaningful structure. It may be realized through juxtaposition and callback without claiming what caused the state change or why the recurrence happened.",
+          "Reject invented praise, success, excitement, motive, causal connection, persistence of state, intimacy, urgency, deliberation, or relationship status; do not reject neutral structural compression simply because it groups supplied events.",
           "grounded is only a truth summary. unsupportedClaims is authoritative: grounded should be true exactly when unsupportedClaims is empty.",
           "Return one verification for every candidate, in the same order.",
         ].join("\n"),
@@ -290,7 +295,7 @@ async function repairDiscoveryCandidates(input: {
         content: [
           "You are QRE Creative Discovery Repair.",
           "Reality is fixed. Interpretation is free.",
-          "The first discovery pass found creative possibilities, but none survived semantic grounding.",
+          "A discovery candidate contained creative value but did not survive semantic grounding.",
           "Do not invent a new story. Salvage the strongest perceptual opportunity by removing the unsupported premise that poisoned it.",
           "Keep the creative leap; remove fake history.",
           "A perceptual relation may change status, significance, atmosphere, role, absurdity, intimacy, tension, ceremony, suspicion, tenderness, or another felt reading without asserting that the transformed frame literally happened.",
@@ -370,7 +375,7 @@ async function repairDiscoveryCandidates(input: {
     .map((candidate) => {
       if (experienceMode !== "MEMORY") return candidate;
 
-      const originalId = clean(candidate.id).replace(/-repaired$/i, "");
+      const originalId = clean(candidate.id).replace(/-repair(?:ed)?$/i, "");
       const original = input.candidates.find(
         (failed) => clean(failed.id) === originalId,
       );
@@ -573,25 +578,14 @@ export async function discoverAuthorCreativeDirection(input: {
     )
     .slice(0, 4);
 
-  const structurallyAnchoredCandidates = deterministicCandidates.filter((candidate) => {
-    if (candidate.mode !== "RELATIONAL" || candidate.evidenceEventIds.length < 2) {
-      return true;
-    }
-
-    const evidence = new Set(candidate.evidenceEventIds);
-    return (input.relations ?? []).some((relation) =>
-      evidence.has(relation.from) && evidence.has(relation.to),
-    );
-  });
-
   const semanticVerification = await verifyDiscoveryCandidates({
-    candidates: structurallyAnchoredCandidates,
+    candidates: deterministicCandidates,
     events: input.events,
     relations: input.relations,
     domainContext: input.domainContext,
   });
 
-  let candidates = structurallyAnchoredCandidates.filter((candidate) =>
+  let candidates = deterministicCandidates.filter((candidate) =>
     semanticVerification.groundedIds.has(candidate.id),
   );
 
@@ -608,9 +602,23 @@ export async function discoverAuthorCreativeDirection(input: {
   let repairModelCalls = 0;
   let usedRepair = false;
 
-  if (!candidates.length && deterministicCandidates.length) {
+  const modelSelectedCandidate = deterministicCandidates.find(
+    (candidate) => candidate.id === requestedSelectedId,
+  );
+  const modelSelectedSurvived = candidates.some(
+    (candidate) => candidate.id === requestedSelectedId,
+  );
+
+  const repairTargets =
+    modelSelectedCandidate && !modelSelectedSurvived
+      ? [modelSelectedCandidate]
+      : !candidates.length
+        ? deterministicCandidates
+        : [];
+
+  if (repairTargets.length) {
     const repair = await repairDiscoveryCandidates({
-      candidates: deterministicCandidates,
+      candidates: repairTargets,
       events: input.events,
       relations: input.relations,
       allowedEventIds,
@@ -628,9 +636,20 @@ export async function discoverAuthorCreativeDirection(input: {
         domainContext: input.domainContext,
       });
       repairModelCalls += repairedVerification.modelCalls;
-      candidates = repair.candidates.filter((candidate) =>
+
+      const groundedRepairs = repair.candidates.filter((candidate) =>
         repairedVerification.groundedIds.has(candidate.id),
       );
+
+      candidates = unique([
+        ...groundedRepairs.map((candidate) => candidate.id),
+        ...candidates.map((candidate) => candidate.id),
+      ])
+        .map((id) =>
+          groundedRepairs.find((candidate) => candidate.id === id) ??
+          candidates.find((candidate) => candidate.id === id),
+        )
+        .filter((candidate): candidate is AuthorCreativeCandidate => Boolean(candidate));
     }
   }
 
