@@ -190,6 +190,10 @@ async function verifyDiscoveryCandidates(input: {
           "Exact timestamps may support a perceptual sense of clocked rhythm, boundedness, sequence, or precision in the RECORD OF EVENTS itself, but do not convert that formal shape into a hidden trait of the person performing the work.",
           "Completed service tasks may be transformed figuratively as tasks/status moments, but do not infer the unseen prior condition of the space, the worker's internal state, or the quality/intensity of effort unless supplied.",
           "For every candidate, extract unsupportedClaims: each causal, motivational, agency, outcome, state-change, ranking, chronology, hidden-condition, or other real-world premise that is not established by SUPPLIED_REALITY.",
+          "Also decompose each candidate into MATERIAL PREMISES: every proposition a reasonable viewer could take as a claim about the world, subject, worker, relationship, prior condition, chronology, motive, personality, schedule, or outcome.",
+          "For each material premise, list the supplied event IDs that directly support it. If no supplied event directly establishes the premise, supported must be false even when the overall candidate sounds plausible.",
+          "Pure figurative texture with no literal proposition may have an empty materialPremises array. But if the candidate says or implies a real trait, motive, hidden condition, system, schedule, work ethic, personality, or prior state, that is a material premise and must be audited.",
+          "Do not use the candidate's own evidenceEventIds as proof by default. Those IDs only identify what inspired the candidate. supportEventIds must identify facts that actually entail the premise.",
           "Also judge worthRealizing. A candidate is worth realizing only when it extracts a specific perceptual opportunity from distinctive supplied material. Generic before/after summaries, broad emotional transitions, service/process descriptions, category labels, or restatements such as 'nervous then happy is a contrast' are grounded but NOT worth realizing when they ignore more specific supplied actions, objects, tensions, oddities, or character material.",
           "A tiny specific relation can be worth realizing even when it uses only one or two events. Specificity matters more than coverage.",
           "IDENTITY MODE: stable supplied preferences and traits are character evidence. A candidate may make a clearly perceptual character inference from their specificity or combination—such as reading the pattern as curated, precise, particular, discerning, indulgent, or having a recognizable taste—without that inference becoming literal biography. Do NOT put 'infers personality/character/taste' into unsupportedClaims merely because it was not typed verbatim. This is the point of Identity Discovery.",
@@ -217,7 +221,7 @@ async function verifyDiscoveryCandidates(input: {
             evidenceEventIds: candidate.evidenceEventIds,
           })),
           instruction:
-            "Audit every perception and relationship clause. Put each unsupported MATERIAL premise in unsupportedClaims, including invented causality, motive, completed outcome, agency, acceptance, imposition, constraint, emotional cause, hidden state, inferred resolution, invented approval/validation from neutral encounters, or unsupported claims that a supplied duration is objectively short/long. In MEMORY mode, a sequence/accumulation/cluster of supplied encounters is structural compression and does NOT imply deliberate curation or gathering unless the candidate explicitly claims intent. In IDENTITY mode, do not treat grounded perceptual character inference from stable preferences as unsupported merely because the personality word was not supplied verbatim. grounded must equal unsupportedClaims.length === 0. Separately set worthRealizing=true only when the candidate gives QRE a specific perceptual relation or metamorphic opportunity worth turning into an experience. Do not reward a candidate merely for being true. Generic emotional transitions, broad service summaries, category descriptions, or obvious start/end contrasts are not enough when they fail to use the distinctive supplied material.",
+            "Audit every perception and relationship clause. First decompose the candidate into materialPremises. For every material premise, set supported=true only when one or more supplied event IDs directly establish that proposition; otherwise supported=false and repeat that premise in unsupportedClaims. Put each unsupported MATERIAL premise in unsupportedClaims, including invented causality, motive, completed outcome, agency, acceptance, imposition, constraint, emotional cause, hidden state, inferred resolution, personality/work-ethic inference, hidden schedule/system, unseen prior condition, invented approval/validation from neutral encounters, or unsupported claims that a supplied duration is objectively short/long. Candidate evidenceEventIds are inspiration, not proof. In MEMORY mode, a sequence/accumulation/cluster of supplied encounters is structural compression and does NOT imply deliberate curation or gathering unless the candidate explicitly claims intent. In IDENTITY mode, do not treat grounded perceptual character inference from stable preferences as unsupported merely because the personality word was not supplied verbatim. grounded must equal unsupportedClaims.length === 0 AND every material premise must be supported. Separately set worthRealizing=true only when the candidate gives QRE a specific perceptual relation or metamorphic opportunity worth turning into an experience. Do not reward a candidate merely for being true. Generic emotional transitions, broad service summaries, category descriptions, or obvious start/end contrasts are not enough when they fail to use the distinctive supplied material.",
         }),
       },
     ],
@@ -237,11 +241,29 @@ async function verifyDiscoveryCandidates(input: {
             items: {
               type: "object",
               additionalProperties: false,
-              required: ["candidateId", "grounded", "worthRealizing", "unsupportedClaims"],
+              required: ["candidateId", "grounded", "worthRealizing", "materialPremises", "unsupportedClaims"],
               properties: {
                 candidateId: { type: "string", maxLength: 48 },
                 grounded: { type: "boolean" },
                 worthRealizing: { type: "boolean" },
+                materialPremises: {
+                  type: "array",
+                  maxItems: 16,
+                  items: {
+                    type: "object",
+                    additionalProperties: false,
+                    required: ["text", "supported", "supportEventIds"],
+                    properties: {
+                      text: { type: "string", maxLength: 160 },
+                      supported: { type: "boolean" },
+                      supportEventIds: {
+                        type: "array",
+                        maxItems: 16,
+                        items: { type: "string", maxLength: 64 },
+                      },
+                    },
+                  },
+                },
                 unsupportedClaims: {
                   type: "array",
                   maxItems: 16,
@@ -274,8 +296,20 @@ async function verifyDiscoveryCandidates(input: {
           .filter(Boolean)
       : [];
 
+    const materialPremises = Array.isArray(record.materialPremises)
+      ? record.materialPremises
+      : [];
+    const everyMaterialPremiseSupported = materialPremises.every((premise) => {
+      if (!premise || typeof premise !== "object") return false;
+      const premiseRecord = premise as Record<string, unknown>;
+      const supportEventIds = stringArray(premiseRecord.supportEventIds, 16)
+        .filter((id) => input.events.some((event) => event.id === id));
+      return premiseRecord.supported === true && supportEventIds.length > 0;
+    });
+
     if (
       !unsupportedClaims.length &&
+      everyMaterialPremiseSupported &&
       record.grounded === true &&
       record.worthRealizing === true &&
       candidateIds.has(candidateId)
