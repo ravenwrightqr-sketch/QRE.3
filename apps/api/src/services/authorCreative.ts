@@ -6,6 +6,9 @@ import { evaluateAuthorCut } from "./authorCutFloor.js";
 const clean = (value: unknown): string =>
   String(value ?? "").replace(/\s+/g, " ").trim();
 
+const stripProductionLabel = (value: unknown): string =>
+  clean(value).replace(/^[A-D]\s*:\s*/i, "").trim();
+
 const unique = (values: readonly string[]): string[] =>
   [...new Set(values.map(clean).filter(Boolean))];
 
@@ -618,6 +621,7 @@ async function repairNominatedMemoryProduction(input: {
           "Preserve distinctive source anchors when useful.",
           "Nonliteral title-like framing, metaphor, status, attitude, compression, and recontextualization are welcome.",
           "Do not add new actors, body parts, sensory details, scenery, actions, motives, causes, outcomes, or chronology.",
+          "Do not carry an earlier emotional or physical state forward into a later event unless supplied reality explicitly establishes continuity. Use callback/recontextualization instead of asserting persistence.",
           "A repair should feel like the line the original production was trying to write, only grounded.",
           "Return one replacement for every failed beat and nothing else.",
         ].join("\n"),
@@ -1020,7 +1024,7 @@ export async function createAuthorExperience(input: {
       ? unique(
           record.variants
             .filter((value): value is string => typeof value === "string")
-            .map(clean)
+            .map(stripProductionLabel)
             .filter(Boolean),
         ).slice(0, 4)
       : [];
