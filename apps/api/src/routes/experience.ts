@@ -18,6 +18,14 @@ import { buildExperienceMemoryBatch, memoryContextToCognitiveSummary } from "../
 const router = Router();
 const analyticsRepository = createAnalyticsRepository();
 
+function parseExperienceMode(value: unknown): "IDENTITY" | "MEMORY" | undefined {
+  if (typeof value !== "string") return undefined;
+  const normalized = value.trim().toUpperCase();
+  return normalized === "IDENTITY" || normalized === "MEMORY"
+    ? normalized
+    : undefined;
+}
+
 function parsePlayoutMode(
   value: unknown,
 ): "operational" | "experience" | undefined {
@@ -162,6 +170,7 @@ router.post("/compile", requireAuth, async (req, res) => {
       parsePlayoutMode(req.body?.playoutMode) ??
       (req.body?.movieMode === false ? "operational" : "experience");
     const movieMode = playoutMode === "experience";
+    const experienceMode = parseExperienceMode(req.body?.experienceMode);
     const lens = typeof req.body?.lens === "string" ? req.body.lens.trim() : undefined;
     const rawGeo = parseGeoAnchor(req.body?.geo);
 
@@ -186,6 +195,7 @@ const experience = await compileExperience({
   playoutMode,
   movieMode,
   lens,
+  experienceMode,
 });
     const warnings = [...(experience.warnings ?? [])];
 
