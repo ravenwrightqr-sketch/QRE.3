@@ -695,9 +695,9 @@ export async function discoverAuthorCreativeDirection(input: {
 
   const preserveChosenMemoryCorridor =
     experienceMode === "MEMORY" &&
-    selectedRepairsModelChoice;
+    (selectedMatchesModelChoice || selectedRepairsModelChoice);
 
-  const repairedChosenCorridor = preserveChosenMemoryCorridor
+  const chosenMemoryCorridor = preserveChosenMemoryCorridor
     ? unique([
         ...selected.evidenceEventIds,
         ...modelPlayableEventIds,
@@ -709,7 +709,7 @@ export async function discoverAuthorCreativeDirection(input: {
     !selectedMatchesModelChoice && !selectedRepairsModelChoice;
 
   const playableEventIds = preserveChosenMemoryCorridor
-    ? repairedChosenCorridor
+    ? chosenMemoryCorridor
     : selectedChangedAfterModelChoice
       ? selected.evidenceEventIds.filter((id) => allowedEventIds.has(id))
       : modelPlayableEventIds
