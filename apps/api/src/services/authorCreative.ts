@@ -283,6 +283,42 @@ function sourceReplayPenalty(text: string, beatFacts: readonly string[]): number
   return 0;
 }
 
+function temporalAnchorTokens(value: string): string[] {
+  const text = clean(value).toLowerCase();
+  const tokens = new Set<string>();
+
+  for (const match of text.matchAll(/\b\d+(?:\.\d+)?\b/g)) {
+    tokens.add(match[0]);
+  }
+
+  for (const match of text.matchAll(
+    /\b(?:second|seconds|minute|minutes|hour|hours|day|days|week|weeks|month|months|year|years|morning|afternoon|evening|night|today|tomorrow|yesterday|monday|tuesday|wednesday|thursday|friday|saturday|sunday)\b/g,
+  )) {
+    tokens.add(match[0]);
+  }
+
+  if (/\bnext\s+(?:day|week|month|year|morning|afternoon|evening|night)\b/.test(text)) {
+    tokens.add("next");
+  }
+  if (/\b(?:again|returned|return|revisit|revisited|back)\b/.test(text)) {
+    tokens.add("recurrence");
+  }
+
+  return [...tokens];
+}
+
+function temporalAnchorAdjustment(text: string, beatFacts: readonly string[]): number {
+  const sourceAnchors = temporalAnchorTokens(beatFacts.join(" "));
+  if (!sourceAnchors.length) return 0;
+
+  const candidateAnchors = new Set(temporalAnchorTokens(text));
+  const preserved = sourceAnchors.filter((anchor) => candidateAnchors.has(anchor));
+
+  if (preserved.length === sourceAnchors.length) return 0.14;
+  if (preserved.length > 0) return 0.04;
+  return -0.22;
+}
+
 function variantScore(
   text: string,
   beatFacts: readonly string[],
@@ -936,6 +972,7 @@ export async function createAuthorExperience(input: {
             "PRESERVE DISTINCTIVE ANCHORS. A multi-event beat should not dissolve into generic atmosphere. Keep recognizable source-specific anchors—an animal, object, number, quoted evaluation, action, time, or other distinctive detail—unless the production has already established that anchor strongly enough for a clear callback.",
             "QUANTITATIVE/TIME ANCHORS ARE EXPENSIVE TO LOSE. If a supplied beat contains a specific duration, count, clock time, day, week, or other numeric/time marker and that marker materially distinguishes the memory, preserve it directly or transform it recognizably somewhere in the production. Do not replace 'two hours' with generic atmosphere.",
             "RECURRENCE PAYOFF SHOULD LAND THE SUPPLIED RETURN. When the final evidence is 'again', 'next week', 'returned', another visit, or equivalent recurrence, make that recurrence itself legible. Prefer a concrete callback to the supplied return over generic labels like 'pattern', 'cycle', 'seamless', or 'predictable'.",
+            "If the recurrence includes a specific time anchor such as next week, three days later, Friday, or another supplied interval/date, keep that time anchor recognizably alive in the payoff. 'Again' alone is weaker when the supplied WHEN is part of what makes the return hit.",
             "The later return may make the earlier encounter feel newly significant in retrospect, but do not explain why the return happened.",
             "Specificity is fuel. Transform it; do not erase it.",
             "POSITIVE CREATIVE PATTERNS:",
