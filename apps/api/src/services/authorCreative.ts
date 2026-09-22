@@ -339,6 +339,63 @@ function temporalAnchorTokens(value: string): string[] {
   return [...tokens];
 }
 
+function quantitativeAnchorTokens(value: string): string[] {
+  const text = clean(value).toLowerCase();
+  const tokens = new Set<string>();
+  const wordValues: Record<string, string> = {
+    zero: "0",
+    one: "1",
+    two: "2",
+    three: "3",
+    four: "4",
+    five: "5",
+    six: "6",
+    seven: "7",
+    eight: "8",
+    nine: "9",
+    ten: "10",
+    eleven: "11",
+    twelve: "12",
+    thirteen: "13",
+    fourteen: "14",
+    fifteen: "15",
+    sixteen: "16",
+    seventeen: "17",
+    eighteen: "18",
+    nineteen: "19",
+    twenty: "20",
+    pair: "2",
+    couple: "2",
+    double: "2",
+    triple: "3",
+    dozen: "12",
+  };
+
+  for (const match of text.matchAll(/\b\d+(?:\.\d+)?\b/g)) {
+    tokens.add(match[0]);
+  }
+
+  for (const match of text.matchAll(
+    /\b(?:zero|one|two|three|four|five|six|seven|eight|nine|ten|eleven|twelve|thirteen|fourteen|fifteen|sixteen|seventeen|eighteen|nineteen|twenty|pair|couple|double|triple|dozen)\b/g,
+  )) {
+    const normalized = wordValues[match[0]];
+    if (normalized) tokens.add(normalized);
+  }
+
+  return [...tokens];
+}
+
+function preservesSpecificQuantitativeAnchors(
+  text: string,
+  beatFacts: readonly string[],
+): boolean {
+  const sourceAnchors = quantitativeAnchorTokens(beatFacts.join(" "));
+  if (!sourceAnchors.length) return true;
+
+  const candidateAnchors = new Set(quantitativeAnchorTokens(text));
+  return sourceAnchors.every((anchor) => candidateAnchors.has(anchor));
+}
+
 function temporalAnchorAdjustment(text: string, beatFacts: readonly string[]): number {
   const sourceAnchors = temporalAnchorTokens(beatFacts.join(" "));
   if (!sourceAnchors.length) return 0;
@@ -623,17 +680,23 @@ function scoreMemorySequence(
     );
     const dropsSpecificTimeAnchor =
       !preservesSpecificTemporalAnchor(text, beatFacts);
+    const dropsSpecificQuantityAnchor =
+      !preservesSpecificQuantitativeAnchors(text, beatFacts);
     const line = {
       beat,
       beatFacts,
       text,
       ...base,
-      accepted: base.accepted && !dropsSpecificTimeAnchor,
+      accepted:
+        base.accepted &&
+        !dropsSpecificTimeAnchor &&
+        !dropsSpecificQuantityAnchor,
       score: Math.max(0, base.score - payoffPenalty),
       reasons: [
         ...base.reasons,
         ...(payoffPenalty > 0 ? ["memory-payoff-replay"] : []),
         ...(dropsSpecificTimeAnchor ? ["drops-specific-time-anchor"] : []),
+        ...(dropsSpecificQuantityAnchor ? ["drops-specific-quantity-anchor"] : []),
       ],
     };
     if (text) prior.push(text);
@@ -724,6 +787,7 @@ async function repairNominatedMemoryProduction(input: {
           "Keep the production's voice, rhythm, attitude, and trajectory.",
           "Prefer a bold grounded transformation over literal replay.",
           "Preserve distinctive source anchors when useful.",
+          "Exact supplied quantities are load-bearing anchors. Preserve every distinct supplied quantity recognizably; do not replace counts with generic plurality.",
           "Nonliteral title-like framing, metaphor, status, attitude, compression, and recontextualization are welcome.",
           "Do not add new actors, body parts, sensory details, scenery, actions, motives, causes, outcomes, or chronology.",
           "Do not carry an earlier emotional or physical state forward into a later event unless supplied reality explicitly establishes continuity. Use callback/recontextualization instead of asserting persistence.",
@@ -1043,6 +1107,7 @@ export async function createAuthorExperience(input: {
             "Within each production, later cuts should feel aware of what earlier cuts established. Build progression, contrast, callback, accumulation, or recontextualization instead of isolated labels.",
             "PRESERVE DISTINCTIVE ANCHORS. A multi-event beat should not dissolve into generic atmosphere. Keep recognizable source-specific anchors—an animal, object, number, quoted evaluation, action, time, or other distinctive detail—unless the production has already established that anchor strongly enough for a clear callback.",
             "QUANTITATIVE/TIME ANCHORS ARE EXPENSIVE TO LOSE. If a supplied beat contains a specific duration, count, clock time, day, week, or other numeric/time marker and that marker materially distinguishes the memory, preserve it directly or transform it recognizably somewhere in the production. Do not replace 'two hours' with generic atmosphere.",
+            "When a beat contains more than one explicit supplied quantity, preserve every distinct quantity recognizably in that beat's realization. Quantity may be phrased naturally or through an unambiguous equivalent such as pair/double, but do not collapse multiple counts into generic plurality.",
             "RECURRENCE PAYOFF SHOULD LAND THE SUPPLIED RETURN. When the final evidence is 'again', 'next week', 'returned', another visit, or equivalent recurrence, make that recurrence itself legible. Prefer a concrete callback to the supplied return over generic labels like 'pattern', 'cycle', 'seamless', or 'predictable'.",
             "If the recurrence includes a specific time anchor such as next week, three days later, Friday, or another supplied interval/date, keep that time anchor recognizably alive in the payoff. 'Again' alone is weaker when the supplied WHEN is part of what makes the return hit.",
             "The later return may make the earlier encounter feel newly significant in retrospect, but do not explain why the return happened.",
