@@ -134,6 +134,83 @@ function normalizePlan(
   };
 }
 
+function enforceMemoryStructure(
+  plan: AuthorSemanticPlan,
+  selectedEvidence: readonly AuthorCreativeEvent[],
+): AuthorSemanticPlan {
+  if (selectedEvidence.length < 4) {
+    return {
+      ...plan,
+      beats: plan.beats.map((beat, index) => ({
+        ...beat,
+        order: index + 1,
+        role:
+          index === 0
+            ? "HOOK"
+            : index === plan.beats.length - 1
+              ? "PAYOFF"
+              : beat.role === "TURN"
+                ? "TURN"
+                : "BUILD",
+      })),
+    };
+  }
+
+  const targetBeatCount = Math.min(
+    4,
+    Math.max(3, Math.ceil(selectedEvidence.length / 2)),
+  );
+
+  if (plan.beats.length >= 3) {
+    return {
+      ...plan,
+      beats: plan.beats.map((beat, index) => ({
+        ...beat,
+        order: index + 1,
+        role:
+          index === 0
+            ? "HOOK"
+            : index === plan.beats.length - 1
+              ? "PAYOFF"
+              : beat.role === "TURN"
+                ? "TURN"
+                : "BUILD",
+      })),
+    };
+  }
+
+  const groups: string[][] = Array.from(
+    { length: targetBeatCount },
+    () => [],
+  );
+
+  selectedEvidence.forEach((event, index) => {
+    const groupIndex = Math.min(
+      targetBeatCount - 1,
+      Math.floor(index * targetBeatCount / selectedEvidence.length),
+    );
+    groups[groupIndex].push(event.id);
+  });
+
+  return {
+    ...plan,
+    beats: groups
+      .filter((eventIds) => eventIds.length > 0)
+      .map((eventIds, index, all) => ({
+        order: index + 1,
+        role:
+          index === 0
+            ? "HOOK"
+            : index === all.length - 1
+              ? "PAYOFF"
+              : "BUILD",
+        eventIds,
+        attention: "",
+        change: "",
+      })),
+  };
+}
+
 function fallbackPlan(
   events: readonly AuthorCreativeEvent[],
   discovery: AuthorCreativeDiscovery,
@@ -713,8 +790,12 @@ export async function createAuthorExperience(input: {
       : normalizePlan(parseJson(planResult.text), allowedEventIds) ??
       fallbackPlan(input.suppliedReality, input.creativeDiscovery);
 
+  const structurallySafePlan = isMemoryMode
+    ? enforceMemoryStructure(rawPlan, selectedEvidence)
+    : rawPlan;
+
   const plan = lockPlanToApprovedMeaning(
-    rawPlan,
+    structurallySafePlan,
     input.suppliedReality,
     input.creativeDiscovery,
   );
@@ -726,6 +807,10 @@ export async function createAuthorExperience(input: {
         ? "DETERMINISTIC_SPARSE"
         : "MODEL_STRUCTURE",
     raw: useDeterministicSparsePlan ? "SKIPPED_MODEL_PLAN" : planResult.text,
+    memoryStructureAdjusted:
+      isMemoryMode &&
+      JSON.stringify(structurallySafePlan.beats.map((beat) => beat.eventIds)) !==
+        JSON.stringify(rawPlan.beats.map((beat) => beat.eventIds)),
     selectedPlan: plan,
   });
 
