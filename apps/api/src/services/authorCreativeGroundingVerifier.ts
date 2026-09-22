@@ -154,6 +154,8 @@ export async function verifyAuthorCreativeGrounding(input: {
     "A supplied walk establishes walking, not manner of gait. Words such as ambled, trotted, bounded, hurried, dragged, wandered, or strolled add physical manner unless supplied and must be rejected when used literally.",
     "Do not convert an attempted action into motive, ownership, success, completion, release, freedom, rebellion, resistance, or preference unless reality explicitly establishes that claim.",
     "Do not convert chronology or an ending into causality, resolution, finally, freedom, relief, acceptance, or a reason for the later state unless reality explicitly establishes it.",
+    "Do not carry a state forward across time merely because it was established earlier in the sequence. If a person was lighter afterward and then met someone again the next week, the later meeting does not establish that the person was still lighter, relieved, unburdened, calm, happy, nervous, or in any other prior state unless continuity is explicitly supplied.",
+    "A later beat may CALLBACK to an earlier state as earlier context, but it may not re-assert that state as contemporaneous with the later event. Distinguish 'Echo of lightness. Return.' from 'Returned unburdened.' The first can be figurative callback; the second claims state continuity.",
     "An associated place, object, body part, sensory property, actor, physical consequence, scenery element, weather condition, or lighting element is a new concrete claim unless supplied.",
     "Do not use CONTEXTUAL_TEXTURE as a generic mood generator for emotions or states. A supplied state such as happy, nervous, sad, calm, or relieved does not authorize invented sun, breeze, warmth, darkness, rain, tail, paws, eyes, heartbeat, room, street, or other environmental/body imagery. Texture must attach to an event whose supplied physical envelope actually supports it.",
     "Preserve object identity. Figurative language may react to or characterize a supplied object, but it must not silently replace that object with a different concrete object. A supplied bow may be ridiculous, dramatic, ceremonial, or treated like a crown in attitude, but stating that it was literally a crown, hat, flower, costume, or other object changes material reality unless that object is supplied.",
@@ -285,7 +287,7 @@ export async function verifyAuthorCreativeGrounding(input: {
   }
 
   const unsupportedTemporalComparison =
-    /\b(?:long|short|brief|briefly|quick|quickly|slow|slowly|fast|faster|slower)\b/i;
+    /\b(?:long|short|brief|briefly|quick|quickly|slow|slowly|fast|faster|slower|sudden|suddenly|prompt|promptly|instant|instantly|immediate|immediately|final|finally|still)\b/i;
   const suppliedTemporalComparison = unsupportedTemporalComparison.test(suppliedRealityText);
 
   const scenes = input.scenes.flatMap((scene, sceneIndex) => {
