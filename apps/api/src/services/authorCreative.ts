@@ -857,6 +857,9 @@ export async function createAuthorExperience(input: {
   const allowedEventIds = new Set(input.suppliedReality.map((event) => event.id));
   const presentationContext = presentationAffordance(input.domainContext);
   const selected = input.creativeDiscovery.selected;
+  const realityDirect =
+    clean(selected.id).toLowerCase() === "reality-direct" ||
+    clean(selected.risk).toLowerCase() === "no_grounded_discovery_candidate";
   const contextRecord = (input.domainContext ?? {}) as Record<string, unknown>;
   const experienceMode = clean(contextRecord.experienceMode).toUpperCase();
   const playableIds = new Set(
@@ -1193,6 +1196,13 @@ export async function createAuthorExperience(input: {
           "Creative freedom is high for phrasing: implication, attitude, metaphor, personification, status, understatement, absurd seriousness, compressed voice, callback, and recontextualization.",
           "Use the supplied material as the cast. Do not replace it with generic atmosphere.",
           "Prefer source-specific cleverness over prettiness.",
+          ...(realityDirect ? [
+            "REALITY-DIRECT MODE: Discovery found no grounded hidden relation worth realizing. Do not manufacture one here.",
+            "In REALITY-DIRECT MODE, every concrete noun, action, condition, result, physical property, manner, and object must already be explicit in that beat's supplied evidence. Do not infer what cleaning probably involved, what a room probably contained, or what the result probably looked like.",
+            "You may still create voice through syntax, fragmentation, punctuation, omission, repetition, compression, emphasis, juxtaposition, and non-material rhetorical attitude.",
+            "Do not turn 'cleaned' into scrubbed, wiped, polished, spotless, pristine, sterile, tidy, shiny, or another stronger physical claim unless supplied. Do not introduce surfaces, tiles, mirrors, scent, silence, tools, grime, or other typical service details unless supplied.",
+            "When in doubt, preserve the supplied predicate rather than decorating it with plausible physical detail.",
+          ] : []),
           ...(isMemoryMode ? [
             "UNIVERSAL AUTHOR LAW: Identity synthesizes simultaneous truths into character. Memory synthesizes accumulated truths into experience. Same Author intelligence; different temporal shape.",
             "MEMORY REALIZATION: these beats are parts of ONE remembered experience, not independent caption slots. Make the sequence accumulate meaning across cuts.",
@@ -1264,6 +1274,7 @@ export async function createAuthorExperience(input: {
           })),
           CREATIVE_OPPORTUNITY: selected.perception,
           RELATION: selected.relationship,
+          REALITY_DIRECT: realityDirect,
           REQUESTED_LENS: requestedLens || "NONE",
           CREATIVE_FRAMES: framesForMouth.map((frame, index) => ({
             production: String.fromCharCode(65 + index),
@@ -1275,7 +1286,9 @@ export async function createAuthorExperience(input: {
           instruction: useIdentityClusterPlan
             ? "This is one IDENTITY character cluster, not a checklist. Return four short candidate realizations that synthesize the combination into character. Do not enumerate every supplied preference or simply restate them. The viewer should infer personality from the combination. Do not invent an event."
             : isMemoryMode
-              ? "Return four complete candidate productions encoded as four variants per beat. Apply the universal law: MEMORY = accumulated truths -> one experience perception. Keep variant index aligned across every beat: all first variants form Production A, all second variants form Production B, all third variants form Production C, all fourth variants form Production D. Treat each production as one finished QRE object unfolding cut by cut, not as separate lines. The accumulated facts are shared raw material for the whole production, not one-fact-per-line assignments. Each cut should perform a different job in the same experience: establish, deepen, turn, or land. When supplied reality contains a before-state / lived middle / after-state / recurrence shape, preserve the shape and make the contrast felt without claiming the middle caused the after-state or the earlier encounter caused the return. Preserve distinctive source anchors while transforming them. If the memory supplies a specific duration/count/time marker that gives the middle its identity, keep that marker legible somewhere in the production. If the payoff is a supplied recurrence such as again/next week/return, make the return itself legible and let it retrospectively recontextualize the earlier cuts without inventing motive. The final cut must land the approved memory relation using its local evidence plus already-established prior evidence. Then nominate the strongest complete production by number 1-4 based on whole-product coherence, specificity, progression, surprise, payoff, and how alive it feels—not on whether every individual line sounds impressive. Keep factual reality inside supplied event IDs, but make each production feel authored rather than enumerated."
+              ? realityDirect
+                ? "Return four complete candidate productions encoded as four variants per beat. Discovery found no grounded hidden relation, so stay in REALITY-DIRECT MODE. Keep variant index aligned across every beat. Make the sequence authored through rhythm, syntax, compression, emphasis, juxtaposition, and callback only. Do not add any concrete noun, action, condition, physical result, physical quality, object, manner, scenery detail, or typical service detail that is not explicit in the supplied beat evidence. Preserve enough recognizable reality that the recipient can recover what happened. Nominate the strongest whole production by number 1-4."
+                : "Return four complete candidate productions encoded as four variants per beat. Apply the universal law: MEMORY = accumulated truths -> one experience perception. Keep variant index aligned across every beat: all first variants form Production A, all second variants form Production B, all third variants form Production C, all fourth variants form Production D. Treat each production as one finished QRE object unfolding cut by cut, not as separate lines. The accumulated facts are shared raw material for the whole production, not one-fact-per-line assignments. Each cut should perform a different job in the same experience: establish, deepen, turn, or land. When supplied reality contains a before-state / lived middle / after-state / recurrence shape, preserve the shape and make the contrast felt without claiming the middle caused the after-state or the earlier encounter caused the return. Preserve distinctive source anchors while transforming them. If the memory supplies a specific duration/count/time marker that gives the middle its identity, keep that marker legible somewhere in the production. If the payoff is a supplied recurrence such as again/next week/return, make the return itself legible and let it retrospectively recontextualize the earlier cuts without inventing motive. The final cut must land the approved memory relation using its local evidence plus already-established prior evidence. Then nominate the strongest complete production by number 1-4 based on whole-product coherence, specificity, progression, surprise, payoff, and how alive it feels—not on whether every individual line sounds impressive. Keep factual reality inside supplied event IDs, but make each production feel authored rather than enumerated."
               : "Return four candidate lines per beat. The semantic plan controls meaning; the supplied event IDs control factual reality.",
         }),
       },
