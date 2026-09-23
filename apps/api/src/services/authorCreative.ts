@@ -1513,6 +1513,17 @@ export async function createAuthorExperience(input: {
       candidates: Array<{ text: string; accepted: boolean; score: number; reasons: string[] }>;
       selected: string;
     }>;
+    selectedProduction?: string;
+    memoryProductions?: Array<{
+      production: string;
+      accepted: boolean;
+      score: number;
+      lines: Array<{
+        order: number;
+        text: string;
+        sourceEventIds: string[];
+      }>;
+    }>;
   };
 }> {
   const allowedEventIds = new Set(input.suppliedReality.map((event) => event.id));
@@ -1997,6 +2008,19 @@ export async function createAuthorExperience(input: {
 
   const scenes: Array<AuthorScene & { sourceEventIds: string[] }> = [];
   let memoryRepairModelCalls = 0;
+  let selectedMemoryProduction: string | undefined;
+  let memoryProductionDiagnostics:
+    | Array<{
+        production: string;
+        accepted: boolean;
+        score: number;
+        lines: Array<{
+          order: number;
+          text: string;
+          sourceEventIds: string[];
+        }>;
+      }>
+    | undefined;
   const choices: Array<{
     order: number;
     beat: AuthorSemanticBeat;
@@ -2105,6 +2129,20 @@ export async function createAuthorExperience(input: {
     // fallback for missing or rejected nominations, not a second creative
     // director that can flatten an accepted expressive production into Bare.
     const winner = nominatedProduction ?? topScoringProduction;
+
+    selectedMemoryProduction = winner
+      ? String.fromCharCode(65 + winner.variantIndex)
+      : undefined;
+    memoryProductionDiagnostics = productions.map((production) => ({
+      production: String.fromCharCode(65 + production.variantIndex),
+      accepted: production.accepted,
+      score: production.score,
+      lines: production.lines.map((line) => ({
+        order: line.beat.order,
+        text: line.text,
+        sourceEventIds: [...line.beat.eventIds],
+      })),
+    }));
 
     debug("MEMORY-PRODUCTIONS", {
       modelNomination: Number.isInteger(nominatedProductionNumber)
@@ -2250,6 +2288,8 @@ export async function createAuthorExperience(input: {
         .sort(([a], [b]) => a - b)
         .map(([order, variants]) => ({ order, variants })),
       choices,
+      selectedProduction: selectedMemoryProduction,
+      memoryProductions: memoryProductionDiagnostics,
     },
   };
 }
