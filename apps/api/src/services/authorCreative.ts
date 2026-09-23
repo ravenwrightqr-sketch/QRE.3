@@ -77,6 +77,409 @@ type AuthorCreativeFrame = {
   intensity: "LIGHT" | "MEDIUM" | "STRONG";
 };
 
+export type AuthorCreativeFrameCandidate = {
+  frame: string;
+  reason: string;
+  confidence: number;
+};
+
+const GENERIC_CREATIVE_FRAME =
+  /^(?:game|journey|mission|story|experience|transformation)$/i;
+
+function materialText(values: readonly string[]): string {
+  return clean(values.join(" ")).toLowerCase();
+}
+
+function clamp01(value: number): number {
+  return Number(Math.max(0, Math.min(1, value)).toFixed(3));
+}
+
+function addFrameCandidate(
+  candidates: AuthorCreativeFrameCandidate[],
+  frame: string,
+  reason: string,
+  confidence: number,
+): void {
+  const normalizedFrame = clean(frame).toLowerCase();
+  if (!normalizedFrame || GENERIC_CREATIVE_FRAME.test(normalizedFrame)) return;
+  if (candidates.some((candidate) => candidate.frame === normalizedFrame)) return;
+
+  candidates.push({
+    frame: normalizedFrame,
+    reason: clean(reason),
+    confidence: clamp01(confidence),
+  });
+}
+
+export function deriveAuthorCreativeFrameCandidates(input: {
+  subject?: string;
+  suppliedReality: readonly AuthorCreativeEvent[];
+  creativeDiscovery?: AuthorCreativeDiscovery;
+  memory?: readonly string[];
+  domainContext?: AuthorDomainContext;
+}): AuthorCreativeFrameCandidate[] {
+  const eventText = materialText(input.suppliedReality.map((event) => event.text));
+  const discovery = input.creativeDiscovery;
+  const discoveryText = materialText([
+    discovery?.selected.perception,
+    discovery?.selected.relationship,
+    ...(discovery?.experienceShape ?? []),
+  ].filter((value): value is string => typeof value === "string"));
+  const memoryText = materialText(input.memory ?? []);
+  const context = (input.domainContext ?? {}) as Record<string, unknown>;
+  const contextText = materialText([
+    context.serviceType,
+    context.businessType,
+    context.merchantType,
+    context.category,
+    context.serviceName,
+  ].map((value) => clean(value)));
+  const text = clean(`${eventText} ${discoveryText} ${memoryText}`);
+  const textWithContext = clean(`${text} ${contextText}`);
+
+  const candidates: AuthorCreativeFrameCandidate[] = [];
+  const hasResistance =
+    /\b(?:nervous|scared|shy|guarded|hesitant|resisted|resistance|hates?|refused|tried|attempted|stole|steals|fierce|stubborn|defiant|rebellion)\b/i.test(text);
+  const hasStatusObject =
+    /\b(?:bow|ticket|badge|approval|approved|rank|status|official|claim|claimed|selected|chosen|crown|prize)\b/i.test(text);
+  const hasStateContrast =
+    /\b(?:before|after|left|arrived|came in|entered|finished|completed)\b/i.test(text) &&
+    /\b(?:nervous|scared|shy|approved|happy|fabulous|clean|finished|complete|done)\b/i.test(text);
+
+  if ((hasResistance && (hasStatusObject || hasStateContrast)) || /status contest|status tension/i.test(discoveryText)) {
+    addFrameCandidate(
+      candidates,
+      "negotiation",
+      "supplied resistance or status tension makes the interaction read as a perspective contest",
+      0.92,
+    );
+  }
+
+  const serviceSignals =
+    /\b(?:service|clean(?:ed|ing)?|repair(?:ed|ing)?|groom(?:ed|ing)?|bath|bathroom|kitchen|packed|loaded|delivered|installed|inspection|appointment)\b/i;
+  const boundedWork =
+    /\b(?:arrived|started|began|first|then|next|finished|completed|done|left)\b/i.test(text);
+  const timeOrCount =
+    /\b(?:\d{1,2}:\d{2}|\d+\s*(?:rooms?|bathrooms?|boxes?|items?|hours?|minutes?|days?)|two|three|four|five|first|last)\b/i.test(text);
+  const taskSignals = input.suppliedReality.filter((event) => serviceSignals.test(event.text));
+  const hasMeaningfulOperation =
+    taskSignals.length >= 2 &&
+    boundedWork &&
+    timeOrCount &&
+    serviceSignals.test(textWithContext);
+
+  if (hasMeaningfulOperation) {
+    addFrameCandidate(
+      candidates,
+      "operation",
+      "bounded supplied work progression has enough structure to read as an operation without adding facts",
+      0.84,
+    );
+  }
+
+  if (
+    /\b(?:missing|lost|vanished|unresolved|mystery|unknown|question|where|search|found)\b/i.test(text) &&
+    /\b(?:box|object|item|key|card|record|bag|ticket|detail|thing)\b/i.test(text)
+  ) {
+    addFrameCandidate(
+      candidates,
+      "investigation",
+      "an unresolved supplied object or question creates a perspective of inquiry",
+      0.94,
+    );
+  }
+
+  if (/\b(?:same|again|returned|return|repeated|recurring|every|sundays?|weekly|back)\b/i.test(text)) {
+    const frame = /\b(?:memorial|remember|record|song|card|birthday|old|kept)\b/i.test(text)
+      ? "refrain"
+      : "return";
+    addFrameCandidate(
+      candidates,
+      frame,
+      "a repeated supplied detail can become the perspective anchor",
+      frame === "refrain" ? 0.93 : 0.86,
+    );
+  }
+
+  if (
+    /\b(?:memorial|remember|old records?|birthday cards?|same song|quiet|kept every)\b/i.test(text) &&
+    !hasResistance
+  ) {
+    addFrameCandidate(
+      candidates,
+      "quiet observation",
+      "the memory is stronger when observed with restraint than converted into a genre",
+      0.88,
+    );
+  }
+
+  if (
+    /\b(?:before|after|dirty|filthy|restored|cleaned|revealed|uncovered)\b/i.test(text) &&
+    /\b(?:visible|looked|left|finished|done|result)\b/i.test(text)
+  ) {
+    addFrameCandidate(
+      candidates,
+      "reveal",
+      "a supplied visible state change can carry a compact perspective reveal",
+      0.76,
+    );
+  }
+
+  return candidates
+    .sort((a, b) => b.confidence - a.confidence)
+    .slice(0, 6);
+}
+
+export function selectAuthorCreativeFrame(input: {
+  candidates: readonly AuthorCreativeFrameCandidate[];
+  creativeDiscovery?: AuthorCreativeDiscovery;
+}): AuthorCreativeFrameCandidate {
+  const groundedCandidates = input.candidates
+    .filter((candidate) => {
+      const frame = clean(candidate.frame);
+      return frame && !GENERIC_CREATIVE_FRAME.test(frame);
+    })
+    .sort((a, b) => b.confidence - a.confidence);
+
+  const discovery = input.creativeDiscovery;
+  const realityDirect =
+    clean(discovery?.selected.id).toLowerCase() === "reality-direct" ||
+    clean(discovery?.selected.risk).toLowerCase() === "no_grounded_discovery_candidate";
+
+  if (!groundedCandidates.length || realityDirect) {
+    return {
+      frame: "NONE",
+      reason: "the natural supplied reality is the strongest available lens",
+      confidence: 1,
+    };
+  }
+
+  const top = groundedCandidates[0]!;
+  if (top.confidence < 0.72) {
+    return {
+      frame: "NONE",
+      reason: "no candidate materially improves the supplied reality",
+      confidence: 0.76,
+    };
+  }
+
+  return top;
+}
+
+function selectedFrameAsLensFrame(
+  selectedFrame: AuthorCreativeFrameCandidate,
+): AuthorCreativeFrame | undefined {
+  if (selectedFrame.frame === "NONE") return undefined;
+
+  return {
+    id: "frame-selected-perspective",
+    frame: selectedFrame.frame,
+    treatment: `Use ${selectedFrame.frame} as a nonliteral perspective only. ${selectedFrame.reason}`,
+    devices: ["perspective", "source specificity", "restraint"],
+    intensity: "MEDIUM",
+  };
+}
+
+function compatibleLensFallbackFrames(
+  selectedFrame: AuthorCreativeFrameCandidate,
+): AuthorCreativeFrame[] {
+  const base = selectedFrameAsLensFrame(selectedFrame);
+  if (!base) return [];
+
+  const frame = selectedFrame.frame;
+  const variants: Record<string, Array<Omit<AuthorCreativeFrame, "id">>> = {
+    operation: [
+      {
+        frame: "bounded operation",
+        treatment: "Treat supplied work as a bounded process with status and completion pressure only.",
+        devices: ["process", "status", "completion"],
+        intensity: "MEDIUM",
+      },
+      {
+        frame: "operational status",
+        treatment: "Use procedural authority and task progression without adding tools, people, or unseen work.",
+        devices: ["procedure", "task rhythm", "restraint"],
+        intensity: "MEDIUM",
+      },
+      {
+        frame: "bare process",
+        treatment: "Keep the operational perspective minimal and source-specific.",
+        devices: ["restraint", "sequence", "source specificity"],
+        intensity: "LIGHT",
+      },
+    ],
+    negotiation: [
+      {
+        frame: "status negotiation",
+        treatment: "Let supplied resistance and status tension feel like terms being contested.",
+        devices: ["status", "contest", "terms"],
+        intensity: "MEDIUM",
+      },
+      {
+        frame: "tiny bargaining table",
+        treatment: "Use bargaining pressure abstractly without inventing dialogue, motive, or participants.",
+        devices: ["bargaining", "resistance", "compression"],
+        intensity: "MEDIUM",
+      },
+      {
+        frame: "restrained contest",
+        treatment: "Keep the negotiation quiet and grounded in supplied status shifts.",
+        devices: ["understatement", "contest", "restraint"],
+        intensity: "LIGHT",
+      },
+    ],
+    investigation: [
+      {
+        frame: "evidence trail",
+        treatment: "Use the supplied unresolved question as evidence pressure without inventing clues.",
+        devices: ["evidence", "question", "search"],
+        intensity: "MEDIUM",
+      },
+      {
+        frame: "open case",
+        treatment: "Let the missing supplied object create inquiry while keeping causes unknown.",
+        devices: ["case", "missing object", "restraint"],
+        intensity: "MEDIUM",
+      },
+      {
+        frame: "bare question",
+        treatment: "Keep the investigation perspective minimal and source-specific.",
+        devices: ["question", "source specificity", "compression"],
+        intensity: "LIGHT",
+      },
+    ],
+    refrain: [
+      {
+        frame: "recurring echo",
+        treatment: "Let the repeated supplied detail act as an echo across the realization.",
+        devices: ["recurrence", "echo", "callback"],
+        intensity: "MEDIUM",
+      },
+      {
+        frame: "quiet motif",
+        treatment: "Use recurrence as a gentle motif without adding biography or cause.",
+        devices: ["motif", "restraint", "rhythm"],
+        intensity: "LIGHT",
+      },
+      {
+        frame: "callback refrain",
+        treatment: "Let repeated detail carry the landing as callback.",
+        devices: ["callback", "repetition", "landing"],
+        intensity: "MEDIUM",
+      },
+    ],
+    return: [
+      {
+        frame: "changed return",
+        treatment: "Use the supplied return as a changed-same perspective without adding motive.",
+        devices: ["return", "callback", "recontextualization"],
+        intensity: "MEDIUM",
+      },
+      {
+        frame: "revisit loop",
+        treatment: "Let coming back create structure while keeping reality literal.",
+        devices: ["revisit", "loop", "restraint"],
+        intensity: "MEDIUM",
+      },
+      {
+        frame: "bare again",
+        treatment: "Keep the return perspective minimal and source-specific.",
+        devices: ["again", "source specificity", "compression"],
+        intensity: "LIGHT",
+      },
+    ],
+    "quiet observation": [
+      {
+        frame: "quiet portrait",
+        treatment: "Observe the supplied material with restraint rather than dramatizing it.",
+        devices: ["observation", "portrait", "restraint"],
+        intensity: "LIGHT",
+      },
+      {
+        frame: "bare witness",
+        treatment: "Let the supplied details stand with subtle emphasis only.",
+        devices: ["witness", "subtlety", "source specificity"],
+        intensity: "LIGHT",
+      },
+      {
+        frame: "minimal observation",
+        treatment: "Use small observational pressure without creating story machinery.",
+        devices: ["minimalism", "observation", "restraint"],
+        intensity: "LIGHT",
+      },
+    ],
+    reveal: [
+      {
+        frame: "visible turn",
+        treatment: "Let the supplied visible before/after become the turn.",
+        devices: ["visible turn", "before after", "payoff"],
+        intensity: "MEDIUM",
+      },
+      {
+        frame: "source reveal",
+        treatment: "Use the supplied result as reveal without inventing mechanism.",
+        devices: ["reveal", "result", "restraint"],
+        intensity: "MEDIUM",
+      },
+      {
+        frame: "bare disclosure",
+        treatment: "Keep the reveal compact and source-specific.",
+        devices: ["disclosure", "compression", "source specificity"],
+        intensity: "LIGHT",
+      },
+    ],
+  };
+
+  const compatibleVariants = variants[frame] ?? [];
+
+  return [
+    base,
+    ...compatibleVariants.map((variant, index) => ({
+      id: `frame-compatible-${index + 1}`,
+      ...variant,
+    })),
+  ].slice(0, 4);
+}
+
+export function isAuthorCreativeFrameCompatibleWithSelectedFrame(input: {
+  selectedFrame: string;
+  frame: string;
+  treatment?: string;
+  devices?: readonly string[];
+}): boolean {
+  const selected = clean(input.selectedFrame).toLowerCase();
+  if (!selected || selected === "none") return true;
+
+  const candidate = materialText([
+    input.frame,
+    input.treatment,
+    ...(input.devices ?? []),
+  ].filter((value): value is string => typeof value === "string"));
+
+  if (/\b(?:none|bare reality|natural|source-specific|restrained)\b/i.test(candidate)) {
+    return true;
+  }
+
+  const compatibility: Record<string, RegExp> = {
+    operation:
+      /\b(?:operation|operational|process|procedure|protocol|workflow|sequence|completion|status|task|bounded|clock|handoff|checkpoint|progression)\b/i,
+    negotiation:
+      /\b(?:negotiation|negotiate|bargain|bargaining|contest|status|claim|resistance|concession|terms|stand[- ]?off|push|pull|defiance)\b/i,
+    investigation:
+      /\b(?:investigation|investigate|question|evidence|clue|search|missing|mystery|trace|case|inquiry|unresolved|finding)\b/i,
+    refrain:
+      /\b(?:refrain|recurrence|recurring|echo|callback|repeat|repetition|rhythm|return|again|loop|anchor|motif)\b/i,
+    return:
+      /\b(?:return|again|back|recurrence|callback|revisit|loop|echo|repeat|changed|same)\b/i,
+    "quiet observation":
+      /\b(?:quiet|observation|observational|restrained|bare|still|subtle|gentle|portrait|minimal|watch|witness)\b/i,
+    reveal:
+      /\b(?:reveal|revealed|visible|uncover|surface|before|after|turn|disclosure|result|show|payoff)\b/i,
+  };
+
+  return compatibility[selected]?.test(candidate) ?? false;
+}
+
 function presentationAffordance(domainContext?: AuthorDomainContext): string {
   const contextRecord = (domainContext ?? {}) as Record<string, unknown>;
   const contextText = clean(JSON.stringify(contextRecord)).toLowerCase();
@@ -1026,6 +1429,23 @@ export async function createAuthorExperience(input: {
   const normalizedRequestedLens = requestedLens.toUpperCase();
   const explicitLensProvided = Boolean(requestedLens);
   const explicitLensOff = normalizedRequestedLens === "NONE";
+  const frameCandidates = deriveAuthorCreativeFrameCandidates({
+    subject: input.subject,
+    suppliedReality: input.suppliedReality,
+    creativeDiscovery: input.creativeDiscovery,
+    memory: input.memory,
+    domainContext: input.domainContext,
+  });
+  const selectedFrame = explicitLensOff
+    ? {
+        frame: "NONE",
+        reason: "an explicit NONE lens preserves natural realization",
+        confidence: 1,
+      }
+    : selectAuthorCreativeFrame({
+        candidates: frameCandidates,
+        creativeDiscovery: input.creativeDiscovery,
+      });
   const autoBusinessLens =
     !explicitLensProvided &&
     isBusinessCreativeContext(input.domainContext);
@@ -1056,6 +1476,15 @@ export async function createAuthorExperience(input: {
           "Frames may use deadpan framing, absurd escalation, mock-serious language, status games, callbacks, fragments, repeated structure, character attitude, service-specific humor, metaphor, personification, ceremonial language, or another strong rhetorical device.",
           "Do not default to named genres. Invent the best frame for this material when a more specific treatment exists.",
           "Do not write final cuts. Describe the treatment Mouth should use.",
+          "When SELECTED_FRAME is not NONE, treat it as the strongest perspective candidate. Explore treatments inside that perspective rather than replacing it with a generic genre.",
+          "The selected frame is perspective only; it is not a plot, progression, scene, or viewer-facing line.",
+          "When SELECTED_FRAME is negotiation, other frames must stay in status, contest, bargaining, resistance, or terms-of-engagement territory.",
+          "When SELECTED_FRAME is operation, other frames must stay in operational, status, bounded-process, task, or completion territory.",
+          "When SELECTED_FRAME is investigation, other frames must stay in question, evidence, search, missing-object, case, or inquiry territory.",
+          "When SELECTED_FRAME is refrain, other frames must stay in recurrence, echo, callback, repeated-detail, motif, or rhythm territory.",
+          "When SELECTED_FRAME is return, other frames must stay in return, recurrence, callback, revisit, loop, or changed-same territory.",
+          "When SELECTED_FRAME is quiet observation, other frames must stay restrained, observational, bare, subtle, portrait-like, or minimal.",
+          "When SELECTED_FRAME is reveal, other frames must stay in visible turn, before/after, uncovering, disclosure, result, or payoff territory.",
           "Each frame must remain legible as interpretation rather than asserting new physical history.",
           "The four frames must differ in underlying treatment, not merely tone adjectives.",
           "One frame may be restrained or nearly bare when the material itself is strongest without heavy treatment.",
@@ -1083,6 +1512,8 @@ export async function createAuthorExperience(input: {
           EXPERIENCE_MODE: experienceMode || undefined,
           LENS_MODE: lensMode,
           REQUESTED_LENS: requestedLens || undefined,
+          SELECTED_FRAME: selectedFrame,
+          FRAME_CANDIDATES: frameCandidates,
           instruction:
             "Find four distinct reality-legal framing strategies for realization. Preserve the approved meaning. Do not write viewer-facing cuts and do not invent a literal world.",
         }),
@@ -1176,17 +1607,47 @@ export async function createAuthorExperience(input: {
     intensity: "LIGHT",
   };
 
+  const selectedLensFrame = selectedFrameAsLensFrame(selectedFrame);
+  const compatibleCreativeFrames =
+    selectedFrame.frame === "NONE"
+      ? creativeFrames
+      : creativeFrames.filter((frame) =>
+          isAuthorCreativeFrameCompatibleWithSelectedFrame({
+            selectedFrame: selectedFrame.frame,
+            frame: frame.frame,
+            treatment: frame.treatment,
+            devices: frame.devices,
+          }),
+        );
+  const compatibleFallbackFrames = compatibleLensFallbackFrames(selectedFrame);
+  const seededCreativeFrames =
+    lensSearchEnabled && selectedLensFrame
+      ? [
+          selectedLensFrame,
+          ...compatibleCreativeFrames.filter(
+            (frame) => clean(frame.frame).toLowerCase() !== selectedFrame.frame,
+          ),
+        ].slice(0, 4)
+      : creativeFrames;
+
   const normalizedCreativeFrames =
     autoBusinessLens &&
-    !creativeFrames.some((frame) => /\b(?:none|bare reality|natural)\b/i.test(frame.frame))
-      ? [autoBusinessBareFrame, ...creativeFrames.slice(0, 3)]
-      : creativeFrames;
+    !seededCreativeFrames.some((frame) => /\b(?:none|bare reality|natural)\b/i.test(frame.frame))
+      ? [autoBusinessBareFrame, ...seededCreativeFrames.slice(0, 3)]
+      : seededCreativeFrames;
 
   const framesForMouth: AuthorCreativeFrame[] =
     !lensSearchEnabled
       ? []
       : normalizedCreativeFrames.length === 4
         ? normalizedCreativeFrames
+        : compatibleFallbackFrames.length === 4
+          ? (
+              autoBusinessLens &&
+              !compatibleFallbackFrames.some((frame) => /\b(?:none|bare reality|natural)\b/i.test(frame.frame))
+                ? [autoBusinessBareFrame, ...compatibleFallbackFrames.slice(0, 3)]
+                : compatibleFallbackFrames
+            )
         : [
           autoBusinessLens
             ? autoBusinessBareFrame
@@ -1223,7 +1684,9 @@ export async function createAuthorExperience(input: {
   debug("CREATIVE-LENS-SEARCH", {
     mode: lensMode,
     requestedLens: requestedLens || (autoBusinessLens ? "AUTO" : "NONE"),
-    enabled: lensSearchEnabled,
+    selectedFrame,
+    frameCandidates,
+    lensSearchEnabled,
     raw: lensSearchEnabled ? lensResult.text : "SKIPPED",
     frames: framesForMouth,
   });
@@ -1286,6 +1749,7 @@ export async function createAuthorExperience(input: {
                 "Do not reward NONE merely for being safest. Judge all four complete productions by coherence, specificity, surprise, payoff, usefulness to the recipient, and whether the treatment earns its presence while remaining true.",
               ] : []),
               "CREATIVE_FRAMES assigns one interpretive treatment to each production A-D. Treat that frame as expressive permission and production identity, NOT as literal world facts.",
+              "A selected deterministic frame is a perspective only. It is never a plot, event list, hidden cause, or viewer-facing text.",
               "Apply each assigned frame across the whole production so its cuts share one conception, rhythm, and attitude. Do not merely sprinkle genre vocabulary onto otherwise identical lines.",
               "A frame may transform status, metaphor, rhythm, compression, callback, ceremony, absurd seriousness, or attitude. It may NEVER manufacture a person, object, action, place, outcome, chronology, bodily reaction, motive, or hidden condition.",
               "If a frame would require an unsupplied concrete world element to work, realize the frame more abstractly instead of inventing that element.",
