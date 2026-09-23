@@ -261,6 +261,7 @@ export type CanonicalAuthorResult = {
     realityModel?: string;
     creativeDiscoveryModel?: string;
     bareAuthorPlan?: unknown;
+    creativeFrames?: unknown;
     mouthVariants?: unknown;
     mouthChoices?: unknown;
   };
@@ -515,6 +516,7 @@ export async function authorBrainCanonical(
       realityModel: receipt.model,
       creativeDiscoveryModel: discoveryResult.model,
       bareAuthorPlan: creativeResult.diagnostics?.plan,
+      creativeFrames: creativeResult.diagnostics?.creativeFrames,
       mouthVariants: creativeResult.diagnostics?.variantsByBeat,
       mouthChoices: creativeResult.diagnostics?.choices,
     },
