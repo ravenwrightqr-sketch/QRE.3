@@ -528,7 +528,7 @@ export async function searchAuthorCreativeLensTreatments(input: {
           "Do not reinterpret the source again. SELECTED_FRAME is the semantic authority for framing when it is not NONE.",
           "Do not generate, choose, rename, or compare frame identities.",
           "Generate exactly three materially different expressive treatments inside SELECTED_FRAME using only supplied reality.",
-          "Do not generate Bare Reality. QRE supplies that control deterministically outside the model."
+          "Do not generate Bare Reality. QRE supplies that control deterministically outside the model.",
           "The three expressive treatments must emerge from THIS material. Search for what is peculiar, funny, tense, disproportionate, awkward, elegant, repetitive, abrupt, specific, or otherwise usable in the supplied facts and their sequence.",
           "Do not choose from a house menu of genres. Invent the treatment that this material wants, even if the treatment has no familiar genre name.",
           "Each expressive treatment must have a governing relationship across the whole sequence. It should change how earlier cuts are perceived when later cuts arrive.",
@@ -545,7 +545,7 @@ export async function searchAuthorCreativeLensTreatments(input: {
           "Describe what the LANGUAGE and SEQUENCE will do. Do not describe camera, music, UI, staging, or other rendering implementation.",
           "Do not write final cuts. Give Mouth a concise governing conception and its devices.",
           "The selected frame is semantic authority. Treatments may radically change expression while preserving that meaning.",
-          "Return concise treatment descriptions and devices only. Do not return a frame field.",,
+          "Return concise treatment descriptions and devices only. Do not return a frame field.",
         ].join("\n"),
       },
       {
