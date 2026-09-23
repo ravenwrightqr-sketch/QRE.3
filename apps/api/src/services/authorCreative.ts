@@ -357,9 +357,25 @@ function unsupportedLensMaterialReason(input: {
     return "operation drifted into reporting or administrative language";
   }
 
-  if (
-    /\b(?:efficien\w*|precision|precise|meticulous\w*|methodical\w*|streamlined|relentless|focused effort|quiet responsibility|satisfaction|quality|competence|competent|urgency|urgent|difficulty|difficult|worker personality|professionalism|skilled|expert)\b/i.test(text)
-  ) {
+  const performanceQuality =
+    "(?:efficien\\w*|precision|precise|meticulous\\w*|methodical\\w*|streamlined|relentless|focused effort|quiet responsibility|satisfaction|quality|competence|competent|urgency|urgent|difficulty|difficult|worker personality|professionalism|skilled|expert)";
+  const factualPerformanceSubject =
+    "(?:worker|cleaner|housekeeper|service|work|cleaning|housekeeping|task|execution|performance|job|process)";
+  const claimsUnsuppliedPerformance =
+    new RegExp(
+      `\\b${factualPerformanceSubject}\\b[^.!?]{0,50}\\b(?:is|was|were|seems?|feels?|shows?|demonstrates?|proves?|reveals?|suggests?|reflects?|with|through|by)?[^.!?]{0,20}\\b${performanceQuality}\\b`,
+      "i",
+    ).test(text) ||
+    new RegExp(
+      `\\b${performanceQuality}\\b[^.!?]{0,30}\\b${factualPerformanceSubject}\\b`,
+      "i",
+    ).test(text) ||
+    new RegExp(
+      `\\b(?:shows?|demonstrates?|proves?|reveals?|suggests?|implies?)\\b[^.!?]{0,40}\\b${performanceQuality}\\b`,
+      "i",
+    ).test(text);
+
+  if (claimsUnsuppliedPerformance) {
     return "infers quality, competence, urgency, difficulty, or personality";
   }
 
