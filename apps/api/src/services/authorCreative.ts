@@ -979,6 +979,30 @@ function sourceReplayPenalty(text: string, beatFacts: readonly string[]): number
   return 0;
 }
 
+function expressiveProductionHasPerceptionDelta(
+  production: MemorySequenceCandidate,
+): boolean {
+  if (!production.lines.length) return false;
+
+  const materiallyTransformedLines = production.lines.filter((line) => {
+    const candidate = replayTokens(line.text);
+    if (!candidate.length) return false;
+    const source = new Set(replayTokens(line.beatFacts.join(" ")));
+    const overlap =
+      candidate.filter((token) => source.has(token)).length / candidate.length;
+
+    // A line counts as transformed when it is not mostly a replay of its
+    // source wording. This is intentionally vocabulary-agnostic: it does not
+    // require any genre/device words and does not care what creative grammar
+    // the model discovered.
+    return overlap < 0.8;
+  }).length;
+
+  // A whole expressive production needs transformation across more than one
+  // isolated cut. This blocks "three receipt lines + one fancy line".
+  return materiallyTransformedLines >= Math.min(2, production.lines.length);
+}
+
 function temporalAnchorTokens(value: string): string[] {
   const text = clean(value).toLowerCase();
   const tokens = new Set<string>();
@@ -2127,7 +2151,11 @@ export async function createAuthorExperience(input: {
       (production) => production.accepted,
     );
     const acceptedExpressiveProductions = lensSearchEnabled
-      ? acceptedProductions.filter((production) => production.variantIndex < 3)
+      ? acceptedProductions.filter(
+          (production) =>
+            production.variantIndex < 3 &&
+            expressiveProductionHasPerceptionDelta(production),
+        )
       : acceptedProductions;
     const topScoringExpressiveProduction = acceptedExpressiveProductions[0];
     const bareFallbackProduction = lensSearchEnabled
@@ -2173,8 +2201,16 @@ export async function createAuthorExperience(input: {
       production: String.fromCharCode(65 + production.variantIndex),
       accepted: production.accepted,
       score: production.score,
-      reasons: production.reasons,
-        lines: production.lines.map((line) => line.text),
+      reasons: [
+        ...production.reasons,
+        ...(lensSearchEnabled &&
+        production.variantIndex < 3 &&
+        production.accepted &&
+        !expressiveProductionHasPerceptionDelta(production)
+          ? ["insufficient-perception-delta"]
+          : []),
+      ],
+      lines: production.lines.map((line) => line.text),
       })),
     });
 
