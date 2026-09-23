@@ -311,13 +311,13 @@ function unsupportedLensMaterialReason(input: {
   }
 
   if (
-    /\b(?:efficien\w*|precision|precise|thorough\w*|quality|competence|competent|urgency|urgent|difficulty|difficult|worker personality|professionalism|skilled|expert)\b/i.test(text)
+    /\b(?:efficien\w*|precision|precise|meticulous\w*|focused effort|quiet responsibility|satisfaction|quality|competence|competent|urgency|urgent|difficulty|difficult|worker personality|professionalism|skilled|expert)\b/i.test(text)
   ) {
     return "infers quality, competence, urgency, difficulty, or personality";
   }
 
   if (
-    /\b(?:metrics?|rankings?|scores?|deadlines?|performance measurements?|performance|kpis?|quantified|measur(?:e|es|ed|ement)s?)\b/i.test(text)
+    /\b(?:metrics?|rankings?|scores?|deadlines?|performance measurements?|performance|kpis?|quantified|measurements?)\b/i.test(text)
   ) {
     return "creates unsupported metrics or performance measurement";
   }
@@ -484,6 +484,11 @@ export async function searchAuthorCreativeLensTreatments(input: {
           "A courtroom treatment may make a supplied object feel like evidence; it may not invent a lawyer, judge, courtroom, testimony, or legal event.",
           "A game or speedrun treatment may use rounds, levels, boss-fight energy, checkpoints, or status language rhetorically; it may not invent an actual game system, timer, opponent, score, or victory that reality did not supply.",
           "Horror, romance, noir, heist, royal, absurd, comedy, and other lenses may change implication, status, tone, rhythm, compression, escalation, contrast, anticipation, or payoff while leaving concrete reality untouched.",
+          "GENRE NAME IS NOT EVIDENCE. Never convert a genre convention into a factual claim about performance, psychology, atmosphere, secrecy, quality, competence, emotion, or physical state.",
+          "Speedrun/game framing may use phase, checkpoint, round, level, status, progression, compression, or escalation language. It may NOT infer speed, efficiency, focus, skill, timer pressure, score, or victory unless supplied.",
+          "Noir/spy/heist framing may use clipped language, withheld emphasis, covert-style rhetoric, suspicion, evidence-like status, or deadpan seriousness. It may NOT infer secrecy, precision, meticulousness, responsibility, surveillance, danger, criminality, or hidden actors unless supplied.",
+          "Dramatic/horror/romance framing may alter pacing, tension, anticipation, contrast, or payoff. It may NOT invent unseen before/after states, satisfaction, fear, desire, atmosphere, reactions, or outcomes.",
+          "Describe rhetorical mechanics only. If a treatment description contains an unsupplied worker trait, mental state, physical result, hidden condition, or performance judgment, the treatment is invalid even if the final Mouth might never say it.",
           "Do not write final cuts. Describe the treatment Mouth should use.",
           "The selected frame is perspective authority only; treatments may vary expressive lens while remaining grounded in that frame.",
           "Lens must describe interpretive perspective only: status, tension, bounded progression, escalation, restraint, recurrence, contrast, anticipation, payoff, implication, or recontextualization.",
@@ -526,7 +531,7 @@ export async function searchAuthorCreativeLensTreatments(input: {
           REQUESTED_LENS: requestedLens || undefined,
           SELECTED_FRAME: selectedFrame,
           instruction:
-            "Find four distinct reality-legal treatments inside SELECTED_FRAME. Preserve the approved meaning. Do not write viewer-facing cuts, do not invent a literal world, and do not choose a new frame.",
+            "Find four distinct reality-legal treatments inside SELECTED_FRAME. Use genre as rhetorical grammar only. Preserve the approved meaning. Do not write viewer-facing cuts, do not invent a literal world, do not infer worker performance or mental state, do not invent before/after conditions, and do not choose a new frame.",
         }),
       },
     ],
