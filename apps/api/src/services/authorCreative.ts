@@ -1874,7 +1874,7 @@ export async function createAuthorExperience(input: {
             : isMemoryMode
               ? realityDirect
                 ? "Return four complete candidate productions in PRODUCTION-MAJOR form. Complete A from first cut to payoff, then B, then C, then D. Discovery found no grounded hidden relation, so stay in REALITY-DIRECT MODE: do not invent a hidden thesis, but fully realize each assigned CREATIVE_FRAME through nonliteral rhetoric. Use the treatment's own grammar—metaphor, title-like status, ceremonial weight, noir pressure, game logic, callback, compression, implication, rhythm, or other non-material transformation—while keeping concrete reality fixed. Do not add any concrete noun, action, condition, physical result, physical quality, object, manner, scenery detail, or typical service detail that is not explicit in the supplied beat evidence. Preserve enough recognizable reality that the recipient can recover what happened. Nominate the strongest whole production by number 1-4."
-                : "Return four complete candidate productions in PRODUCTION-MAJOR form. Apply the universal law: MEMORY = accumulated truths -> one experience perception. Complete Production A from first cut to payoff before writing Production B, then C, then D. Treat each production as one finished QRE object unfolding cut by cut, not as separate lines. The accumulated facts are shared raw material for the whole production, not one-fact-per-line assignments. Each cut should perform a different job in the same experience: establish, deepen, turn, or land. When supplied reality contains a before-state / lived middle / after-state / recurrence shape, preserve the shape and make the contrast felt without claiming the middle caused the after-state or the earlier encounter caused the return. Preserve distinctive source anchors while transforming them. If the memory supplies a specific duration/count/time marker that gives the middle its identity, keep that marker legible somewhere in the production. If the payoff is a supplied recurrence such as again/next week/return, make the return itself legible and let it retrospectively recontextualize the earlier cuts without inventing motive. The final cut must land the approved memory relation using its local evidence plus already-established prior evidence. Then nominate the strongest complete production by number 1-4 based on whole-product coherence, specificity, progression, surprise, payoff, and how alive it feels—not on whether every individual line sounds impressive. Keep factual reality inside supplied event IDs, but make each production feel authored rather than enumerated."
+                : "Return four complete candidate productions in PRODUCTION-MAJOR form. Apply the universal law: MEMORY = accumulated truths -> one experience perception. Complete Production A from first cut to payoff before writing Production B, then C, then D. Treat each production as one finished QRE object unfolding cut by cut, not as separate lines. The accumulated facts are shared raw material for the whole production, not one-fact-per-line assignments. Each cut should perform a different job in the same experience: establish, deepen, turn, or land. When supplied reality contains a before-state / lived middle / after-state / recurrence shape, preserve the shape and make the contrast felt without claiming the middle caused the after-state or the earlier encounter caused the return. Preserve distinctive source anchors while transforming them. If the memory supplies a specific duration/count/time marker that gives the middle its identity, keep that marker legible somewhere in the production. If the payoff is a supplied recurrence such as again/next week/return, make the return itself legible and let it retrospectively recontextualize the earlier cuts without inventing motive. The final cut must land the approved memory relation using its local evidence plus already-established prior evidence. Then nominate the strongest complete EXPRESSIVE production by number 1-3 based on whole-product coherence, specificity, progression, surprise, payoff, and how alive it feels—not on whether every individual line sounds impressive. Production 4 is Bare Reality and is an emergency truth fallback, not a creative competitor. Do not nominate 4 while any expressive production is viable. Keep factual reality inside supplied event IDs, but make each expressive production feel authored rather than enumerated."
               : "Return four candidate lines per beat. The semantic plan controls meaning; the supplied event IDs control factual reality.",
         }),
       },
@@ -1918,7 +1918,11 @@ export async function createAuthorExperience(input: {
                   },
                 },
               },
-              selectedProduction: { type: "integer", minimum: 1, maximum: 4 },
+              selectedProduction: {
+                type: "integer",
+                minimum: 1,
+                maximum: lensSearchEnabled ? 3 : 4,
+              },
               selectionReason: { type: "string", maxLength: 220 },
             }
           : {
@@ -2122,13 +2126,26 @@ export async function createAuthorExperience(input: {
     const acceptedProductions = productions.filter(
       (production) => production.accepted,
     );
-    const topScoringProduction = acceptedProductions[0];
+    const acceptedExpressiveProductions = lensSearchEnabled
+      ? acceptedProductions.filter((production) => production.variantIndex < 3)
+      : acceptedProductions;
+    const topScoringExpressiveProduction = acceptedExpressiveProductions[0];
+    const bareFallbackProduction = lensSearchEnabled
+      ? acceptedProductions.find((production) => production.variantIndex === 3)
+      : undefined;
 
-    // Creative ownership belongs to the model once a complete production has
-    // passed deterministic truth/structure gates. Numeric scoring is a
-    // fallback for missing or rejected nominations, not a second creative
-    // director that can flatten an accepted expressive production into Bare.
-    const winner = nominatedProduction ?? topScoringProduction;
+    // In creative mode, Bare is not a creative competitor. A complete,
+    // accepted expressive production must own the result whenever one exists.
+    // Bare exists only as the final truth-safe fallback.
+    const nominatedExpressiveProduction =
+      nominatedProduction &&
+      (!lensSearchEnabled || nominatedProduction.variantIndex < 3)
+        ? nominatedProduction
+        : undefined;
+    const winner =
+      nominatedExpressiveProduction ??
+      topScoringExpressiveProduction ??
+      bareFallbackProduction;
 
     selectedMemoryProduction = winner
       ? String.fromCharCode(65 + winner.variantIndex)
