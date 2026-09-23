@@ -345,9 +345,14 @@ export function unsupportedLensMaterialReason(input: {
     return "literalizes genre framing into unsupplied reality";
   }
 
-  if (
-    /\b(?:introduce|add|create|invent|include)\s+(?:a|an|the|single|new|strange|misplaced)?\s*(?:object|prop|item|smell|scent|sound|person|animal|room|location|detail|element)\b/i.test(text)
-  ) {
+  const concreteWorldNoun =
+    "(?:object|prop|item|smell|scent|sound|person|animal|room|location|physical detail|sensory detail|concrete detail|physical element|sensory element)";
+  const asksForNewConcreteMaterial = new RegExp(
+    `\\b(?:introduce|add|create|invent|include)\\b\\s+(?:(?:a|an|the)\\s+)?(?:[a-z-]+\\s+){0,3}${concreteWorldNoun}\\b`,
+    "i",
+  ).test(text);
+
+  if (asksForNewConcreteMaterial) {
     return "asks treatment to introduce unsupplied concrete material";
   }
 
