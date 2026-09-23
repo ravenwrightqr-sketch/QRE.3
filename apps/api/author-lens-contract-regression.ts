@@ -80,10 +80,11 @@ assert.equal(strong.expressiveCount, 3);
 assert.ok(strong.sequenceRelationshipCount >= 2);
 
 const lexical = assessAuthorCreativeTreatmentSet(lexicalOnlyTreatments);
-assert.equal(lexical.complete, false);
-assert.ok(
-  lexical.reasons.includes("requires at least two sequence-level expressive treatments"),
-);
+// The sequence-device heuristic is diagnostic, not an admission gate. Mouth
+// realization and truth grounding decide whether these conceptions actually
+// work; Lens vocabulary alone must not block model-discovered strategies.
+assert.equal(lexical.complete, true, lexical.reasons.join("; "));
+assert.ok(lexical.sequenceRelationshipCount < 2);
 
 const noBare = assessAuthorCreativeTreatmentSet(missingBare);
 assert.equal(noBare.complete, false);
@@ -133,5 +134,5 @@ for (const text of realityViolationCases) {
 }
 
 console.log(
-  "AUTHOR LENS CONTRACT GREEN · 4 TREATMENTS · 1 BARE · 3 EXPRESSIVE · SEQUENCE-LEVEL CONCEPTION",
+  "AUTHOR LENS CONTRACT GREEN · 4 TREATMENTS · 1 BARE · 3 EXPRESSIVE · OPEN CREATIVE VOCABULARY",
 );
