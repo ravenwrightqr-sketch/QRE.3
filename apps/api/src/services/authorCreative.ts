@@ -337,7 +337,7 @@ function unsupportedLensMaterialReason(input: {
   if (
     !hasRecurrenceFrame &&
     !sourceHasRecurrence &&
-    /\b(?:recurrence|recurring|cycle|cycles|cyclical|routine|routines|ritual|rituals|habit|habits|repeated|repetition)\b/i.test(text)
+    /\b(?:recurrence|recurring|cycle|cycles|cyclical|routine|routines|ritual|rituals|ritualized|habit|habits|repeated|repetition)\b/i.test(text)
   ) {
     return "infers recurrence from a single supplied event";
   }
@@ -374,7 +374,7 @@ function authorCreativeTreatmentCompatibility(input: {
     ...input.treatment.devices,
   ]);
 
-  if (/\b(?:none|bare reality|natural|source-specific|restrained)\b/i.test(candidate)) {
+  if (isBareTreatment(input.treatment)) {
     return {
       compatible: true,
       reason: "bare reality remains a valid competitor",
@@ -508,6 +508,7 @@ export async function searchAuthorCreativeLensTreatments(input: {
           "Do not infer quality, competence, efficiency, precision, thoroughness, urgency, difficulty, or worker personality.",
           "Do not infer physical before/after states or visual results.",
           "Do not infer recurrence, cycles, routines, rituals, or habits from a single supplied event.",
+          "Recurrence language itself is a reality claim unless recurrence is supplied. Do not use recurrence, ritual, routine, cycle, repeated-return, or callback-as-recurrence as a treatment device when the source contains only one bounded occurrence.",
           "Do not create metrics, rankings, scores, deadlines, or performance measurements.",
           "Treatment may vary through rhetorical status, tone, rhythm, compression, seriousness, escalation, understatement, comedy, dread, romance, noir pressure, covert framing, game logic, speedrun energy, heist tension, courtroom rhetoric, absurd seriousness, ceremonial importance, and similar nonliteral expressive devices.",
           "Do not specify production implementation: no camera moves, visuals, visual displays, zooms, lighting, music, sound effects, chimes, narration, voiceover direction, UI treatments, charts, graphs, staging, scene mechanics, mission log entries, before/after vignettes, or visual transformations.",
