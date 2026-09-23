@@ -527,8 +527,8 @@ export async function searchAuthorCreativeLensTreatments(input: {
           "The approved meaning and beat structure already exist. Do not rediscover the story and do not alter the semantic thesis.",
           "Do not reinterpret the source again. SELECTED_FRAME is the semantic authority for framing when it is not NONE.",
           "Do not generate, choose, rename, or compare frame identities.",
-          "Generate exactly four materially different treatments inside SELECTED_FRAME using only supplied reality.",
-          "Exactly one treatment must be NONE / Bare Reality. The other three must be expressive conceptions.",
+          "Generate exactly three materially different expressive treatments inside SELECTED_FRAME using only supplied reality.",
+          "Do not generate Bare Reality. QRE supplies that control deterministically outside the model."
           "The three expressive treatments must emerge from THIS material. Search for what is peculiar, funny, tense, disproportionate, awkward, elegant, repetitive, abrupt, specific, or otherwise usable in the supplied facts and their sequence.",
           "Do not choose from a house menu of genres. Invent the treatment that this material wants, even if the treatment has no familiar genre name.",
           "Each expressive treatment must have a governing relationship across the whole sequence. It should change how earlier cuts are perceived when later cuts arrive.",
@@ -562,7 +562,7 @@ export async function searchAuthorCreativeLensTreatments(input: {
           REQUESTED_LENS: requestedLens || undefined,
           SELECTED_FRAME: selectedFrame,
           instruction:
-            "Find four treatments inside SELECTED_FRAME: three expressive conceptions discovered from this exact material plus one Bare Reality control. Do not reach for a familiar genre just because it is available. Look at the supplied facts and sequence until you find three different governing ideas that could make the experience feel authored and surprising. Transform perception, not reality. Preserve the approved meaning and concrete world.",
+            "Find exactly three expressive conceptions discovered from this exact material. Do not generate Bare Reality and do not reach for a familiar genre just because it is available. Look at the supplied facts and sequence until you find three different governing ideas that could make the experience feel authored and surprising. Transform perception, not reality. Preserve the approved meaning and concrete world.",
         }),
       },
     ],
@@ -577,8 +577,8 @@ export async function searchAuthorCreativeLensTreatments(input: {
         properties: {
           treatments: {
             type: "array",
-            minItems: 4,
-            maxItems: 4,
+            minItems: 3,
+            maxItems: 3,
             items: {
               type: "object",
               additionalProperties: false,
@@ -612,7 +612,7 @@ export async function searchAuthorCreativeLensTreatments(input: {
     ? parseJson(lensResult.text)
     : undefined;
   const rawTreatments = Array.isArray(parsedLens?.treatments) ? parsedLens.treatments : [];
-  const parsedTreatments: AuthorCreativeTreatment[] = rawTreatments
+  const modelTreatments: AuthorCreativeTreatment[] = rawTreatments
     .map((value, index): AuthorCreativeTreatment | undefined => {
       if (!value || typeof value !== "object") return undefined;
       const record = value as Record<string, unknown>;
@@ -641,7 +641,20 @@ export async function searchAuthorCreativeLensTreatments(input: {
       };
     })
     .filter((value): value is AuthorCreativeTreatment => Boolean(value))
-    .slice(0, 4);
+    .filter((treatment) => !isBareTreatment(treatment))
+    .slice(0, 3);
+
+  const deterministicBareTreatment: AuthorCreativeTreatment = {
+    id: "treatment-4",
+    treatment:
+      "NONE / Bare Reality. Present only the supplied facts in their natural sequence with minimal treatment.",
+    devices: ["bare reality"],
+    intensity: "LIGHT",
+  };
+
+  const parsedTreatments: AuthorCreativeTreatment[] = lensSearchEnabled
+    ? [...modelTreatments, deterministicBareTreatment]
+    : [];
 
   const treatmentResults = parsedTreatments.map((treatment) => ({
     treatment,
