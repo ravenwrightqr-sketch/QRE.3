@@ -151,6 +151,17 @@ function candidateCrossesUnsupportedTemporalEvaluation(
 const OPERATIONAL_TRAIT_INFERENCE =
   /\b(?:meticulous(?:ness)?|diligen(?:ce|t)|efficien(?:cy|t)|devotion|devoted|obsess(?:ion|ive|ively)|disciplin(?:e|ed)|methodical|systematic|careful(?:ness)?|focused|focus|work ethic|dedication|dedicated)\b/i;
 
+function isBusinessCreativeContext(domainContext?: AuthorDomainContext): boolean {
+  const context = (domainContext ?? {}) as Record<string, unknown>;
+  const serviceType = clean(context.serviceType);
+  const businessType = clean(context.businessType);
+  const merchantType = clean(context.merchantType);
+  const category = clean(context.category).toUpperCase();
+
+  return Boolean(serviceType || businessType || merchantType) ||
+    /\b(?:SERVICE|BUSINESS|COMMERCE|RETAIL|RESTAURANT|HOSPITALITY|GROOMING)\b/.test(category);
+}
+
 function isServiceContext(domainContext?: AuthorDomainContext): boolean {
   const context = (domainContext ?? {}) as Record<string, unknown>;
   const category = clean(context.category).toUpperCase();
@@ -528,6 +539,11 @@ export async function discoverAuthorCreativeDirection(input: {
   modelCalls: number;
 }> {
   const requestedLens = clean(input.requestedLens);
+  const normalizedRequestedLens = requestedLens.toUpperCase();
+  const businessCreativeContext = isBusinessCreativeContext(input.domainContext);
+  const lensStageOwnsFraming =
+    businessCreativeContext &&
+    normalizedRequestedLens !== "NONE";
   const allowedEventIds = new Set(input.events.map((event) => event.id));
 
   const system = [
@@ -565,9 +581,23 @@ export async function discoverAuthorCreativeDirection(input: {
     "When a read needs status or drama, create it figuratively from the supplied action instead of converting it into an unsupported literal before-state.",
     "Literal claims stay inside supplied reality; figurative meaning can range widely.",
     "BUSINESS_CONTEXT may clarify vocabulary.",
+    ...(lensStageOwnsFraming ? [
+      "",
+      "BUSINESS CREATIVE HANDOFF:",
+      "A downstream Creative Lens stage owns genre, stylistic universe, and rhetorical treatment for this business/service memory.",
+      "Discovery must NOT pre-solve the style by calling the service a ballet, ritual, audit, mission, game, ceremony, noir scene, courtroom, performance, protocol, operation, or another creative universe.",
+      "Instead identify the strongest GROUNDED MATERIAL OPPORTUNITY the Lens can transform: distinctive action sequence, count, exact time anchors, recurrence, contrast, object, quote, customer reaction, unusual combination, or other supplied structure.",
+      "Keep perception and relationship structurally descriptive enough that several radically different Lens treatments could all realize them truthfully.",
+      "Do not throw away distinctive middle service events merely because start/end timing is easy to dramatize. Preserve the evidence corridor that makes this specific service memory recognizable.",
+      "The Discovery output itself does not need to sound clever. Its job here is to hand Lens good material, not steal Lens's job.",
+    ] : []),
     "",
     "SELECT FOR LIFE.",
-    "Choose the read that feels most specific, grounded, surprising, compressible, and worth realizing.",
+    ...(lensStageOwnsFraming ? [
+      "Choose the read that preserves the strongest specific grounded material for downstream creative framing. Prefer useful structural opportunity over a pre-styled metaphor.",
+    ] : [
+      "Choose the read that feels most specific, grounded, surprising, compressible, and worth realizing.",
+    ]),
     "A strong selected read changes how the supplied facts feel when viewed together.",
     "Prefer a grounded perceptual leap over a bland literal summary. The leap should reveal latent character, status, tension, intimacy, absurdity, contrast, ceremony, danger, luxury, suspicion, tenderness, or another felt property already available in the supplied material.",
     "The strongest read often does not explain WHY something happened. It changes what the same facts seem to mean or resemble when experienced together.",
@@ -607,7 +637,9 @@ export async function discoverAuthorCreativeDirection(input: {
             requestedLens: requestedLens || undefined,
           },
           instruction:
-            "Find four genuinely different grounded reads in the supplied reality. Apply the universal law: IDENTITY = simultaneous truths -> one character perception; MEMORY = accumulated truths -> one experience perception. In IDENTITY mode, do not merely bundle the traits into a nicer list; look for the character signal created by their specificity or combination. In MEMORY mode, do not interpret each event separately and then summarize them. First find the single perception created by the accumulated event as a whole, then identify which facts carry that perception. Prefer grounded patterns such as variety, accumulation, density, juxtaposition, recurrence, rhythm, social texture, oddity, or contrast over invented positivity/negativity; neutral encounters stay neutral unless the facts supply valence. Treat the input only as facts about the world: do not analyze the list, phrasing, repetition of wording, formatting, field order, or the act of recording those facts. Search especially for perceptual transformations: what status, significance, atmosphere, relationship, contrast, absurdity, intimacy, tension, ceremony, or other felt meaning the SAME facts can take on without that transformation becoming a new historical fact. Keep each read concise: what you noticed, the playable perceptual relation, and its evidence. Do not manufacture literal order, ranking, causality, urgency, preference strength, deliberateness, selection, exclusivity, curation, motive, ownership, or hidden pressure. A figurative relation may change how reality feels; it may not rewrite what materially happened. Select the read with the most life and creative potential. Do not write final cuts.",
+            lensStageOwnsFraming
+              ? "This business/service memory will go through Creative Lens Search after Discovery. Find four grounded MATERIAL reads, not four stylistic treatments. Preserve the most distinctive supplied structure and evidence corridor that Lens can transform: actions, counts, exact time anchors, recurrence, contrast, quotes, objects, reactions, or unusual combinations. Do not name a genre, creative universe, performance metaphor, ritual, ballet, audit, mission, game, ceremony, protocol, operation, or other treatment here. Do not discard distinctive middle events merely to focus on start/end timing. Select the read that gives Lens the richest truthful raw material. Do not write final cuts."
+              : "Find four genuinely different grounded reads in the supplied reality. Apply the universal law: IDENTITY = simultaneous truths -> one character perception; MEMORY = accumulated truths -> one experience perception. In IDENTITY mode, do not merely bundle the traits into a nicer list; look for the character signal created by their specificity or combination. In MEMORY mode, do not interpret each event separately and then summarize them. First find the single perception created by the accumulated event as a whole, then identify which facts carry that perception. Prefer grounded patterns such as variety, accumulation, density, juxtaposition, recurrence, rhythm, social texture, oddity, or contrast over invented positivity/negativity; neutral encounters stay neutral unless the facts supply valence. Treat the input only as facts about the world: do not analyze the list, phrasing, repetition of wording, formatting, field order, or the act of recording those facts. Search especially for perceptual transformations: what status, significance, atmosphere, relationship, contrast, absurdity, intimacy, tension, ceremony, or other felt meaning the SAME facts can take on without that transformation becoming a new historical fact. Keep each read concise: what you noticed, the playable perceptual relation, and its evidence. Do not manufacture literal order, ranking, causality, urgency, preference strength, deliberateness, selection, exclusivity, curation, motive, ownership, or hidden pressure. A figurative relation may change how reality feels; it may not rewrite what materially happened. Select the read with the most life and creative potential. Do not write final cuts.",
         }),
       },
     ],
