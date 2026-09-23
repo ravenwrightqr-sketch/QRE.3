@@ -292,9 +292,10 @@ function unsupportedLensMaterialReason(input: {
     /\b(?:same|again|returned|return|repeated|recurring|every|sundays?|weekly|back)\b/i.test(supplied);
 
   if (
-    /\b(?:spy|courtroom|lawyer|weapon|handler|enemy|boss|kingdom|quest|mission)\b/i.test(text)
+    /\b(?:actual|literal|real|physical|concrete)\s+(?:spy|courtroom|lawyer|weapon|handler|enemy|boss|kingdom|quest|mission)\b/i.test(text) ||
+    /\b(?:introduce|add|create|invent|include)\s+(?:a|an|the)?\s*(?:spy|courtroom|lawyer|weapon|handler|enemy|boss|kingdom|quest|mission)\b/i.test(text)
   ) {
-    return "unrelated genre drift";
+    return "literalizes genre framing into unsupplied reality";
   }
 
   if (
@@ -476,22 +477,28 @@ export async function searchAuthorCreativeLensTreatments(input: {
           "Do not reinterpret the source again. SELECTED_FRAME is the semantic authority for framing when it is not NONE.",
           "Do not generate, choose, rename, or compare frame identities.",
           "Generate exactly four materially different expressive treatments inside SELECTED_FRAME using only supplied reality.",
-          "A treatment is a rhetorical way to realize the selected perspective, not a new story, plot, world, genre, scene, or fact.",
+          "A treatment is a rhetorical way to realize the selected perspective, not a new story, plot, world, scene, or fact.",
+          "Genre freedom is allowed; reality freedom is not.",
+          "Treat comedy, horror, romance, spy, noir, heist, courtroom, game, speedrun, royal, absurd, fierce, dramatic, quiet, and similar vocabularies as expressive grammars only.",
+          "A spy treatment may make supplied work feel covert; it may not invent a handler, surveillance camera, weapon, enemy, secret room, or mission event.",
+          "A courtroom treatment may make a supplied object feel like evidence; it may not invent a lawyer, judge, courtroom, testimony, or legal event.",
+          "A game or speedrun treatment may use rounds, levels, boss-fight energy, checkpoints, or status language rhetorically; it may not invent an actual game system, timer, opponent, score, or victory that reality did not supply.",
+          "Horror, romance, noir, heist, royal, absurd, comedy, and other lenses may change implication, status, tone, rhythm, compression, escalation, contrast, anticipation, or payoff while leaving concrete reality untouched.",
           "Do not write final cuts. Describe the treatment Mouth should use.",
-          "The selected frame is perspective only; it is not a plot, progression, scene, or viewer-facing line.",
-          "Lens must describe interpretive perspective only: status, procedural seriousness, bounded progression, escalation, restraint, recurrence, tension, or recontextualization.",
+          "The selected frame is perspective authority only; treatments may vary expressive lens while remaining grounded in that frame.",
+          "Lens must describe interpretive perspective only: status, tension, bounded progression, escalation, restraint, recurrence, contrast, anticipation, payoff, implication, or recontextualization.",
           "Concrete reality remains exactly the supplied reality.",
           "Do not infer quality, competence, efficiency, precision, thoroughness, urgency, difficulty, or worker personality.",
           "Do not infer physical before/after states or visual results.",
           "Do not infer recurrence, cycles, routines, rituals, or habits from a single supplied event.",
           "Do not create metrics, rankings, scores, deadlines, or performance measurements.",
-          "Treatment may vary through rhetorical status, tone, rhythm, compression, seriousness, escalation, understatement, procedural attitude, and similar nonliteral expressive devices.",
+          "Treatment may vary through rhetorical status, tone, rhythm, compression, seriousness, escalation, understatement, comedy, dread, romance, noir pressure, covert framing, game logic, speedrun energy, heist tension, courtroom rhetoric, absurd seriousness, ceremonial importance, and similar nonliteral expressive devices.",
           "Do not specify production implementation: no camera moves, visuals, visual displays, zooms, lighting, music, sound effects, chimes, narration, voiceover direction, UI treatments, charts, graphs, staging, scene mechanics, mission log entries, before/after vignettes, or visual transformations.",
           "Treatment and devices must name the expressive strategy, not how to render it.",
           "When SELECTED_FRAME is operation, operation does not inherently mean log, report, checklist, numbered steps, corporate language, protocol language, or detached administrative voice.",
           "When SELECTED_FRAME is reveal, reveal may change when and how information lands, but it may not invent an unsupplied visible before/after condition.",
           "Each treatment must remain legible as interpretation rather than asserting new physical history.",
-          "Different treatments must differ in expressive strategy, not by inventing different worlds.",
+          "Different treatments must differ in expressive strategy. They may borrow different genre grammars, but they must never invent different physical worlds.",
           "One treatment may be NONE / Bare Reality when the material itself is strongest without heavy treatment.",
           ...(autoBusinessLens ? [
             "AUTO BUSINESS MODE: this is customer-facing business/service material. Treatment Search is expected to explore treatments rather than defaulting to a literal receipt.",
