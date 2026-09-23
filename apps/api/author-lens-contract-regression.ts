@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import {
   assessAuthorCreativeTreatmentSet,
+  unsupportedLensMaterialReason,
   type AuthorCreativeTreatment,
 } from "./src/services/authorCreative.js";
 
@@ -87,6 +88,49 @@ assert.ok(
 const noBare = assessAuthorCreativeTreatmentSet(missingBare);
 assert.equal(noBare.complete, false);
 assert.ok(noBare.reasons.includes("requires exactly one bare treatment"));
+
+
+
+const creativeFreedomCases = [
+  "Use an almost bureaucratic delivery as deadpan comedy.",
+  "Let the sequence feel precise, urgent, ceremonial, and slightly unhinged.",
+  "Treat 'Bathrooms: Two. Neutralized.' as obvious performed heist framing.",
+  "Use score-like game rhetoric as a motif without claiming a real score exists.",
+  "Let spotless function as comic overstatement rather than a literal inspection result.",
+];
+
+for (const text of creativeFreedomCases) {
+  assert.equal(
+    unsupportedLensMaterialReason({
+      text,
+      suppliedRealityText:
+        "Arrived at 9:04 AM. Cleaned the kitchen. Cleaned two bathrooms. Finished at 11:47 AM.",
+      selectedFrame: "operation",
+    }),
+    undefined,
+    `creative rhetoric should survive: ${text}`,
+  );
+}
+
+const realityViolationCases = [
+  "Introduce a new object: a rubber duck.",
+  "Add a strange smell that follows the cleaner through the sequence.",
+  "The housekeeping service used a checklist for the work.",
+  "The service returns weekly.",
+  "They signed a contract at the end.",
+];
+
+for (const text of realityViolationCases) {
+  assert.ok(
+    unsupportedLensMaterialReason({
+      text,
+      suppliedRealityText:
+        "Arrived at 9:04 AM. Cleaned the kitchen. Cleaned two bathrooms. Finished at 11:47 AM.",
+      selectedFrame: "operation",
+    }),
+    `reality-changing treatment should fail: ${text}`,
+  );
+}
 
 console.log(
   "AUTHOR LENS CONTRACT GREEN · 4 TREATMENTS · 1 BARE · 3 EXPRESSIVE · SEQUENCE-LEVEL CONCEPTION",
