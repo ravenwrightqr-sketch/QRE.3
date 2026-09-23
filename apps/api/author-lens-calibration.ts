@@ -1,9 +1,10 @@
 import type { AuthorDomainContext } from "@qre/contracts";
 import {
   deriveAuthorCreativeFrameCandidates,
-  searchAuthorCreativeLensFrames,
+  searchAuthorCreativeLensTreatments,
   selectAuthorCreativeFrame,
   type AuthorCreativeEvent,
+  type AuthorCreativeTreatment,
   type AuthorSemanticPlan,
 } from "./src/services/authorCreative.js";
 
@@ -50,36 +51,22 @@ const plan: AuthorSemanticPlan = {
   })),
 };
 
-function printFrame(index: number, frame: {
-  frame: string;
+function printTreatment(index: number, treatment: {
   treatment: string;
   devices: readonly string[];
   intensity: string;
 }): void {
-  console.log(`${index}. ${frame.frame}`);
-  console.log(`   ${frame.treatment}`);
-  console.log(`   devices: ${frame.devices.join(", ")}`);
-  console.log(`   intensity: ${frame.intensity}`);
+  console.log(`${index}. ${treatment.treatment}`);
+  console.log(`   devices: ${treatment.devices.join(", ")}`);
+  console.log(`   intensity: ${treatment.intensity}`);
 }
 
 console.log("=== LENS CALIBRATION: HOUSEKEEPING ===");
 console.log("");
-console.log("REALITY");
-for (const event of suppliedReality) {
-  console.log(`- ${event.id}: ${event.text}`);
-}
-
-console.log("");
-console.log("DETERMINISTIC FRAME CANDIDATES");
-for (const candidate of frameCandidates) {
-  console.log(`- ${candidate.frame} / ${candidate.reason} / ${candidate.confidence}`);
-}
-
-console.log("");
 console.log("SELECTED FRAME");
 console.log(selectedFrame.frame);
 
-const lens = await searchAuthorCreativeLensFrames({
+const lens = await searchAuthorCreativeLensTreatments({
   subject: "housekeeping service",
   suppliedReality,
   plan,
@@ -93,20 +80,21 @@ const lens = await searchAuthorCreativeLensFrames({
 });
 
 console.log("");
-console.log("RAW LENS RESPONSE");
-console.log(lens.raw);
+console.log("RAW TREATMENT RESPONSE");
+console.log(lens.rawTreatmentResponse);
 
 console.log("");
-console.log("ACCEPTED CREATIVE FRAMES");
-lens.acceptedFrames.forEach((frame, index) => printFrame(index + 1, frame));
+console.log("ACCEPTED TREATMENTS");
+lens.acceptedTreatments.forEach((treatment, index) => printTreatment(index + 1, treatment));
 
 console.log("");
-console.log("REJECTED / INCOMPATIBLE FRAMES");
-if (!lens.rejectedFrames.length) {
+console.log("REJECTED TREATMENTS");
+if (!lens.rejectedTreatments.length) {
   console.log("- none");
 } else {
-  for (const rejected of lens.rejectedFrames) {
-    console.log(`- ${rejected.frame.frame} / ${rejected.reason}`);
+  for (const rejected of lens.rejectedTreatments) {
+    const treatment: AuthorCreativeTreatment = rejected.treatment;
+    console.log(`- ${treatment.treatment} / ${rejected.reason}`);
   }
 }
 
