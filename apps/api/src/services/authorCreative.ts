@@ -1665,6 +1665,8 @@ export async function createAuthorExperience(input: {
   const lensSearchEnabled = lensSearch.lensSearchEnabled;
   const lensMode = lensSearch.lensMode;
   const framesForMouth = lensSearch.acceptedTreatments;
+  const lensProductionContractComplete =
+    !lensSearch.lensSearchEnabled || framesForMouth.length === 4;
 
   debug("CREATIVE-LENS-SEARCH", {
     mode: lensMode,
@@ -1674,7 +1676,15 @@ export async function createAuthorExperience(input: {
     lensSearchEnabled,
     rawTreatmentResponse: lensSearch.rawTreatmentResponse,
     treatments: framesForMouth,
+    rejectedTreatments: lensSearch.rejectedTreatments,
+    productionContractComplete: lensProductionContractComplete,
   });
+
+  if (!lensProductionContractComplete) {
+    throw new Error(
+      `QRE Creative Lens contract incomplete: expected 4 accepted treatments, got ${framesForMouth.length}`,
+    );
+  }
 
   const mouthResult = await localModelGenerate(
     [
