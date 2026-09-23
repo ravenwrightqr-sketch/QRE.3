@@ -92,7 +92,61 @@ function normalizeMode(value: unknown): "RELATIONAL" | "METAMORPHIC" {
 }
 
 const RECORD_SHAPE_LANGUAGE =
-  /\b(list|prompt|input|record|document|format|formatting|field|fields|wording|phrasing|sentence|sentences)\b/i;
+  /\b(?:list|prompt|input|record(?:ed|ing|s)?|document(?:ed|ing|s)?|audit(?:ed|ing|s)?|log(?:ged|ging|s)?|format(?:ting)?|field|fields|wording|phrasing|sentence|sentences|presentation)\b/i;
+
+const TEMPORAL_EVALUATION_LANGUAGE =
+  /\b(?:compressed timeframe|intense|intensity|sprint|rapid|rapidly|rushed|rush|fast|faster|quick|quickly|brief|briefly|slow|slowly|urgent|urgency|burst)\b/i;
+
+const EVIDENCE_TOKEN_STOP = new Set([
+  "the", "and", "with", "from", "that", "this", "into", "then", "were", "was",
+  "are", "for", "at", "arrived", "finished", "cleaned", "event", "events",
+]);
+
+function evidenceTokens(text: string): Set<string> {
+  return new Set(
+    clean(text)
+      .toLowerCase()
+      .split(/[^a-z0-9]+/g)
+      .filter((token) => token.length >= 4 && !EVIDENCE_TOKEN_STOP.has(token)),
+  );
+}
+
+function candidateReferencesUncitedEvidence(
+  candidate: AuthorCreativeCandidate,
+  events: ReadonlyArray<{ id: string; text: string }>,
+): boolean {
+  const cited = new Set(candidate.evidenceEventIds.map(clean));
+  const candidateTokens = evidenceTokens([
+    candidate.perception,
+    candidate.relationship,
+    candidate.observerInference,
+  ].join(" "));
+
+  if (!candidateTokens.size) return false;
+
+  return events
+    .filter((event) => !cited.has(clean(event.id)))
+    .some((event) => {
+      const tokens = evidenceTokens(event.text);
+      return [...tokens].some((token) => candidateTokens.has(token));
+    });
+}
+
+function candidateCrossesUnsupportedTemporalEvaluation(
+  candidate: AuthorCreativeCandidate,
+  suppliedRealityText: string,
+): boolean {
+  const candidateText = clean([
+    candidate.perception,
+    candidate.relationship,
+    candidate.observerInference,
+  ].join(" "));
+
+  return (
+    TEMPORAL_EVALUATION_LANGUAGE.test(candidateText) &&
+    !TEMPORAL_EVALUATION_LANGUAGE.test(suppliedRealityText)
+  );
+}
 
 const OPERATIONAL_TRAIT_INFERENCE =
   /\b(?:meticulous(?:ness)?|diligen(?:ce|t)|efficien(?:cy|t)|devotion|devoted|obsess(?:ion|ive|ively)|disciplin(?:e|ed)|methodical|systematic|careful(?:ness)?|focused|focus|work ethic|dedication|dedicated)\b/i;
@@ -444,6 +498,15 @@ async function repairDiscoveryCandidates(input: {
         input.domainContext,
       ),
     )
+    .filter((candidate) =>
+      !candidateCrossesUnsupportedTemporalEvaluation(
+        candidate,
+        suppliedRealityText,
+      ),
+    )
+    .filter((candidate) =>
+      !candidateReferencesUncitedEvidence(candidate, input.events),
+    )
     .slice(0, 2);
 
   return {
@@ -634,6 +697,15 @@ export async function discoverAuthorCreativeDirection(input: {
         suppliedRealityText,
         input.domainContext,
       ),
+    )
+    .filter((candidate) =>
+      !candidateCrossesUnsupportedTemporalEvaluation(
+        candidate,
+        suppliedRealityText,
+      ),
+    )
+    .filter((candidate) =>
+      !candidateReferencesUncitedEvidence(candidate, input.events),
     )
     .slice(0, 4);
 
