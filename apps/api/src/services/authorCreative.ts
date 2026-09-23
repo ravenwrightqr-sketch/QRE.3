@@ -98,6 +98,17 @@ function presentationAffordance(domainContext?: AuthorDomainContext): string {
   ].join("\n");
 }
 
+function isBusinessCreativeContext(domainContext?: AuthorDomainContext): boolean {
+  const context = (domainContext ?? {}) as Record<string, unknown>;
+  const serviceType = clean(context.serviceType);
+  const businessType = clean(context.businessType);
+  const merchantType = clean(context.merchantType);
+  const category = clean(context.category).toUpperCase();
+
+  return Boolean(serviceType || businessType || merchantType) ||
+    /\b(?:SERVICE|BUSINESS|COMMERCE|RETAIL|RESTAURANT|HOSPITALITY|GROOMING)\b/.test(category);
+}
+
 function normalizeRole(value: unknown, index: number, total: number): AuthorBeatRole {
   const role = clean(value).toUpperCase();
   if (role === "HOOK" || role === "BUILD" || role === "TURN" || role === "PAYOFF") {
@@ -1013,9 +1024,22 @@ export async function createAuthorExperience(input: {
 
   const requestedLens = clean(input.requestedLens);
   const normalizedRequestedLens = requestedLens.toUpperCase();
+  const explicitLensProvided = Boolean(requestedLens);
+  const explicitLensOff = normalizedRequestedLens === "NONE";
+  const autoBusinessLens =
+    !explicitLensProvided &&
+    isBusinessCreativeContext(input.domainContext);
   const lensSearchEnabled =
-    Boolean(requestedLens) &&
-    normalizedRequestedLens !== "NONE";
+    !explicitLensOff &&
+    (explicitLensProvided || autoBusinessLens);
+  const lensMode =
+    explicitLensOff
+      ? "NONE"
+      : explicitLensProvided
+        ? "REQUESTED"
+        : autoBusinessLens
+          ? "AUTO_BUSINESS"
+          : "NONE";
 
   const lensResult = lensSearchEnabled
     ? await localModelGenerate(
@@ -1035,6 +1059,15 @@ export async function createAuthorExperience(input: {
           "Each frame must remain legible as interpretation rather than asserting new physical history.",
           "The four frames must differ in underlying treatment, not merely tone adjectives.",
           "One frame may be restrained or nearly bare when the material itself is strongest without heavy treatment.",
+          ...(autoBusinessLens ? [
+            "AUTO BUSINESS MODE: this is customer-facing business/service material. Creative Lens Search is expected to explore treatments rather than defaulting to a literal receipt.",
+            "Exactly one of the four frames must be NONE / BARE REALITY: a natural, minimally treated realization that lets the supplied facts speak for themselves.",
+            "The other three frames must be genuinely different creative treatments appropriate to the supplied business/service material.",
+            "NONE is a real contender, not an automatic winner. Choose creative frames that could make an ordinary service memory worth receiving without inventing physical reality.",
+          ] : []),
+          ...(explicitLensProvided && !explicitLensOff ? [
+            "A lens was explicitly requested. Honor that requested lens as the governing creative direction while still proposing materially different treatments inside it.",
+          ] : []),
           "Return concise frame descriptions and devices only.",
         ].join("\n"),
       },
@@ -1048,6 +1081,8 @@ export async function createAuthorExperience(input: {
           CREATIVE_OPPORTUNITY: selected.perception,
           RELATION: selected.relationship,
           EXPERIENCE_MODE: experienceMode || undefined,
+          LENS_MODE: lensMode,
+          REQUESTED_LENS: requestedLens || undefined,
           instruction:
             "Find four distinct reality-legal framing strategies for realization. Preserve the approved meaning. Do not write viewer-facing cuts and do not invent a literal world.",
         }),
@@ -1133,19 +1168,35 @@ export async function createAuthorExperience(input: {
     .filter((value): value is AuthorCreativeFrame => Boolean(value))
     .slice(0, 4);
 
+  const autoBusinessBareFrame: AuthorCreativeFrame = {
+    id: "frame-none",
+    frame: "NONE / Bare Reality",
+    treatment: "Use natural, source-specific phrasing with minimal treatment. Let the supplied business/service facts carry the experience without imposing a genre skin.",
+    devices: ["restraint", "source specificity", "natural rhythm"],
+    intensity: "LIGHT",
+  };
+
+  const normalizedCreativeFrames =
+    autoBusinessLens &&
+    !creativeFrames.some((frame) => /\b(?:none|bare reality|natural)\b/i.test(frame.frame))
+      ? [autoBusinessBareFrame, ...creativeFrames.slice(0, 3)]
+      : creativeFrames;
+
   const framesForMouth: AuthorCreativeFrame[] =
     !lensSearchEnabled
       ? []
-      : creativeFrames.length === 4
-        ? creativeFrames
+      : normalizedCreativeFrames.length === 4
+        ? normalizedCreativeFrames
         : [
-          {
-            id: "frame-a",
-            frame: "restrained source-specific framing",
-            treatment: "Let the supplied details carry the experience; use implication, compression, and precise attitude without constructing a literal genre world.",
-            devices: ["implication", "compression", "attitude"],
-            intensity: "LIGHT",
-          },
+          autoBusinessLens
+            ? autoBusinessBareFrame
+            : {
+                id: "frame-a",
+                frame: "restrained source-specific framing",
+                treatment: "Let the supplied details carry the experience; use implication, compression, and precise attitude without constructing a literal genre world.",
+                devices: ["implication", "compression", "attitude"],
+                intensity: "LIGHT",
+              },
           {
             id: "frame-b",
             frame: "mock-serious escalation",
@@ -1170,7 +1221,8 @@ export async function createAuthorExperience(input: {
         ];
 
   debug("CREATIVE-LENS-SEARCH", {
-    requestedLens: requestedLens || "NONE",
+    mode: lensMode,
+    requestedLens: requestedLens || (autoBusinessLens ? "AUTO" : "NONE"),
     enabled: lensSearchEnabled,
     raw: lensSearchEnabled ? lensResult.text : "SKIPPED",
     frames: framesForMouth,
@@ -1229,6 +1281,10 @@ export async function createAuthorExperience(input: {
             "Across the whole sequence, prefer progression: establish -> enrich -> land. Do not make three interchangeable labels.",
             "WRITE FOUR COMPLETE PRODUCTIONS IN PARALLEL. Variant position is persistent across beats: variant 1 of every beat belongs to Production A; variant 2 belongs to Production B; variant 3 belongs to Production C; variant 4 belongs to Production D. Each production must read coherently from first cut to payoff.",
             ...(lensSearchEnabled ? [
+              ...(autoBusinessLens ? [
+                "AUTO BUSINESS LENS: this business/service experience is intentionally exploring creative treatments. One production may be NONE / Bare Reality; the others should materially transform how the same supplied facts are experienced.",
+                "Do not reward NONE merely for being safest. Judge all four complete productions by coherence, specificity, surprise, payoff, usefulness to the recipient, and whether the treatment earns its presence while remaining true.",
+              ] : []),
               "CREATIVE_FRAMES assigns one interpretive treatment to each production A-D. Treat that frame as expressive permission and production identity, NOT as literal world facts.",
               "Apply each assigned frame across the whole production so its cuts share one conception, rhythm, and attitude. Do not merely sprinkle genre vocabulary onto otherwise identical lines.",
               "A frame may transform status, metaphor, rhythm, compression, callback, ceremony, absurd seriousness, or attitude. It may NEVER manufacture a person, object, action, place, outcome, chronology, bodily reaction, motive, or hidden condition.",
@@ -1275,7 +1331,8 @@ export async function createAuthorExperience(input: {
           CREATIVE_OPPORTUNITY: selected.perception,
           RELATION: selected.relationship,
           REALITY_DIRECT: realityDirect,
-          REQUESTED_LENS: requestedLens || "NONE",
+          LENS_MODE: lensMode,
+          REQUESTED_LENS: requestedLens || (autoBusinessLens ? "AUTO" : "NONE"),
           CREATIVE_FRAMES: framesForMouth.map((frame, index) => ({
             production: String.fromCharCode(65 + index),
             frame: frame.frame,
