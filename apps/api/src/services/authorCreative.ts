@@ -834,6 +834,7 @@ export async function createAuthorExperience(input: {
   subject: string;
   suppliedReality: readonly AuthorCreativeEvent[];
   creativeDiscovery: AuthorCreativeDiscovery;
+  requestedLens?: string;
   memory?: readonly string[];
   domainContext?: AuthorDomainContext;
 }): Promise<{
@@ -1007,7 +1008,14 @@ export async function createAuthorExperience(input: {
     selectedPlan: plan,
   });
 
-  const lensResult = await localModelGenerate(
+  const requestedLens = clean(input.requestedLens);
+  const normalizedRequestedLens = requestedLens.toUpperCase();
+  const lensSearchEnabled =
+    Boolean(requestedLens) &&
+    normalizedRequestedLens !== "NONE";
+
+  const lensResult = lensSearchEnabled
+    ? await localModelGenerate(
     [
       {
         role: "system",
@@ -1079,9 +1087,15 @@ export async function createAuthorExperience(input: {
         },
       },
     },
-  );
+  )
+    : {
+        text: "",
+        model: "none",
+      };
 
-  const parsedLens = parseJson(lensResult.text);
+  const parsedLens = lensSearchEnabled
+    ? parseJson(lensResult.text)
+    : undefined;
   const rawFrames = Array.isArray(parsedLens?.frames) ? parsedLens.frames : [];
   const creativeFrames: AuthorCreativeFrame[] = rawFrames
     .map((value, index): AuthorCreativeFrame | undefined => {
@@ -1117,9 +1131,11 @@ export async function createAuthorExperience(input: {
     .slice(0, 4);
 
   const framesForMouth: AuthorCreativeFrame[] =
-    creativeFrames.length === 4
-      ? creativeFrames
-      : [
+    !lensSearchEnabled
+      ? []
+      : creativeFrames.length === 4
+        ? creativeFrames
+        : [
           {
             id: "frame-a",
             frame: "restrained source-specific framing",
@@ -1151,7 +1167,9 @@ export async function createAuthorExperience(input: {
         ];
 
   debug("CREATIVE-LENS-SEARCH", {
-    raw: lensResult.text,
+    requestedLens: requestedLens || "NONE",
+    enabled: lensSearchEnabled,
+    raw: lensSearchEnabled ? lensResult.text : "SKIPPED",
     frames: framesForMouth,
   });
 
@@ -1200,11 +1218,16 @@ export async function createAuthorExperience(input: {
             "Do not produce a final-beat candidate that is only a literal replay of the local fact when semanticMove asks you to land a broader approved relation.",
             "Across the whole sequence, prefer progression: establish -> enrich -> land. Do not make three interchangeable labels.",
             "WRITE FOUR COMPLETE PRODUCTIONS IN PARALLEL. Variant position is persistent across beats: variant 1 of every beat belongs to Production A; variant 2 belongs to Production B; variant 3 belongs to Production C; variant 4 belongs to Production D. Each production must read coherently from first cut to payoff.",
-            "CREATIVE_FRAMES assigns one interpretive treatment to each production A-D. Treat that frame as expressive permission and production identity, NOT as literal world facts.",
-            "Apply each assigned frame across the whole production so its cuts share one conception, rhythm, and attitude. Do not merely sprinkle genre vocabulary onto otherwise identical lines.",
-            "A frame may transform status, metaphor, rhythm, compression, callback, ceremony, absurd seriousness, or attitude. It may NEVER manufacture a person, object, action, place, outcome, chronology, bodily reaction, motive, or hidden condition.",
-            "If a frame would require an unsupplied concrete world element to work, realize the frame more abstractly instead of inventing that element.",
-            "Give the four productions genuinely different creative approaches because their assigned frames are genuinely different. Do not make four near-synonymous productions.",
+            ...(lensSearchEnabled ? [
+              "CREATIVE_FRAMES assigns one interpretive treatment to each production A-D. Treat that frame as expressive permission and production identity, NOT as literal world facts.",
+              "Apply each assigned frame across the whole production so its cuts share one conception, rhythm, and attitude. Do not merely sprinkle genre vocabulary onto otherwise identical lines.",
+              "A frame may transform status, metaphor, rhythm, compression, callback, ceremony, absurd seriousness, or attitude. It may NEVER manufacture a person, object, action, place, outcome, chronology, bodily reaction, motive, or hidden condition.",
+              "If a frame would require an unsupplied concrete world element to work, realize the frame more abstractly instead of inventing that element.",
+              "Give the four productions genuinely different creative approaches because their assigned frames are genuinely different. Do not make four near-synonymous productions.",
+            ] : [
+              "NO CREATIVE LENS IS REQUESTED. Realize the approved meaning directly. Do not impose a genre skin, procedural gimmick, or stylistic universe just to make the material sound authored.",
+              "The four productions should still explore genuinely different phrasings and sequence strategies, but they must emerge from supplied reality and approved meaning rather than from an invented genre frame.",
+            ]),
             "Within each production, later cuts should feel aware of what earlier cuts established. Build progression, contrast, callback, accumulation, or recontextualization instead of isolated labels.",
             "PRESERVE DISTINCTIVE ANCHORS. A multi-event beat should not dissolve into generic atmosphere. Keep recognizable source-specific anchors—an animal, object, number, quoted evaluation, action, time, or other distinctive detail—unless the production has already established that anchor strongly enough for a clear callback.",
             "QUANTITATIVE/TIME ANCHORS ARE EXPENSIVE TO LOSE. If a supplied beat contains a specific duration, count, clock time, day, week, or other numeric/time marker and that marker materially distinguishes the memory, preserve it directly or transform it recognizably somewhere in the production. Do not replace 'two hours' with generic atmosphere.",
@@ -1241,6 +1264,7 @@ export async function createAuthorExperience(input: {
           })),
           CREATIVE_OPPORTUNITY: selected.perception,
           RELATION: selected.relationship,
+          REQUESTED_LENS: requestedLens || "NONE",
           CREATIVE_FRAMES: framesForMouth.map((frame, index) => ({
             production: String.fromCharCode(65 + index),
             frame: frame.frame,
@@ -1555,8 +1579,11 @@ export async function createAuthorExperience(input: {
 
   return {
     scenes,
-    model: mouthResult.model || lensResult.model || planResult.model,
-    modelCalls: (useDeterministicSparsePlan ? 2 : 3) + memoryRepairModelCalls,
+    model: mouthResult.model || (lensSearchEnabled ? lensResult.model : "") || planResult.model,
+    modelCalls:
+      (useDeterministicSparsePlan ? 1 : 2) +
+      (lensSearchEnabled ? 1 : 0) +
+      memoryRepairModelCalls,
     diagnostics: {
       plan,
       creativeFrames: framesForMouth,
