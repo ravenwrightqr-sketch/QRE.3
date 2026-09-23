@@ -521,6 +521,8 @@ export async function searchAuthorCreativeLensTreatments(input: {
           "When SELECTED_FRAME is reveal, reveal may change when and how information lands, but it may not invent an unsupplied visible before/after condition.",
           "Each treatment must remain legible as interpretation rather than asserting new physical history.",
           "Different treatments must differ in expressive strategy. They may borrow different genre grammars, but they must never invent different physical worlds.",
+          "A treatment must change the viewer's experience of the whole sequence, not merely replace ordinary verbs with formal synonyms. 'arrived -> commencement', 'cleaned -> sanitation', and 'finished -> termination' is vocabulary substitution, not a complete creative treatment.",
+          "Prefer treatments with a governing relationship across beats: setup and payoff, callback, escalating attitude, repeated motif with changed meaning, contrast, interruption, recontextualization, or another sequence-level device. The production should have a conception, not just a thesaurus.",
           "One treatment may be NONE / Bare Reality when the material itself is strongest without heavy treatment.",
           ...(autoBusinessLens ? [
             "AUTO BUSINESS MODE: this is customer-facing business/service material. Treatment Search is expected to explore treatments rather than defaulting to a literal receipt.",
@@ -1005,6 +1007,7 @@ function variantScore(
   semanticAuthority: readonly string[],
   subject: string,
   prior: readonly string[],
+  penalizeSourceReplay = true,
 ): { accepted: boolean; score: number; reasons: string[] } {
   const policy = evaluateAuthorCut(text, {
     subject,
@@ -1018,7 +1021,9 @@ function variantScore(
 
   const normalized = clean(text).toLowerCase();
   const repeated = prior.some((value) => clean(value).toLowerCase() === normalized);
-  const replayPenalty = sourceReplayPenalty(text, beatFacts);
+  const replayPenalty = penalizeSourceReplay
+    ? sourceReplayPenalty(text, beatFacts)
+    : 0;
   const anchorAdjustment = temporalAnchorAdjustment(text, beatFacts);
   const score = Math.max(
     0,
@@ -1224,6 +1229,7 @@ function scoreMemorySequence(
   variantsByOrder: Map<number, string[]>,
   suppliedReality: readonly AuthorCreativeEvent[],
   subject: string,
+  realityDirect = false,
 ): MemorySequenceCandidate {
   const prior: string[] = [];
   const lines = plan.beats.map((beat, index) => {
@@ -1238,6 +1244,7 @@ function scoreMemorySequence(
       [beat.change].map(clean).filter(Boolean),
       subject,
       prior,
+      !realityDirect,
     );
     const payoffPenalty = memoryPayoffReplayPenalty(
       text,
@@ -1759,6 +1766,8 @@ export async function createAuthorExperience(input: {
               "The four productions should still explore genuinely different phrasings and sequence strategies, but they must emerge from supplied reality and approved meaning rather than from an invented genre frame.",
             ]),
             "Within each production, later cuts should feel aware of what earlier cuts established. Build progression, contrast, callback, accumulation, or recontextualization instead of isolated labels.",
+            "Do not mistake formal synonyms for authorship. Replacing 'arrived' with 'commencement', 'cleaned' with 'sanitation/cleansing', or 'finished' with 'termination' without a larger sequence idea is weaker than preserving the plain fact inside a strong conception.",
+            "The treatment should be recognizable from the relationship among the cuts, not only from vocabulary pasted onto each cut.",
             "PRESERVE DISTINCTIVE ANCHORS. A multi-event beat should not dissolve into generic atmosphere. Keep recognizable source-specific anchors—an animal, object, number, quoted evaluation, action, time, or other distinctive detail—unless the production has already established that anchor strongly enough for a clear callback.",
             "QUANTITATIVE/TIME ANCHORS ARE EXPENSIVE TO LOSE. If a supplied beat contains a specific duration, count, clock time, day, week, or other numeric/time marker and that marker materially distinguishes the memory, preserve it directly or transform it recognizably somewhere in the production. Do not replace 'two hours' with generic atmosphere.",
             "RECURRENCE PAYOFF SHOULD LAND THE SUPPLIED RETURN. When the final evidence is 'again', 'next week', 'returned', another visit, or equivalent recurrence, make that recurrence itself legible. Prefer a concrete callback to the supplied return over generic labels like 'pattern', 'cycle', 'seamless', or 'predictable'.",
@@ -1954,6 +1963,7 @@ export async function createAuthorExperience(input: {
           variantsByOrder,
           input.suppliedReality,
           input.subject,
+          realityDirect,
         ),
       )
       .sort((a, b) => {
@@ -2002,6 +2012,7 @@ export async function createAuthorExperience(input: {
           repairedVariantsByOrder,
           input.suppliedReality,
           input.subject,
+          realityDirect,
         );
 
         debug("MEMORY-PRODUCTION-REPAIR", {
