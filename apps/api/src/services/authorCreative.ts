@@ -343,11 +343,12 @@ function unsupportedLensMaterialReason(input: {
     return "infers recurrence from a single supplied event";
   }
 
-  if (
-    /\b(?:timestamp|time stamp|clock|time)\w*\b.*\b(?:repeat|repetition|recurring|across events|cyclical)\b/i.test(text) ||
-    /\b(?:repeat|repetition|recurring|across events|cyclical)\b.*\b(?:timestamp|time stamp|clock|time)\w*\b/i.test(text)
-  ) {
-    return "requires unsupported timestamp repetition";
+  const claimsRealWorldTimestampRecurrence =
+    /\b(?:timestamp|time stamp|clock time|arrival time|finish time)\b[^.]{0,80}\b(?:recurs?|repeats?|repeated across|recurring across|same every|weekly|again in later visits?)\b/i.test(text) ||
+    /\b(?:same time|same timestamp|same clock time)\b[^.]{0,60}\b(?:again|every|weekly|across visits?|across events?)\b/i.test(text);
+
+  if (!sourceHasRecurrence && claimsRealWorldTimestampRecurrence) {
+    return "requires unsupported timestamp recurrence";
   }
 
   return undefined;
@@ -516,6 +517,7 @@ export async function searchAuthorCreativeLensTreatments(input: {
           "Do not infer recurrence, cycles, routines, rituals, or habits from a single supplied event.",
           "Distinguish rhetorical repetition from factual recurrence. You MAY repeat a phrase, motif, status marker, syntax pattern, callback, or refrain inside one bounded experience. That is a language device. You may NOT imply that the real service, visit, task, behavior, or event itself happened repeatedly, routinely, cyclically, weekly, or again unless the source supplies that recurrence.",
           "Phrases such as 'recurring phrasing', 'repeated wording', 'callback', 'refrain', 'echo', or 'repeat this line after each beat' describe language behavior and are legal inside one experience.",
+          "Supplied timestamps may also be reused rhetorically as anchors, callbacks, labels, or repeated wording inside the same experience. Repeating the text '9:04' does not claim that 9:04 occurred more than once. Only claim real-world timestamp recurrence when the source supplies it.",
           "Do not create metrics, rankings, scores, deadlines, or performance measurements.",
           "Treatment may vary through rhetorical status, tone, rhythm, compression, seriousness, escalation, understatement, comedy, dread, romance, noir pressure, covert framing, game logic, speedrun energy, heist tension, courtroom rhetoric, absurd seriousness, ceremonial importance, and similar nonliteral expressive devices.",
           "Do not specify production implementation: no camera moves, visuals, visual displays, zooms, lighting, music, sound effects, chimes, narration, voiceover direction, UI treatments, charts, graphs, staging, scene mechanics, mission log entries, before/after vignettes, or visual transformations.",
