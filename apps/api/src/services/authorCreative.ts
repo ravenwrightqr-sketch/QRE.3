@@ -2,6 +2,7 @@ import type { AuthorDomainContext, AuthorScene } from "@qre/contracts";
 import { localModelGenerate } from "./localModelRuntime.js";
 import type { AuthorCreativeDiscovery } from "./authorCreativeDiscovery.js";
 import { evaluateAuthorCut } from "./authorCutFloor.js";
+import { QRE_CREATIVE_OPERATING_DOCTRINE } from "./authorCreativeDoctrine.js";
 
 const clean = (value: unknown): string =>
   String(value ?? "").replace(/\s+/g, " ").trim();
@@ -523,6 +524,7 @@ export async function searchAuthorCreativeLensTreatments(input: {
         role: "system",
         content: [
           "You are QRE Creative Treatment Search.",
+          ...QRE_CREATIVE_OPERATING_DOCTRINE,
           "Reality is fixed. Frame identity is closed.",
           "The approved meaning and beat structure already exist. Do not rediscover the story and do not alter the semantic thesis.",
           "Do not reinterpret the source again. SELECTED_FRAME is the semantic authority for framing when it is not NONE.",
@@ -1411,6 +1413,7 @@ async function repairNominatedMemoryProduction(input: {
         role: "system",
         content: [
           "You are QRE Memory Production Repair.",
+          ...QRE_CREATIVE_OPERATING_DOCTRINE,
           "The creative conception has already been chosen. Preserve it.",
           "Repair ONLY the failed cuts. Do not rewrite successful cuts.",
           "Stay inside each failed beat's supplied evidence plus meaning already established by earlier successful cuts.",
@@ -1776,6 +1779,7 @@ export async function createAuthorExperience(input: {
         role: "system",
         content: [
           "You are QRE Mouth.",
+          ...QRE_CREATIVE_OPERATING_DOCTRINE,
           "The Author already chose the semantic beats. Do not re-plan the story and do not invent a second meaning.",
           "SEMANTIC AUTHORITY IS BEAT-SCOPED: a beat may use only its semanticMove plus evidence already established by earlier beats. Never pull a later beat's fact, reaction, payoff, or relation backward into an earlier cut.",
           "Generate four radically different short realizations for every approved beat.",
