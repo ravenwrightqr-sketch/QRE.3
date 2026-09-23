@@ -1727,7 +1727,7 @@ export async function createAuthorExperience(input: {
             "The final beat is a payoff for the whole approved memory. If its local fact is a timestamp, duration, count, or other measurement, use it as material for the payoff rather than merely restating the measurement.",
             "Do not produce a final-beat candidate that is only a literal replay of the local fact when semanticMove asks you to land a broader approved relation.",
             "Across the whole sequence, prefer progression: establish -> enrich -> land. Do not make three interchangeable labels.",
-            "WRITE FOUR COMPLETE PRODUCTIONS IN PARALLEL. Variant position is persistent across beats: variant 1 of every beat belongs to Production A; variant 2 belongs to Production B; variant 3 belongs to Production C; variant 4 belongs to Production D. Each production must read coherently from first cut to payoff.",
+            "WRITE FOUR COMPLETE PRODUCTIONS VERTICALLY. Finish Production A from first cut to payoff, then Production B, then C, then D. Do not generate four alternatives for beat 1 and then four alternatives for beat 2. Each production is one coherent object.",
             ...(lensSearchEnabled ? [
               ...(autoBusinessLens ? [
                 "AUTO BUSINESS LENS: this business/service experience is intentionally exploring creative treatments. One production may be NONE / Bare Reality; the others should materially transform how the same supplied facts are experienced.",
@@ -1760,6 +1760,9 @@ export async function createAuthorExperience(input: {
             "SUPPLIED: someone was explicitly praised. Preserve the praise as positive evidence; do not flatten it into a neutral 'opinion'.",
             "Aim for the transformation pattern, not these exact words.",
             "Do not play safe merely because a fact is neutral. Neutral facts may still become funny, strange, ceremonial, suspicious, grand, tiny, absurdly official, or otherwise perceptually transformed as long as the transformation is clearly nonliteral and does not rewrite material reality.",
+          ] : []),
+          ...(isMemoryMode ? [
+            "OUTPUT SHAPE MATTERS: return four production objects A-D. Each production contains its own ordered cuts from beginning to payoff. Do not transpose the matrix into four variants per beat.",
           ] : []),
           "Do not explain the joke or meaning.",
           "Do not mention receipts, prompts, models, beats, grounding, Author, Mouth, viewers, or internal process.",
@@ -1796,8 +1799,8 @@ export async function createAuthorExperience(input: {
             ? "This is one IDENTITY character cluster, not a checklist. Return four short candidate realizations that synthesize the combination into character. Do not enumerate every supplied preference or simply restate them. The viewer should infer personality from the combination. Do not invent an event."
             : isMemoryMode
               ? realityDirect
-                ? "Return four complete candidate productions encoded as four variants per beat. Discovery found no grounded hidden relation, so stay in REALITY-DIRECT MODE. Keep variant index aligned across every beat. Make the sequence authored through rhythm, syntax, compression, emphasis, juxtaposition, and callback only. Do not add any concrete noun, action, condition, physical result, physical quality, object, manner, scenery detail, or typical service detail that is not explicit in the supplied beat evidence. Preserve enough recognizable reality that the recipient can recover what happened. Nominate the strongest whole production by number 1-4."
-                : "Return four complete candidate productions encoded as four variants per beat. Apply the universal law: MEMORY = accumulated truths -> one experience perception. Keep variant index aligned across every beat: all first variants form Production A, all second variants form Production B, all third variants form Production C, all fourth variants form Production D. Treat each production as one finished QRE object unfolding cut by cut, not as separate lines. The accumulated facts are shared raw material for the whole production, not one-fact-per-line assignments. Each cut should perform a different job in the same experience: establish, deepen, turn, or land. When supplied reality contains a before-state / lived middle / after-state / recurrence shape, preserve the shape and make the contrast felt without claiming the middle caused the after-state or the earlier encounter caused the return. Preserve distinctive source anchors while transforming them. If the memory supplies a specific duration/count/time marker that gives the middle its identity, keep that marker legible somewhere in the production. If the payoff is a supplied recurrence such as again/next week/return, make the return itself legible and let it retrospectively recontextualize the earlier cuts without inventing motive. The final cut must land the approved memory relation using its local evidence plus already-established prior evidence. Then nominate the strongest complete production by number 1-4 based on whole-product coherence, specificity, progression, surprise, payoff, and how alive it feels—not on whether every individual line sounds impressive. Keep factual reality inside supplied event IDs, but make each production feel authored rather than enumerated."
+                ? "Return four complete candidate productions in PRODUCTION-MAJOR form. Complete A from first cut to payoff, then B, then C, then D. Discovery found no grounded hidden relation, so stay in REALITY-DIRECT MODE. Make each production authored through rhythm, syntax, compression, emphasis, juxtaposition, callback, and its assigned CREATIVE_FRAME only. Do not add any concrete noun, action, condition, physical result, physical quality, object, manner, scenery detail, or typical service detail that is not explicit in the supplied beat evidence. Preserve enough recognizable reality that the recipient can recover what happened. Nominate the strongest whole production by number 1-4."
+                : "Return four complete candidate productions in PRODUCTION-MAJOR form. Apply the universal law: MEMORY = accumulated truths -> one experience perception. Complete Production A from first cut to payoff before writing Production B, then C, then D. Treat each production as one finished QRE object unfolding cut by cut, not as separate lines. The accumulated facts are shared raw material for the whole production, not one-fact-per-line assignments. Each cut should perform a different job in the same experience: establish, deepen, turn, or land. When supplied reality contains a before-state / lived middle / after-state / recurrence shape, preserve the shape and make the contrast felt without claiming the middle caused the after-state or the earlier encounter caused the return. Preserve distinctive source anchors while transforming them. If the memory supplies a specific duration/count/time marker that gives the middle its identity, keep that marker legible somewhere in the production. If the payoff is a supplied recurrence such as again/next week/return, make the return itself legible and let it retrospectively recontextualize the earlier cuts without inventing motive. The final cut must land the approved memory relation using its local evidence plus already-established prior evidence. Then nominate the strongest complete production by number 1-4 based on whole-product coherence, specificity, progression, surprise, payoff, and how alive it feels—not on whether every individual line sounds impressive. Keep factual reality inside supplied event IDs, but make each production feel authored rather than enumerated."
               : "Return four candidate lines per beat. The semantic plan controls meaning; the supplied event IDs control factual reality.",
         }),
       },
@@ -1810,9 +1813,36 @@ export async function createAuthorExperience(input: {
         type: "object",
         additionalProperties: false,
         required: isMemoryMode
-          ? ["variantsByBeat", "selectedProduction", "selectionReason"]
+          ? ["productions", "selectedProduction", "selectionReason"]
           : ["variantsByBeat"],
         properties: {
+          productions: {
+            type: "array",
+            minItems: 4,
+            maxItems: 4,
+            items: {
+              type: "object",
+              additionalProperties: false,
+              required: ["production", "lines"],
+              properties: {
+                production: { type: "string", enum: ["A", "B", "C", "D"] },
+                lines: {
+                  type: "array",
+                  minItems: plan.beats.length,
+                  maxItems: plan.beats.length,
+                  items: {
+                    type: "object",
+                    additionalProperties: false,
+                    required: ["order", "text"],
+                    properties: {
+                      order: { type: "integer", minimum: 1, maximum: 6 },
+                      text: { type: "string", maxLength: 120 },
+                    },
+                  },
+                },
+              },
+            },
+          },
           variantsByBeat: {
             type: "array",
             minItems: plan.beats.length,
@@ -1842,27 +1872,54 @@ export async function createAuthorExperience(input: {
   debug("MOUTH-CANDIDATES", mouthResult.text);
 
   const parsedMouth = parseJson(mouthResult.text);
-  const rawVariants = Array.isArray(parsedMouth?.variantsByBeat)
-    ? parsedMouth!.variantsByBeat
-    : [];
-
   const variantsByOrder = new Map<number, string[]>();
 
-  for (const raw of rawVariants) {
-    if (!raw || typeof raw !== "object") continue;
-    const record = raw as Record<string, unknown>;
-    const order = Number(record.order);
-    const variants = Array.isArray(record.variants)
-      ? unique(
-          record.variants
-            .filter((value): value is string => typeof value === "string")
-            .map(stripProductionLabel)
-            .filter(Boolean),
-        ).slice(0, 4)
+  if (isMemoryMode && Array.isArray(parsedMouth?.productions)) {
+    for (const beat of plan.beats) {
+      variantsByOrder.set(beat.order, ["", "", "", ""]);
+    }
+
+    for (const rawProduction of parsedMouth.productions) {
+      if (!rawProduction || typeof rawProduction !== "object") continue;
+      const productionRecord = rawProduction as Record<string, unknown>;
+      const production = clean(productionRecord.production).toUpperCase();
+      const variantIndex = ["A", "B", "C", "D"].indexOf(production);
+      if (variantIndex < 0 || !Array.isArray(productionRecord.lines)) continue;
+
+      for (const rawLine of productionRecord.lines) {
+        if (!rawLine || typeof rawLine !== "object") continue;
+        const lineRecord = rawLine as Record<string, unknown>;
+        const order = Number(lineRecord.order);
+        const text = stripProductionLabel(lineRecord.text);
+        if (!Number.isInteger(order) || !text) continue;
+
+        const variants = [...(variantsByOrder.get(order) ?? ["", "", "", ""])];
+        while (variants.length < 4) variants.push("");
+        variants[variantIndex] = text;
+        variantsByOrder.set(order, variants.slice(0, 4));
+      }
+    }
+  } else {
+    const rawVariants = Array.isArray(parsedMouth?.variantsByBeat)
+      ? parsedMouth!.variantsByBeat
       : [];
 
-    if (Number.isInteger(order) && variants.length) {
-      variantsByOrder.set(order, variants);
+    for (const raw of rawVariants) {
+      if (!raw || typeof raw !== "object") continue;
+      const record = raw as Record<string, unknown>;
+      const order = Number(record.order);
+      const variants = Array.isArray(record.variants)
+        ? unique(
+            record.variants
+              .filter((value): value is string => typeof value === "string")
+              .map(stripProductionLabel)
+              .filter(Boolean),
+          ).slice(0, 4)
+        : [];
+
+      if (Number.isInteger(order) && variants.length) {
+        variantsByOrder.set(order, variants);
+      }
     }
   }
 
