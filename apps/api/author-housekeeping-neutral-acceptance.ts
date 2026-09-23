@@ -28,6 +28,11 @@ const INPUT = {
   returning: false,
   visitNumber: 1,
   movieMode: true,
+  domainContext: {
+    experienceMode: "MEMORY",
+    category: "SERVICE",
+    serviceType: "HOUSEKEEPING",
+  },
 };
 
 const clean = (value: unknown): string =>
