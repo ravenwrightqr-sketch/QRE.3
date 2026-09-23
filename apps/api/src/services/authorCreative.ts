@@ -335,8 +335,9 @@ function unsupportedLensMaterialReason(input: {
   }
 
   const claimsRealWorldRecurrence =
-    /\b(?:the|this|service|visit|work|task|event|process|housekeeping|subject|client|worker)\b[^.]{0,80}\b(?:recurs?|recurring|repeats?|repeated|routine|routinely|ritual|habit|cycle|weekly|again|returns?)\b/i.test(text) ||
-    /\b(?:routine|habitual|recurring|repeated|cyclical|weekly)\b[^.]{0,80}\b(?:service|visit|work|task|event|process|housekeeping)\b/i.test(text);
+    /\b(?:service|visit|work|task|event|process|housekeeping)\s+(?:is|was|becomes?|became|feels?|felt)?\s*(?:routine|recurring|repeated|cyclical|weekly|ritualized|habitual)\b/i.test(text) ||
+    /\b(?:service|visit|work|task|event|process|housekeeping)\s+(?:recurs?|repeats?|returns?)\b/i.test(text) ||
+    /\b(?:again|weekly|every\s+\w+|returns?)\b[^.]{0,40}\b(?:service|visit|work|task|event|process|housekeeping)\b/i.test(text);
 
   if (!hasRecurrenceFrame && !sourceHasRecurrence && claimsRealWorldRecurrence) {
     return "infers recurrence from a single supplied event";
@@ -514,6 +515,7 @@ export async function searchAuthorCreativeLensTreatments(input: {
           "Do not infer physical before/after states or visual results.",
           "Do not infer recurrence, cycles, routines, rituals, or habits from a single supplied event.",
           "Distinguish rhetorical repetition from factual recurrence. You MAY repeat a phrase, motif, status marker, syntax pattern, callback, or refrain inside one bounded experience. That is a language device. You may NOT imply that the real service, visit, task, behavior, or event itself happened repeatedly, routinely, cyclically, weekly, or again unless the source supplies that recurrence.",
+          "Phrases such as 'recurring phrasing', 'repeated wording', 'callback', 'refrain', 'echo', or 'repeat this line after each beat' describe language behavior and are legal inside one experience.",
           "Do not create metrics, rankings, scores, deadlines, or performance measurements.",
           "Treatment may vary through rhetorical status, tone, rhythm, compression, seriousness, escalation, understatement, comedy, dread, romance, noir pressure, covert framing, game logic, speedrun energy, heist tension, courtroom rhetoric, absurd seriousness, ceremonial importance, and similar nonliteral expressive devices.",
           "Do not specify production implementation: no camera moves, visuals, visual displays, zooms, lighting, music, sound effects, chimes, narration, voiceover direction, UI treatments, charts, graphs, staging, scene mechanics, mission log entries, before/after vignettes, or visual transformations.",
