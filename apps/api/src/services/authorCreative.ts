@@ -69,6 +69,14 @@ type AuthorSemanticPlan = {
   beats: AuthorSemanticBeat[];
 };
 
+type AuthorCreativeFrame = {
+  id: string;
+  frame: string;
+  treatment: string;
+  devices: string[];
+  intensity: "LIGHT" | "MEDIUM" | "STRONG";
+};
+
 function presentationAffordance(domainContext?: AuthorDomainContext): string {
   const contextRecord = (domainContext ?? {}) as Record<string, unknown>;
   const contextText = clean(JSON.stringify(contextRecord)).toLowerCase();
@@ -834,6 +842,7 @@ export async function createAuthorExperience(input: {
   modelCalls: number;
   diagnostics: {
     plan: AuthorSemanticPlan;
+    creativeFrames: AuthorCreativeFrame[];
     variantsByBeat: Array<{ order: number; variants: string[] }>;
     choices: Array<{
       order: number;
@@ -998,6 +1007,154 @@ export async function createAuthorExperience(input: {
     selectedPlan: plan,
   });
 
+  const lensResult = await localModelGenerate(
+    [
+      {
+        role: "system",
+        content: [
+          "You are QRE Creative Lens Search.",
+          "Reality is fixed. Framing freedom is high.",
+          "The approved meaning and beat structure already exist. Do not rediscover the story and do not alter the semantic thesis.",
+          "Propose exactly four radically different interpretive frames that can realize the approved meaning using only supplied reality.",
+          "A frame is an expressive universe, not a literal world. Spy language may make work feel covert; courtroom language may make an object feel like evidence; game language may make progression feel like rounds or levels. None of those frames authorize a literal spy, lawyer, courtroom, weapon, handler, enemy, boss, kingdom, camera, or other unsupplied person, object, place, or event.",
+          "Genre freedom is not reality freedom.",
+          "Frames may use deadpan framing, absurd escalation, mock-serious language, status games, callbacks, fragments, repeated structure, character attitude, service-specific humor, metaphor, personification, ceremonial language, or another strong rhetorical device.",
+          "Do not default to named genres. Invent the best frame for this material when a more specific treatment exists.",
+          "Do not write final cuts. Describe the treatment Mouth should use.",
+          "Each frame must remain legible as interpretation rather than asserting new physical history.",
+          "The four frames must differ in underlying treatment, not merely tone adjectives.",
+          "One frame may be restrained or nearly bare when the material itself is strongest without heavy treatment.",
+          "Return concise frame descriptions and devices only.",
+        ].join("\n"),
+      },
+      {
+        role: "user",
+        content: JSON.stringify({
+          SUBJECT: input.subject,
+          SUPPLIED_REALITY: input.suppliedReality,
+          APPROVED_THESIS: plan.thesis,
+          APPROVED_BEATS: plan.beats,
+          CREATIVE_OPPORTUNITY: selected.perception,
+          RELATION: selected.relationship,
+          EXPERIENCE_MODE: experienceMode || undefined,
+          instruction:
+            "Find four distinct reality-legal framing strategies for realization. Preserve the approved meaning. Do not write viewer-facing cuts and do not invent a literal world.",
+        }),
+      },
+    ],
+    "json",
+    {
+      numPredict: 520,
+      temperature: 0.88,
+      jsonSchema: {
+        type: "object",
+        additionalProperties: false,
+        required: ["frames"],
+        properties: {
+          frames: {
+            type: "array",
+            minItems: 4,
+            maxItems: 4,
+            items: {
+              type: "object",
+              additionalProperties: false,
+              required: ["id", "frame", "treatment", "devices", "intensity"],
+              properties: {
+                id: { type: "string", maxLength: 32 },
+                frame: { type: "string", maxLength: 80 },
+                treatment: { type: "string", maxLength: 220 },
+                devices: {
+                  type: "array",
+                  minItems: 1,
+                  maxItems: 6,
+                  items: { type: "string", maxLength: 48 },
+                },
+                intensity: {
+                  type: "string",
+                  enum: ["LIGHT", "MEDIUM", "STRONG"],
+                },
+              },
+            },
+          },
+        },
+      },
+    },
+  );
+
+  const parsedLens = parseJson(lensResult.text);
+  const rawFrames = Array.isArray(parsedLens?.frames) ? parsedLens.frames : [];
+  const creativeFrames: AuthorCreativeFrame[] = rawFrames
+    .map((value, index): AuthorCreativeFrame | undefined => {
+      if (!value || typeof value !== "object") return undefined;
+      const record = value as Record<string, unknown>;
+      const frame = clean(record.frame);
+      const treatment = clean(record.treatment);
+      const devices = Array.isArray(record.devices)
+        ? unique(
+            record.devices
+              .filter((device): device is string => typeof device === "string")
+              .map(clean)
+              .filter(Boolean),
+          ).slice(0, 6)
+        : [];
+      const rawIntensity = clean(record.intensity).toUpperCase();
+      const intensity: AuthorCreativeFrame["intensity"] =
+        rawIntensity === "LIGHT" || rawIntensity === "STRONG"
+          ? rawIntensity
+          : "MEDIUM";
+
+      if (!frame || !treatment || !devices.length) return undefined;
+
+      return {
+        id: clean(record.id) || `frame-${index + 1}`,
+        frame,
+        treatment,
+        devices,
+        intensity,
+      };
+    })
+    .filter((value): value is AuthorCreativeFrame => Boolean(value))
+    .slice(0, 4);
+
+  const framesForMouth: AuthorCreativeFrame[] =
+    creativeFrames.length === 4
+      ? creativeFrames
+      : [
+          {
+            id: "frame-a",
+            frame: "restrained source-specific framing",
+            treatment: "Let the supplied details carry the experience; use implication, compression, and precise attitude without constructing a literal genre world.",
+            devices: ["implication", "compression", "attitude"],
+            intensity: "LIGHT",
+          },
+          {
+            id: "frame-b",
+            frame: "mock-serious escalation",
+            treatment: "Treat ordinary supplied events with disproportionate procedural or ceremonial seriousness while keeping every concrete claim grounded.",
+            devices: ["mock seriousness", "status", "escalation"],
+            intensity: "MEDIUM",
+          },
+          {
+            id: "frame-c",
+            frame: "status recontextualization",
+            treatment: "Change how the supplied sequence reads through status, role, or social framing without asserting that the figurative role literally exists.",
+            devices: ["status game", "recontextualization", "callback"],
+            intensity: "MEDIUM",
+          },
+          {
+            id: "frame-d",
+            frame: "absurdly specific compression",
+            treatment: "Use source-specific details as compact comic or dramatic pressure points; keep the world literal and the framing nonliteral.",
+            devices: ["absurdity", "fragments", "specificity"],
+            intensity: "STRONG",
+          },
+        ];
+
+  debug("CREATIVE-LENS-SEARCH", {
+    raw: lensResult.text,
+    frames: framesForMouth,
+  });
+
   const mouthResult = await localModelGenerate(
     [
       {
@@ -1043,7 +1200,11 @@ export async function createAuthorExperience(input: {
             "Do not produce a final-beat candidate that is only a literal replay of the local fact when semanticMove asks you to land a broader approved relation.",
             "Across the whole sequence, prefer progression: establish -> enrich -> land. Do not make three interchangeable labels.",
             "WRITE FOUR COMPLETE PRODUCTIONS IN PARALLEL. Variant position is persistent across beats: variant 1 of every beat belongs to Production A; variant 2 belongs to Production B; variant 3 belongs to Production C; variant 4 belongs to Production D. Each production must read coherently from first cut to payoff.",
-            "Give the four productions genuinely different creative approaches: A can lean bold figurative framing, B compressed attitude/voice, C recontextualization/status shift, D another strong sequence-aware conception. Do not make four near-synonymous productions.",
+            "CREATIVE_FRAMES assigns one interpretive treatment to each production A-D. Treat that frame as expressive permission and production identity, NOT as literal world facts.",
+            "Apply each assigned frame across the whole production so its cuts share one conception, rhythm, and attitude. Do not merely sprinkle genre vocabulary onto otherwise identical lines.",
+            "A frame may transform status, metaphor, rhythm, compression, callback, ceremony, absurd seriousness, or attitude. It may NEVER manufacture a person, object, action, place, outcome, chronology, bodily reaction, motive, or hidden condition.",
+            "If a frame would require an unsupplied concrete world element to work, realize the frame more abstractly instead of inventing that element.",
+            "Give the four productions genuinely different creative approaches because their assigned frames are genuinely different. Do not make four near-synonymous productions.",
             "Within each production, later cuts should feel aware of what earlier cuts established. Build progression, contrast, callback, accumulation, or recontextualization instead of isolated labels.",
             "PRESERVE DISTINCTIVE ANCHORS. A multi-event beat should not dissolve into generic atmosphere. Keep recognizable source-specific anchors—an animal, object, number, quoted evaluation, action, time, or other distinctive detail—unless the production has already established that anchor strongly enough for a clear callback.",
             "QUANTITATIVE/TIME ANCHORS ARE EXPENSIVE TO LOSE. If a supplied beat contains a specific duration, count, clock time, day, week, or other numeric/time marker and that marker materially distinguishes the memory, preserve it directly or transform it recognizably somewhere in the production. Do not replace 'two hours' with generic atmosphere.",
@@ -1080,6 +1241,13 @@ export async function createAuthorExperience(input: {
           })),
           CREATIVE_OPPORTUNITY: selected.perception,
           RELATION: selected.relationship,
+          CREATIVE_FRAMES: framesForMouth.map((frame, index) => ({
+            production: String.fromCharCode(65 + index),
+            frame: frame.frame,
+            treatment: frame.treatment,
+            devices: frame.devices,
+            intensity: frame.intensity,
+          })),
           instruction: useIdentityClusterPlan
             ? "This is one IDENTITY character cluster, not a checklist. Return four short candidate realizations that synthesize the combination into character. Do not enumerate every supplied preference or simply restate them. The viewer should infer personality from the combination. Do not invent an event."
             : isMemoryMode
@@ -1387,10 +1555,11 @@ export async function createAuthorExperience(input: {
 
   return {
     scenes,
-    model: mouthResult.model || planResult.model,
-    modelCalls: (useDeterministicSparsePlan ? 1 : 2) + memoryRepairModelCalls,
+    model: mouthResult.model || lensResult.model || planResult.model,
+    modelCalls: (useDeterministicSparsePlan ? 2 : 3) + memoryRepairModelCalls,
     diagnostics: {
       plan,
+      creativeFrames: framesForMouth,
       variantsByBeat: [...variantsByOrder.entries()]
         .sort(([a], [b]) => a - b)
         .map(([order, variants]) => ({ order, variants })),
