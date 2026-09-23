@@ -346,6 +346,12 @@ function unsupportedLensMaterialReason(input: {
   }
 
   if (
+    /\b(?:introduce|add|create|invent|include)\s+(?:a|an|the|single|new|strange|misplaced)?\s*(?:object|prop|item|smell|scent|sound|person|animal|room|location|detail|element)\b/i.test(text)
+  ) {
+    return "asks treatment to introduce unsupplied concrete material";
+  }
+
+  if (
     /\b(?:camera|visuals?|visual displays?|zooms?|lighting|music|sound effects?|chimes?|narration|voiceover|ui treatments?|charts?|graphs?|staging|scene mechanics|vignettes?)\b/i.test(text)
   ) {
     return "production implementation rather than perspective";
@@ -1922,56 +1928,59 @@ export async function createAuthorExperience(input: {
         required: isMemoryMode
           ? ["productions", "selectedProduction", "selectionReason"]
           : ["variantsByBeat"],
-        properties: {
-          productions: {
-            type: "array",
-            minItems: 4,
-            maxItems: 4,
-            items: {
-              type: "object",
-              additionalProperties: false,
-              required: ["production", "lines"],
-              properties: {
-                production: { type: "string", enum: ["A", "B", "C", "D"] },
-                lines: {
-                  type: "array",
-                  minItems: plan.beats.length,
-                  maxItems: plan.beats.length,
-                  items: {
-                    type: "object",
-                    additionalProperties: false,
-                    required: ["order", "text"],
-                    properties: {
-                      order: { type: "integer", minimum: 1, maximum: 6 },
-                      text: { type: "string", maxLength: 120 },
+        properties: isMemoryMode
+          ? {
+              productions: {
+                type: "array",
+                minItems: 4,
+                maxItems: 4,
+                items: {
+                  type: "object",
+                  additionalProperties: false,
+                  required: ["production", "lines"],
+                  properties: {
+                    production: { type: "string", enum: ["A", "B", "C", "D"] },
+                    lines: {
+                      type: "array",
+                      minItems: plan.beats.length,
+                      maxItems: plan.beats.length,
+                      items: {
+                        type: "object",
+                        additionalProperties: false,
+                        required: ["order", "text"],
+                        properties: {
+                          order: { type: "integer", minimum: 1, maximum: 6 },
+                          text: { type: "string", maxLength: 120 },
+                        },
+                      },
+                    },
+                  },
+                },
+              },
+              selectedProduction: { type: "integer", minimum: 1, maximum: 4 },
+              selectionReason: { type: "string", maxLength: 220 },
+            }
+          : {
+              variantsByBeat: {
+                type: "array",
+                minItems: plan.beats.length,
+                maxItems: plan.beats.length,
+                items: {
+                  type: "object",
+                  additionalProperties: false,
+                  required: ["order", "variants"],
+                  properties: {
+                    order: { type: "integer", minimum: 1, maximum: 6 },
+                    variants: {
+                      type: "array",
+                      minItems: 4,
+                      maxItems: 4,
+                      items: { type: "string", maxLength: 120 },
                     },
                   },
                 },
               },
             },
-          },
-          variantsByBeat: {
-            type: "array",
-            minItems: plan.beats.length,
-            maxItems: plan.beats.length,
-            items: {
-              type: "object",
-              additionalProperties: false,
-              required: ["order", "variants"],
-              properties: {
-                order: { type: "integer", minimum: 1, maximum: 6 },
-                variants: {
-                  type: "array",
-                  minItems: 4,
-                  maxItems: 4,
-                  items: { type: "string", maxLength: 120 },
-                },
-              },
-            },
-          },
-          selectedProduction: { type: "integer", minimum: 1, maximum: 4 },
-          selectionReason: { type: "string", maxLength: 220 },
-        },
       },
     },
   );
