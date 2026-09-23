@@ -94,6 +94,37 @@ function normalizeMode(value: unknown): "RELATIONAL" | "METAMORPHIC" {
 const RECORD_SHAPE_LANGUAGE =
   /\b(list|prompt|input|record|document|format|formatting|field|fields|wording|phrasing|sentence|sentences)\b/i;
 
+const OPERATIONAL_TRAIT_INFERENCE =
+  /\b(?:meticulous(?:ness)?|diligen(?:ce|t)|efficien(?:cy|t)|devotion|devoted|obsess(?:ion|ive|ively)|disciplin(?:e|ed)|methodical|systematic|careful(?:ness)?|focused|focus|work ethic|dedication|dedicated)\b/i;
+
+function isServiceContext(domainContext?: AuthorDomainContext): boolean {
+  const context = (domainContext ?? {}) as Record<string, unknown>;
+  const category = clean(context.category).toUpperCase();
+  const serviceType = clean(context.serviceType).toUpperCase();
+
+  return Boolean(serviceType) ||
+    category.includes("SERVICE") ||
+    category.includes("GROOMING");
+}
+
+function candidateCrossesOperationalServiceTruthFloor(
+  candidate: AuthorCreativeCandidate,
+  suppliedRealityText: string,
+  domainContext?: AuthorDomainContext,
+): boolean {
+  if (!isServiceContext(domainContext)) return false;
+
+  const candidateText = clean([
+    candidate.perception,
+    candidate.relationship,
+    candidate.observerInference,
+  ].join(" "));
+
+  if (!OPERATIONAL_TRAIT_INFERENCE.test(candidateText)) return false;
+
+  return !OPERATIONAL_TRAIT_INFERENCE.test(suppliedRealityText);
+}
+
 function candidateCrossesDeterministicTruthFloor(
   candidate: AuthorCreativeCandidate,
   suppliedRealityText: string,
@@ -406,6 +437,13 @@ async function repairDiscoveryCandidates(input: {
     .filter((candidate) =>
       !candidateCrossesDeterministicTruthFloor(candidate, suppliedRealityText),
     )
+    .filter((candidate) =>
+      !candidateCrossesOperationalServiceTruthFloor(
+        candidate,
+        suppliedRealityText,
+        input.domainContext,
+      ),
+    )
     .slice(0, 2);
 
   return {
@@ -589,6 +627,13 @@ export async function discoverAuthorCreativeDirection(input: {
     .filter((value): value is AuthorCreativeCandidate => Boolean(value))
     .filter((candidate) =>
       !candidateCrossesDeterministicTruthFloor(candidate, suppliedRealityText),
+    )
+    .filter((candidate) =>
+      !candidateCrossesOperationalServiceTruthFloor(
+        candidate,
+        suppliedRealityText,
+        input.domainContext,
+      ),
     )
     .slice(0, 4);
 
