@@ -151,6 +151,9 @@ function candidateCrossesUnsupportedTemporalEvaluation(
 const OPERATIONAL_TRAIT_INFERENCE =
   /\b(?:meticulous(?:ness)?|diligen(?:ce|t)|efficien(?:cy|t)|devotion|devoted|obsess(?:ion|ive|ively)|disciplin(?:e|ed)|methodical|systematic|careful(?:ness)?|focused|focus|work ethic|dedication|dedicated)\b/i;
 
+const UNSUPPORTED_ORDER_EVALUATION =
+  /\b(?:priorit(?:y|ize|ized|ization)|hierarchy|higher priority|lower priority|more important|less important|demands? more attention|requires? more attention|deserves? more attention|takes? precedence|primary over|secondary to)\b/i;
+
 function isBusinessCreativeContext(domainContext?: AuthorDomainContext): boolean {
   const context = (domainContext ?? {}) as Record<string, unknown>;
   const serviceType = clean(context.serviceType);
@@ -205,8 +208,14 @@ function candidateCrossesDeterministicTruthFloor(
   // priority, or liberation can be either figurative framing or factual claims.
   // The semantic verifier decides which. Do not blacklist meaning by vocabulary.
   return (
-    RECORD_SHAPE_LANGUAGE.test(candidateText) &&
-    !RECORD_SHAPE_LANGUAGE.test(suppliedRealityText)
+    (
+      RECORD_SHAPE_LANGUAGE.test(candidateText) &&
+      !RECORD_SHAPE_LANGUAGE.test(suppliedRealityText)
+    ) ||
+    (
+      UNSUPPORTED_ORDER_EVALUATION.test(candidateText) &&
+      !UNSUPPORTED_ORDER_EVALUATION.test(suppliedRealityText)
+    )
   );
 }
 
@@ -260,6 +269,7 @@ async function verifyDiscoveryCandidates(input: {
           "A candidate may say that reality reads like ceremony, status, privacy, contest, evidence, promotion, intrusion, absurd authority, intimacy, menace, or another perception when those words function as framing rather than claims that such a literal event or intention existed.",
           "But it must be rejected if it turns sequence into causality, a later state into the result of an earlier event, an action into motive, an attempt into a completed outcome, or supplied facts into an unseen condition, backstory, preference strength, agency claim, constraint, liberation, ownership, ranking, or emotional cause that reality does not establish.",
           "Chronology permits before/after only when the supplied events establish it; chronology alone does not establish because/therefore.",
+          "Chronology or list order also does not establish priority, hierarchy, relative importance, relative attention, precedence, or which item demanded more work. Treat those as unsupported unless supplied reality explicitly establishes them.",
           "An attempt to remove something does not prove it was removed.",
           "A subject leaving happy does not prove why the subject was happy.",
           "Nervousness before later events does not prove those later events caused the nervousness.",
@@ -557,6 +567,7 @@ export async function discoverAuthorCreativeDirection(input: {
     "SUPPLIED_RELATIONS are graph-backed structural evidence. Use them as anchors when combining events. They establish connection, not motive or cause unless the relation explicitly says causes.",
     "A perceptual relationship changes how the viewer experiences the supplied facts without claiming that the transformation itself literally happened.",
     "When several facts merely coexist, keep them coexisting unless supplied reality establishes order, rank, cause, urgency, preference strength, escalation, deliberateness, selection, exclusivity, or curation.",
+    "Sequence establishes sequence only. 'Kitchen, then bathrooms' does not by itself establish priority, hierarchy, importance, relative attention, what demanded more work, or what mattered more. If those evaluations are not supplied, keep the sequence neutral and hand the raw structure downstream.",
     "Coexistence itself can be creatively meaningful. Several specific likes, traits, objects, or memories may form character, contrast, texture, or a strange combination without any one being stronger, later, chosen, or more important.",
     "Use the supplied entities and actions as the creative cast.",
     "Treat logistics as background context unless the logistics themselves are genuinely distinctive.",
