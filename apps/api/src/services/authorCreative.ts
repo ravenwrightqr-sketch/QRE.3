@@ -357,10 +357,22 @@ function unsupportedLensMaterialReason(input: {
     return "production implementation rather than perspective";
   }
 
-  if (
-    /\b(?:log|logs|report|reports|checklist|checklists|numbered steps|corporate|protocol language|administrative|bureaucratic)\b/i.test(text)
-  ) {
-    return "operation drifted into reporting or administrative language";
+  const administrativeMode =
+    "(?:log|logs|report|reports|checklist|checklists|numbered steps|corporate|protocol|administrative|bureaucratic)";
+  const factualAdministrativeSubject =
+    "(?:service|work|cleaning|housekeeping|task|execution|process|workflow|record|system|procedure)";
+  const claimsLiteralAdministrativeReality =
+    new RegExp(
+      `\\b${factualAdministrativeSubject}\\b[^.!?]{0,45}\\b(?:is|was|were|uses?|used|requires?|required|follows?|followed|becomes?|became)?[^.!?]{0,20}\\b${administrativeMode}\\b`,
+      "i",
+    ).test(text) ||
+    new RegExp(
+      `\\b(?:create|add|include|generate|write|produce)\\b[^.!?]{0,30}\\b${administrativeMode}\\b`,
+      "i",
+    ).test(text);
+
+  if (claimsLiteralAdministrativeReality) {
+    return "literalizes administrative framing into unsupplied service reality";
   }
 
   const performanceQuality =
@@ -557,7 +569,7 @@ export async function searchAuthorCreativeLensTreatments(input: {
           "Generate exactly four materially different expressive treatments inside SELECTED_FRAME using only supplied reality.",
           "The four treatments must be orthogonal creative strategies, not four variants of the same operational/status idea.",
           "Vary the governing rhetorical mechanism itself: for example one may use dry comedy built from callback, another noir pressure built from omission and withheld emphasis, another ceremonial absurdity built from refrain and inflated importance, and another bare reality. These are examples, not a required menu.",
-          "Do not use reporting, status-update, checklist, protocol, progress-report, dashboard, log, or administrative language as the creative mechanism. Operation is a grounded perspective, not an office workflow.",
+          "Administrative, bureaucratic, procedural, report-like, or status-like language MAY be used as obvious rhetorical performance, parody, deadpan, satire, or attitude. Do not turn that style into a factual claim that the real service used a report, checklist, protocol, dashboard, log, workflow, or administrative system.",
           "Prefer material-specific treatments the model discovers over merely cycling through a fixed genre list.",
           "A treatment is a rhetorical way to realize the selected perspective, not a new story, plot, world, scene, or fact.",
           "Genre freedom is allowed; reality freedom is not.",
@@ -592,7 +604,7 @@ export async function searchAuthorCreativeLensTreatments(input: {
           "Treatment may vary through tone, rhythm, compression, seriousness, escalation, understatement, comedy, dread, romance, noir pressure, covert framing, game energy, heist tension, courtroom rhetoric, absurd seriousness, ceremonial importance, callback, contrast, interruption, and similar nonliteral expressive devices.",
           "Do not specify production implementation: no camera moves, visuals, visual displays, zooms, lighting, music, sound effects, chimes, narration, voiceover direction, UI treatments, charts, graphs, staging, scene mechanics, mission log entries, before/after vignettes, or visual transformations.",
           "Treatment and devices must name the expressive strategy, not how to render it.",
-          "When SELECTED_FRAME is operation, treat only the bounded progression as grounded. Do NOT express operation through logs, reports, checklists, numbered steps, phase/status labels, corporate language, protocol language, progress language, dashboards, or detached administrative voice. Those are not creative treatments.",
+          "When SELECTED_FRAME is operation, the only grounded fact is bounded progression. You may perform that progression through deadpan bureaucracy, ceremonial overkill, noir pressure, game attitude, absurd seriousness, sarcasm, clipped formality, or other expressive grammars, provided the viewer reads them as rhetoric rather than as claims about a real administrative system.",
           "When SELECTED_FRAME is reveal, reveal may change when and how information lands, but it may not invent an unsupplied visible before/after condition.",
           "Each treatment must remain legible as interpretation rather than asserting new physical history.",
           "Different treatments must differ in expressive strategy. They may borrow different genre grammars, but they must never invent different physical worlds.",
@@ -625,7 +637,7 @@ export async function searchAuthorCreativeLensTreatments(input: {
           REQUESTED_LENS: requestedLens || undefined,
           SELECTED_FRAME: selectedFrame,
           instruction:
-            "Find four distinct reality-legal treatments inside SELECTED_FRAME. Use genre as rhetorical grammar only. Describe what the whole sequence should do through rhythm, compression, emphasis, tension, contrast, anticipation, payoff, callback, implication, recontextualization, comedy, dread, ceremony, understatement, or another nonliteral device. Do not use logs, reports, status updates, phase labels, checklists, protocol, dashboards, or administrative language as a treatment. Never characterize the worker, service, client, room, or event with unsupplied performance, psychology, quality, secrecy, or physical-state claims. Preserve the approved meaning. Do not write viewer-facing cuts, invent a literal world, invent before/after conditions, or choose a new frame.",
+            "Find four distinct reality-legal treatments inside SELECTED_FRAME. Conduct the supplied material creatively across the whole sequence using rhythm, compression, emphasis, tension, contrast, anticipation, payoff, callback, implication, recontextualization, comedy, dread, ceremony, sarcasm, parody, deadpan, absurd seriousness, or another nonliteral device. Style may imitate bureaucracy, procedure, noir, games, ceremony, or other expressive grammars when it is clearly rhetorical performance. Never turn style into a factual claim about the real worker, service, client, room, event, system, object, sensory detail, motive, recurrence, or outcome. Preserve the approved meaning. Do not invent a literal world, invent before/after conditions, or choose a new frame.",
         }),
       },
     ],
