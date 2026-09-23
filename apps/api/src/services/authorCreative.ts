@@ -368,9 +368,11 @@ export function unsupportedLensMaterialReason(input: {
     return "literalizes administrative framing into unsupplied service reality";
   }
 
-  if (
-    /\b(?:completed contract|signed contract|legal agreement|agreement reached|deal closed)\b/i.test(text)
-  ) {
+  const claimsUnsuppliedAgreementEvent =
+    /\b(?:completed contract|signed contract|legal agreement|agreement reached|deal closed)\b/i.test(text) ||
+    /\b(?:they|he|she|client|customer|worker|cleaner|housekeeper|parties?)\b[^.!?]{0,20}\b(?:signed|completed|executed|entered)\b[^.!?]{0,16}\b(?:(?:a|the)\s+)?(?:contract|agreement)\b/i.test(text);
+
+  if (claimsUnsuppliedAgreementEvent) {
     return "invents an unsupplied legal or contractual fact";
   }
 
