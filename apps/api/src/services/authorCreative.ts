@@ -1739,6 +1739,9 @@ export async function createAuthorExperience(input: {
                 "Do not reward NONE merely for being safest. Judge all four complete productions by coherence, specificity, surprise, payoff, usefulness to the recipient, and whether the treatment earns its presence while remaining true.",
               ] : []),
               "CREATIVE_FRAMES assigns one selected-frame treatment to each production A-D. Treat that treatment as expressive permission and production identity, NOT as literal world facts.",
+              "PRODUCTION IDENTITY IS FIXED: Production A must realize CREATIVE_FRAMES production A, B must realize B, C must realize C, and D must realize D. Never swap treatments between variant positions.",
+              "If one assigned treatment is NONE / Bare Reality, that production must remain genuinely bare: direct supplied reality with minimal rhetorical transformation. Do not turn the bare slot into a pun, metaphor, title, or alternate creative treatment.",
+              "Before nominating a production, verify that every cut in that production actually expresses its assigned treatment. Do not nominate a production under the name of a treatment it failed to realize.",
               "A selected deterministic frame is a perspective only. It is never a plot, event list, hidden cause, or viewer-facing text.",
               "Apply each assigned treatment across the whole production so its cuts share one conception, rhythm, and attitude. Do not merely sprinkle genre vocabulary onto otherwise identical lines.",
               "A treatment may transform status, metaphor, rhythm, compression, callback, ceremony, absurd seriousness, or attitude. It may NEVER manufacture a person, object, action, place, outcome, chronology, bodily reaction, motive, or hidden condition.",
@@ -1966,7 +1969,13 @@ export async function createAuthorExperience(input: {
     const nominatedProduction = nominatedAny?.accepted
       ? nominatedAny
       : repairedNomination;
-    const winner = nominatedProduction ?? productions[0];
+    const topScoringProduction = productions[0];
+    const winner =
+      nominatedProduction &&
+      topScoringProduction &&
+      nominatedProduction.score >= topScoringProduction.score
+        ? nominatedProduction
+        : topScoringProduction ?? nominatedProduction;
 
     debug("MEMORY-PRODUCTIONS", {
       modelNomination: Number.isInteger(nominatedProductionNumber)
