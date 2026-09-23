@@ -1990,7 +1990,13 @@ export async function createAuthorExperience(input: {
   const parsedMouth = parseJson(mouthResult.text);
   const variantsByOrder = new Map<number, string[]>();
 
-  if (isMemoryMode && Array.isArray(parsedMouth?.productions)) {
+  if (isMemoryMode) {
+    if (!Array.isArray(parsedMouth?.productions)) {
+      throw new Error(
+        "QRE MEMORY Mouth contract invalid: production-major productions are required",
+      );
+    }
+
     for (const beat of plan.beats) {
       variantsByOrder.set(beat.order, ["", "", "", ""]);
     }
@@ -2139,7 +2145,10 @@ export async function createAuthorExperience(input: {
     const nominatedProduction = nominatedAny?.accepted
       ? nominatedAny
       : repairedNomination;
-    const topScoringProduction = productions[0];
+    const acceptedProductions = productions.filter(
+      (production) => production.accepted,
+    );
+    const topScoringProduction = acceptedProductions[0];
     const winner =
       nominatedProduction &&
       topScoringProduction &&
@@ -2181,12 +2190,9 @@ export async function createAuthorExperience(input: {
       });
 
       const winnerLine = winner?.lines[index];
-      const selectedText = winnerLine?.accepted && winnerLine.text
-        ? winnerLine.text
-        : alternatives
-            .filter((candidate) => candidate.accepted)
-            .sort((a, b) => b.score - a.score)[0]?.text ??
-          safeFallbackText(beat, input.suppliedReality);
+      const selectedText = winner
+        ? winnerLine?.text ?? ""
+        : safeFallbackText(beat, input.suppliedReality);
 
       debug(`MOUTH-BEAT-${beat.order}-CHOICE`, {
         beat,
@@ -2194,7 +2200,7 @@ export async function createAuthorExperience(input: {
         candidates: alternatives,
         selectedProduction: winner
           ? String.fromCharCode(65 + winner.variantIndex)
-          : "NONE",
+          : "FACT-FALLBACK",
         selected: selectedText || "FACT-FALLBACK",
       });
 
