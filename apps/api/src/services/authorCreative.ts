@@ -2122,12 +2122,12 @@ export async function createAuthorExperience(input: {
       (production) => production.accepted,
     );
     const topScoringProduction = acceptedProductions[0];
-    const winner =
-      nominatedProduction &&
-      topScoringProduction &&
-      nominatedProduction.score >= topScoringProduction.score
-        ? nominatedProduction
-        : topScoringProduction ?? nominatedProduction;
+
+    // Creative ownership belongs to the model once a complete production has
+    // passed deterministic truth/structure gates. Numeric scoring is a
+    // fallback for missing or rejected nominations, not a second creative
+    // director that can flatten an accepted expressive production into Bare.
+    const winner = nominatedProduction ?? topScoringProduction;
 
     debug("MEMORY-PRODUCTIONS", {
       modelNomination: Number.isInteger(nominatedProductionNumber)
