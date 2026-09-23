@@ -274,6 +274,58 @@ function isBareTreatment(treatment: AuthorCreativeTreatment): boolean {
   );
 }
 
+const SEQUENCE_RELATIONSHIP_DEVICE =
+  /\b(?:callback|refrain|echo|motif|contrast|escalat\w*|payoff|anticipat\w*|recontextual\w*|interrupt\w*|withheld|omission|accumulat\w*|setup|turn|recurr\w*|repeat\w*|progression|rhythm)\b/i;
+
+function treatmentHasSequenceRelationship(
+  treatment: AuthorCreativeTreatment,
+): boolean {
+  return SEQUENCE_RELATIONSHIP_DEVICE.test(
+    materialText([treatment.treatment, ...treatment.devices]),
+  );
+}
+
+export type AuthorCreativeTreatmentSetAssessment = {
+  complete: boolean;
+  bareCount: number;
+  expressiveCount: number;
+  sequenceRelationshipCount: number;
+  reasons: string[];
+};
+
+export function assessAuthorCreativeTreatmentSet(
+  treatments: readonly AuthorCreativeTreatment[],
+): AuthorCreativeTreatmentSetAssessment {
+  const bare = treatments.filter(isBareTreatment);
+  const expressive = treatments.filter((treatment) => !isBareTreatment(treatment));
+  const sequenceRelationshipCount = expressive.filter(
+    treatmentHasSequenceRelationship,
+  ).length;
+
+  const reasons: string[] = [];
+
+  if (treatments.length !== 4) {
+    reasons.push("requires exactly four treatments");
+  }
+  if (bare.length !== 1) {
+    reasons.push("requires exactly one bare treatment");
+  }
+  if (expressive.length !== 3) {
+    reasons.push("requires exactly three expressive treatments");
+  }
+  if (sequenceRelationshipCount < 2) {
+    reasons.push("requires at least two sequence-level expressive treatments");
+  }
+
+  return {
+    complete: reasons.length === 0,
+    bareCount: bare.length,
+    expressiveCount: expressive.length,
+    sequenceRelationshipCount,
+    reasons,
+  };
+}
+
 function unsupportedLensMaterialReason(input: {
   text: string;
   suppliedRealityText: string;
@@ -426,6 +478,7 @@ export type AuthorCreativeTreatmentSearchResult = {
     treatment: AuthorCreativeTreatment;
     reason: string;
   }>;
+  treatmentSetAssessment: AuthorCreativeTreatmentSetAssessment;
 };
 
 export async function searchAuthorCreativeLensTreatments(input: {
@@ -663,12 +716,23 @@ export async function searchAuthorCreativeLensTreatments(input: {
       return true;
     });
   };
-  const acceptedTreatments =
+  const distinctAcceptedTreatmentRecords =
+    distinctTreatments(acceptedTreatmentRecords).slice(0, 4);
+  const treatmentSetAssessment =
     !lensSearchEnabled || selectedFrame.frame === "NONE"
-      ? []
-      : distinctTreatments(acceptedTreatmentRecords)
-          .slice(0, 4)
-          .map((treatment) => treatmentAsMouthFrame(treatment, selectedFrame));
+      ? {
+          complete: true,
+          bareCount: 0,
+          expressiveCount: 0,
+          sequenceRelationshipCount: 0,
+          reasons: [],
+        }
+      : assessAuthorCreativeTreatmentSet(distinctAcceptedTreatmentRecords);
+  const acceptedTreatments = treatmentSetAssessment.complete
+    ? distinctAcceptedTreatmentRecords.map((treatment) =>
+        treatmentAsMouthFrame(treatment, selectedFrame),
+      )
+    : [];
 
   return {
     lensSearchEnabled,
@@ -682,6 +746,7 @@ export async function searchAuthorCreativeLensTreatments(input: {
     parsedTreatments,
     acceptedTreatments,
     rejectedTreatments,
+    treatmentSetAssessment,
   };
 }
 
@@ -1673,7 +1738,11 @@ export async function createAuthorExperience(input: {
   const lensMode = lensSearch.lensMode;
   const framesForMouth = lensSearch.acceptedTreatments;
   const lensProductionContractComplete =
-    !lensSearch.lensSearchEnabled || framesForMouth.length === 4;
+    !lensSearch.lensSearchEnabled ||
+    (
+      framesForMouth.length === 4 &&
+      lensSearch.treatmentSetAssessment.complete
+    );
 
   debug("CREATIVE-LENS-SEARCH", {
     mode: lensMode,
@@ -1684,12 +1753,13 @@ export async function createAuthorExperience(input: {
     rawTreatmentResponse: lensSearch.rawTreatmentResponse,
     treatments: framesForMouth,
     rejectedTreatments: lensSearch.rejectedTreatments,
+    treatmentSetAssessment: lensSearch.treatmentSetAssessment,
     productionContractComplete: lensProductionContractComplete,
   });
 
   if (!lensProductionContractComplete) {
     throw new Error(
-      `QRE Creative Lens contract incomplete: expected 4 accepted treatments, got ${framesForMouth.length}`,
+      `QRE Creative Lens contract incomplete: ${lensSearch.treatmentSetAssessment.reasons.join("; ") || `expected 4 accepted treatments, got ${framesForMouth.length}`}`,
     );
   }
 
