@@ -311,7 +311,7 @@ function unsupportedLensMaterialReason(input: {
   }
 
   if (
-    /\b(?:efficien\w*|precision|precise|meticulous\w*|focused effort|quiet responsibility|satisfaction|quality|competence|competent|urgency|urgent|difficulty|difficult|worker personality|professionalism|skilled|expert)\b/i.test(text)
+    /\b(?:efficien\w*|precision|precise|meticulous\w*|methodical\w*|focused effort|quiet responsibility|satisfaction|quality|competence|competent|urgency|urgent|difficulty|difficult|worker personality|professionalism|skilled|expert)\b/i.test(text)
   ) {
     return "infers quality, competence, urgency, difficulty, or personality";
   }
@@ -320,6 +320,12 @@ function unsupportedLensMaterialReason(input: {
     /\b(?:metrics?|rankings?|scores?|deadlines?|performance measurements?|performance|kpis?|quantified|measurements?)\b/i.test(text)
   ) {
     return "creates unsupported metrics or performance measurement";
+  }
+
+  if (
+    /\b(?:completed contract|signed contract|legal agreement|agreement reached|deal closed)\b/i.test(text)
+  ) {
+    return "invents an unsupplied legal or contractual fact";
   }
 
   if (
@@ -489,6 +495,12 @@ export async function searchAuthorCreativeLensTreatments(input: {
           "Noir/spy/heist framing may use clipped language, withheld emphasis, covert-style rhetoric, suspicion, evidence-like status, or deadpan seriousness. It may NOT infer secrecy, precision, meticulousness, responsibility, surveillance, danger, criminality, or hidden actors unless supplied.",
           "Dramatic/horror/romance framing may alter pacing, tension, anticipation, contrast, or payoff. It may NOT invent unseen before/after states, satisfaction, fear, desire, atmosphere, reactions, or outcomes.",
           "Describe rhetorical mechanics only. If a treatment description contains an unsupplied worker trait, mental state, physical result, hidden condition, or performance judgment, the treatment is invalid even if the final Mouth might never say it.",
+          "Describe what the LANGUAGE does, not what the worker, service, room, client, or event supposedly was like.",
+          "SAFE: 'Use phase labels, clipped rhythm, checkpoint-like progression, and escalating status language.'",
+          "UNSAFE: 'Emphasize efficiency, minimal downtime, precision, meticulous work, responsibility, satisfaction, or methodical execution.' Those are claims about performance or psychology.",
+          "SAFE: 'Use evidence-like rhetoric, withheld emphasis, terse sequencing, and deadpan seriousness.'",
+          "UNSAFE: 'Treat the tasks as proof of a completed contract.' A contract is a concrete fact unless supplied.",
+          "Do not include forbidden concepts merely to negate them. Instead of saying 'no commentary on speed or efficiency,' omit those concepts entirely and describe the allowed rhetorical mechanics positively.",
           "Do not write final cuts. Describe the treatment Mouth should use.",
           "The selected frame is perspective authority only; treatments may vary expressive lens while remaining grounded in that frame.",
           "Lens must describe interpretive perspective only: status, tension, bounded progression, escalation, restraint, recurrence, contrast, anticipation, payoff, implication, or recontextualization.",
@@ -531,7 +543,7 @@ export async function searchAuthorCreativeLensTreatments(input: {
           REQUESTED_LENS: requestedLens || undefined,
           SELECTED_FRAME: selectedFrame,
           instruction:
-            "Find four distinct reality-legal treatments inside SELECTED_FRAME. Use genre as rhetorical grammar only. Preserve the approved meaning. Do not write viewer-facing cuts, do not invent a literal world, do not infer worker performance or mental state, do not invent before/after conditions, and do not choose a new frame.",
+            "Find four distinct reality-legal treatments inside SELECTED_FRAME. Use genre as rhetorical grammar only. Describe only what the language should do: rhythm, compression, emphasis, status, tension, contrast, anticipation, payoff, callback, implication, or recontextualization. Never characterize the worker, service, client, room, or event with unsupplied performance, psychology, quality, secrecy, or physical-state claims. Do not mention forbidden concepts just to negate them. Preserve the approved meaning. Do not write viewer-facing cuts, invent a literal world, invent before/after conditions, or choose a new frame.",
         }),
       },
     ],
