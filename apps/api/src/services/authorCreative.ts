@@ -311,7 +311,7 @@ function unsupportedLensMaterialReason(input: {
   }
 
   if (
-    /\b(?:efficien\w*|precision|precise|meticulous\w*|methodical\w*|focused effort|quiet responsibility|satisfaction|quality|competence|competent|urgency|urgent|difficulty|difficult|worker personality|professionalism|skilled|expert)\b/i.test(text)
+    /\b(?:efficien\w*|precision|precise|meticulous\w*|methodical\w*|streamlined|relentless|focused effort|quiet responsibility|satisfaction|quality|competence|competent|urgency|urgent|difficulty|difficult|worker personality|professionalism|skilled|expert)\b/i.test(text)
   ) {
     return "infers quality, competence, urgency, difficulty, or personality";
   }
@@ -334,11 +334,11 @@ function unsupportedLensMaterialReason(input: {
     return "infers physical before/after state or visible result";
   }
 
-  if (
-    !hasRecurrenceFrame &&
-    !sourceHasRecurrence &&
-    /\b(?:recurrence|recurring|cycle|cycles|cyclical|routine|routines|ritual|rituals|ritualized|habit|habits|repeated|repetition)\b/i.test(text)
-  ) {
+  const claimsRealWorldRecurrence =
+    /\b(?:the|this|service|visit|work|task|event|process|housekeeping|subject|client|worker)\b[^.]{0,80}\b(?:recurs?|recurring|repeats?|repeated|routine|routinely|ritual|habit|cycle|weekly|again|returns?)\b/i.test(text) ||
+    /\b(?:routine|habitual|recurring|repeated|cyclical|weekly)\b[^.]{0,80}\b(?:service|visit|work|task|event|process|housekeeping)\b/i.test(text);
+
+  if (!hasRecurrenceFrame && !sourceHasRecurrence && claimsRealWorldRecurrence) {
     return "infers recurrence from a single supplied event";
   }
 
@@ -483,6 +483,10 @@ export async function searchAuthorCreativeLensTreatments(input: {
           "Do not reinterpret the source again. SELECTED_FRAME is the semantic authority for framing when it is not NONE.",
           "Do not generate, choose, rename, or compare frame identities.",
           "Generate exactly four materially different expressive treatments inside SELECTED_FRAME using only supplied reality.",
+          "The four treatments must be orthogonal creative strategies, not four variants of the same operational/status idea.",
+          "Vary the governing rhetorical mechanism itself: for example one may use game-like progression, another withheld/evidence-like pressure, another ceremonial or absurd importance, another bare reality. These are examples, not a required menu.",
+          "Do not let more than one non-bare treatment rely primarily on the same device family such as phase labels, status updates, procedural sequencing, or progression markers.",
+          "Prefer material-specific treatments the model discovers over merely cycling through a fixed genre list.",
           "A treatment is a rhetorical way to realize the selected perspective, not a new story, plot, world, scene, or fact.",
           "Genre freedom is allowed; reality freedom is not.",
           "Treat comedy, horror, romance, spy, noir, heist, courtroom, game, speedrun, royal, absurd, fierce, dramatic, quiet, and similar vocabularies as expressive grammars only.",
@@ -496,6 +500,7 @@ export async function searchAuthorCreativeLensTreatments(input: {
           "Dramatic/horror/romance framing may alter pacing, tension, anticipation, contrast, or payoff. It may NOT invent unseen before/after states, satisfaction, fear, desire, atmosphere, reactions, or outcomes.",
           "Describe rhetorical mechanics only. If a treatment description contains an unsupplied worker trait, mental state, physical result, hidden condition, or performance judgment, the treatment is invalid even if the final Mouth might never say it.",
           "Describe what the LANGUAGE does, not what the worker, service, room, client, or event supposedly was like.",
+          "Language may use repetition, refrain, callback, echo, or recurring phrasing within this single experience without claiming the underlying event itself recurred.",
           "SAFE: 'Use phase labels, clipped rhythm, checkpoint-like progression, and escalating status language.'",
           "UNSAFE: 'Emphasize efficiency, minimal downtime, precision, meticulous work, responsibility, satisfaction, or methodical execution.' Those are claims about performance or psychology.",
           "SAFE: 'Use evidence-like rhetoric, withheld emphasis, terse sequencing, and deadpan seriousness.'",
@@ -508,7 +513,7 @@ export async function searchAuthorCreativeLensTreatments(input: {
           "Do not infer quality, competence, efficiency, precision, thoroughness, urgency, difficulty, or worker personality.",
           "Do not infer physical before/after states or visual results.",
           "Do not infer recurrence, cycles, routines, rituals, or habits from a single supplied event.",
-          "Recurrence language itself is a reality claim unless recurrence is supplied. Do not use recurrence, ritual, routine, cycle, repeated-return, or callback-as-recurrence as a treatment device when the source contains only one bounded occurrence.",
+          "Distinguish rhetorical repetition from factual recurrence. You MAY repeat a phrase, motif, status marker, syntax pattern, callback, or refrain inside one bounded experience. That is a language device. You may NOT imply that the real service, visit, task, behavior, or event itself happened repeatedly, routinely, cyclically, weekly, or again unless the source supplies that recurrence.",
           "Do not create metrics, rankings, scores, deadlines, or performance measurements.",
           "Treatment may vary through rhetorical status, tone, rhythm, compression, seriousness, escalation, understatement, comedy, dread, romance, noir pressure, covert framing, game logic, speedrun energy, heist tension, courtroom rhetoric, absurd seriousness, ceremonial importance, and similar nonliteral expressive devices.",
           "Do not specify production implementation: no camera moves, visuals, visual displays, zooms, lighting, music, sound effects, chimes, narration, voiceover direction, UI treatments, charts, graphs, staging, scene mechanics, mission log entries, before/after vignettes, or visual transformations.",
