@@ -63,10 +63,6 @@ const TEMPORAL_COMPARISON =
 
 const RECURRENCE_CLAIM =
   /\b(?:again|returned|returns|returning|back|recurred|recurs|recurring|repeated|repeats|next\s+(?:day|week|month|year))\b/i;
-const STRONGER_SERVICE_RESULT =
-  /\b(?:purified|neutralized|sanitized|sterilized|spotless|pristine|restored|cleansed|cleansing achieved|sanitation complete)\b/i;
-const UNSUPPLIED_CONTINUATION =
-  /\b(?:awaiting next phase|next phase|next round|next stage|to be continued)\b/i;
 
 function words(value: string): string[] {
   return clean(value)
@@ -131,8 +127,6 @@ function inventionRisk(text: string, world: AuthorCutWorld): number {
   if (FUTURE.test(text)) risk += 0.35;
 
   if (RECURRENCE_CLAIM.test(text) && !RECURRENCE_CLAIM.test(source)) risk += 0.8;
-  if (STRONGER_SERVICE_RESULT.test(text) && !STRONGER_SERVICE_RESULT.test(source)) risk += 0.8;
-  if (UNSUPPLIED_CONTINUATION.test(text) && !UNSUPPLIED_CONTINUATION.test(source)) risk += 0.8;
   if (ATTEMPT.test(source) && COMPLETED_OUTCOME.test(text) && !COMPLETED_OUTCOME.test(source)) {
     risk += 0.8;
   }
@@ -163,18 +157,6 @@ export function evaluateAuthorCut(
     !RECURRENCE_CLAIM.test(factualSourceText(world))
   ) {
     reasons.push("unsupported-recurrence");
-  }
-  if (
-    STRONGER_SERVICE_RESULT.test(text) &&
-    !STRONGER_SERVICE_RESULT.test(factualSourceText(world))
-  ) {
-    reasons.push("strengthened-service-result");
-  }
-  if (
-    UNSUPPLIED_CONTINUATION.test(text) &&
-    !UNSUPPLIED_CONTINUATION.test(factualSourceText(world))
-  ) {
-    reasons.push("unsupported-continuation");
   }
   if (explained >= 1) reasons.push("explanation");
   if (wordCount > 10) reasons.push("too-long");
