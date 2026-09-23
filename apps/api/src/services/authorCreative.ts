@@ -69,15 +69,11 @@ export type AuthorSemanticPlan = {
   beats: AuthorSemanticBeat[];
 };
 
-export type AuthorLensTreatment = {
+export type AuthorCreativeFrame = {
+  id: string;
   frame: string;
-  whereToLook: string[];
-  treatmentPressure: string[];
-  feltEffect: string;
-  languageAim: string[];
-  realizationMoves: string[];
-  forbiddenRealityMoves: string[];
-  realityInvariants: string[];
+  treatment: string;
+  devices: string[];
   intensity: "LIGHT" | "MEDIUM" | "STRONG";
 };
 
@@ -270,6 +266,19 @@ export function selectAuthorCreativeFrame(input: {
   return top;
 }
 
+export type AuthorCreativeTreatment = {
+  id: string;
+  treatment: string;
+  devices: string[];
+  intensity: "LIGHT" | "MEDIUM" | "STRONG";
+};
+
+function isBareTreatment(treatment: AuthorCreativeTreatment): boolean {
+  return /\b(?:none|bare reality|natural|minimal treatment)\b/i.test(
+    materialText([treatment.id, treatment.treatment, ...treatment.devices]),
+  );
+}
+
 function unsupportedLensMaterialReason(input: {
   text: string;
   suppliedRealityText: string;
@@ -338,7 +347,7 @@ function unsupportedLensMaterialReason(input: {
 
 function authorCreativeTreatmentCompatibility(input: {
   selectedFrame: AuthorCreativeFrameCandidate;
-  treatment: AuthorLensTreatment;
+  treatment: AuthorCreativeTreatment;
   suppliedReality?: readonly AuthorCreativeEvent[];
 }): {
   compatible: boolean;
@@ -353,15 +362,17 @@ function authorCreativeTreatmentCompatibility(input: {
   }
 
   const candidate = materialText([
-    input.treatment.frame,
-    ...input.treatment.whereToLook,
-    ...input.treatment.treatmentPressure,
-    input.treatment.feltEffect,
-    ...input.treatment.languageAim,
-    ...input.treatment.realizationMoves,
-    ...input.treatment.forbiddenRealityMoves,
-    ...input.treatment.realityInvariants,
+    input.treatment.id,
+    input.treatment.treatment,
+    ...input.treatment.devices,
   ]);
+
+  if (/\b(?:none|bare reality|natural|source-specific|restrained)\b/i.test(candidate)) {
+    return {
+      compatible: true,
+      reason: "bare reality remains a valid competitor",
+    };
+  }
 
   const suppliedRealityText = materialText((input.suppliedReality ?? []).map((event) => event.text));
   const unsupportedReason = unsupportedLensMaterialReason({
@@ -383,46 +394,16 @@ function authorCreativeTreatmentCompatibility(input: {
   };
 }
 
-function fallbackAuthorLensTreatment(selectedFrame: AuthorCreativeFrameCandidate): AuthorLensTreatment {
+function treatmentAsMouthFrame(
+  treatment: AuthorCreativeTreatment,
+  selectedFrame: AuthorCreativeFrameCandidate,
+): AuthorCreativeFrame {
   return {
-    frame: selectedFrame.frame,
-    whereToLook: [
-      selectedFrame.reason,
-      "the supplied events and relationships that made this frame available",
-    ],
-    treatmentPressure: [
-      "source-specific pressure from the selected frame",
-      "status",
-      "compression",
-      "restraint",
-    ],
-    feltEffect: `The supplied reality is experienced through ${selectedFrame.frame} without changing what happened.`,
-    languageAim: [
-      "specific",
-      "compressed",
-      "nonliteral",
-      "materially grounded",
-    ],
-    realizationMoves: [
-      "recontextualization",
-      "implication",
-      "understatement",
-    ],
-    forbiddenRealityMoves: [
-      "invented events",
-      "invented objects",
-      "invented dialogue",
-      "invented motives",
-      "changed chronology",
-      "viewer-facing copy",
-    ],
-    realityInvariants: [
-      "supplied events only",
-      "supplied chronology unchanged",
-      "concrete details require provenance",
-      "frame changes perception, not reality",
-    ],
-    intensity: "MEDIUM",
+    id: treatment.id,
+    frame: isBareTreatment(treatment) ? "NONE / Bare Reality" : selectedFrame.frame,
+    treatment: treatment.treatment,
+    devices: treatment.devices,
+    intensity: treatment.intensity,
   };
 }
 
@@ -435,12 +416,12 @@ export type AuthorCreativeTreatmentSearchResult = {
   modelCalls: number;
   selectedFrame: AuthorCreativeFrameCandidate;
   frameCandidates: AuthorCreativeFrameCandidate[];
-  parsedTreatment?: AuthorLensTreatment;
-  acceptedTreatment?: AuthorLensTreatment;
-  rejectedTreatment?: {
-    treatment: AuthorLensTreatment;
+  parsedTreatments: AuthorCreativeTreatment[];
+  acceptedTreatments: AuthorCreativeFrame[];
+  rejectedTreatments: Array<{
+    treatment: AuthorCreativeTreatment;
     reason: string;
-  };
+  }>;
 };
 
 export async function searchAuthorCreativeLensTreatments(input: {
@@ -494,40 +475,34 @@ export async function searchAuthorCreativeLensTreatments(input: {
           "The approved meaning and beat structure already exist. Do not rediscover the story and do not alter the semantic thesis.",
           "Do not reinterpret the source again. SELECTED_FRAME is the semantic authority for framing when it is not NONE.",
           "Do not generate, choose, rename, or compare frame identities.",
-          "Generate one treatment pressure brief inside SELECTED_FRAME using only supplied reality.",
-          "A treatment pressure brief tells Mouth where to look, what pressure to apply, and what reality moves are forbidden. It is not a new story, plot, world, genre, scene, or fact.",
-          "A treatment should change HOW the same supplied reality is experienced, not WHAT happened.",
-          "Do not turn frame names into literal worlds. OPERATION does not mean an actual operation occurred. NEGOTIATION does not mean a literal negotiation occurred. INVESTIGATION does not mean a literal investigation occurred.",
+          "Generate exactly four materially different expressive treatments inside SELECTED_FRAME using only supplied reality.",
+          "A treatment is a rhetorical way to realize the selected perspective, not a new story, plot, world, genre, scene, or fact.",
           "Do not write final cuts. Describe the treatment Mouth should use.",
           "The selected frame is perspective only; it is not a plot, progression, scene, or viewer-facing line.",
-          "Lens must describe rhetorical/semantic presentation only. Treatment diversity should span expressive contrasts such as comic vs serious, status-heavy vs restrained, heightened vs understated, rhythmic vs blunt, playful vs severe, absurdly serious vs cleanly confident, while staying inside SELECTED_FRAME.",
+          "Lens must describe interpretive perspective only: status, procedural seriousness, bounded progression, escalation, restraint, recurrence, tension, or recontextualization.",
           "Concrete reality remains exactly the supplied reality.",
           "Do not infer quality, competence, efficiency, precision, thoroughness, urgency, difficulty, or worker personality.",
           "Do not infer physical before/after states or visual results.",
           "Do not infer recurrence, cycles, routines, rituals, or habits from a single supplied event.",
           "Do not create metrics, rankings, scores, deadlines, or performance measurements.",
-          "Treatment may vary through rhetorical status, tone, rhythm, compression, seriousness, escalation, understatement, play, severity, command energy, clean confidence, absurd importance, and similar nonliteral expressive devices.",
+          "Treatment may vary through rhetorical status, tone, rhythm, compression, seriousness, escalation, understatement, procedural attitude, and similar nonliteral expressive devices.",
           "Do not specify production implementation: no camera moves, visuals, visual displays, zooms, lighting, music, sound effects, chimes, narration, voiceover direction, UI treatments, charts, graphs, staging, scene mechanics, mission log entries, before/after vignettes, or visual transformations.",
-          "Treatment pressure must name the expressive strategy, not how to render it.",
+          "Treatment and devices must name the expressive strategy, not how to render it.",
           "When SELECTED_FRAME is operation, operation does not inherently mean log, report, checklist, numbered steps, corporate language, protocol language, or detached administrative voice.",
-          "When SELECTED_FRAME is operation, treatments may explore playful operational framing, status-driven operation, restrained operation, escalating operational seriousness, command-style compression, objective or phase framing, checkpoint or progression energy, deadpan tactical language, exaggerated importance, clean confidence, or ceremonial seriousness. Do not cluster all non-NONE treatments around procedural/formal/reporting seriousness.",
-          "Operation treatments are rhetorical only. They must not imply actual military activity, tools or equipment, speed, efficiency, precision, worker competence, worker personality, success beyond supplied facts, or unsupplied physical conditions or outcomes.",
-          "When SELECTED_FRAME is negotiation, treatments may explore bargaining or status tension, terms-and-conditions rhetoric, standoff energy, deadpan diplomacy, or concession/refusal framing without inventing literal dialogue, agreements, participants, motives, or outcomes.",
-          "When SELECTED_FRAME is investigation, treatments may explore clue or evidence emphasis, unresolved-question framing, case-like compression, or discovery/reveal tension without inventing detectives, searches, evidence objects, crimes, suspects, or actions.",
-          "When SELECTED_FRAME is refrain, treatments may explore recurrence, echo, callback, repeated-detail emphasis, or accumulating meaning without inventing additional occurrences.",
-          "When SELECTED_FRAME is return, treatments may explore changed-context callback, recognition, or recurrence with altered meaning without inventing motive, routine, inevitability, or unseen history.",
           "When SELECTED_FRAME is reveal, reveal may change when and how information lands, but it may not invent an unsupplied visible before/after condition.",
-          "When SELECTED_FRAME is reveal, treatments may explore delayed significance, before/after recontextualization, or compact unveiling without inventing visual state, surprise reactions, or hidden facts.",
-          "When SELECTED_FRAME is quiet observation, treatments may explore restraint, implication, sparse emphasis, or small-detail focus without adding atmosphere, scenery, silence, sensory conditions, or mood facts.",
           "Each treatment must remain legible as interpretation rather than asserting new physical history.",
+          "Different treatments must differ in expressive strategy, not by inventing different worlds.",
+          "One treatment may be NONE / Bare Reality when the material itself is strongest without heavy treatment.",
           ...(autoBusinessLens ? [
-            "AUTO BUSINESS MODE: this is customer-facing business/service material. Treatment Search should help Mouth avoid a literal receipt while preserving recognizable supplied facts.",
-            "Choose treatment pressure that could make an ordinary service memory worth receiving without inventing physical reality.",
+            "AUTO BUSINESS MODE: this is customer-facing business/service material. Treatment Search is expected to explore treatments rather than defaulting to a literal receipt.",
+            "Exactly one of the four treatments must be NONE / BARE REALITY: a natural, minimally treated realization that lets the supplied facts speak for themselves.",
+            "When SELECTED_FRAME is not NONE, produce three meaningfully different treatments compatible with SELECTED_FRAME plus one NONE / Bare Reality option.",
+            "NONE is a real contender, not an automatic winner. Choose treatments that could make an ordinary service memory worth receiving without inventing physical reality.",
           ] : []),
           ...(explicitLensProvided && !explicitLensOff ? [
-            "A lens was explicitly requested. Honor that requested lens as the governing creative direction without selecting another frame.",
+            "A lens was explicitly requested. Honor that requested lens as the governing creative direction while still proposing materially different treatments inside it.",
           ] : []),
-          "Return one concise treatment pressure brief only. Do not return a frame field.",
+          "Return concise treatment descriptions and devices only. Do not return a frame field.",
         ].join("\n"),
       },
       {
@@ -536,6 +511,7 @@ export async function searchAuthorCreativeLensTreatments(input: {
           SUBJECT: input.subject,
           SUPPLIED_REALITY: input.suppliedReality,
           APPROVED_THESIS: input.plan.thesis,
+          APPROVED_BEATS: input.plan.beats,
           CREATIVE_OPPORTUNITY: input.creativeOpportunity,
           RELATION: input.relation,
           EXPERIENCE_MODE: clean(input.experienceMode) || undefined,
@@ -543,7 +519,7 @@ export async function searchAuthorCreativeLensTreatments(input: {
           REQUESTED_LENS: requestedLens || undefined,
           SELECTED_FRAME: selectedFrame,
           instruction:
-            "Build one reality-legal treatment pressure brief inside SELECTED_FRAME. Preserve the approved meaning. Do not write viewer-facing cuts, do not invent a literal world, do not create beats, and do not choose a new frame.",
+            "Find four distinct reality-legal treatments inside SELECTED_FRAME. Preserve the approved meaning. Do not write viewer-facing cuts, do not invent a literal world, and do not choose a new frame.",
         }),
       },
     ],
@@ -554,62 +530,29 @@ export async function searchAuthorCreativeLensTreatments(input: {
       jsonSchema: {
         type: "object",
         additionalProperties: false,
-        required: ["treatment"],
+        required: ["treatments"],
         properties: {
-          treatment: {
-            type: "object",
-            additionalProperties: false,
-            required: [
-              "whereToLook",
-              "treatmentPressure",
-              "feltEffect",
-              "languageAim",
-              "realizationMoves",
-              "forbiddenRealityMoves",
-              "realityInvariants",
-              "intensity",
-            ],
-            properties: {
-              whereToLook: {
-                type: "array",
-                minItems: 1,
-                maxItems: 6,
-                items: { type: "string", maxLength: 80 },
-              },
-              treatmentPressure: {
-                type: "array",
-                minItems: 1,
-                maxItems: 8,
-                items: { type: "string", maxLength: 80 },
-              },
-              feltEffect: { type: "string", maxLength: 220 },
-              languageAim: {
-                type: "array",
-                minItems: 1,
-                maxItems: 6,
-                items: { type: "string", maxLength: 80 },
-              },
-              realizationMoves: {
-                type: "array",
-                minItems: 1,
-                maxItems: 8,
-                items: { type: "string", maxLength: 80 },
-              },
-              forbiddenRealityMoves: {
-                type: "array",
-                minItems: 1,
-                maxItems: 8,
-                items: { type: "string", maxLength: 100 },
-              },
-              realityInvariants: {
-                type: "array",
-                minItems: 1,
-                maxItems: 8,
-                items: { type: "string", maxLength: 100 },
-              },
-              intensity: {
-                type: "string",
-                enum: ["LIGHT", "MEDIUM", "STRONG"],
+          treatments: {
+            type: "array",
+            minItems: 4,
+            maxItems: 4,
+            items: {
+              type: "object",
+              additionalProperties: false,
+              required: ["id", "treatment", "devices", "intensity"],
+              properties: {
+                id: { type: "string", maxLength: 32 },
+                treatment: { type: "string", maxLength: 220 },
+                devices: {
+                  type: "array",
+                  minItems: 1,
+                  maxItems: 6,
+                  items: { type: "string", maxLength: 48 },
+                },
+                intensity: {
+                  type: "string",
+                  enum: ["LIGHT", "MEDIUM", "STRONG"],
+                },
               },
             },
           },
@@ -625,71 +568,76 @@ export async function searchAuthorCreativeLensTreatments(input: {
   const parsedLens = lensSearchEnabled
     ? parseJson(lensResult.text)
     : undefined;
-  const rawTreatment = parsedLens?.treatment;
-  const parsedTreatment = (() => {
-    if (!rawTreatment || typeof rawTreatment !== "object") return undefined;
-    const record = rawTreatment as Record<string, unknown>;
-    const arrayField = (key: string, max: number): string[] =>
-      Array.isArray(record[key])
+  const rawTreatments = Array.isArray(parsedLens?.treatments) ? parsedLens.treatments : [];
+  const parsedTreatments: AuthorCreativeTreatment[] = rawTreatments
+    .map((value, index): AuthorCreativeTreatment | undefined => {
+      if (!value || typeof value !== "object") return undefined;
+      const record = value as Record<string, unknown>;
+      const treatment = clean(record.treatment);
+      const devices = Array.isArray(record.devices)
         ? unique(
-            record[key]
-              .filter((value): value is string => typeof value === "string")
+            record.devices
+              .filter((device): device is string => typeof device === "string")
               .map(clean)
               .filter(Boolean),
-          ).slice(0, max)
+          ).slice(0, 6)
         : [];
-    const rawIntensity = clean(record.intensity).toUpperCase();
-    const intensity: AuthorLensTreatment["intensity"] =
-      rawIntensity === "LIGHT" || rawIntensity === "STRONG"
-        ? rawIntensity
-        : "MEDIUM";
-    const treatment: AuthorLensTreatment = {
-      frame: selectedFrame.frame,
-      whereToLook: arrayField("whereToLook", 6),
-      treatmentPressure: arrayField("treatmentPressure", 8),
-      feltEffect: clean(record.feltEffect),
-      languageAim: arrayField("languageAim", 6),
-      realizationMoves: arrayField("realizationMoves", 8),
-      forbiddenRealityMoves: arrayField("forbiddenRealityMoves", 8),
-      realityInvariants: arrayField("realityInvariants", 8),
-      intensity,
-    };
+      const rawIntensity = clean(record.intensity).toUpperCase();
+      const intensity: AuthorCreativeFrame["intensity"] =
+        rawIntensity === "LIGHT" || rawIntensity === "STRONG"
+          ? rawIntensity
+          : "MEDIUM";
 
-    if (
-      !treatment.whereToLook.length ||
-      !treatment.treatmentPressure.length ||
-      !treatment.feltEffect ||
-      !treatment.languageAim.length ||
-      !treatment.realizationMoves.length ||
-      !treatment.forbiddenRealityMoves.length ||
-      !treatment.realityInvariants.length
-    ) {
-      return undefined;
-    }
+      if (!treatment || !devices.length) return undefined;
 
-    return treatment;
-  })();
+      return {
+        id: clean(record.id) || `treatment-${index + 1}`,
+        treatment,
+        devices,
+        intensity,
+      };
+    })
+    .filter((value): value is AuthorCreativeTreatment => Boolean(value))
+    .slice(0, 4);
 
-  const compatibility = parsedTreatment
-    ? authorCreativeTreatmentCompatibility({
-        selectedFrame,
-        treatment: parsedTreatment,
-        suppliedReality: input.suppliedReality,
-      })
-    : undefined;
-  const acceptedTreatment =
+  const treatmentResults = parsedTreatments.map((treatment) => ({
+    treatment,
+    result: authorCreativeTreatmentCompatibility({
+      selectedFrame,
+      treatment,
+      suppliedReality: input.suppliedReality,
+    }),
+  }));
+  const acceptedTreatmentRecords =
+    selectedFrame.frame === "NONE"
+      ? []
+      : treatmentResults
+          .filter(({ result }) => result.compatible)
+          .map(({ treatment }) => treatment);
+  const rejectedTreatments =
+    selectedFrame.frame === "NONE"
+      ? []
+      : treatmentResults
+          .filter(({ result }) => !result.compatible)
+          .map(({ treatment, result }) => ({
+            treatment,
+            reason: result.reason,
+          }));
+  const distinctTreatments = (treatments: readonly AuthorCreativeTreatment[]): AuthorCreativeTreatment[] => {
+    const seen = new Set<string>();
+    return treatments.filter((treatment) => {
+      const key = materialText([treatment.treatment, ...treatment.devices]);
+      if (!key || seen.has(key)) return false;
+      seen.add(key);
+      return true;
+    });
+  };
+  const acceptedTreatments =
     !lensSearchEnabled || selectedFrame.frame === "NONE"
-      ? undefined
-      : parsedTreatment && compatibility?.compatible
-        ? parsedTreatment
-        : fallbackAuthorLensTreatment(selectedFrame);
-  const rejectedTreatment =
-    parsedTreatment && compatibility && !compatibility.compatible
-      ? {
-          treatment: parsedTreatment,
-          reason: compatibility.reason,
-        }
-      : undefined;
+      ? []
+      : distinctTreatments(acceptedTreatmentRecords)
+          .slice(0, 4)
+          .map((treatment) => treatmentAsMouthFrame(treatment, selectedFrame));
 
   return {
     lensSearchEnabled,
@@ -700,9 +648,9 @@ export async function searchAuthorCreativeLensTreatments(input: {
     modelCalls: lensSearchEnabled ? 1 : 0,
     selectedFrame,
     frameCandidates: [...input.frameCandidates],
-    parsedTreatment,
-    acceptedTreatment,
-    rejectedTreatment,
+    parsedTreatments,
+    acceptedTreatments,
+    rejectedTreatments,
   };
 }
 
@@ -1483,8 +1431,7 @@ export async function createAuthorExperience(input: {
   modelCalls: number;
   diagnostics: {
     plan: AuthorSemanticPlan;
-    creativeTreatment?: AuthorLensTreatment;
-    creativeFrames?: undefined;
+    creativeFrames: AuthorCreativeFrame[];
     variantsByBeat: Array<{ order: number; variants: string[] }>;
     choices: Array<{
       order: number;
@@ -1688,7 +1635,7 @@ export async function createAuthorExperience(input: {
   const autoBusinessLens = lensSearch.autoBusinessLens;
   const lensSearchEnabled = lensSearch.lensSearchEnabled;
   const lensMode = lensSearch.lensMode;
-  const treatmentForMouth = lensSearch.acceptedTreatment;
+  const framesForMouth = lensSearch.acceptedTreatments;
 
   debug("CREATIVE-LENS-SEARCH", {
     mode: lensMode,
@@ -1697,8 +1644,7 @@ export async function createAuthorExperience(input: {
     frameCandidates,
     lensSearchEnabled,
     rawTreatmentResponse: lensSearch.rawTreatmentResponse,
-    treatment: treatmentForMouth,
-    rejectedTreatment: lensSearch.rejectedTreatment,
+    treatments: framesForMouth,
   });
 
   const mouthResult = await localModelGenerate(
@@ -1755,15 +1701,15 @@ export async function createAuthorExperience(input: {
             "WRITE FOUR COMPLETE PRODUCTIONS IN PARALLEL. Variant position is persistent across beats: variant 1 of every beat belongs to Production A; variant 2 belongs to Production B; variant 3 belongs to Production C; variant 4 belongs to Production D. Each production must read coherently from first cut to payoff.",
             ...(lensSearchEnabled ? [
               ...(autoBusinessLens ? [
-                "AUTO BUSINESS LENS: this business/service experience has one selected treatment pressure. Use it to make the same supplied facts feel authored rather than like a literal receipt.",
-                "Judge complete productions by coherence, specificity, surprise, payoff, usefulness to the recipient, and whether the treatment earns its presence while remaining true.",
+                "AUTO BUSINESS LENS: this business/service experience is intentionally exploring creative treatments. One production may be NONE / Bare Reality; the others should materially transform how the same supplied facts are experienced.",
+                "Do not reward NONE merely for being safest. Judge all four complete productions by coherence, specificity, surprise, payoff, usefulness to the recipient, and whether the treatment earns its presence while remaining true.",
               ] : []),
-              "CREATIVE_TREATMENT is one selected-frame pressure brief for every production. Treat it as expressive permission and guardrails, NOT as literal world facts.",
+              "CREATIVE_FRAMES assigns one selected-frame treatment to each production A-D. Treat that treatment as expressive permission and production identity, NOT as literal world facts.",
               "A selected deterministic frame is a perspective only. It is never a plot, event list, hidden cause, or viewer-facing text.",
-              "Apply the treatment across each whole production so its cuts share one conception, rhythm, and attitude. Do not merely sprinkle frame vocabulary onto otherwise identical lines.",
+              "Apply each assigned treatment across the whole production so its cuts share one conception, rhythm, and attitude. Do not merely sprinkle genre vocabulary onto otherwise identical lines.",
               "A treatment may transform status, metaphor, rhythm, compression, callback, ceremony, absurd seriousness, or attitude. It may NEVER manufacture a person, object, action, place, outcome, chronology, bodily reaction, motive, or hidden condition.",
               "If a treatment would require an unsupplied concrete world element to work, realize the treatment more abstractly instead of inventing that element.",
-              "The four productions may vary phrasing, rhythm, compression, stance, escalation, restraint, or payoff shape, but all must remain inside the same CREATIVE_TREATMENT.",
+              "Give the four productions genuinely different creative approaches because their assigned treatments are genuinely different. Do not make four near-synonymous productions.",
             ] : [
               "NO CREATIVE LENS IS REQUESTED. Realize the approved meaning directly. Do not impose a genre skin, procedural gimmick, or stylistic universe just to make the material sound authored.",
               "The four productions should still explore genuinely different phrasings and sequence strategies, but they must emerge from supplied reality and approved meaning rather than from an invented genre frame.",
@@ -1807,7 +1753,13 @@ export async function createAuthorExperience(input: {
           REALITY_DIRECT: realityDirect,
           LENS_MODE: lensMode,
           REQUESTED_LENS: requestedLens || (autoBusinessLens ? "AUTO" : "NONE"),
-          CREATIVE_TREATMENT: treatmentForMouth,
+          CREATIVE_FRAMES: framesForMouth.map((frame, index) => ({
+            production: String.fromCharCode(65 + index),
+            frame: frame.frame,
+            treatment: frame.treatment,
+            devices: frame.devices,
+            intensity: frame.intensity,
+          })),
           instruction: useIdentityClusterPlan
             ? "This is one IDENTITY character cluster, not a checklist. Return four short candidate realizations that synthesize the combination into character. Do not enumerate every supplied preference or simply restate them. The viewer should infer personality from the combination. Do not invent an event."
             : isMemoryMode
@@ -2124,8 +2076,7 @@ export async function createAuthorExperience(input: {
       memoryRepairModelCalls,
     diagnostics: {
       plan,
-      creativeTreatment: treatmentForMouth,
-      creativeFrames: undefined,
+      creativeFrames: framesForMouth,
       variantsByBeat: [...variantsByOrder.entries()]
         .sort(([a], [b]) => a - b)
         .map(([order, variants]) => ({ order, variants })),
