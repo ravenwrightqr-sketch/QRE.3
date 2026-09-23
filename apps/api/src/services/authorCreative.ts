@@ -313,10 +313,10 @@ export function assessAuthorCreativeTreatmentSet(
   if (expressive.length !== 3) {
     reasons.push("requires exactly three expressive treatments");
   }
-  if (sequenceRelationshipCount < 2) {
-    reasons.push("requires at least two sequence-level expressive treatments");
-  }
-
+  // sequenceRelationshipCount is diagnostic only. Creative treatments are
+  // allowed to describe a sequence conception in language our heuristic does
+  // not recognize. Hard-gating on this vocabulary list teaches the model to
+  // echo QRE's preferred device names instead of discovering its own.
   return {
     complete: reasons.length === 0,
     bareCount: bare.length,
