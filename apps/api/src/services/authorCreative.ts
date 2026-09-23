@@ -326,7 +326,7 @@ export function assessAuthorCreativeTreatmentSet(
   };
 }
 
-function unsupportedLensMaterialReason(input: {
+export function unsupportedLensMaterialReason(input: {
   text: string;
   suppliedRealityText: string;
   selectedFrame: string;
@@ -352,55 +352,15 @@ function unsupportedLensMaterialReason(input: {
   }
 
   if (
-    /\b(?:camera|visuals?|visual displays?|zooms?|lighting|music|sound effects?|chimes?|narration|voiceover|ui treatments?|charts?|graphs?|staging|scene mechanics|vignettes?)\b/i.test(text)
+    /\b(?:add|use|show|display|render|play|insert|create)\b[^.!?]{0,30}\b(?:camera|visuals?|visual displays?|zooms?|lighting|music|sound effects?|chimes?|voiceover|ui|charts?|graphs?|staging|vignettes?)\b/i.test(text)
   ) {
-    return "production implementation rather than perspective";
-  }
-
-  const administrativeMode =
-    "(?:log|logs|report|reports|checklist|checklists|numbered steps|corporate|protocol|administrative|bureaucratic)";
-  const factualAdministrativeSubject =
-    "(?:service|work|cleaning|housekeeping|task|execution|process|workflow|record|system|procedure)";
-  const claimsLiteralAdministrativeReality =
-    new RegExp(
-      `\\b${factualAdministrativeSubject}\\b[^.!?]{0,45}\\b(?:is|was|were|uses?|used|requires?|required|follows?|followed|becomes?|became)?[^.!?]{0,20}\\b${administrativeMode}\\b`,
-      "i",
-    ).test(text) ||
-    new RegExp(
-      `\\b(?:create|add|include|generate|write|produce)\\b[^.!?]{0,30}\\b${administrativeMode}\\b`,
-      "i",
-    ).test(text);
-
-  if (claimsLiteralAdministrativeReality) {
-    return "literalizes administrative framing into unsupplied service reality";
-  }
-
-  const performanceQuality =
-    "(?:efficien\\w*|precision|precise|meticulous\\w*|methodical\\w*|streamlined|relentless|focused effort|quiet responsibility|satisfaction|quality|competence|competent|urgency|urgent|difficulty|difficult|worker personality|professionalism|skilled|expert)";
-  const factualPerformanceSubject =
-    "(?:worker|cleaner|housekeeper|service|work|cleaning|housekeeping|task|execution|performance|job|process)";
-  const claimsUnsuppliedPerformance =
-    new RegExp(
-      `\\b${factualPerformanceSubject}\\b[^.!?]{0,50}\\b(?:is|was|were|seems?|feels?|shows?|demonstrates?|proves?|reveals?|suggests?|reflects?|with|through|by)?[^.!?]{0,20}\\b${performanceQuality}\\b`,
-      "i",
-    ).test(text) ||
-    new RegExp(
-      `\\b${performanceQuality}\\b[^.!?]{0,30}\\b${factualPerformanceSubject}\\b`,
-      "i",
-    ).test(text) ||
-    new RegExp(
-      `\\b(?:shows?|demonstrates?|proves?|reveals?|suggests?|implies?)\\b[^.!?]{0,40}\\b${performanceQuality}\\b`,
-      "i",
-    ).test(text);
-
-  if (claimsUnsuppliedPerformance) {
-    return "infers quality, competence, urgency, difficulty, or personality";
+    return "asks treatment to introduce production implementation";
   }
 
   if (
-    /\b(?:metrics?|rankings?|scores?|deadlines?|performance measurements?|performance|kpis?|quantified|measurements?)\b/i.test(text)
+    /\b(?:service|work|cleaning|housekeeping|task|execution|process|workflow|record|system|procedure)\b[^.!?]{0,45}\b(?:uses?|used|requires?|required|follows?|followed|records?|recorded|generates?|generated|creates?|created)\b[^.!?]{0,25}\b(?:log|logs|report|reports|checklist|checklists|protocol|dashboard|administrative system|workflow system)\b/i.test(text)
   ) {
-    return "creates unsupported metrics or performance measurement";
+    return "literalizes administrative framing into unsupplied service reality";
   }
 
   if (
@@ -409,14 +369,8 @@ function unsupportedLensMaterialReason(input: {
     return "invents an unsupplied legal or contractual fact";
   }
 
-  if (
-    /\b(?:cleaner|spotless|sparkling|transformation|transformed|visual result|visible result|before\/after|before after|physical state change)\b/i.test(text)
-  ) {
-    return "infers physical before/after state or visible result";
-  }
-
   const claimsRealWorldRecurrence =
-    /\b(?:service|visit|work|task|event|process|housekeeping)\s+(?:is|was|becomes?|became|feels?|felt)?\s*(?:routine|recurring|repeated|cyclical|weekly|ritualized|habitual)\b/i.test(text) ||
+    /\b(?:service|visit|work|task|event|process|housekeeping)\s+(?:is|was|becomes?|became|feels?|felt)?\s*(?:routine|recurring|repeated|cyclical|weekly|habitual)\b/i.test(text) ||
     /\b(?:service|visit|work|task|event|process|housekeeping)\s+(?:recurs?|repeats?|returns?)\b/i.test(text) ||
     /\b(?:again|weekly|every\s+\w+|returns?)\b[^.]{0,40}\b(?:service|visit|work|task|event|process|housekeeping)\b/i.test(text);
 
