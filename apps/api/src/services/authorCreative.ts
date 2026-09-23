@@ -241,15 +241,10 @@ export function selectAuthorCreativeFrame(input: {
     })
     .sort((a, b) => b.confidence - a.confidence);
 
-  const discovery = input.creativeDiscovery;
-  const realityDirect =
-    clean(discovery?.selected.id).toLowerCase() === "reality-direct" ||
-    clean(discovery?.selected.risk).toLowerCase() === "no_grounded_discovery_candidate";
-
-  if (!groundedCandidates.length || realityDirect) {
+  if (!groundedCandidates.length) {
     return {
       frame: "NONE",
-      reason: "the natural supplied reality is the strongest available lens",
+      reason: "no grounded perspective frame is available from supplied reality",
       confidence: 1,
     };
   }
