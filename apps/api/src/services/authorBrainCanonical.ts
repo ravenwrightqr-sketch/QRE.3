@@ -337,6 +337,7 @@ export async function authorBrainCanonical(
         subject,
         suppliedReality: events,
         creativeDiscovery: discoveryResult.discovery,
+        requestedLens: input.lens,
         memory: activeMemory,
         domainContext: input.domainContext,
       })
