@@ -361,8 +361,93 @@ export async function authorBrainCanonical(
 
   let groundingRecoveryModelCalls = 0;
 
-  if (
-    verifiedCreative.scenes.length < creativeResult.scenes.length &&
+  const memoryProductions =
+    creativeResult.diagnostics?.memoryProductions ?? [];
+  const groundingFailed =
+    verifiedCreative.scenes.length < creativeResult.scenes.length;
+
+  if (groundingFailed && memoryProductions.length) {
+    const selectedProduction =
+      creativeResult.diagnostics?.selectedProduction;
+    const alternatives = memoryProductions
+      .filter((production) =>
+        production.accepted &&
+        production.production !== selectedProduction,
+      )
+      .sort((a, b) => b.score - a.score);
+
+    const originalKindByEvidence = new Map(
+      creativeResult.scenes.map((scene) => [
+        [...scene.sourceEventIds].sort().join(","),
+        scene.kind,
+      ]),
+    );
+
+    const alternativeScenes = alternatives.flatMap((production) =>
+      production.lines.map((line) => ({
+        text: line.text,
+        kind:
+          originalKindByEvidence.get(
+            [...line.sourceEventIds].sort().join(","),
+          ) ?? "line",
+        sourceEventIds: [...line.sourceEventIds],
+      })),
+    );
+
+    if (alternativeScenes.length) {
+      const recovered = await verifyAuthorCreativeGrounding({
+        scenes: alternativeScenes,
+        suppliedReality: events,
+        semanticAuthority: unique([
+          discoveryResult.discovery.selected.perception,
+          discoveryResult.discovery.selected.relationship,
+        ]),
+        domainContext: input.domainContext,
+      });
+      groundingRecoveryModelCalls += recovered.modelCalls;
+
+      const verifiedKeys = new Set(
+        recovered.scenes.map((scene) =>
+          `${scene.text}::${[...scene.sourceEventIds].sort().join(",")}`,
+        ),
+      );
+
+      const wholeProduction = alternatives.find((production) =>
+        production.lines.every((line) =>
+          verifiedKeys.has(
+            `${line.text}::${[...line.sourceEventIds].sort().join(",")}`,
+          ),
+        ),
+      );
+
+      if (wholeProduction) {
+        verifiedCreative = {
+          ...verifiedCreative,
+          scenes: wholeProduction.lines.map((line) => ({
+            text: line.text,
+            kind:
+              originalKindByEvidence.get(
+                [...line.sourceEventIds].sort().join(","),
+              ) ?? "line",
+            sourceEventIds: [...line.sourceEventIds],
+          })),
+        };
+      } else {
+        verifiedCreative = {
+          ...verifiedCreative,
+          scenes: creativeResult.scenes.map((scene) => ({
+            ...scene,
+            text: scene.sourceEventIds
+              .map((id) => events.find((event) => event.id === id)?.text ?? "")
+              .map(clean)
+              .filter(Boolean)
+              .join(" "),
+          })),
+        };
+      }
+    }
+  } else if (
+    groundingFailed &&
     creativeResult.diagnostics?.choices?.length
   ) {
     const verifiedSceneKeys = new Set(
