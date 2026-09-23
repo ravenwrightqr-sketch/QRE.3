@@ -175,6 +175,32 @@ function isServiceContext(domainContext?: AuthorDomainContext): boolean {
     category.includes("GROOMING");
 }
 
+function isMemoryContext(domainContext?: AuthorDomainContext): boolean {
+  const context = (domainContext ?? {}) as Record<string, unknown>;
+  return clean(context.experienceMode).toUpperCase() === "MEMORY";
+}
+
+function candidateIsBusinessLensMaterialHandoff(
+  candidate: AuthorCreativeCandidate,
+  eventCount: number,
+): boolean {
+  if (eventCount <= 2) return true;
+
+  const text = clean([
+    candidate.perception,
+    candidate.relationship,
+    candidate.observerInference,
+  ].join(" "));
+
+  const preStyledUniverse =
+    /\b(?:ritual(?:istic)?|ceremony|ceremonial|performance|surgical|surgery|experiment|mission|game|noir|heist|courtroom|clinical|intimate|detached|crucial phase|robotic|ballet|protocol)\b/i.test(text);
+
+  const tooNarrowForServiceMemory =
+    candidate.evidenceEventIds.length < Math.min(3, eventCount);
+
+  return !preStyledUniverse && !tooNarrowForServiceMemory;
+}
+
 function candidateCrossesOperationalServiceTruthFloor(
   candidate: AuthorCreativeCandidate,
   suppliedRealityText: string,
@@ -601,6 +627,8 @@ export async function discoverAuthorCreativeDirection(input: {
       "Keep perception and relationship structurally descriptive enough that several radically different Lens treatments could all realize them truthfully.",
       "Do not throw away distinctive middle service events merely because start/end timing is easy to dramatize. Preserve the evidence corridor that makes this specific service memory recognizable.",
       "The Discovery output itself does not need to sound clever. Its job here is to hand Lens good material, not steal Lens's job.",
+      "For a multi-event service MEMORY, do not collapse the handoff to one timestamp or one isolated task when the recognizable service is carried by several supplied events. Preserve the service corridor unless one detail truly dominates by supplied evidence.",
+      "If every candidate needs a genre-like metaphor or hidden evaluation to feel interesting, prefer reality-direct handoff over inventing a mini-theme. Lens will supply the creative treatment downstream.",
     ] : []),
     "",
     "SELECT FOR LIFE.",
@@ -752,14 +780,21 @@ export async function discoverAuthorCreativeDirection(input: {
     )
     .slice(0, 4);
 
+  const handoffCandidates =
+    businessCreativeContext && isMemoryContext(input.domainContext)
+      ? deterministicCandidates.filter((candidate) =>
+          candidateIsBusinessLensMaterialHandoff(candidate, input.events.length),
+        )
+      : deterministicCandidates;
+
   const semanticVerification = await verifyDiscoveryCandidates({
-    candidates: deterministicCandidates,
+    candidates: handoffCandidates,
     events: input.events,
     relations: input.relations,
     domainContext: input.domainContext,
   });
 
-  let candidates = deterministicCandidates.filter((candidate) =>
+  let candidates = handoffCandidates.filter((candidate) =>
     semanticVerification.groundedIds.has(candidate.id),
   );
 
@@ -787,7 +822,7 @@ export async function discoverAuthorCreativeDirection(input: {
     modelSelectedCandidate && !modelSelectedSurvived
       ? [modelSelectedCandidate]
       : !candidates.length
-        ? deterministicCandidates
+        ? handoffCandidates
         : [];
 
   if (repairTargets.length) {
