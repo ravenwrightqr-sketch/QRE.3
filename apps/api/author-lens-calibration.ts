@@ -4,7 +4,7 @@ import {
   searchAuthorCreativeLensTreatments,
   selectAuthorCreativeFrame,
   type AuthorCreativeEvent,
-  type AuthorCreativeTreatment,
+  type AuthorLensTreatment,
   type AuthorSemanticPlan,
 } from "./src/services/authorCreative.js";
 
@@ -51,13 +51,19 @@ const plan: AuthorSemanticPlan = {
   })),
 };
 
-function printTreatment(index: number, treatment: {
-  treatment: string;
-  devices: readonly string[];
-  intensity: string;
-}): void {
-  console.log(`${index}. ${treatment.treatment}`);
-  console.log(`   devices: ${treatment.devices.join(", ")}`);
+function printTreatment(treatment: AuthorLensTreatment | undefined): void {
+  if (!treatment) {
+    console.log("- none");
+    return;
+  }
+  console.log(`frame: ${treatment.frame}`);
+  console.log(`whereToLook: ${treatment.whereToLook.join(", ")}`);
+  console.log(`treatmentPressure: ${treatment.treatmentPressure.join(", ")}`);
+  console.log(`feltEffect: ${treatment.feltEffect}`);
+  console.log(`languageAim: ${treatment.languageAim.join(", ")}`);
+  console.log(`realizationMoves: ${treatment.realizationMoves.join(", ")}`);
+  console.log(`forbiddenRealityMoves: ${treatment.forbiddenRealityMoves.join(", ")}`);
+  console.log(`realityInvariants: ${treatment.realityInvariants.join(", ")}`);
   console.log(`   intensity: ${treatment.intensity}`);
 }
 
@@ -84,18 +90,16 @@ console.log("RAW TREATMENT RESPONSE");
 console.log(lens.rawTreatmentResponse);
 
 console.log("");
-console.log("ACCEPTED TREATMENTS");
-lens.acceptedTreatments.forEach((treatment, index) => printTreatment(index + 1, treatment));
+console.log("ACCEPTED TREATMENT");
+printTreatment(lens.acceptedTreatment);
 
 console.log("");
-console.log("REJECTED TREATMENTS");
-if (!lens.rejectedTreatments.length) {
+console.log("REJECTED TREATMENT");
+if (!lens.rejectedTreatment) {
   console.log("- none");
 } else {
-  for (const rejected of lens.rejectedTreatments) {
-    const treatment: AuthorCreativeTreatment = rejected.treatment;
-    console.log(`- ${treatment.treatment} / ${rejected.reason}`);
-  }
+  console.log(`- ${lens.rejectedTreatment.reason}`);
+  printTreatment(lens.rejectedTreatment.treatment);
 }
 
 console.log("");
