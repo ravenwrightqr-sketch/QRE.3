@@ -54,9 +54,9 @@ export type AuthorCreativeEvent = {
   text: string;
 };
 
-type AuthorBeatRole = "HOOK" | "BUILD" | "TURN" | "PAYOFF";
+export type AuthorBeatRole = "HOOK" | "BUILD" | "TURN" | "PAYOFF";
 
-type AuthorSemanticBeat = {
+export type AuthorSemanticBeat = {
   order: number;
   role: AuthorBeatRole;
   eventIds: string[];
@@ -64,12 +64,12 @@ type AuthorSemanticBeat = {
   change: string;
 };
 
-type AuthorSemanticPlan = {
+export type AuthorSemanticPlan = {
   thesis: string;
   beats: AuthorSemanticBeat[];
 };
 
-type AuthorCreativeFrame = {
+export type AuthorCreativeFrame = {
   id: string;
   frame: string;
   treatment: string;
@@ -291,7 +291,7 @@ function compatibleLensFallbackFrames(
     operation: [
       {
         frame: "bounded operation",
-        treatment: "Treat supplied work as a bounded process with status and completion pressure only.",
+        treatment: "Treat supplied work as a bounded process with status and completion structure only.",
         devices: ["process", "status", "completion"],
         intensity: "MEDIUM",
       },
@@ -331,7 +331,7 @@ function compatibleLensFallbackFrames(
     investigation: [
       {
         frame: "evidence trail",
-        treatment: "Use the supplied unresolved question as evidence pressure without inventing clues.",
+        treatment: "Use the supplied unresolved question as evidence structure without inventing clues.",
         devices: ["evidence", "question", "search"],
         intensity: "MEDIUM",
       },
@@ -403,7 +403,7 @@ function compatibleLensFallbackFrames(
       },
       {
         frame: "minimal observation",
-        treatment: "Use small observational pressure without creating story machinery.",
+        treatment: "Use small observational emphasis without creating story machinery.",
         devices: ["minimalism", "observation", "restraint"],
         intensity: "LIGHT",
       },
@@ -478,6 +478,308 @@ export function isAuthorCreativeFrameCompatibleWithSelectedFrame(input: {
   };
 
   return compatibility[selected]?.test(candidate) ?? false;
+}
+
+export type AuthorCreativeLensSearchResult = {
+  lensSearchEnabled: boolean;
+  lensMode: "NONE" | "REQUESTED" | "AUTO_BUSINESS";
+  autoBusinessLens: boolean;
+  raw: string;
+  model: string;
+  modelCalls: number;
+  selectedFrame: AuthorCreativeFrameCandidate;
+  frameCandidates: AuthorCreativeFrameCandidate[];
+  parsedFrames: AuthorCreativeFrame[];
+  acceptedFrames: AuthorCreativeFrame[];
+  rejectedFrames: Array<{
+    frame: AuthorCreativeFrame;
+    reason: string;
+  }>;
+};
+
+export async function searchAuthorCreativeLensFrames(input: {
+  subject: string;
+  suppliedReality: readonly AuthorCreativeEvent[];
+  plan: AuthorSemanticPlan;
+  creativeOpportunity: string;
+  relation: string;
+  experienceMode?: string;
+  requestedLens?: string;
+  domainContext?: AuthorDomainContext;
+  selectedFrame: AuthorCreativeFrameCandidate;
+  frameCandidates: readonly AuthorCreativeFrameCandidate[];
+}): Promise<AuthorCreativeLensSearchResult> {
+  const requestedLens = clean(input.requestedLens);
+  const normalizedRequestedLens = requestedLens.toUpperCase();
+  const explicitLensProvided = Boolean(requestedLens);
+  const explicitLensOff = normalizedRequestedLens === "NONE";
+  const autoBusinessLens =
+    !explicitLensProvided &&
+    isBusinessCreativeContext(input.domainContext);
+  const lensSearchEnabled =
+    !explicitLensOff &&
+    (explicitLensProvided || autoBusinessLens);
+  const lensMode =
+    explicitLensOff
+      ? "NONE"
+      : explicitLensProvided
+        ? "REQUESTED"
+        : autoBusinessLens
+          ? "AUTO_BUSINESS"
+          : "NONE";
+
+  const lensResult = lensSearchEnabled
+    ? await localModelGenerate(
+    [
+      {
+        role: "system",
+        content: [
+          "You are QRE Creative Lens Search.",
+          "Reality is fixed. Framing freedom is high.",
+          "The approved meaning and beat structure already exist. Do not rediscover the story and do not alter the semantic thesis.",
+          "Propose exactly four radically different interpretive frames that can realize the approved meaning using only supplied reality.",
+          "A frame is an expressive universe, not a literal world. Spy language may make work feel covert; courtroom language may make an object feel like evidence; game language may make progression feel like rounds or levels. None of those frames authorize a literal spy, lawyer, courtroom, weapon, handler, enemy, boss, kingdom, camera, or other unsupplied person, object, place, or event.",
+          "Genre freedom is not reality freedom.",
+          "Frames may use deadpan framing, absurd escalation, mock-serious language, status games, callbacks, fragments, repeated structure, character attitude, service-specific humor, metaphor, personification, ceremonial language, or another strong rhetorical device.",
+          "Do not default to named genres. Invent the best frame for this material when a more specific treatment exists.",
+          "Do not write final cuts. Describe the treatment Mouth should use.",
+          "When SELECTED_FRAME is not NONE, treat it as the strongest perspective candidate. Explore treatments inside that perspective rather than replacing it with a generic genre.",
+          "The selected frame is perspective only; it is not a plot, progression, scene, or viewer-facing line.",
+          "Lens must describe interpretive perspective only: status, procedural seriousness, bounded progression, escalation, restraint, recurrence, tension, or recontextualization.",
+          "Do not specify production implementation: no camera moves, visuals, visual displays, zooms, lighting, music, sound effects, chimes, narration, voiceover direction, UI treatments, charts, graphs, staging, scene mechanics, mission log entries, before/after vignettes, or visual transformations.",
+          "Frame, treatment, and devices must name the interpretive lens, not how to render it.",
+          "When SELECTED_FRAME is negotiation, other frames must stay in status, contest, bargaining, resistance, or terms-of-engagement territory.",
+          "When SELECTED_FRAME is operation, other frames must stay in operational, status, bounded-process, task, or completion territory.",
+          "When SELECTED_FRAME is investigation, other frames must stay in question, evidence, search, missing-object, case, or inquiry territory.",
+          "When SELECTED_FRAME is refrain, other frames must stay in recurrence, echo, callback, repeated-detail, motif, or rhythm territory.",
+          "When SELECTED_FRAME is return, other frames must stay in return, recurrence, callback, revisit, loop, or changed-same territory.",
+          "When SELECTED_FRAME is quiet observation, other frames must stay restrained, observational, bare, subtle, portrait-like, or minimal.",
+          "When SELECTED_FRAME is reveal, other frames must stay in visible turn, before/after, uncovering, disclosure, result, or payoff territory.",
+          "Each frame must remain legible as interpretation rather than asserting new physical history.",
+          "The four frames must differ in underlying treatment, not merely tone adjectives.",
+          "One frame may be restrained or nearly bare when the material itself is strongest without heavy treatment.",
+          ...(autoBusinessLens ? [
+            "AUTO BUSINESS MODE: this is customer-facing business/service material. Creative Lens Search is expected to explore treatments rather than defaulting to a literal receipt.",
+            "Exactly one of the four frames must be NONE / BARE REALITY: a natural, minimally treated realization that lets the supplied facts speak for themselves.",
+            "The other three frames must be genuinely different creative treatments appropriate to the supplied business/service material.",
+            "NONE is a real contender, not an automatic winner. Choose creative frames that could make an ordinary service memory worth receiving without inventing physical reality.",
+          ] : []),
+          ...(explicitLensProvided && !explicitLensOff ? [
+            "A lens was explicitly requested. Honor that requested lens as the governing creative direction while still proposing materially different treatments inside it.",
+          ] : []),
+          "Return concise frame descriptions and devices only.",
+        ].join("\n"),
+      },
+      {
+        role: "user",
+        content: JSON.stringify({
+          SUBJECT: input.subject,
+          SUPPLIED_REALITY: input.suppliedReality,
+          APPROVED_THESIS: input.plan.thesis,
+          APPROVED_BEATS: input.plan.beats,
+          CREATIVE_OPPORTUNITY: input.creativeOpportunity,
+          RELATION: input.relation,
+          EXPERIENCE_MODE: clean(input.experienceMode) || undefined,
+          LENS_MODE: lensMode,
+          REQUESTED_LENS: requestedLens || undefined,
+          SELECTED_FRAME: input.selectedFrame,
+          FRAME_CANDIDATES: input.frameCandidates,
+          instruction:
+            "Find four distinct reality-legal framing strategies for realization. Preserve the approved meaning. Do not write viewer-facing cuts and do not invent a literal world.",
+        }),
+      },
+    ],
+    "json",
+    {
+      numPredict: 520,
+      temperature: 0.88,
+      jsonSchema: {
+        type: "object",
+        additionalProperties: false,
+        required: ["frames"],
+        properties: {
+          frames: {
+            type: "array",
+            minItems: 4,
+            maxItems: 4,
+            items: {
+              type: "object",
+              additionalProperties: false,
+              required: ["id", "frame", "treatment", "devices", "intensity"],
+              properties: {
+                id: { type: "string", maxLength: 32 },
+                frame: { type: "string", maxLength: 80 },
+                treatment: { type: "string", maxLength: 220 },
+                devices: {
+                  type: "array",
+                  minItems: 1,
+                  maxItems: 6,
+                  items: { type: "string", maxLength: 48 },
+                },
+                intensity: {
+                  type: "string",
+                  enum: ["LIGHT", "MEDIUM", "STRONG"],
+                },
+              },
+            },
+          },
+        },
+      },
+    },
+  )
+    : {
+        text: "",
+        model: "none",
+      };
+
+  const parsedLens = lensSearchEnabled
+    ? parseJson(lensResult.text)
+    : undefined;
+  const rawFrames = Array.isArray(parsedLens?.frames) ? parsedLens.frames : [];
+  const parsedFrames: AuthorCreativeFrame[] = rawFrames
+    .map((value, index): AuthorCreativeFrame | undefined => {
+      if (!value || typeof value !== "object") return undefined;
+      const record = value as Record<string, unknown>;
+      const frame = clean(record.frame);
+      const treatment = clean(record.treatment);
+      const devices = Array.isArray(record.devices)
+        ? unique(
+            record.devices
+              .filter((device): device is string => typeof device === "string")
+              .map(clean)
+              .filter(Boolean),
+          ).slice(0, 6)
+        : [];
+      const rawIntensity = clean(record.intensity).toUpperCase();
+      const intensity: AuthorCreativeFrame["intensity"] =
+        rawIntensity === "LIGHT" || rawIntensity === "STRONG"
+          ? rawIntensity
+          : "MEDIUM";
+
+      if (!frame || !treatment || !devices.length) return undefined;
+
+      return {
+        id: clean(record.id) || `frame-${index + 1}`,
+        frame,
+        treatment,
+        devices,
+        intensity,
+      };
+    })
+    .filter((value): value is AuthorCreativeFrame => Boolean(value))
+    .slice(0, 4);
+
+  const selectedLensFrame = selectedFrameAsLensFrame(input.selectedFrame);
+  const compatibleCreativeFrames =
+    input.selectedFrame.frame === "NONE"
+      ? parsedFrames
+      : parsedFrames.filter((frame) =>
+          isAuthorCreativeFrameCompatibleWithSelectedFrame({
+            selectedFrame: input.selectedFrame.frame,
+            frame: frame.frame,
+            treatment: frame.treatment,
+            devices: frame.devices,
+          }),
+        );
+  const rejectedFrames =
+    input.selectedFrame.frame === "NONE"
+      ? []
+      : parsedFrames
+          .filter((frame) => !compatibleCreativeFrames.includes(frame))
+          .map((frame) => ({
+            frame,
+            reason: `incompatible with selected frame ${input.selectedFrame.frame}`,
+          }));
+
+  const compatibleFallbackFrames = compatibleLensFallbackFrames(input.selectedFrame);
+  const isBareFrame = (frame: AuthorCreativeFrame): boolean =>
+    /\b(?:none|bare reality|natural)\b/i.test(frame.frame);
+  const seededCreativeFrames =
+    lensSearchEnabled && selectedLensFrame
+      ? [
+          selectedLensFrame,
+          ...compatibleCreativeFrames.filter(
+            (frame) =>
+              clean(frame.frame).toLowerCase() !== input.selectedFrame.frame &&
+              !isBareFrame(frame),
+          ),
+        ].slice(0, autoBusinessLens ? 3 : 4)
+      : parsedFrames;
+
+  const autoBusinessBareFrame: AuthorCreativeFrame = {
+    id: "frame-none",
+    frame: "NONE / Bare Reality",
+    treatment: "Use natural, source-specific phrasing with minimal treatment. Let the supplied business/service facts carry the experience without imposing a genre skin.",
+    devices: ["restraint", "source specificity", "natural rhythm"],
+    intensity: "LIGHT",
+  };
+
+  const normalizedCreativeFrames =
+    autoBusinessLens && selectedLensFrame
+      ? [...seededCreativeFrames.slice(0, 3), autoBusinessBareFrame]
+      : autoBusinessLens && !seededCreativeFrames.some(isBareFrame)
+        ? [autoBusinessBareFrame, ...seededCreativeFrames.slice(0, 3)]
+      : seededCreativeFrames;
+
+  const acceptedFrames: AuthorCreativeFrame[] =
+    !lensSearchEnabled
+      ? []
+      : normalizedCreativeFrames.length === 4
+        ? normalizedCreativeFrames
+        : compatibleFallbackFrames.length === 4
+          ? (
+              autoBusinessLens && selectedLensFrame
+                ? [...compatibleFallbackFrames.slice(0, 3), autoBusinessBareFrame]
+                : autoBusinessLens && !compatibleFallbackFrames.some(isBareFrame)
+                  ? [autoBusinessBareFrame, ...compatibleFallbackFrames.slice(0, 3)]
+                : compatibleFallbackFrames
+            )
+        : [
+          autoBusinessLens
+            ? autoBusinessBareFrame
+            : {
+                id: "frame-a",
+                frame: "restrained source-specific framing",
+                treatment: "Let the supplied details carry the experience; use implication, compression, and precise attitude without constructing a literal genre world.",
+                devices: ["implication", "compression", "attitude"],
+                intensity: "LIGHT",
+              },
+          {
+            id: "frame-b",
+            frame: "mock-serious escalation",
+            treatment: "Treat ordinary supplied events with disproportionate procedural or ceremonial seriousness while keeping every concrete claim grounded.",
+            devices: ["mock seriousness", "status", "escalation"],
+            intensity: "MEDIUM",
+          },
+          {
+            id: "frame-c",
+            frame: "status recontextualization",
+            treatment: "Change how the supplied sequence reads through status, role, or social framing without asserting that the figurative role literally exists.",
+            devices: ["status game", "recontextualization", "callback"],
+            intensity: "MEDIUM",
+          },
+          {
+            id: "frame-d",
+            frame: "absurdly specific compression",
+            treatment: "Use source-specific details as compact comic or dramatic pressure points; keep the world literal and the framing nonliteral.",
+            devices: ["absurdity", "fragments", "specificity"],
+            intensity: "STRONG",
+          },
+        ];
+
+  return {
+    lensSearchEnabled,
+    lensMode,
+    autoBusinessLens,
+    raw: lensSearchEnabled ? lensResult.text : "SKIPPED",
+    model: lensResult.model,
+    modelCalls: lensSearchEnabled ? 1 : 0,
+    selectedFrame: input.selectedFrame,
+    frameCandidates: [...input.frameCandidates],
+    parsedFrames,
+    acceptedFrames,
+    rejectedFrames,
+  };
 }
 
 function presentationAffordance(domainContext?: AuthorDomainContext): string {
@@ -1446,240 +1748,22 @@ export async function createAuthorExperience(input: {
         candidates: frameCandidates,
         creativeDiscovery: input.creativeDiscovery,
       });
-  const autoBusinessLens =
-    !explicitLensProvided &&
-    isBusinessCreativeContext(input.domainContext);
-  const lensSearchEnabled =
-    !explicitLensOff &&
-    (explicitLensProvided || autoBusinessLens);
-  const lensMode =
-    explicitLensOff
-      ? "NONE"
-      : explicitLensProvided
-        ? "REQUESTED"
-        : autoBusinessLens
-          ? "AUTO_BUSINESS"
-          : "NONE";
-
-  const lensResult = lensSearchEnabled
-    ? await localModelGenerate(
-    [
-      {
-        role: "system",
-        content: [
-          "You are QRE Creative Lens Search.",
-          "Reality is fixed. Framing freedom is high.",
-          "The approved meaning and beat structure already exist. Do not rediscover the story and do not alter the semantic thesis.",
-          "Propose exactly four radically different interpretive frames that can realize the approved meaning using only supplied reality.",
-          "A frame is an expressive universe, not a literal world. Spy language may make work feel covert; courtroom language may make an object feel like evidence; game language may make progression feel like rounds or levels. None of those frames authorize a literal spy, lawyer, courtroom, weapon, handler, enemy, boss, kingdom, camera, or other unsupplied person, object, place, or event.",
-          "Genre freedom is not reality freedom.",
-          "Frames may use deadpan framing, absurd escalation, mock-serious language, status games, callbacks, fragments, repeated structure, character attitude, service-specific humor, metaphor, personification, ceremonial language, or another strong rhetorical device.",
-          "Do not default to named genres. Invent the best frame for this material when a more specific treatment exists.",
-          "Do not write final cuts. Describe the treatment Mouth should use.",
-          "When SELECTED_FRAME is not NONE, treat it as the strongest perspective candidate. Explore treatments inside that perspective rather than replacing it with a generic genre.",
-          "The selected frame is perspective only; it is not a plot, progression, scene, or viewer-facing line.",
-          "When SELECTED_FRAME is negotiation, other frames must stay in status, contest, bargaining, resistance, or terms-of-engagement territory.",
-          "When SELECTED_FRAME is operation, other frames must stay in operational, status, bounded-process, task, or completion territory.",
-          "When SELECTED_FRAME is investigation, other frames must stay in question, evidence, search, missing-object, case, or inquiry territory.",
-          "When SELECTED_FRAME is refrain, other frames must stay in recurrence, echo, callback, repeated-detail, motif, or rhythm territory.",
-          "When SELECTED_FRAME is return, other frames must stay in return, recurrence, callback, revisit, loop, or changed-same territory.",
-          "When SELECTED_FRAME is quiet observation, other frames must stay restrained, observational, bare, subtle, portrait-like, or minimal.",
-          "When SELECTED_FRAME is reveal, other frames must stay in visible turn, before/after, uncovering, disclosure, result, or payoff territory.",
-          "Each frame must remain legible as interpretation rather than asserting new physical history.",
-          "The four frames must differ in underlying treatment, not merely tone adjectives.",
-          "One frame may be restrained or nearly bare when the material itself is strongest without heavy treatment.",
-          ...(autoBusinessLens ? [
-            "AUTO BUSINESS MODE: this is customer-facing business/service material. Creative Lens Search is expected to explore treatments rather than defaulting to a literal receipt.",
-            "Exactly one of the four frames must be NONE / BARE REALITY: a natural, minimally treated realization that lets the supplied facts speak for themselves.",
-            "The other three frames must be genuinely different creative treatments appropriate to the supplied business/service material.",
-            "NONE is a real contender, not an automatic winner. Choose creative frames that could make an ordinary service memory worth receiving without inventing physical reality.",
-          ] : []),
-          ...(explicitLensProvided && !explicitLensOff ? [
-            "A lens was explicitly requested. Honor that requested lens as the governing creative direction while still proposing materially different treatments inside it.",
-          ] : []),
-          "Return concise frame descriptions and devices only.",
-        ].join("\n"),
-      },
-      {
-        role: "user",
-        content: JSON.stringify({
-          SUBJECT: input.subject,
-          SUPPLIED_REALITY: input.suppliedReality,
-          APPROVED_THESIS: plan.thesis,
-          APPROVED_BEATS: plan.beats,
-          CREATIVE_OPPORTUNITY: selected.perception,
-          RELATION: selected.relationship,
-          EXPERIENCE_MODE: experienceMode || undefined,
-          LENS_MODE: lensMode,
-          REQUESTED_LENS: requestedLens || undefined,
-          SELECTED_FRAME: selectedFrame,
-          FRAME_CANDIDATES: frameCandidates,
-          instruction:
-            "Find four distinct reality-legal framing strategies for realization. Preserve the approved meaning. Do not write viewer-facing cuts and do not invent a literal world.",
-        }),
-      },
-    ],
-    "json",
-    {
-      numPredict: 520,
-      temperature: 0.88,
-      jsonSchema: {
-        type: "object",
-        additionalProperties: false,
-        required: ["frames"],
-        properties: {
-          frames: {
-            type: "array",
-            minItems: 4,
-            maxItems: 4,
-            items: {
-              type: "object",
-              additionalProperties: false,
-              required: ["id", "frame", "treatment", "devices", "intensity"],
-              properties: {
-                id: { type: "string", maxLength: 32 },
-                frame: { type: "string", maxLength: 80 },
-                treatment: { type: "string", maxLength: 220 },
-                devices: {
-                  type: "array",
-                  minItems: 1,
-                  maxItems: 6,
-                  items: { type: "string", maxLength: 48 },
-                },
-                intensity: {
-                  type: "string",
-                  enum: ["LIGHT", "MEDIUM", "STRONG"],
-                },
-              },
-            },
-          },
-        },
-      },
-    },
-  )
-    : {
-        text: "",
-        model: "none",
-      };
-
-  const parsedLens = lensSearchEnabled
-    ? parseJson(lensResult.text)
-    : undefined;
-  const rawFrames = Array.isArray(parsedLens?.frames) ? parsedLens.frames : [];
-  const creativeFrames: AuthorCreativeFrame[] = rawFrames
-    .map((value, index): AuthorCreativeFrame | undefined => {
-      if (!value || typeof value !== "object") return undefined;
-      const record = value as Record<string, unknown>;
-      const frame = clean(record.frame);
-      const treatment = clean(record.treatment);
-      const devices = Array.isArray(record.devices)
-        ? unique(
-            record.devices
-              .filter((device): device is string => typeof device === "string")
-              .map(clean)
-              .filter(Boolean),
-          ).slice(0, 6)
-        : [];
-      const rawIntensity = clean(record.intensity).toUpperCase();
-      const intensity: AuthorCreativeFrame["intensity"] =
-        rawIntensity === "LIGHT" || rawIntensity === "STRONG"
-          ? rawIntensity
-          : "MEDIUM";
-
-      if (!frame || !treatment || !devices.length) return undefined;
-
-      return {
-        id: clean(record.id) || `frame-${index + 1}`,
-        frame,
-        treatment,
-        devices,
-        intensity,
-      };
-    })
-    .filter((value): value is AuthorCreativeFrame => Boolean(value))
-    .slice(0, 4);
-
-  const autoBusinessBareFrame: AuthorCreativeFrame = {
-    id: "frame-none",
-    frame: "NONE / Bare Reality",
-    treatment: "Use natural, source-specific phrasing with minimal treatment. Let the supplied business/service facts carry the experience without imposing a genre skin.",
-    devices: ["restraint", "source specificity", "natural rhythm"],
-    intensity: "LIGHT",
-  };
-
-  const selectedLensFrame = selectedFrameAsLensFrame(selectedFrame);
-  const compatibleCreativeFrames =
-    selectedFrame.frame === "NONE"
-      ? creativeFrames
-      : creativeFrames.filter((frame) =>
-          isAuthorCreativeFrameCompatibleWithSelectedFrame({
-            selectedFrame: selectedFrame.frame,
-            frame: frame.frame,
-            treatment: frame.treatment,
-            devices: frame.devices,
-          }),
-        );
-  const compatibleFallbackFrames = compatibleLensFallbackFrames(selectedFrame);
-  const seededCreativeFrames =
-    lensSearchEnabled && selectedLensFrame
-      ? [
-          selectedLensFrame,
-          ...compatibleCreativeFrames.filter(
-            (frame) => clean(frame.frame).toLowerCase() !== selectedFrame.frame,
-          ),
-        ].slice(0, 4)
-      : creativeFrames;
-
-  const normalizedCreativeFrames =
-    autoBusinessLens &&
-    !seededCreativeFrames.some((frame) => /\b(?:none|bare reality|natural)\b/i.test(frame.frame))
-      ? [autoBusinessBareFrame, ...seededCreativeFrames.slice(0, 3)]
-      : seededCreativeFrames;
-
-  const framesForMouth: AuthorCreativeFrame[] =
-    !lensSearchEnabled
-      ? []
-      : normalizedCreativeFrames.length === 4
-        ? normalizedCreativeFrames
-        : compatibleFallbackFrames.length === 4
-          ? (
-              autoBusinessLens &&
-              !compatibleFallbackFrames.some((frame) => /\b(?:none|bare reality|natural)\b/i.test(frame.frame))
-                ? [autoBusinessBareFrame, ...compatibleFallbackFrames.slice(0, 3)]
-                : compatibleFallbackFrames
-            )
-        : [
-          autoBusinessLens
-            ? autoBusinessBareFrame
-            : {
-                id: "frame-a",
-                frame: "restrained source-specific framing",
-                treatment: "Let the supplied details carry the experience; use implication, compression, and precise attitude without constructing a literal genre world.",
-                devices: ["implication", "compression", "attitude"],
-                intensity: "LIGHT",
-              },
-          {
-            id: "frame-b",
-            frame: "mock-serious escalation",
-            treatment: "Treat ordinary supplied events with disproportionate procedural or ceremonial seriousness while keeping every concrete claim grounded.",
-            devices: ["mock seriousness", "status", "escalation"],
-            intensity: "MEDIUM",
-          },
-          {
-            id: "frame-c",
-            frame: "status recontextualization",
-            treatment: "Change how the supplied sequence reads through status, role, or social framing without asserting that the figurative role literally exists.",
-            devices: ["status game", "recontextualization", "callback"],
-            intensity: "MEDIUM",
-          },
-          {
-            id: "frame-d",
-            frame: "absurdly specific compression",
-            treatment: "Use source-specific details as compact comic or dramatic pressure points; keep the world literal and the framing nonliteral.",
-            devices: ["absurdity", "fragments", "specificity"],
-            intensity: "STRONG",
-          },
-        ];
+  const lensSearch = await searchAuthorCreativeLensFrames({
+    subject: input.subject,
+    suppliedReality: input.suppliedReality,
+    plan,
+    creativeOpportunity: selected.perception,
+    relation: selected.relationship,
+    experienceMode,
+    requestedLens,
+    domainContext: input.domainContext,
+    selectedFrame,
+    frameCandidates,
+  });
+  const autoBusinessLens = lensSearch.autoBusinessLens;
+  const lensSearchEnabled = lensSearch.lensSearchEnabled;
+  const lensMode = lensSearch.lensMode;
+  const framesForMouth = lensSearch.acceptedFrames;
 
   debug("CREATIVE-LENS-SEARCH", {
     mode: lensMode,
@@ -1687,7 +1771,7 @@ export async function createAuthorExperience(input: {
     selectedFrame,
     frameCandidates,
     lensSearchEnabled,
-    raw: lensSearchEnabled ? lensResult.text : "SKIPPED",
+    raw: lensSearch.raw,
     frames: framesForMouth,
   });
 
@@ -2113,10 +2197,10 @@ export async function createAuthorExperience(input: {
 
   return {
     scenes,
-    model: mouthResult.model || (lensSearchEnabled ? lensResult.model : "") || planResult.model,
+    model: mouthResult.model || (lensSearchEnabled ? lensSearch.model : "") || planResult.model,
     modelCalls:
       (useDeterministicSparsePlan ? 1 : 2) +
-      (lensSearchEnabled ? 1 : 0) +
+      lensSearch.modelCalls +
       memoryRepairModelCalls,
     diagnostics: {
       plan,
