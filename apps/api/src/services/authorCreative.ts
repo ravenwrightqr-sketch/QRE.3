@@ -2752,12 +2752,26 @@ export async function createAuthorExperience(input: {
       (production) => production.accepted,
     );
     const acceptedExpressiveProductions = lensSearchEnabled
-      ? acceptedProductions.filter(
-          (production) =>
-            treatmentByVariantIndex.has(production.variantIndex) &&
-            production.variantIndex < 3 &&
-            expressiveProductionHasPerceptionDelta(production),
-        )
+      ? [
+          ...acceptedProductions.filter(
+            (production) =>
+              treatmentByVariantIndex.has(production.variantIndex) &&
+              production.variantIndex < 3 &&
+              expressiveProductionHasPerceptionDelta(production),
+          ),
+          ...(repairedNomination &&
+          repairedNomination.variantIndex < 3 &&
+          expressiveProductionHasPerceptionDelta(repairedNomination)
+            ? [repairedNomination]
+            : []),
+        ]
+          .filter(
+            (production, index, all) =>
+              all.findIndex(
+                (candidate) => candidate.variantIndex === production.variantIndex,
+              ) === index,
+          )
+          .sort((a, b) => b.score - a.score)
       : acceptedProductions;
     const topScoringExpressiveProduction = acceptedExpressiveProductions[0];
     const bareFallbackProduction = lensSearchEnabled
