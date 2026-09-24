@@ -87,6 +87,7 @@ export type AuthorCreativeTreatmentAssignment = {
   sourceCandidateId: string;
   sourceRelation: string;
   evidenceEventIds: string[];
+  creativePressure: string;
   hiddenInference: string;
   treatment: string;
   perceptionDelta: string;
@@ -140,7 +141,7 @@ function materialText(values: readonly string[]): string {
   return clean(values.join(" ")).toLowerCase();
 }
 
-const ALLOWED_EXPRESSIVE_BEHAVIORS = new Set([
+const KNOWN_EXPRESSIVE_BEHAVIOR_SEEDS = [
   "contrast",
   "status",
   "personification",
@@ -159,15 +160,17 @@ const ALLOWED_EXPRESSIVE_BEHAVIORS = new Set([
   "question",
   "motif",
   "repetition",
-]);
+] as const;
 
 function normalizeExpressiveBehaviors(value: unknown): string[] {
   if (!Array.isArray(value)) return [];
+  // Known operations are examples, not a ceiling. Preserve concise,
+  // model-discovered semantic operations so QRE can invent new ways of thinking.
   return unique(
     value
       .filter((item): item is string => typeof item === "string")
       .map((item) => clean(item).toLowerCase())
-      .filter((item) => ALLOWED_EXPRESSIVE_BEHAVIORS.has(item)),
+      .filter((item) => item.length > 0 && item.length <= 48),
   ).slice(0, 4);
 }
 
@@ -358,6 +361,7 @@ export type AuthorCreativeTreatment = {
   sourceCandidateId: string;
   sourceRelation: string;
   evidenceEventIds: string[];
+  creativePressure: string;
   hiddenInference: string;
   treatment: string;
   perceptionDelta: string;
@@ -371,6 +375,7 @@ function isBareTreatment(treatment: AuthorCreativeTreatment): boolean {
       treatment.id,
       treatment.sourceCandidateId,
       treatment.sourceRelation,
+      treatment.creativePressure,
       treatment.hiddenInference,
       treatment.treatment,
       treatment.perceptionDelta,
@@ -566,6 +571,7 @@ function authorCreativeTreatmentCompatibility(input: {
 
   const candidate = materialText([
     input.treatment.sourceRelation,
+    input.treatment.creativePressure,
     input.treatment.treatment,
     input.treatment.perceptionDelta,
     ...input.treatment.expressiveBehaviors,
@@ -607,6 +613,7 @@ function treatmentAsAssignment(
     sourceCandidateId: treatment.sourceCandidateId,
     sourceRelation: treatment.sourceRelation,
     evidenceEventIds: treatment.evidenceEventIds,
+    creativePressure: treatment.creativePressure,
     hiddenInference: treatment.hiddenInference,
     treatment: treatment.treatment,
     perceptionDelta: treatment.perceptionDelta,
@@ -811,6 +818,8 @@ export async function searchAuthorCreativeLensTreatments(input: {
           "CREATIVE PRESSURE IS NOT FACT. After finding the grounded relation, aggressively test it through different imaginative universes. Game, cyber/system, heist, noir, battle, bureaucracy, ritual, horror, sport, courtroom, myth, deadpan absurdity, status war, mission control, and entirely new model-discovered pressures are all legal rhetorical frames.",
           "Do not merely name a genre. Use pressure to change the read of the supplied facts: status, stakes, rhythm, hierarchy, conflict, callback, irony, escalation, or meaning.",
           "The three finalists must not share one mood. Make them compete from materially different creative pressures.",
+          "For each treatment, creativePressure names the governing pressure in a few words. It may use a known universe or invent a new one. The name is diagnostic, not a template.",
+          "Known pressures are seeds, never a menu and never a ceiling. If the facts suggest a stranger pressure, invent it.",
           "At least one finalist should be bold enough that a cautious model would probably not choose it, while still preserving exact concrete reality.",
           "Penalize atmospheric vagueness. Ambiguity, impermanence, subtlety, transience, melancholy, emptiness, longing, and similar mood words are not a creative conception by themselves.",
           "Prefer executable creative ideas: count can become escalation, resistance can become negotiation, an object can become status, completion can become verdict, repetition can become game logic, and sequence can become mission logic — only as rhetoric, never literal new facts.",
@@ -917,8 +926,9 @@ export async function searchAuthorCreativeLensTreatments(input: {
             items: {
               type: "object",
               additionalProperties: false,
-              required: ["hiddenInference", "treatment", "perceptionDelta", "expressiveBehaviors", "intensity"],
+              required: ["creativePressure", "hiddenInference", "treatment", "perceptionDelta", "expressiveBehaviors", "intensity"],
               properties: {
+                creativePressure: { type: "string", maxLength: 48 },
                 hiddenInference: { type: "string", maxLength: 72 },
                 treatment: { type: "string", maxLength: 104 },
                 perceptionDelta: { type: "string", maxLength: 104 },
@@ -926,29 +936,7 @@ export async function searchAuthorCreativeLensTreatments(input: {
                   type: "array",
                   minItems: 1,
                   maxItems: 4,
-                  items: {
-                    type: "string",
-                    enum: [
-                      "contrast",
-                      "status",
-                      "personification",
-                      "rhetorical scale",
-                      "irony",
-                      "callback",
-                      "omission",
-                      "escalation",
-                      "compression",
-                      "juxtaposition",
-                      "inversion",
-                      "understatement",
-                      "double meaning",
-                      "recontextualization",
-                      "anticipation",
-                      "question",
-                      "motif",
-                      "repetition",
-                    ],
-                  },
+                  items: { type: "string", maxLength: 48 },
                 },
                 intensity: {
                   type: "string",
@@ -1090,6 +1078,7 @@ export async function searchAuthorCreativeLensTreatments(input: {
             sourceCandidateId: expectedRelationRecord ? `latentRelations[${index}]` : "unparsed",
             sourceRelation: clean(expectedRelationRecord?.relation) || "unparsed",
             evidenceEventIds,
+            creativePressure: clean(record.creativePressure),
             hiddenInference: clean(record.hiddenInference),
             treatment: clean(record.treatment),
             perceptionDelta: clean(record.perceptionDelta),
@@ -1113,6 +1102,7 @@ export async function searchAuthorCreativeLensTreatments(input: {
       const sourceCandidateId = expectedRelationRecord ? `latentRelations[${index}]` : "";
       const sourceRelation = clean(expectedRelationRecord?.relation);
       const evidenceEventIds = expectedRelationRecord?.evidenceEventIds ?? [];
+      const creativePressure = clean(record.creativePressure);
       const hiddenInference = clean(record.hiddenInference);
       const treatment = clean(record.treatment);
       const perceptionDelta = clean(record.perceptionDelta);
@@ -1133,6 +1123,7 @@ export async function searchAuthorCreativeLensTreatments(input: {
       const finalistBoundaryReason = unsupportedTreatmentMaterialReason({
         text: materialText([
           sourceRelation,
+          creativePressure,
           hiddenInference,
           treatment,
           perceptionDelta,
@@ -1156,6 +1147,7 @@ export async function searchAuthorCreativeLensTreatments(input: {
         !sourceCandidateId ? "missing source candidate id" :
         !sourceRelation ? "missing source relation" :
         !evidenceEventIds.length ? "missing grounded evidence event ids" :
+        !creativePressure ? "missing creative pressure" :
         !ownsDistinctRelation ? "finalist must use its own distinct latent relation" :
         !provenanceMatches ? "finalist provenance does not match returned latent relation" :
         finalistBoundaryReason ? finalistBoundaryReason :
@@ -1175,6 +1167,7 @@ export async function searchAuthorCreativeLensTreatments(input: {
         sourceCandidateId,
         sourceRelation,
         evidenceEventIds,
+        creativePressure,
         hiddenInference,
         treatment,
         perceptionDelta,
@@ -1191,6 +1184,7 @@ export async function searchAuthorCreativeLensTreatments(input: {
     sourceCandidateId: "bare",
     sourceRelation: "bare supplied reality",
     evidenceEventIds: input.suppliedReality.map((event) => event.id),
+    creativePressure: "BARE",
     hiddenInference: "",
     treatment:
       "NONE / Bare Reality. Present only the supplied facts in their natural sequence with minimal treatment.",
@@ -2382,6 +2376,7 @@ export async function createAuthorExperience(input: {
               "Realization beats explanation. Make the inference felt and implied through supplied facts, sequence, contrast, callback, personification, status, and recontextualization. Never explain what the viewer is supposed to understand.",
               "Treat the assigned treatment as pressure, not literal world description. Push it hard enough that the same reality becomes a different experience.",
               "Available expressive productions compete on coherence, specificity, perception shift, surprise, payoff, cumulative meaning, and how alive the whole object feels.",
+              "Do not prefer a familiar named pressure merely because it is recognizable. Reward the production that discovers the strongest fact-dependent creative grammar, including a new grammar QRE has never named before.",
               "AMPLIFY REALITY: push metaphor, status, personification, rhetorical scale, double meaning, and semantic consequence hard. Do not retreat to literal receipt wording merely to stay grounded. Grounding protects the concrete world; it does not require literal phrasing.",
               "A cut may imply the supplied action rather than naming its verb when the whole production keeps the event recoverable. Make the viewer feel and infer the move. Do not explain it.",
               "Bare Reality is the truth-safe control. It wins only when no expressive production remains viable.",
@@ -2421,6 +2416,7 @@ export async function createAuthorExperience(input: {
             sourceCandidateId: assignment.sourceCandidateId,
             sourceRelation: assignment.sourceRelation,
             evidenceEventIds: assignment.evidenceEventIds,
+            creativePressure: assignment.creativePressure,
             hiddenInference: assignment.hiddenInference,
             treatment: assignment.treatment,
             perceptionDelta: assignment.perceptionDelta,
