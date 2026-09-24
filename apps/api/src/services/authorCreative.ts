@@ -498,7 +498,7 @@ export function unsupportedTreatmentMaterialReason(input: {
   const sourceSuppliesInnerState =
     /\b(?:happy|sad|angry|afraid|fear|anxious|anxiety|excited|calm|content|joy|joyful|love|loved|likes?|hates?|wants?|wanted|prefers?|believes?|felt|feels?|feeling|mood|emotion|apprehensive|apprehension|relieved|relief)\b/i.test(supplied);
   const claimsInnerState =
-    /\b(?:values?|valued|wants?|prefers?|believes?|expects?|apprehens(?:ion|ive)|anxious|anxiety|liberat(?:ion|ed)|wellbeing|well-being|joyful|contented|emotion(?:al|ally)?|love|responsibility|desire|intention|motive|feels?|felt|loss of self|identity loss|anonymity|anonymous|detachment|detached|isolation|isolated|alienation|alienated|surveillance|monitoring|accountability|obligation|compulsion|control|instability|emotional need|psychological|inner need|solace|devotion|dedication|monotony|meaninglessness)\b/i.test(text);
+    /\b(?:values?|valued|wants?|prefers?|believes?|expects?|apprehens(?:ion|ive)|anxious|anxiety|liberat(?:ion|ed)|wellbeing|well-being|joyful|contented|emotion(?:al|ally)?|love|responsibility|desire|intention|motive|feels?|felt|loss of self|identity loss|vanished self|erased self|unremembered dream|anonymity|anonymous|detachment|detached|isolation|isolated|alienation|alienated|surveillance|monitoring|accountability|obligation|compulsion|control|instability|emotional need|psychological|inner need|solace|devotion|dedication|monotony|meaninglessness|longing|melancholy|desperation|despair|unease|dread|emptiness|loneliness|hopelessness|yearning|inner void|existential)\b/i.test(text);
   if (!sourceSuppliesInnerState && claimsInnerState) {
     return "assigns unsupplied inner state, motive, value, emotion, or human condition";
   }
@@ -771,6 +771,12 @@ export async function searchAuthorCreativeLensTreatments(input: {
           "HARD_ENDPOINT_EVENT_ID is already locked by QRE. Earlier supplied evidence may earn it; the endpoint itself is not the creative idea.",
           "Operational anchors are provenance by default. Do not center timing, precision, logging, documentation, duration, or completion unless the supplied relationship truly depends on them.",
           "Search broadly in private. Return exactly three materially different latent relations and one finalist per relation in the same order.",
+          "Use these questions as creative search pressure: What changes the read of everything else? Which supplied detail refuses to stay ordinary? What becomes more interesting when two true facts are forced together? What later fact changes the meaning of an earlier one?",
+          "Ask: What can be made larger in meaning without becoming larger in fact? Where is the status shift? What is the smallest detail carrying the most story? What can be twisted rhetorically without creating a new event?",
+          "Ask: Which fact can become a verdict, trophy, threat, joke, challenge, battle, ritual, callback, or character signal without ceasing to be the same fact?",
+          "Do not summarize the reality. Make the reality acquire attitude. Do not explain the relationship; make the next move prove it.",
+          "Prefer a relation that could only have come from THESE facts over a generic mood that could fit anything.",
+          "A finalist should bend meaning as far as possible without bending reality.",
           "Each relation must name the supplied event IDs that make it possible. A missing fact is not a relation.",
           "hiddenInference is optional. Leave it empty unless the supplied facts genuinely support an unstated realization.",
           "Amplify reality through metaphor, status, personification, rhetorical scale, irony, contrast, callback, omission, escalation, compression, and recontextualization.",
@@ -882,7 +888,29 @@ export async function searchAuthorCreativeLensTreatments(input: {
                   type: "array",
                   minItems: 1,
                   maxItems: 4,
-                  items: { type: "string", maxLength: 72 },
+                  items: {
+                    type: "string",
+                    enum: [
+                      "contrast",
+                      "status",
+                      "personification",
+                      "rhetorical scale",
+                      "irony",
+                      "callback",
+                      "omission",
+                      "escalation",
+                      "compression",
+                      "juxtaposition",
+                      "inversion",
+                      "understatement",
+                      "double meaning",
+                      "recontextualization",
+                      "anticipation",
+                      "question",
+                      "motif",
+                      "repetition",
+                    ],
+                  },
                 },
                 intensity: {
                   type: "string",
