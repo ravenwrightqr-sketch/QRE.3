@@ -498,9 +498,12 @@ export function unsupportedTreatmentMaterialReason(input: {
   const sourceHasRecurrence =
     /\b(?:same|again|returned|return|repeated|recurring|every|weekly|back)\b/i.test(supplied);
 
-  // Treatment validation protects the reality boundary without policing style.
-  // Rhetorical roles are allowed. Explicit instructions to manufacture concrete
-  // world material are not.
+  // Treatment validation is intentionally permissive because this object is
+  // private Author thinking, not viewer-facing documentary copy. Protect only
+  // against conceptions that explicitly require manufacturing concrete world
+  // material or collapse into rendering direction. Mood, metaphor, role,
+  // pressure, fictional grammar, psychological vocabulary, symbolic recurrence,
+  // absurdity, and other interpretive language remain available to Creative Search.
   if (
     /\b(?:introduce|add|create|invent|include|assume)\b[^.!?]{0,48}\b(?:person|animal|object|prop|place|room|location|event|action|motive|cause|outcome|sensory detail|physical detail|world fact)\b/i.test(text)
   ) {
@@ -531,23 +534,26 @@ export function unsupportedTreatmentMaterialReason(input: {
     return "adds an unsupplied concrete comparative property";
   }
 
-  const sourceSuppliesInnerState =
-    /\b(?:happy|sad|angry|afraid|fear|anxious|anxiety|excited|calm|content|joy|joyful|love|loved|likes?|hates?|wants?|wanted|prefers?|believes?|felt|feels?|feeling|mood|emotion|apprehensive|apprehension|relieved|relief)\b/i.test(supplied);
-  const claimsInnerState =
-    /\b(?:values?|valued|wants?|prefers?|believes?|expects?|apprehens(?:ion|ive)|anxious|anxiety|liberat(?:ion|ed)|wellbeing|well-being|joyful|contented|emotion(?:al|ally)?|love|responsibility|desire|intention|motive|feels?|felt|loss of self|identity loss|vanished self|erased self|unremembered dream|anonymity|anonymous|detachment|detached|isolation|isolated|alienation|alienated|surveillance|monitoring|accountability|obligation|compulsion|control|instability|emotional need|psychological|inner need|solace|devotion|dedication|monotony|meaninglessness|longing|melancholy|desperation|despair|unease|dread|emptiness|loneliness|hopelessness|yearning|inner void|existential)\b/i.test(text);
-  if (!sourceSuppliesInnerState && claimsInnerState) {
-    return "assigns unsupplied inner state, motive, value, emotion, or human condition";
-  }
-
-  const claimsRealWorldRecurrence =
-    /\b(?:again|weekly|every\s+\w+|recurring|repeated|routine|habitual)\b/i.test(text);
-  if (
-    selectedMechanic !== "recurrence" &&
-    !sourceHasRecurrence &&
-    claimsRealWorldRecurrence
-  ) {
-    return "requires recurrence not established by supplied reality";
-  }
+  // PRIVATE TREATMENT LANGUAGE IS NOT DOCUMENTARY REALITY.
+  // A treatment is allowed to think in mood, status, metaphor, ritual,
+  // psychology, recurrence-like patterning, absurdity, genre grammar, and
+  // other interpretive language. Terms such as detached, ghostly, obsessive,
+  // ritualistic, repetitive, routine, melancholy, ominous, triumphant, or
+  // bureaucratic describe the creative read; they do not by themselves assert
+  // that the subject literally felt that state or that a real-world recurrence
+  // occurred.
+  //
+  // Do not reject a whole conception because its private planning vocabulary
+  // contains an emotion, human-condition word, or recurrence metaphor.
+  // Concrete realized claims are policed later by Author cut evaluation,
+  // chronological evidence checks, whole-production grounding, and RealityGraph.
+  //
+  // Treatment compatibility should reject only material instructions that
+  // actually require changing the supplied world (handled above), not the
+  // imagination used to reinterpret that world.
+  void selectedMechanic;
+  void sourceHasRecurrence;
+  void supplied;
 
   return undefined;
 }
