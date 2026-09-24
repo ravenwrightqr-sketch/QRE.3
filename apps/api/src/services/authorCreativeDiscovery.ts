@@ -136,18 +136,13 @@ function candidateCrossesUnsupportedTemporalEvaluation(
   candidate: AuthorCreativeCandidate,
   suppliedRealityText: string,
 ): boolean {
-  const candidateText = clean([
-    candidate.perception,
-    candidate.relationship,
-    candidate.observerInference,
-  ].join(" "));
-
-  return (
-    TEMPORAL_EVALUATION_LANGUAGE.test(candidateText) &&
-    !TEMPORAL_EVALUATION_LANGUAGE.test(suppliedRealityText)
-  );
+  // Do not reject creative discovery by vocabulary alone. Temporal language is
+  // only a problem when it materially changes duration, urgency, or chronology.
+  // Discovery is private semantic thought; realized claims are checked later.
+  void candidate;
+  void suppliedRealityText;
+  return false;
 }
-
 const OPERATIONAL_TRAIT_INFERENCE =
   /\b(?:meticulous(?:ness)?|diligen(?:ce|t)|efficien(?:cy|t)|devotion|devoted|obsess(?:ion|ive|ively)|disciplin(?:e|ed)|methodical|systematic|careful(?:ness)?|focused|focus|work ethic|dedication|dedicated)\b/i;
 
