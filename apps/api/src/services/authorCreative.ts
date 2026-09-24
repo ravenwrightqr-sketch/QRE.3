@@ -913,7 +913,7 @@ export async function searchAuthorCreativeLensTreatments(input: {
                   additionalProperties: false,
                   required: ["relation", "evidenceEventIds"],
                   properties: {
-                    relation: { type: "string", maxLength: 64 },
+                    relation: { type: "string", maxLength: 128 },
                     evidenceEventIds: {
                       type: "array",
                       minItems: 1,
@@ -934,10 +934,10 @@ export async function searchAuthorCreativeLensTreatments(input: {
               additionalProperties: false,
               required: ["creativePressure", "hiddenInference", "treatment", "perceptionDelta", "expressiveBehaviors", "intensity"],
               properties: {
-                creativePressure: { type: "string", maxLength: 48 },
-                hiddenInference: { type: "string", maxLength: 72 },
-                treatment: { type: "string", maxLength: 144 },
-                perceptionDelta: { type: "string", maxLength: 104 },
+                creativePressure: { type: "string", maxLength: 72 },
+                hiddenInference: { type: "string", maxLength: 120 },
+                treatment: { type: "string", maxLength: 220 },
+                perceptionDelta: { type: "string", maxLength: 160 },
                 expressiveBehaviors: {
                   type: "array",
                   minItems: 1,
@@ -2452,6 +2452,7 @@ export async function createAuthorExperience(input: {
               "Treat the assigned treatment as pressure, not literal world description. Push it hard enough that the same reality becomes a different experience.",
               "Available expressive productions compete on coherence, specificity, perception shift, surprise, payoff, cumulative meaning, and how alive the whole object feels.",
               "Do not prefer a familiar named pressure merely because it is recognizable. Reward the production that discovers the strongest fact-dependent creative grammar, including a new grammar QRE has never named before.",
+              "Complete the thought. Keep latent relations and treatments concise, but never end a relation, treatment, or perceptionDelta mid-phrase merely to be brief.",
               "AMPLIFY REALITY: push metaphor, status, personification, rhetorical scale, double meaning, and semantic consequence hard. Do not retreat to literal receipt wording merely to stay grounded. Grounding protects the concrete world; it does not require literal phrasing.",
               "A cut may imply the supplied action rather than naming its verb when the whole production keeps the event recoverable. Make the viewer feel and infer the move. Do not explain it.",
               "ABSENCE IS ALSO A FACT. Do not claim that a response, object, action, event, or interaction was absent unless supplied reality establishes that absence.",
