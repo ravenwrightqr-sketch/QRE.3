@@ -516,11 +516,11 @@ export function unsupportedTreatmentMaterialReason(input: {
     return "literalizes rhetorical framing into unsupplied reality";
   }
 
-  if (
-    /\b(?:camera|shot|zoom|lighting|edit(?:ing)?|cutaway|close[ -]?ups?|single[ -]?take|intercut(?:ting)?|vignettes?|color palette|colour palette|soundtrack|music|audio|sound design|sound effect|voiceover|staging|ui animation|visual transition|visuals?|visual focus|typography|overlay(?:s)?|graphics?|footage|slow[ -]?motion|sped[ -]?up|desaturated|framing as an image|screen treatment)\b/i.test(text)
-  ) {
-    return "belongs to rendering direction rather than creative treatment";
-  }
+  // Private Creative Search may occasionally leak presentation vocabulary
+  // (music, visual cues, camera language) while discovering an otherwise useful
+  // semantic conception. Do not discard the conception for that. Author/Mouth
+  // remains text-semantic only; presentation vocabulary is non-authoritative and
+  // must not become required reality or a reason to kill the treatment.
 
   // Do not let a creative reading manufacture concrete comparative properties
   // of the supplied world. Rhetorical scale ("twice the battle") remains
@@ -913,7 +913,7 @@ export async function searchAuthorCreativeLensTreatments(input: {
                   additionalProperties: false,
                   required: ["relation", "evidenceEventIds"],
                   properties: {
-                    relation: { type: "string", maxLength: 128 },
+                    relation: { type: "string", maxLength: 192 },
                     evidenceEventIds: {
                       type: "array",
                       minItems: 1,
@@ -935,9 +935,9 @@ export async function searchAuthorCreativeLensTreatments(input: {
               required: ["creativePressure", "hiddenInference", "treatment", "perceptionDelta", "expressiveBehaviors", "intensity"],
               properties: {
                 creativePressure: { type: "string", maxLength: 72 },
-                hiddenInference: { type: "string", maxLength: 120 },
-                treatment: { type: "string", maxLength: 220 },
-                perceptionDelta: { type: "string", maxLength: 160 },
+                hiddenInference: { type: "string", maxLength: 160 },
+                treatment: { type: "string", maxLength: 320 },
+                perceptionDelta: { type: "string", maxLength: 220 },
                 expressiveBehaviors: {
                   type: "array",
                   minItems: 1,
@@ -2453,6 +2453,7 @@ export async function createAuthorExperience(input: {
               "Available expressive productions compete on coherence, specificity, perception shift, surprise, payoff, cumulative meaning, and how alive the whole object feels.",
               "Do not prefer a familiar named pressure merely because it is recognizable. Reward the production that discovers the strongest fact-dependent creative grammar, including a new grammar QRE has never named before.",
               "Complete the thought. Keep latent relations and treatments concise, but never end a relation, treatment, or perceptionDelta mid-phrase merely to be brief.",
+              "Prefer one complete compact sentence over a longer explanation. Finish the semantic idea before spending words on examples or presentation.",
               "AMPLIFY REALITY: push metaphor, status, personification, rhetorical scale, double meaning, and semantic consequence hard. Do not retreat to literal receipt wording merely to stay grounded. Grounding protects the concrete world; it does not require literal phrasing.",
               "A cut may imply the supplied action rather than naming its verb when the whole production keeps the event recoverable. Make the viewer feel and infer the move. Do not explain it.",
               "ABSENCE IS ALSO A FACT. Do not claim that a response, object, action, event, or interaction was absent unless supplied reality establishes that absence.",
