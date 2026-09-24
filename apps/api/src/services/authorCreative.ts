@@ -2870,10 +2870,23 @@ export async function createAuthorExperience(input: {
         ))
         ? nominatedProduction
         : undefined;
-    // QRE owns final selection. Model nomination is diagnostic evidence, not
-    // authority. Rank accepted whole productions with QRE's own sequence
-    // scoring; use Bare only when no expressive production survives.
+
+    // QRE owns admissibility. Once multiple expressive productions are fully
+    // accepted and essentially tied, the model's whole-production nomination
+    // becomes useful creative evidence. Do not let thousandths in a mechanical
+    // line score pretend to measure conception quality. The model may break a
+    // close tie only inside the accepted expressive set; it can never rescue an
+    // unsafe/incomplete production or make Bare beat a viable expressive one.
+    const CREATIVE_TIE_BAND = 0.02;
+    const nominatedNearTop =
+      nominatedExpressiveProduction &&
+      topScoringExpressiveProduction &&
+      topScoringExpressiveProduction.score - nominatedExpressiveProduction.score <= CREATIVE_TIE_BAND
+        ? nominatedExpressiveProduction
+        : undefined;
+
     const winner =
+      nominatedNearTop ??
       topScoringExpressiveProduction ??
       nominatedExpressiveProduction ??
       bareFallbackProduction;
