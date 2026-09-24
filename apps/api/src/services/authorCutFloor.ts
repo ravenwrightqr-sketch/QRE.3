@@ -22,7 +22,7 @@ export type AuthorCutPolicyResult = {
   score: number;
   metrics: {
     groundedRatio: number;
-    economy: number;
+    compression: number;
     implication: number;
     inventionRisk: number;
     explanation: number;
@@ -101,13 +101,9 @@ function groundedRatio(text: string, world: AuthorCutWorld): number {
 }
 
 function lineEconomy(text: string): number {
-  const count = clean(text).split(/\s+/).filter(Boolean).length;
-  if (!count) return 0;
-  // Length is not a quality proxy. Reward only pathological over-explaining,
-  // otherwise keep the score neutral and let impact/implication carry quality.
-  if (count <= 18) return 1;
-  if (count <= 28) return 0.9;
-  return 0.75;
+  // Length is not a quality proxy. A tiny hit, a medium line, or a longer turn
+  // may all be right. Explanation and grounding are judged separately.
+  return clean(text) ? 1 : 0;
 }
 
 function implication(text: string): number {
@@ -196,7 +192,7 @@ export function evaluateAuthorCut(
     score: Number(score.toFixed(3)),
     metrics: {
       groundedRatio: Number(grounded.toFixed(3)),
-      economy: Number(economical.toFixed(3)),
+      compression: Number(economical.toFixed(3)),
       implication: Number(implied.toFixed(3)),
       inventionRisk: Number(invented.toFixed(3)),
       explanation: explained,
