@@ -2666,22 +2666,32 @@ export async function createAuthorExperience(input: {
 
     let repairedNomination: MemorySequenceCandidate | undefined;
 
-    const nominatedTreatmentIsAvailable =
-      !lensSearchEnabled ||
-      treatmentByVariantIndex.has(nominatedAny?.variantIndex ?? -1);
+    const repairTarget =
+      nominatedAny &&
+      nominatedAny.variantIndex < 3 &&
+      treatmentByVariantIndex.has(nominatedAny.variantIndex)
+        ? nominatedAny
+        : productions
+            .filter(
+              (production) =>
+                production.variantIndex < 3 &&
+                treatmentByVariantIndex.has(production.variantIndex) &&
+                !production.accepted,
+            )
+            .sort((a, b) => b.score - a.score)[0];
 
     if (
-      nominatedAny &&
-      nominatedTreatmentIsAvailable &&
-      !nominatedAny.accepted
+      lensSearchEnabled &&
+      repairTarget &&
+      !repairTarget.accepted
     ) {
       const repair = await repairNominatedMemoryProduction({
-        production: nominatedAny,
+        production: repairTarget,
         plan,
         suppliedReality: input.suppliedReality,
         subject: input.subject,
         thesis: plan.thesis,
-        assignedTreatment: treatmentByVariantIndex.get(nominatedAny.variantIndex),
+        assignedTreatment: treatmentByVariantIndex.get(repairTarget.variantIndex),
       });
       memoryRepairModelCalls += repair.modelCalls;
 
@@ -2696,12 +2706,12 @@ export async function createAuthorExperience(input: {
         for (const [order, replacement] of repair.replacements.entries()) {
           const variants = [...(repairedVariantsByOrder.get(order) ?? [])];
           while (variants.length < 4) variants.push("");
-          variants[nominatedAny.variantIndex] = replacement;
+          variants[repairTarget.variantIndex] = replacement;
           repairedVariantsByOrder.set(order, variants);
         }
 
         const rescored = scoreMemorySequence(
-          nominatedAny.variantIndex,
+          repairTarget.variantIndex,
           plan,
           repairedVariantsByOrder,
           input.suppliedReality,
@@ -2710,8 +2720,8 @@ export async function createAuthorExperience(input: {
         );
 
         debug("MEMORY-PRODUCTION-REPAIR", {
-          production: String.fromCharCode(65 + nominatedAny.variantIndex),
-          before: nominatedAny.lines.map((line) => ({
+          production: String.fromCharCode(65 + repairTarget.variantIndex),
+          before: repairTarget.lines.map((line) => ({
             text: line.text,
             accepted: line.accepted,
             reasons: line.reasons,
