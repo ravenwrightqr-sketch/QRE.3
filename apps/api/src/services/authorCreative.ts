@@ -1138,17 +1138,11 @@ export async function searchAuthorCreativeLensTreatments(input: {
         suppliedRealityText: materialText(input.suppliedReality.map((event) => event.text)),
         semanticMechanic: semanticMechanic.mechanic,
       });
-      const operationalAnchorReason = operationalAnchorDominanceReason({
-        sourceRelation,
-        hiddenInference,
-        treatment,
-        perceptionDelta,
-        evidenceEvents: evidenceEventIds
-          .map((eventId) => input.suppliedReality.find((event) => clean(event.id) === eventId))
-          .filter((event): event is AuthorCreativeEvent => Boolean(event)),
-        suppliedReality: input.suppliedReality,
-      });
-
+      // Operational anchors are allowed to become creative fuel. Exact times,
+      // counts, order, logs, arrivals, and completions may inspire a treatment
+      // when the model finds an interesting read in them. They remain factual
+      // anchors in RealityGraph and are policed at realized-cut grounding, not
+      // used here to kill a private conception before Mouth can explore it.
       const structuralReason =
         !sourceCandidateId ? "missing source candidate id" :
         !sourceRelation ? "missing source relation" :
@@ -1157,7 +1151,6 @@ export async function searchAuthorCreativeLensTreatments(input: {
         !ownsDistinctRelation ? "finalist must use its own distinct latent relation" :
         !provenanceMatches ? "finalist provenance does not match returned latent relation" :
         finalistBoundaryReason ? finalistBoundaryReason :
-        operationalAnchorReason ? operationalAnchorReason :
         !treatment ? "missing treatment" :
         !perceptionDelta ? "missing perception delta" :
         !expressiveBehaviors.length ? "missing expressive behaviors" :
