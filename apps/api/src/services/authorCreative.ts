@@ -1463,6 +1463,73 @@ function replayTokens(value: string): string[] {
     );
 }
 
+function futureEvidenceLeakReason(
+  text: string,
+  beatIndex: number,
+  plan: AuthorSemanticPlan,
+  suppliedReality: readonly AuthorCreativeEvent[],
+): string | undefined {
+  if (!clean(text)) return undefined;
+
+  const establishedIds = new Set(
+    plan.beats
+      .slice(0, beatIndex + 1)
+      .flatMap((beat) => beat.eventIds)
+      .map(clean),
+  );
+  const futureIds = new Set(
+    plan.beats
+      .slice(beatIndex + 1)
+      .flatMap((beat) => beat.eventIds)
+      .map(clean),
+  );
+
+  const establishedText = suppliedReality
+    .filter((event) => establishedIds.has(clean(event.id)))
+    .map((event) => clean(event.text))
+    .join(" ");
+  const futureText = suppliedReality
+    .filter((event) => futureIds.has(clean(event.id)))
+    .map((event) => clean(event.text))
+    .join(" ");
+
+  if (!futureText) return undefined;
+
+  const tokenSet = (value: string): Set<string> => {
+    const out = new Set(replayTokens(value));
+    for (const match of clean(value).toLowerCase().matchAll(/\b(?:[01]?\d|2[0-3]):[0-5]\d\b/g)) {
+      out.add(match[0]);
+    }
+    return out;
+  };
+
+  const candidate = tokenSet(text);
+  const established = tokenSet(establishedText);
+  const future = tokenSet(futureText);
+  const generic = new Set([
+    "clean",
+    "arrive",
+    "arrival",
+    "finish",
+    "complete",
+    "service",
+    "work",
+    "space",
+    "room",
+  ]);
+
+  const leaked = [...candidate].filter(
+    (token) =>
+      future.has(token) &&
+      !established.has(token) &&
+      !generic.has(token),
+  );
+
+  return leaked.length
+    ? `future-evidence-leak: ${leaked.slice(0, 3).join(", ")}`
+    : undefined;
+}
+
 function sourceReplayPenalty(text: string, beatFacts: readonly string[]): number {
   const candidate = replayTokens(text);
   if (!candidate.length) return 0;
@@ -1799,17 +1866,24 @@ function scoreMemorySequence(
     );
     const dropsSpecificTimeAnchor =
       variantIndex === 3 && !preservesSpecificTemporalAnchor(text, beatFacts);
+    const futureLeakReason =
+      variantIndex < 3
+        ? futureEvidenceLeakReason(text, index, plan, suppliedReality)
+        : undefined;
     const line = {
       beat,
       beatFacts,
       text,
       ...base,
-      accepted: base.accepted && !dropsSpecificTimeAnchor,
-      score: Math.max(0, base.score - payoffPenalty),
+      accepted: base.accepted && !dropsSpecificTimeAnchor && !futureLeakReason,
+      score: futureLeakReason
+        ? 0
+        : Math.max(0, base.score - payoffPenalty),
       reasons: [
         ...base.reasons,
         ...(payoffPenalty > 0 ? ["memory-payoff-replay"] : []),
         ...(dropsSpecificTimeAnchor ? ["drops-specific-time-anchor"] : []),
+        ...(futureLeakReason ? [futureLeakReason] : []),
       ],
     };
     if (text) prior.push(text);
@@ -1900,6 +1974,7 @@ async function repairNominatedMemoryProduction(input: {
           "A complete creative production already exists. Restore failed cuts without weakening the conception.",
           "PRESERVE THE CONCEPTION. PRESERVE THE REALITY. RECOVER THE ENERGY.",
           "The supplied reality is the whole available world. Repair may change expression, rhythm, and compression, but every factual implication must remain inside supplied evidence and prior established cuts.",
+          "A failed cut may not borrow evidence from a later beat. Keep each replacement inside its own suppliedEvidence plus prior established evidence. Future facts must stay future.",
           "Use the assigned treatment's perceptionDelta and expressiveBehaviors as repair authority. Do not invent a new treatment and do not flatten the cut into bare fact unless no grounded expression of the conception remains.",
           "QRE makes the meaning felt and implied, not explained. A repaired cut is a hit, not prose: compress until removing another word would weaken meaning, rhythm, character, or surprise, then stop.",
         ].join("\n"),
@@ -2387,6 +2462,8 @@ export async function createAuthorExperience(input: {
               "Without an assigned creative treatment, realize the approved meaning directly and still search for strong sequence-level authorship rather than generic paraphrase.",
             ]),
             "Return one complete production object for each listed production identity. Finish each production from first cut through payoff before starting the next.",
+            "BEAT EVIDENCE IS ORDERED AUTHORITY. A production line at order N may use that beat's supplied evidence plus evidence already established by earlier orders. It may not move a later room, object, timestamp, action, result, or other supplied fact into an earlier line.",
+            "Do not reshuffle facts merely to create rhythm. Transform the meaning of each beat where it actually occurs.",
           ] : [
             "For each beat, produce materially different short realizations and let the strongest grounded line win.",
           ]),
