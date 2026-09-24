@@ -526,7 +526,7 @@ export function unsupportedTreatmentMaterialReason(input: {
   const sourceSuppliesComparativeProperty =
     /\b(?:small(?:er|est)?|large(?:r|st)?|bigger|biggest|tiny|private|public|square feet|square footage|size|larger room|smaller room)\b/i.test(supplied);
   const claimsComparativeConcreteProperty =
-    /\b(?:smaller|larger|bigger|tinier|private(?:ly)?[ -]?used|public(?:ly)?[ -]?used|square feet|square footage|larger room|smaller room|more spacious|less spacious)\b/i.test(text);
+    /\b(?:private(?:ly)?[ -]?used|public(?:ly)?[ -]?used|square feet|square footage|larger room|smaller room|bigger room|tinier room|larger space|smaller space|bigger space|tinier space|more spacious|less spacious)\b/i.test(text);
   if (!sourceSuppliesComparativeProperty && claimsComparativeConcreteProperty) {
     return "adds an unsupplied concrete comparative property";
   }
@@ -930,7 +930,7 @@ export async function searchAuthorCreativeLensTreatments(input: {
               properties: {
                 creativePressure: { type: "string", maxLength: 48 },
                 hiddenInference: { type: "string", maxLength: 72 },
-                treatment: { type: "string", maxLength: 104 },
+                treatment: { type: "string", maxLength: 144 },
                 perceptionDelta: { type: "string", maxLength: 104 },
                 expressiveBehaviors: {
                   type: "array",
@@ -2427,8 +2427,8 @@ export async function createAuthorExperience(input: {
             ? "This is one IDENTITY character cluster, not a checklist. Return four short candidate realizations that synthesize the combination into character. Do not enumerate every supplied preference or simply restate them. The viewer should infer personality from the combination. Do not invent an event."
             : isMemoryMode
               ? realityDirect
-                ? "Return complete candidate productions in PRODUCTION-MAJOR form for the listed CREATIVE_TREATMENTS only. Make the meaning felt and implied, not explained. Push each assigned treatment as far as supplied reality supports through nonliteral rhetoric, sequence, status, metaphor, callback, and recontextualization. Keep the concrete world fixed and each underlying action/change recoverable. Operational anchors may stay in provenance unless they create the perception. Nominate the strongest complete production by number 1-4."
-                : "Return complete candidate productions in PRODUCTION-MAJOR form for the listed CREATIVE_TREATMENTS only. Make the meaning felt and implied, not explained. Treat each production as one finished QRE object unfolding through time. Push each assigned perception until the whole sequence reveals something surprising but true about supplied reality. Keep each underlying action/change recoverable. Operational anchors may stay in provenance unless they create the perception. The final cut should land the production using its local evidence plus already-established prior evidence. Nominate the strongest viable expressive production; Bare Reality is the truth fallback, not the creative target."
+                ? "Return complete candidate productions in PRODUCTION-MAJOR form for the listed CREATIVE_TREATMENTS only. Make the meaning felt and implied, not explained. Push each assigned treatment as far as supplied reality supports through nonliteral rhetoric, sequence, status, metaphor, callback, and recontextualization. Keep the concrete world fixed and each underlying action/change recoverable. Operational anchors may stay in provenance unless they create the perception. Nominate the strongest complete production by its production letter: A, B, C, or D."
+                : "Return complete candidate productions in PRODUCTION-MAJOR form for the listed CREATIVE_TREATMENTS only. Make the meaning felt and implied, not explained. Treat each production as one finished QRE object unfolding through time. Push each assigned perception until the whole sequence reveals something surprising but true about supplied reality. Keep each underlying action/change recoverable. Operational anchors may stay in provenance unless they create the perception. The final cut should land the production using its local evidence plus already-established prior evidence. Nominate the strongest viable expressive production by its production letter: A, B, or C. Bare Reality D is the truth fallback, not the creative target."
               : "Return four candidate lines per beat. The semantic plan controls meaning; the supplied event IDs control factual reality.",
         }),
       },
@@ -2477,9 +2477,8 @@ export async function createAuthorExperience(input: {
                 },
               },
               selectedProduction: {
-                type: "integer",
-                minimum: 1,
-                maximum: 4,
+                type: "string",
+                enum: ["A", "B", "C", "D"],
               },
               selectionReason: { type: "string", maxLength: 220 },
             }
@@ -2645,11 +2644,20 @@ export async function createAuthorExperience(input: {
         return b.score - a.score;
       });
 
-    const nominatedProductionNumber = Number(parsedMouth?.selectedProduction);
-    const nominatedAny = Number.isInteger(nominatedProductionNumber)
+    const selectedProductionRaw = clean(parsedMouth?.selectedProduction).toUpperCase();
+    const selectedProductionLetter =
+      /^[ABCD]$/.test(selectedProductionRaw)
+        ? selectedProductionRaw
+        : "";
+    const legacySelectedProductionNumber = Number(parsedMouth?.selectedProduction);
+    const nominatedVariantIndex = selectedProductionLetter
+      ? ["A", "B", "C", "D"].indexOf(selectedProductionLetter)
+      : Number.isInteger(legacySelectedProductionNumber)
+        ? legacySelectedProductionNumber - 1
+        : -1;
+    const nominatedAny = nominatedVariantIndex >= 0
       ? productions.find(
-          (production) =>
-            production.variantIndex === nominatedProductionNumber - 1,
+          (production) => production.variantIndex === nominatedVariantIndex,
         )
       : undefined;
 
@@ -2787,8 +2795,8 @@ export async function createAuthorExperience(input: {
     }));
 
     debug("MEMORY-PRODUCTIONS", {
-      modelNomination: Number.isInteger(nominatedProductionNumber)
-        ? String.fromCharCode(64 + nominatedProductionNumber)
+      modelNomination: nominatedVariantIndex >= 0
+        ? String.fromCharCode(65 + nominatedVariantIndex)
         : "NONE",
       modelSelectionReason: clean(parsedMouth?.selectionReason),
       winner: winner
