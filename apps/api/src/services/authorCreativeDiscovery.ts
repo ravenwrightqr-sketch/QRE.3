@@ -582,6 +582,48 @@ export async function discoverAuthorCreativeDirection(input: {
     normalizedRequestedLens !== "NONE";
   const allowedEventIds = new Set(input.events.map((event) => event.id));
 
+  // In business/service MEMORY with downstream Creative Lens active,
+  // Discovery must not spend a model call inventing an interpretation the
+  // Lens will replace. Hand the full supplied memory corridor forward
+  // deterministically. This keeps truth ownership here and creative search
+  // downstream where it belongs.
+  if (
+    lensStageOwnsFraming &&
+    isMemoryContext(input.domainContext) &&
+    input.events.length > 0
+  ) {
+    const evidenceEventIds = input.events.map((event) => event.id);
+    const selected: AuthorCreativeCandidate = {
+      id: "reality-direct",
+      mode: "RELATIONAL",
+      perception:
+        "Use the supplied memory corridor directly as creative material; no hidden relationship is asserted upstream.",
+      relationship: "",
+      observerInference: "",
+      evidenceEventIds,
+      whyItHits: "",
+      risk: "downstream_lens_owns_creative_interpretation",
+    };
+
+    return {
+      discovery: {
+        candidates: [],
+        selectedCandidateId: selected.id,
+        selected,
+        playableEventIds: evidenceEventIds,
+        backgroundEventIds: [],
+        experienceShape: [],
+        lens: requestedLens || "NONE",
+        confidence: 1,
+        selectionReason:
+          "Deterministic business-memory handoff to downstream Creative Lens.",
+        risk: selected.risk,
+      },
+      model: "deterministic-business-memory-handoff",
+      modelCalls: 0,
+    };
+  }
+
   const system = [
     "You are QRE Creative Discovery.",
     "Reality is fixed. Interpretation is free.",
