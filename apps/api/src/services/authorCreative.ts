@@ -13,6 +13,17 @@ const stripProductionLabel = (value: unknown): string =>
 const unique = (values: readonly string[]): string[] =>
   [...new Set(values.map(clean).filter(Boolean))];
 
+function stringArray(value: unknown, limit: number): string[] {
+  return Array.isArray(value)
+    ? unique(
+        value
+          .filter((item): item is string => typeof item === "string")
+          .map(clean)
+          .filter(Boolean),
+      ).slice(0, limit)
+    : [];
+}
+
 function debug(label: string, value: unknown): void {
   if (process.env.QRE_AUTHOR_DEBUG_RAW !== "true") return;
   const text = typeof value === "string"
@@ -73,9 +84,47 @@ export type AuthorSemanticPlan = {
 export type AuthorCreativeTreatmentAssignment = {
   id: string;
   semanticMechanic: string;
+  sourceCandidateId: string;
+  sourceRelation: string;
+  evidenceEventIds: string[];
+  hiddenInference: string;
   treatment: string;
-  devices: string[];
+  perceptionDelta: string;
+  expressiveBehaviors: string[];
   intensity: "LIGHT" | "MEDIUM" | "STRONG";
+};
+
+export type AuthorCreativeNotice = {
+  latentRelations: Array<{
+    relation: string;
+    evidenceEventIds: string[];
+  }>;
+};
+
+export type AuthorStoryGravity = {
+  mode: "ARC" | "SEQUENCE" | "PORTRAIT" | "WORLD_OPENING";
+  centerEventIds: string[];
+  openingSignalEventIds: string[];
+  characterSignalEventIds: string[];
+  tensionEventIds: string[];
+  escalationEventIds: string[];
+  sealingDetailEventId: string;
+  endpointEventId: string;
+  endpointMode: string;
+  endpointAuthority: "HARD";
+  backwardDependencies: Array<{
+    eventId: string;
+    supportsEventId: string;
+    function: string;
+  }>;
+};
+
+export type AuthorCreativeFailureLesson = {
+  failure: string;
+  reason: string;
+  pattern: string;
+  lesson: string;
+  scope: "UNIVERSAL";
 };
 
 export type AuthorSemanticMechanicCandidate = {
@@ -275,8 +324,13 @@ export function selectAuthorSemanticMechanic(input: {
 
 export type AuthorCreativeTreatment = {
   id: string;
+  sourceCandidateId: string;
+  sourceRelation: string;
+  evidenceEventIds: string[];
+  hiddenInference: string;
   treatment: string;
-  devices: string[];
+  perceptionDelta: string;
+  expressiveBehaviors: string[];
   intensity: "LIGHT" | "MEDIUM" | "STRONG";
 };
 
@@ -284,8 +338,12 @@ function isBareTreatment(treatment: AuthorCreativeTreatment): boolean {
   return /\b(?:none|bare reality|natural|minimal treatment)\b/i.test(
     materialText([
       treatment.id,
+      treatment.sourceCandidateId,
+      treatment.sourceRelation,
+      treatment.hiddenInference,
       treatment.treatment,
-      ...treatment.devices,
+      treatment.perceptionDelta,
+      ...treatment.expressiveBehaviors,
     ]),
   );
 }
@@ -299,13 +357,20 @@ function treatmentHasSequenceRelationship(
   return SEQUENCE_RELATIONSHIP_DEVICE.test(
     materialText([
       treatment.treatment,
-      ...treatment.devices,
+      treatment.perceptionDelta,
+      ...treatment.expressiveBehaviors,
     ]),
   );
 }
 
 export type AuthorCreativeTreatmentSetAssessment = {
   complete: boolean;
+  creativeSetComplete: boolean;
+  renderable: boolean;
+  requestedExpressiveCount: number;
+  generatedExpressiveCount: number;
+  groundedExpressiveCount: number;
+  bareFallbackRequired: boolean;
   bareCount: number;
   expressiveCount: number;
   sequenceRelationshipCount: number;
@@ -323,6 +388,8 @@ export function assessAuthorCreativeTreatmentSet(
   const sequenceRelationshipCount = expressive.filter(
     treatmentHasSequenceRelationship,
   ).length;
+  const creativeSetComplete = expressive.length === 3 && bare.length === 1;
+  const renderable = bare.length === 1;
 
   const reasons: string[] = [];
 
@@ -341,7 +408,13 @@ export function assessAuthorCreativeTreatmentSet(
   // Diagnostic only. Do not require the model to echo QRE's vocabulary
   // in order for a creative conception to count as valid.
   return {
-    complete: reasons.length === 0,
+    complete: creativeSetComplete,
+    creativeSetComplete,
+    renderable,
+    requestedExpressiveCount: 3,
+    generatedExpressiveCount: expressive.length,
+    groundedExpressiveCount: expressive.length,
+    bareFallbackRequired: expressive.length < 3,
     bareCount: bare.length,
     expressiveCount: expressive.length,
     sequenceRelationshipCount,
@@ -349,71 +422,95 @@ export function assessAuthorCreativeTreatmentSet(
   };
 }
 
+function operationalAnchorDominanceReason(input: {
+  sourceRelation: string;
+  hiddenInference: string;
+  treatment: string;
+  perceptionDelta: string;
+  evidenceEvents: readonly AuthorCreativeEvent[];
+  suppliedReality: readonly AuthorCreativeEvent[];
+}): string | undefined {
+  const creativeText = materialText([
+    input.sourceRelation,
+    input.hiddenInference,
+    input.treatment,
+    input.perceptionDelta,
+  ]);
+  const evidenceText = materialText(input.evidenceEvents.map((event) => event.text));
+  const allRealityText = materialText(input.suppliedReality.map((event) => event.text));
+
+  const clockTimeInEvidence = /\b(?:[01]?\d|2[0-3]):[0-5]\d\s*(?:am|pm)?\b/i.test(evidenceText);
+  const timeIsCreativeCenter = /\b(?:time|timing|minute|minutes|hour|hours|clock|precis(?:e|ion)|exact(?:ness|ly)?|quantif(?:y|iable|ied)|arrival|departure|start|finish|ending|completion|closed loop|log|logged|documentation)\b/i.test(creativeText);
+  const hasNonTemporalActionMaterial = /\b(?:clean(?:ed|ing)?|remove(?:d|s|ing)?|bath(?:ed|ing)?|feed|fed|refill(?:ed|ing)?|walk(?:ed|ing)?|move(?:d|s|ing)?|carry|carried|load(?:ed|ing)?|unload(?:ed|ing)?|drop(?:ped)?|pick(?:ed)?|wash(?:ed|ing)?|repair(?:ed|ing)?|fix(?:ed|ing)?|open(?:ed|ing)?|close(?:d|ing)?|try|tried|resist(?:ed|ing)?|stay(?:ed|ing)?|return(?:ed|ing)?|change(?:d|ing)?|give|gave|take|took|make|made)\b/i.test(allRealityText);
+  const evidenceIsMostlyOperational = input.evidenceEvents.length <= 2 && clockTimeInEvidence;
+
+  if (clockTimeInEvidence && timeIsCreativeCenter && evidenceIsMostlyOperational && hasNonTemporalActionMaterial) {
+    return "uses operational time anchors as the primary creative idea";
+  }
+
+  return undefined;
+}
+
 export function unsupportedTreatmentMaterialReason(input: {
   text: string;
   suppliedRealityText: string;
   semanticMechanic: string;
 }): string | undefined {
-  const text = input.text;
-  const supplied = input.suppliedRealityText;
+  const text = clean(input.text);
+  const supplied = clean(input.suppliedRealityText);
   const selectedMechanic = clean(input.semanticMechanic).toLowerCase();
-  const hasRecurrenceMechanic = selectedMechanic === "recurrence";
   const sourceHasRecurrence =
-    /\b(?:same|again|returned|return|repeated|recurring|every|sundays?|weekly|back)\b/i.test(supplied);
+    /\b(?:same|again|returned|return|repeated|recurring|every|weekly|back)\b/i.test(supplied);
 
+  // Treatment validation protects the reality boundary without policing style.
+  // Rhetorical roles are allowed. Explicit instructions to manufacture concrete
+  // world material are not.
   if (
-    /\b(?:actual|literal|real|physical|concrete)\s+(?:spy|courtroom|lawyer|weapon|handler|enemy|boss|kingdom|quest|mission)\b/i.test(text) ||
-    /\b(?:introduce|add|create|invent|include)\s+(?:a|an|the)?\s*(?:spy|courtroom|lawyer|weapon|handler|enemy|boss|kingdom|quest|mission)\b/i.test(text)
+    /\b(?:introduce|add|create|invent|include|assume)\b[^.!?]{0,48}\b(?:person|animal|object|prop|place|room|location|event|action|motive|cause|outcome|sensory detail|physical detail|world fact)\b/i.test(text)
   ) {
-    return "literalizes genre framing into unsupplied reality";
-  }
-
-  const concreteWorldNoun =
-    "(?:object|prop|item|smell|scent|sound|person|animal|room|location|physical detail|sensory detail|concrete detail|physical element|sensory element)";
-  const asksForNewConcreteMaterial = new RegExp(
-    `\\b(?:introduce|add|create|invent|include)\\b\\s+(?:(?:a|an|the)\\s+)?(?:[a-z-]+\\s+){0,3}${concreteWorldNoun}\\b`,
-    "i",
-  ).test(text);
-
-  if (asksForNewConcreteMaterial) {
-    return "asks treatment to introduce unsupplied concrete material";
+    return "requires unsupplied concrete reality";
   }
 
   if (
-    /\b(?:add|use|show|display|render|play|insert|create)\b[^.!?]{0,30}\b(?:camera|visuals?|visual displays?|zooms?|lighting|music|sound effects?|chimes?|voiceover|ui|charts?|graphs?|staging|vignettes?)\b/i.test(text)
+    /\b(?:actual|literal|real|physical|concrete)\s+(?:spy|courtroom|lawyer|weapon|handler|enemy|boss|kingdom|quest|mission|battle|crime|investigation)\b/i.test(text)
   ) {
-    return "asks treatment to introduce production implementation";
+    return "literalizes rhetorical framing into unsupplied reality";
   }
 
   if (
-    /\b(?:service|work|cleaning|housekeeping|task|execution|process|workflow|record|system|procedure)\b[^.!?]{0,45}\b(?:uses?|used|requires?|required|follows?|followed|records?|recorded|generates?|generated|creates?|created)\b[^.!?]{0,25}\b(?:log|logs|report|reports|checklist|checklists|protocol|dashboard|administrative system|workflow system)\b/i.test(text)
+    /\b(?:camera|shot|zoom|lighting|edit(?:ing)?|cutaway|close[ -]?ups?|single[ -]?take|intercut(?:ting)?|vignettes?|color palette|colour palette|soundtrack|music|audio|sound design|sound effect|voiceover|staging|ui animation|visual transition|visuals?|visual focus|typography|overlay(?:s)?|graphics?|footage|slow[ -]?motion|sped[ -]?up|desaturated|framing as an image|screen treatment)\b/i.test(text)
   ) {
-    return "literalizes administrative framing into unsupplied service reality";
+    return "belongs to rendering direction rather than creative treatment";
   }
 
-  const claimsUnsuppliedAgreementEvent =
-    /\b(?:completed contract|signed contract|legal agreement|agreement reached|deal closed)\b/i.test(text) ||
-    /\b(?:they|he|she|client|customer|worker|cleaner|housekeeper|parties?)\b[^.!?]{0,20}\b(?:signed|completed|executed|entered)\b[^.!?]{0,16}\b(?:(?:a|the)\s+)?(?:contract|agreement)\b/i.test(text);
+  // Do not let a creative reading manufacture concrete comparative properties
+  // of the supplied world. Rhetorical scale ("twice the battle") remains
+  // legal; factual claims about size, privacy, layout, duration, quantity, or
+  // physical condition require evidence.
+  const sourceSuppliesComparativeProperty =
+    /\b(?:small(?:er|est)?|large(?:r|st)?|bigger|biggest|tiny|private|public|square feet|square footage|size|larger room|smaller room)\b/i.test(supplied);
+  const claimsComparativeConcreteProperty =
+    /\b(?:smaller|larger|bigger|tinier|private(?:ly)?[ -]?used|public(?:ly)?[ -]?used|square feet|square footage|larger room|smaller room|more spacious|less spacious)\b/i.test(text);
+  if (!sourceSuppliesComparativeProperty && claimsComparativeConcreteProperty) {
+    return "adds an unsupplied concrete comparative property";
+  }
 
-  if (claimsUnsuppliedAgreementEvent) {
-    return "invents an unsupplied legal or contractual fact";
+  const sourceSuppliesInnerState =
+    /\b(?:happy|sad|angry|afraid|fear|anxious|anxiety|excited|calm|content|joy|joyful|love|loved|likes?|hates?|wants?|wanted|prefers?|believes?|felt|feels?|feeling|mood|emotion|apprehensive|apprehension|relieved|relief)\b/i.test(supplied);
+  const claimsInnerState =
+    /\b(?:values?|valued|wants?|prefers?|believes?|expects?|apprehens(?:ion|ive)|anxious|anxiety|liberat(?:ion|ed)|wellbeing|well-being|joyful|contented|emotion(?:al|ally)?|love|responsibility|desire|intention|motive|feels?|felt|loss of self|identity loss|anonymity|anonymous|detachment|detached|isolation|isolated|alienation|alienated|surveillance|monitoring|accountability|obligation|compulsion|control|instability|emotional need|psychological|inner need|solace|devotion|dedication|monotony|meaninglessness)\b/i.test(text);
+  if (!sourceSuppliesInnerState && claimsInnerState) {
+    return "assigns unsupplied inner state, motive, value, emotion, or human condition";
   }
 
   const claimsRealWorldRecurrence =
-    /\b(?:service|visit|work|task|event|process|housekeeping)\s+(?:is|was|becomes?|became|feels?|felt)?\s*(?:routine|recurring|repeated|cyclical|weekly|habitual)\b/i.test(text) ||
-    /\b(?:service|visit|work|task|event|process|housekeeping)\s+(?:recurs?|repeats?|returns?)\b/i.test(text) ||
-    /\b(?:again|weekly|every\s+\w+|returns?)\b[^.]{0,40}\b(?:service|visit|work|task|event|process|housekeeping)\b/i.test(text);
-
-  if (!hasRecurrenceMechanic && !sourceHasRecurrence && claimsRealWorldRecurrence) {
-    return "infers recurrence from a single supplied event";
-  }
-
-  const claimsRealWorldTimestampRecurrence =
-    /\b(?:the\s+)?(?:timestamp|time stamp|clock time|arrival time|finish time)\b\s+(?:is|was|kept|remained|became)?\s*(?:the\s+same\s+)?(?:again|weekly|recurring|repeated|repeats|recurs)\b/i.test(text) ||
-    /\b(?:same time|same timestamp|same clock time)\b[^.]{0,60}\b(?:again|every|weekly|across visits?|across events?)\b/i.test(text);
-
-  if (!sourceHasRecurrence && claimsRealWorldTimestampRecurrence) {
-    return "requires unsupported timestamp recurrence";
+    /\b(?:again|weekly|every\s+\w+|recurring|repeated|routine|habitual)\b/i.test(text);
+  if (
+    selectedMechanic !== "recurrence" &&
+    !sourceHasRecurrence &&
+    claimsRealWorldRecurrence
+  ) {
+    return "requires recurrence not established by supplied reality";
   }
 
   return undefined;
@@ -428,18 +525,6 @@ function authorCreativeTreatmentCompatibility(input: {
   reason: string;
 } {
   const selected = clean(input.semanticMechanic.mechanic).toLowerCase();
-  if (!selected || selected === "none") {
-    return {
-      compatible: true,
-      reason: "no selected semantic mechanic constraint",
-    };
-  }
-
-  const candidate = materialText([
-    input.treatment.id,
-    input.treatment.treatment,
-    ...input.treatment.devices,
-  ]);
 
   if (isBareTreatment(input.treatment)) {
     return {
@@ -448,6 +533,12 @@ function authorCreativeTreatmentCompatibility(input: {
     };
   }
 
+  const candidate = materialText([
+    input.treatment.sourceRelation,
+    input.treatment.treatment,
+    input.treatment.perceptionDelta,
+    ...input.treatment.expressiveBehaviors,
+  ]);
   const suppliedRealityText = materialText((input.suppliedReality ?? []).map((event) => event.text));
   const unsupportedReason = unsupportedTreatmentMaterialReason({
     text: candidate,
@@ -459,6 +550,13 @@ function authorCreativeTreatmentCompatibility(input: {
     return {
       compatible: false,
       reason: unsupportedReason,
+    };
+  }
+
+  if (!selected || selected === "none") {
+    return {
+      compatible: true,
+      reason: "grounded treatment; no semantic mechanic constraint is required",
     };
   }
 
@@ -475,21 +573,47 @@ function treatmentAsAssignment(
   return {
     id: treatment.id,
     semanticMechanic: isBareTreatment(treatment) ? "NONE" : semanticMechanic.mechanic,
+    sourceCandidateId: treatment.sourceCandidateId,
+    sourceRelation: treatment.sourceRelation,
+    evidenceEventIds: treatment.evidenceEventIds,
+    hiddenInference: treatment.hiddenInference,
     treatment: treatment.treatment,
-    devices: treatment.devices,
+    perceptionDelta: treatment.perceptionDelta,
+    expressiveBehaviors: treatment.expressiveBehaviors,
     intensity: treatment.intensity,
   };
 }
 
+function treatmentProductionLetter(
+  treatment: Pick<AuthorCreativeTreatmentAssignment, "id" | "semanticMechanic">,
+): "A" | "B" | "C" | "D" {
+  const match = clean(treatment.id).match(/(\d+)/);
+  const index = match ? Number(match[1]) : 1;
+  if (index === 2) return "B";
+  if (index === 3) return "C";
+  if (index === 4) return "D";
+  return "A";
+}
+
+function treatmentVariantIndex(
+  treatment: Pick<AuthorCreativeTreatmentAssignment, "id" | "semanticMechanic">,
+): number {
+  return ["A", "B", "C", "D"].indexOf(treatmentProductionLetter(treatment));
+}
+
 export type AuthorCreativeTreatmentSearchResult = {
   lensSearchEnabled: boolean;
-  lensMode: "NONE" | "REQUESTED" | "AUTO_BUSINESS";
+  lensMode: "NONE" | "REQUESTED" | "AUTO";
   autoBusinessLens: boolean;
   rawTreatmentResponse: string;
+  searchFallbackReason?: string;
   model: string;
   modelCalls: number;
   semanticMechanic: AuthorSemanticMechanicCandidate;
   semanticMechanicCandidates: AuthorSemanticMechanicCandidate[];
+  creativeNotice: AuthorCreativeNotice;
+  storyGravity: AuthorStoryGravity;
+  failureLessons: AuthorCreativeFailureLesson[];
   parsedTreatments: AuthorCreativeTreatment[];
   acceptedTreatments: AuthorCreativeTreatmentAssignment[];
   rejectedTreatments: Array<{
@@ -498,6 +622,110 @@ export type AuthorCreativeTreatmentSearchResult = {
   }>;
   treatmentSetAssessment: AuthorCreativeTreatmentSetAssessment;
 };
+
+function validStoryEventIds(
+  value: unknown,
+  suppliedReality: readonly AuthorCreativeEvent[],
+  limit = 16,
+): string[] {
+  return Array.isArray(value)
+    ? unique(
+        value
+          .filter((id): id is string => typeof id === "string")
+          .map(clean)
+          .filter((id) => suppliedReality.some((event) => clean(event.id) === id)),
+      ).slice(0, limit)
+    : [];
+}
+
+function isOperationalOnlyStoryEvent(event: AuthorCreativeEvent | undefined): boolean {
+  if (!event) return false;
+  const text = clean(event.text).toLowerCase();
+  if (!text) return false;
+  const stripped = text
+    .replace(/\b(?:[01]?\d|2[0-3]):[0-5]\d\s*(?:am|pm)?\b/gi, " ")
+    .replace(/\b(?:arrived?|arrival|started?|start|finished?|finish|completed?|completion|departed?|departure|checked in|checked out)\b/gi, " ")
+    .replace(/[^a-z0-9]+/g, " ")
+    .trim();
+  return stripped.length === 0;
+}
+
+function creativeEvidenceProjection(
+  suppliedReality: readonly AuthorCreativeEvent[],
+): Array<{ id: string; text: string }> {
+  return suppliedReality.map((event) => {
+    const exact = clean(event.text);
+    // Creative Search does not need exact clock values to discover the story.
+    // Keep the semantic event (arrived / finished / action / object / state),
+    // while exact operational anchors remain in RealityGraph for provenance and
+    // later truth checking. This prevents precise metadata from becoming the
+    // accidental center of gravity simply because it looks distinctive.
+    const semanticText = exact
+      .replace(/\b(?:[01]?\d|2[0-3]):[0-5]\d\s*(?:am|pm)?\b/gi, " ")
+      .replace(/\s+/g, " ")
+      .replace(/\s+([,.;:!?])/g, "$1")
+      .replace(/^[,.;:\-\s]+|[,;:\-\s]+$/g, "")
+      .trim();
+    return {
+      id: clean(event.id),
+      text: semanticText || exact,
+    };
+  });
+}
+
+function fallbackStoryGravity(
+  suppliedReality: readonly AuthorCreativeEvent[],
+): AuthorStoryGravity {
+  const ids = suppliedReality.map((event) => clean(event.id)).filter(Boolean);
+  const endpointEventId = ids[ids.length - 1] ?? "";
+  const sealingDetailEventId = ids.length > 1 ? ids[ids.length - 2]! : endpointEventId;
+  const backwardDependencies = ids
+    .slice(0, -1)
+    .map((eventId, index) => ({
+      eventId,
+      supportsEventId: ids[index + 1] ?? endpointEventId,
+      function: "earlier supplied reality earns the later supplied state",
+    }))
+    .reverse()
+    .slice(0, 6);
+
+  return {
+    mode: ids.length > 1 ? "SEQUENCE" : "PORTRAIT",
+    centerEventIds: ids.slice(0, Math.min(ids.length, 3)),
+    openingSignalEventIds: ids.slice(0, 1),
+    characterSignalEventIds: [],
+    tensionEventIds: [],
+    escalationEventIds: ids.slice(1, Math.max(1, ids.length - 1)),
+    sealingDetailEventId,
+    endpointEventId,
+    endpointMode: "supplied endpoint",
+    endpointAuthority: "HARD",
+    backwardDependencies,
+  };
+}
+
+function failureLessonFromReason(
+  treatment: AuthorCreativeTreatment,
+  reason: string,
+): AuthorCreativeFailureLesson {
+  const normalized = clean(reason);
+  const map: Array<[RegExp, string, string]> = [
+    [/inner state|motive|value|emotion/i, "interpretation -> unsupplied inner state", "Realize meaning through framing and implication; never convert it into a new motive, value, belief, or emotion."],
+    [/operational time anchors/i, "operational anchor -> creative center", "Keep time, geo, counts, and measurements as provenance unless the supplied relationship makes the anchor itself meaningful."],
+    [/rendering direction/i, "semantic treatment -> presentation direction", "Creative Search chooses meaning and language behavior; camera, editing, staging, sound, and rendering stay outside Author."],
+    [/recurrence/i, "single occurrence -> recurrence", "Do not promote one supplied occurrence into a routine, habit, cycle, or repeated history."],
+    [/provenance/i, "creative leap -> mismatched evidence", "Every story move must carry the exact supplied events that make that move possible."],
+    [/concrete reality|literalizes/i, "rhetorical frame -> new concrete world fact", "Bend interpretation, not reality. Rhetoric may be extreme; concrete events remain supplied-only."],
+  ];
+  const found = map.find(([pattern]) => pattern.test(normalized));
+  return {
+    failure: clean(treatment.treatment || treatment.hiddenInference || treatment.sourceRelation),
+    reason: normalized,
+    pattern: found?.[1] ?? "candidate -> invalid realization",
+    lesson: found?.[2] ?? "Preserve the creative move only when it remains evidence-bound and makes the supplied reality read differently without adding facts.",
+    scope: "UNIVERSAL",
+  };
+}
 
 export async function searchAuthorCreativeLensTreatments(input: {
   subject: string;
@@ -521,85 +749,123 @@ export async function searchAuthorCreativeLensTreatments(input: {
     isBusinessCreativeContext(input.domainContext);
   const lensSearchEnabled =
     !explicitLensOff &&
-    (semanticMechanic.mechanic !== "NONE" || explicitLensProvided) &&
-    (explicitLensProvided || autoBusinessLens);
+    input.suppliedReality.length > 0;
   const lensMode =
     explicitLensOff
       ? "NONE"
       : explicitLensProvided
         ? "REQUESTED"
-        : autoBusinessLens
-          ? "AUTO_BUSINESS"
-          : "NONE";
-  const modelSemanticBoundary = explicitLensProvided
-    ? {
-        requestedLens,
-        reason: semanticMechanic.reason,
-      }
-    : {
-        reason: semanticMechanic.reason,
-      };
-
+        : "AUTO";
+  let searchFallbackReason: string | undefined;
   const lensResult = lensSearchEnabled
     ? await localModelGenerate(
     [
       {
         role: "system",
         content: [
-          "You are QRE Creative Treatment Search.",
+          "You are QRE Creative Search.",
           ...QRE_CREATIVE_OPERATING_DOCTRINE,
-          "Reality is fixed. Grounded semantic structure is closed.",
-          "The approved meaning and beat structure already exist. Do not rediscover factual reality and do not alter the semantic thesis.",
-          "SEMANTIC_BOUNDARY describes grounded structure only. It is not a style, genre, voice, or creative answer.",
-          "Do not turn the semantic mechanic into the treatment or echo its identifier as viewer-facing language.",
-          "Generate exactly three materially different expressive treatments using only supplied reality and the grounded semantic boundary.",
-          "Do not generate Bare Reality. QRE supplies that control deterministically outside the model.",
-          "The three expressive treatments must emerge from THIS material. Search for what is peculiar, funny, tense, disproportionate, awkward, elegant, repetitive, abrupt, specific, or otherwise usable in the supplied facts and their sequence.",
-          "Do not choose from a house menu of genres. Invent the treatment that this material wants, even if the treatment has no familiar genre name.",
-          "Each expressive treatment must have a governing relationship across the whole sequence. It should change how earlier cuts are perceived when later cuts arrive.",
-          "Useful creative mechanisms include changed meaning through repetition, setup/payoff, compression, escalation, contrast, interruption, withholding, recontextualization, misdirection, deadpan emphasis, disproportionate seriousness, or a new mechanism you discover yourself. These are mechanisms, not a menu.",
-          "Prefer a surprising material-specific conception over a polished generic style.",
-          "A treatment is not a thesaurus. Changing 'arrived' to 'commencement' or 'cleaned' to 'sanitation' without a sequence idea is not authorship.",
-          "A treatment is not a new story. Concrete reality remains exactly the supplied reality.",
-          "You may transform attitude, implication, status, rhythm, emphasis, compression, rhetorical role, and the viewer's interpretation of supplied facts.",
-          "You may be strange, funny, severe, elegant, irreverent, absurd, intimate, ominous, clinical, childish, grandiose, petty, or otherwise unexpected when the material supports the performance.",
-          "Do not invent a person, object, place, physical action, sensory fact, motive, outcome, chronology, recurrence, or real-world system that is not supplied.",
-          "Rhetorical performance is free. A phrase may behave like a status, ritual, score, record, accusation, trophy, warning, confession, or other imagined rhetorical role without claiming that such a real system or event exists.",
-          "Repetition inside the sequence is a language device. It does not mean the underlying real event recurred.",
-          "Use supplied timestamps, quantities, names, and other anchors creatively when useful. Preserve what makes them specific.",
-          "Describe what the LANGUAGE and SEQUENCE will do. Do not describe camera, music, UI, staging, or other rendering implementation.",
-          "Do not write final cuts. Give Mouth a concise governing conception and its devices.",
-          "The semantic mechanic is structural authority only. Treatments may radically change expression while preserving that structure and approved meaning.",
-          "Return concise treatment descriptions and devices only. Do not return a genre, style-label, or mechanic field.",
+          "Reality is fixed. Creative interpretation is aggressive. New concrete world facts are forbidden.",
+          "Classify STORY_GRAVITY.mode as ARC, SEQUENCE, PORTRAIT, or WORLD_OPENING from the supplied event IDs only.",
+          "Find the strongest relationships already inside CREATIVE_EVIDENCE. Do not force a thesis, psychology, routine, hidden history, or genre.",
+          "HARD_ENDPOINT_EVENT_ID is already locked by QRE. Earlier supplied evidence may earn it; the endpoint itself is not the creative idea.",
+          "Operational anchors are provenance by default. Do not center timing, precision, logging, documentation, duration, or completion unless the supplied relationship truly depends on them.",
+          "Search broadly in private. Return exactly three materially different latent relations and one finalist per relation in the same order.",
+          "Each relation must name the supplied event IDs that make it possible. A missing fact is not a relation.",
+          "hiddenInference is optional. Leave it empty unless the supplied facts genuinely support an unstated realization.",
+          "Amplify reality through metaphor, status, personification, rhetorical scale, irony, contrast, callback, omission, escalation, compression, and recontextualization.",
+          "Rhetoric may be more extreme than reality. The concrete world may not become more specific than the evidence.",
+          "Treatments describe semantic/verbal transformation only. No camera, visuals, typography, overlays, sound, editing, staging, or rendering instructions.",
+          "Make the same reality read differently. Make meaning felt and implied, not explained.",
+          "Protect the strange; police the facts.",
         ].join("\n"),
       },
       {
         role: "user",
         content: JSON.stringify({
           SUBJECT: input.subject,
-          SUPPLIED_REALITY: input.suppliedReality,
-          APPROVED_THESIS: input.plan.thesis,
-          APPROVED_BEATS: input.plan.beats,
-          CREATIVE_OPPORTUNITY: input.creativeOpportunity,
-          RELATION: input.relation,
-          EXPERIENCE_MODE: clean(input.experienceMode) || undefined,
-          LENS_MODE: lensMode,
+          CREATIVE_EVIDENCE: creativeEvidenceProjection(input.suppliedReality),
+          HARD_ENDPOINT_EVENT_ID: fallbackStoryGravity(input.suppliedReality).endpointEventId,
+          MODE_HINT: clean(input.experienceMode) || undefined,
           REQUESTED_LENS: requestedLens || undefined,
-          SEMANTIC_BOUNDARY: modelSemanticBoundary,
+          SEMANTIC_MECHANIC: semanticMechanic.mechanic,
           instruction:
-            "Find exactly three expressive conceptions discovered from this exact material. Do not generate Bare Reality and do not reach for a familiar genre just because it is available. Look at the supplied facts and sequence until you find three different governing ideas that could make the experience feel authored and surprising. Transform perception, not reality. Preserve the approved meaning and concrete world.",
+            "Return STORY_GRAVITY plus exactly three distinct latent relations and exactly three finalist moves. Finalist 1 uses relation 1, finalist 2 relation 2, finalist 3 relation 3. Keep provenance in the relations; do not repeat relation text or event IDs inside finalists. Leave hiddenInference empty when no real unstated realization is earned.",
         }),
       },
     ],
     "json",
     {
-      numPredict: 520,
-      temperature: 0.88,
+      numPredict: 760,
+      temperature: 0.98,
       jsonSchema: {
         type: "object",
         additionalProperties: false,
-        required: ["treatments"],
+        required: ["storyGravity", "creativeNotice", "treatments"],
         properties: {
+          storyGravity: {
+            type: "object",
+            additionalProperties: false,
+            required: [
+              "mode",
+              "centerEventIds",
+              "openingSignalEventIds",
+              "characterSignalEventIds",
+              "tensionEventIds",
+              "escalationEventIds",
+              "sealingDetailEventId",
+              "backwardDependencies",
+            ],
+            properties: {
+              mode: { type: "string", enum: ["ARC", "SEQUENCE", "PORTRAIT", "WORLD_OPENING"] },
+              centerEventIds: { type: "array", minItems: 1, maxItems: 6, items: { type: "string", maxLength: 64 } },
+              openingSignalEventIds: { type: "array", minItems: 0, maxItems: 4, items: { type: "string", maxLength: 64 } },
+              characterSignalEventIds: { type: "array", minItems: 0, maxItems: 4, items: { type: "string", maxLength: 64 } },
+              tensionEventIds: { type: "array", minItems: 0, maxItems: 4, items: { type: "string", maxLength: 64 } },
+              escalationEventIds: { type: "array", minItems: 0, maxItems: 6, items: { type: "string", maxLength: 64 } },
+              sealingDetailEventId: { type: "string", maxLength: 64 },
+              backwardDependencies: {
+                type: "array",
+                minItems: 0,
+                maxItems: 6,
+                items: {
+                  type: "object",
+                  additionalProperties: false,
+                  required: ["eventId", "supportsEventId"],
+                  properties: {
+                    eventId: { type: "string", maxLength: 64 },
+                    supportsEventId: { type: "string", maxLength: 64 },
+                  },
+                },
+              },
+            },
+          },
+          creativeNotice: {
+            type: "object",
+            additionalProperties: false,
+            required: ["latentRelations"],
+            properties: {
+              latentRelations: {
+                type: "array",
+                minItems: 3,
+                maxItems: 3,
+                items: {
+                  type: "object",
+                  additionalProperties: false,
+                  required: ["relation", "evidenceEventIds"],
+                  properties: {
+                    relation: { type: "string", maxLength: 64 },
+                    evidenceEventIds: {
+                      type: "array",
+                      minItems: 1,
+                      maxItems: 16,
+                      items: { type: "string", maxLength: 64 },
+                    },
+                  },
+                },
+              },
+            },
+          },
           treatments: {
             type: "array",
             minItems: 3,
@@ -607,15 +873,16 @@ export async function searchAuthorCreativeLensTreatments(input: {
             items: {
               type: "object",
               additionalProperties: false,
-              required: ["id", "treatment", "devices", "intensity"],
+              required: ["hiddenInference", "treatment", "perceptionDelta", "expressiveBehaviors", "intensity"],
               properties: {
-                id: { type: "string", maxLength: 32 },
-                treatment: { type: "string", maxLength: 220 },
-                devices: {
+                hiddenInference: { type: "string", maxLength: 72 },
+                treatment: { type: "string", maxLength: 104 },
+                perceptionDelta: { type: "string", maxLength: 104 },
+                expressiveBehaviors: {
                   type: "array",
                   minItems: 1,
-                  maxItems: 6,
-                  items: { type: "string", maxLength: 48 },
+                  maxItems: 4,
+                  items: { type: "string", maxLength: 72 },
                 },
                 intensity: {
                   type: "string",
@@ -627,25 +894,173 @@ export async function searchAuthorCreativeLensTreatments(input: {
         },
       },
     },
-  )
+  ).catch((error: unknown) => {
+    searchFallbackReason =
+      clean((error as { message?: unknown })?.message) ||
+      "creative_search_failed";
+    return {
+      text: "",
+      model: "deterministic-bare-search-fallback",
+      provider: "local" as const,
+    };
+  })
     : {
         text: "",
         model: "none",
+        provider: "local" as const,
       };
 
   const parsedLens = lensSearchEnabled
     ? parseJson(lensResult.text)
     : undefined;
-  const rawTreatments = Array.isArray(parsedLens?.treatments) ? parsedLens.treatments : [];
-  const modelTreatments: AuthorCreativeTreatment[] = rawTreatments
-    .map((value, index): AuthorCreativeTreatment | undefined => {
+  const fallbackGravity = fallbackStoryGravity(input.suppliedReality);
+  const rawStoryGravity =
+    parsedLens?.storyGravity && typeof parsedLens.storyGravity === "object"
+      ? parsedLens.storyGravity as Record<string, unknown>
+      : {};
+  const suppliedEventIds = new Set(input.suppliedReality.map((event) => clean(event.id)));
+  // Endpoint authority belongs to QRE, not the model. The final supplied event is
+  // locked before creative search so interpretation cannot mutate the ending.
+  const endpointEventId = fallbackGravity.endpointEventId;
+  const rawSealingDetailEventId = clean(rawStoryGravity.sealingDetailEventId);
+  const rawSealingEvent = input.suppliedReality.find((event) => clean(event.id) === rawSealingDetailEventId);
+  const hasNonOperationalPreEndpointEvidence = input.suppliedReality
+    .slice(0, -1)
+    .some((event) => !isOperationalOnlyStoryEvent(event));
+  const sealingDetailEventId = suppliedEventIds.has(rawSealingDetailEventId) &&
+    !(hasNonOperationalPreEndpointEvidence && isOperationalOnlyStoryEvent(rawSealingEvent))
+      ? rawSealingDetailEventId
+      : fallbackGravity.sealingDetailEventId;
+  const rawBackwardDependencies = Array.isArray(rawStoryGravity.backwardDependencies)
+    ? rawStoryGravity.backwardDependencies
+    : [];
+  const eventOrder = new Map(input.suppliedReality.map((event, index) => [clean(event.id), index]));
+  const parsedBackwardDependencies = rawBackwardDependencies
+    .map((value): AuthorStoryGravity["backwardDependencies"][number] | undefined => {
       if (!value || typeof value !== "object") return undefined;
       const record = value as Record<string, unknown>;
+      const eventId = clean(record.eventId);
+      const supportsEventId = clean(record.supportsEventId);
+      if (!suppliedEventIds.has(eventId) || !suppliedEventIds.has(supportsEventId)) return undefined;
+      const fromOrder = eventOrder.get(eventId);
+      const toOrder = eventOrder.get(supportsEventId);
+      // Backward search is discovered from the endpoint, but each dependency edge
+      // must still point forward through reality: earlier evidence earns later evidence.
+      if (fromOrder === undefined || toOrder === undefined || fromOrder >= toOrder) return undefined;
+      return {
+        eventId,
+        supportsEventId,
+        function: "earlier supplied evidence earns the later supplied evidence",
+      };
+    })
+    .filter((value): value is AuthorStoryGravity["backwardDependencies"][number] => Boolean(value))
+    .slice(0, 6);
+  const rawStoryMode = clean(rawStoryGravity.mode).toUpperCase();
+  const storyMode: AuthorStoryGravity["mode"] =
+    rawStoryMode === "ARC" || rawStoryMode === "SEQUENCE" || rawStoryMode === "PORTRAIT" || rawStoryMode === "WORLD_OPENING"
+      ? rawStoryMode
+      : fallbackGravity.mode;
+  const centerEventIds = validStoryEventIds(rawStoryGravity.centerEventIds, input.suppliedReality, 6);
+  const nonOperationalSignalIds = (value: unknown, limit: number) =>
+    validStoryEventIds(value, input.suppliedReality, limit).filter((eventId) =>
+      !isOperationalOnlyStoryEvent(input.suppliedReality.find((event) => clean(event.id) === eventId)),
+    );
+  const storyGravity: AuthorStoryGravity = {
+    mode: storyMode,
+    centerEventIds: centerEventIds.length ? centerEventIds : fallbackGravity.centerEventIds,
+    openingSignalEventIds: validStoryEventIds(rawStoryGravity.openingSignalEventIds, input.suppliedReality, 4),
+    characterSignalEventIds: nonOperationalSignalIds(rawStoryGravity.characterSignalEventIds, 4),
+    tensionEventIds: nonOperationalSignalIds(rawStoryGravity.tensionEventIds, 4),
+    escalationEventIds: nonOperationalSignalIds(rawStoryGravity.escalationEventIds, 6),
+    sealingDetailEventId,
+    endpointEventId,
+    endpointMode: fallbackGravity.endpointMode,
+    endpointAuthority: "HARD",
+    backwardDependencies: parsedBackwardDependencies.length
+      ? parsedBackwardDependencies
+      : fallbackGravity.backwardDependencies,
+  };
+
+  const rawCreativeNotice =
+    parsedLens?.creativeNotice && typeof parsedLens.creativeNotice === "object"
+      ? parsedLens.creativeNotice as Record<string, unknown>
+      : {};
+  const latentRelations = Array.isArray(rawCreativeNotice.latentRelations)
+    ? rawCreativeNotice.latentRelations
+        .map((value): AuthorCreativeNotice["latentRelations"][number] | undefined => {
+          if (!value || typeof value !== "object") return undefined;
+          const record = value as Record<string, unknown>;
+          const relation = clean(record.relation);
+          const evidenceEventIds = Array.isArray(record.evidenceEventIds)
+            ? unique(
+                record.evidenceEventIds
+                  .filter((id): id is string => typeof id === "string")
+                  .map(clean)
+                  .filter((id) => input.suppliedReality.some((event) => clean(event.id) === id)),
+              )
+            : [];
+          if (!relation || !evidenceEventIds.length) return undefined;
+          return { relation, evidenceEventIds };
+        })
+        .filter((value): value is AuthorCreativeNotice["latentRelations"][number] => Boolean(value))
+        .slice(0, 3)
+    : [];
+  const creativeNotice: AuthorCreativeNotice = {
+    latentRelations,
+  };
+  const rawTreatments = Array.isArray(parsedLens?.treatments) ? parsedLens.treatments : [];
+  const parseRejectedTreatments: Array<{
+    treatment: AuthorCreativeTreatment;
+    reason: string;
+  }> = [];
+  const modelTreatments: AuthorCreativeTreatment[] = rawTreatments
+    .map((value, index): AuthorCreativeTreatment | undefined => {
+      const placeholder = (reason: string, record: Record<string, unknown> = {}) => {
+        const expectedRelationRecord = latentRelations[index];
+        const evidenceEventIds = expectedRelationRecord?.evidenceEventIds ?? [];
+        parseRejectedTreatments.push({
+          treatment: {
+            id: `treatment-${index + 1}`,
+            sourceCandidateId: expectedRelationRecord ? `latentRelations[${index}]` : "unparsed",
+            sourceRelation: clean(expectedRelationRecord?.relation) || "unparsed",
+            evidenceEventIds,
+            hiddenInference: clean(record.hiddenInference),
+            treatment: clean(record.treatment),
+            perceptionDelta: clean(record.perceptionDelta),
+            expressiveBehaviors: Array.isArray(record.expressiveBehaviors)
+              ? record.expressiveBehaviors.filter((item): item is string => typeof item === "string").map(clean).filter(Boolean)
+              : [],
+            intensity: clean(record.intensity).toUpperCase() === "STRONG"
+              ? "STRONG"
+              : clean(record.intensity).toUpperCase() === "LIGHT"
+                ? "LIGHT"
+                : "MEDIUM",
+          },
+          reason,
+        });
+      };
+
+      if (!value || typeof value !== "object") {
+        placeholder("invalid treatment object");
+        return undefined;
+      }
+      const record = value as Record<string, unknown>;
+      const expectedRelationRecord = latentRelations[index];
+      const sourceCandidateId = expectedRelationRecord ? `latentRelations[${index}]` : "";
+      const sourceRelation = clean(expectedRelationRecord?.relation);
+      const evidenceEventIds = expectedRelationRecord?.evidenceEventIds ?? [];
+      const hiddenInference = clean(record.hiddenInference);
       const treatment = clean(record.treatment);
-      const devices = Array.isArray(record.devices)
+      const perceptionDelta = clean(record.perceptionDelta);
+      const expressiveBehaviorsSource = Array.isArray(record.expressiveBehaviors)
+        ? record.expressiveBehaviors
+        : Array.isArray(record.devices)
+          ? record.devices
+          : [];
+      const expressiveBehaviors = Array.isArray(expressiveBehaviorsSource)
         ? unique(
-            record.devices
-              .filter((device): device is string => typeof device === "string")
+            expressiveBehaviorsSource
+              .filter((behavior): behavior is string => typeof behavior === "string")
               .map(clean)
               .filter(Boolean),
           ).slice(0, 6)
@@ -656,12 +1071,57 @@ export async function searchAuthorCreativeLensTreatments(input: {
           ? rawIntensity
           : "MEDIUM";
 
-      if (!treatment || !devices.length) return undefined;
+      const ownsDistinctRelation = Boolean(expectedRelationRecord && sourceRelation);
+      const provenanceMatches = Boolean(expectedRelationRecord && evidenceEventIds.length);
+      const finalistBoundaryReason = unsupportedTreatmentMaterialReason({
+        text: materialText([
+          sourceRelation,
+          hiddenInference,
+          treatment,
+          perceptionDelta,
+          ...expressiveBehaviors,
+        ]),
+        suppliedRealityText: materialText(input.suppliedReality.map((event) => event.text)),
+        semanticMechanic: semanticMechanic.mechanic,
+      });
+      const operationalAnchorReason = operationalAnchorDominanceReason({
+        sourceRelation,
+        hiddenInference,
+        treatment,
+        perceptionDelta,
+        evidenceEvents: evidenceEventIds
+          .map((eventId) => input.suppliedReality.find((event) => clean(event.id) === eventId))
+          .filter((event): event is AuthorCreativeEvent => Boolean(event)),
+        suppliedReality: input.suppliedReality,
+      });
+
+      const structuralReason =
+        !sourceCandidateId ? "missing source candidate id" :
+        !sourceRelation ? "missing source relation" :
+        !evidenceEventIds.length ? "missing grounded evidence event ids" :
+        !ownsDistinctRelation ? "finalist must use its own distinct latent relation" :
+        !provenanceMatches ? "finalist provenance does not match returned latent relation" :
+        finalistBoundaryReason ? finalistBoundaryReason :
+        operationalAnchorReason ? operationalAnchorReason :
+        !treatment ? "missing treatment" :
+        !perceptionDelta ? "missing perception delta" :
+        !expressiveBehaviors.length ? "missing expressive behaviors" :
+        undefined;
+
+      if (structuralReason) {
+        placeholder(structuralReason, record);
+        return undefined;
+      }
 
       return {
-        id: clean(record.id) || `treatment-${index + 1}`,
+        id: `treatment-${index + 1}`,
+        sourceCandidateId,
+        sourceRelation,
+        evidenceEventIds,
+        hiddenInference,
         treatment,
-        devices,
+        perceptionDelta,
+        expressiveBehaviors,
         intensity,
       };
     })
@@ -671,9 +1131,14 @@ export async function searchAuthorCreativeLensTreatments(input: {
 
   const deterministicBareTreatment: AuthorCreativeTreatment = {
     id: "treatment-4",
+    sourceCandidateId: "bare",
+    sourceRelation: "bare supplied reality",
+    evidenceEventIds: input.suppliedReality.map((event) => event.id),
+    hiddenInference: "",
     treatment:
       "NONE / Bare Reality. Present only the supplied facts in their natural sequence with minimal treatment.",
-    devices: ["bare reality"],
+    perceptionDelta: "No added perception; direct supplied reality remains visible as the control.",
+    expressiveBehaviors: ["bare reality"],
     intensity: "LIGHT",
   };
 
@@ -689,25 +1154,31 @@ export async function searchAuthorCreativeLensTreatments(input: {
       suppliedReality: input.suppliedReality,
     }),
   }));
-  const acceptedTreatmentRecords =
-    semanticMechanic.mechanic === "NONE" && !explicitLensProvided
-      ? []
-      : treatmentResults
-          .filter(({ result }) => result.compatible)
-          .map(({ treatment }) => treatment);
-  const rejectedTreatments =
-    semanticMechanic.mechanic === "NONE" && !explicitLensProvided
-      ? []
-      : treatmentResults
+  const acceptedTreatmentRecords = lensSearchEnabled
+    ? treatmentResults
+        .filter(({ result }) => result.compatible)
+        .map(({ treatment }) => treatment)
+    : [];
+  const rejectedTreatments = lensSearchEnabled
+    ? [
+        ...parseRejectedTreatments,
+        ...treatmentResults
           .filter(({ result }) => !result.compatible)
           .map(({ treatment, result }) => ({
             treatment,
             reason: result.reason,
-          }));
+          })),
+      ]
+    : [];
   const distinctTreatments = (treatments: readonly AuthorCreativeTreatment[]): AuthorCreativeTreatment[] => {
     const seen = new Set<string>();
     return treatments.filter((treatment) => {
-      const key = materialText([treatment.treatment, ...treatment.devices]);
+      const key = materialText([
+        treatment.sourceRelation,
+        treatment.treatment,
+        treatment.perceptionDelta,
+        ...treatment.expressiveBehaviors,
+      ]);
       if (!key || seen.has(key)) return false;
       seen.add(key);
       return true;
@@ -715,31 +1186,49 @@ export async function searchAuthorCreativeLensTreatments(input: {
   };
   const distinctAcceptedTreatmentRecords =
     distinctTreatments(acceptedTreatmentRecords).slice(0, 4);
-  const treatmentSetAssessment =
-    !lensSearchEnabled
-      ? {
-          complete: true,
-          bareCount: 0,
-          expressiveCount: 0,
-          sequenceRelationshipCount: 0,
-          reasons: [],
-        }
-      : assessAuthorCreativeTreatmentSet(distinctAcceptedTreatmentRecords);
-  const acceptedTreatments = treatmentSetAssessment.complete
+  const generatedExpressiveCount = modelTreatments.length;
+  const treatmentSetAssessment = !lensSearchEnabled
+    ? {
+        complete: true,
+        creativeSetComplete: true,
+        renderable: true,
+        requestedExpressiveCount: 0,
+        generatedExpressiveCount: 0,
+        groundedExpressiveCount: 0,
+        bareFallbackRequired: false,
+        bareCount: 0,
+        expressiveCount: 0,
+        sequenceRelationshipCount: 0,
+        reasons: [],
+      }
+    : {
+        ...assessAuthorCreativeTreatmentSet(distinctAcceptedTreatmentRecords),
+        generatedExpressiveCount,
+      };
+  const acceptedTreatments = treatmentSetAssessment.renderable
     ? distinctAcceptedTreatmentRecords.map((treatment) =>
         treatmentAsAssignment(treatment, semanticMechanic),
       )
     : [];
+  const failureLessons = rejectedTreatments
+    .map(({ treatment, reason }) => failureLessonFromReason(treatment, reason))
+    .filter((lesson, index, all) =>
+      all.findIndex((candidate) => candidate.pattern === lesson.pattern && candidate.reason === lesson.reason) === index,
+    );
 
   return {
     lensSearchEnabled,
     lensMode,
     autoBusinessLens,
     rawTreatmentResponse: lensSearchEnabled ? lensResult.text : "SKIPPED",
+    searchFallbackReason,
     model: lensResult.model,
     modelCalls: lensSearchEnabled ? 1 : 0,
     semanticMechanic,
     semanticMechanicCandidates: [...input.semanticMechanicCandidates],
+    creativeNotice,
+    storyGravity,
+    failureLessons,
     parsedTreatments,
     acceptedTreatments,
     rejectedTreatments,
@@ -749,22 +1238,17 @@ export async function searchAuthorCreativeLensTreatments(input: {
 
 function presentationAffordance(domainContext?: AuthorDomainContext): string {
   const contextRecord = (domainContext ?? {}) as Record<string, unknown>;
-  const contextText = clean(JSON.stringify(contextRecord)).toLowerCase();
-  const isDogTag =
-    /\bdog[\s_-]*tag\b/.test(contextText) ||
-    /\bliving[\s_-]*dog[\s_-]*tag\b/.test(contextText);
   const experienceMode = clean(contextRecord.experienceMode).toUpperCase();
-  const isIdentity = experienceMode === "IDENTITY";
 
-  if (!isDogTag || !isIdentity) return "";
+  if (experienceMode !== "IDENTITY") return "";
 
   return [
-    "DOG TAG IDENTITY PRESENTATION:",
-    "Preferences and stable character facts may become thought-like reactions, fixation, wanting, direct voice, tiny questions, callbacks, or playful self-presentation.",
-    "Wanting is not happening. A love of walks does not mean a walk occurred. A love of bacon does not mean bacon is present.",
-    "Do not add species clichés, body actions, associated settings, or stereotypical pet imagery.",
-    "The viewer should meet the subject through supplied truths, not hear a profile summary.",
-    "When multiple stable preferences are supplied together, synthesize their combination into character. Do not output one dressed-up line per preference. Let the viewer infer something about the subject that was not literally typed.",
+    "IDENTITY / PORTRAIT REALIZATION:",
+    "Stable preferences, relationships, known topics, and character facts are creative material for direct voice, fixation, tiny questions, callbacks, attitude, status, and playful self-presentation.",
+    "A known preference may become anticipation, importance, a question, or an open possibility. It may not become an invented event.",
+    "Synthesize combinations of truths into character instead of dressing up each fact separately.",
+    "Sparse identity reality does not require plot. It may open a world or create a discovery portrait.",
+    "Concrete events still come from supplied reality; identity treatment changes perception of supplied truths rather than manufacturing an occurrence.",
   ].join("\n");
 }
 
@@ -822,7 +1306,7 @@ function normalizePlan(
 
   return {
     thesis: clean(value?.thesis),
-    beats: beats.slice(0, 6),
+    beats,
   };
 }
 
@@ -830,108 +1314,45 @@ function enforceMemoryStructure(
   plan: AuthorSemanticPlan,
   selectedEvidence: readonly AuthorCreativeEvent[],
 ): AuthorSemanticPlan {
-  if (
-    selectedEvidence.length === 4 &&
-    plan.beats.length === 3
-  ) {
-    const plannedIds = plan.beats.flatMap((beat) => beat.eventIds);
-    const selectedIds = selectedEvidence.map((event) => event.id);
-    const sameEvidenceSet =
-      plannedIds.length === selectedIds.length &&
-      new Set(plannedIds).size === selectedIds.length &&
-      selectedIds.every((id) => plannedIds.includes(id));
+  if (!selectedEvidence.length) return plan;
 
-    if (sameEvidenceSet) {
-      return {
+  const selectedIds = selectedEvidence.map((event) => clean(event.id));
+  const selectedSet = new Set(selectedIds);
+  const covered = new Set(
+    plan.beats
+      .flatMap((beat) => beat.eventIds)
+      .map(clean)
+      .filter((id) => selectedSet.has(id)),
+  );
+
+  const completeCoverage = selectedIds.every((id) => covered.has(id));
+  const sourcePlan = completeCoverage
+    ? plan
+    : {
         ...plan,
         beats: selectedEvidence.map((event, index) => ({
           order: index + 1,
-          role:
-            index === 0
-              ? "HOOK"
-              : index === selectedEvidence.length - 1
-                ? "PAYOFF"
-                : index === selectedEvidence.length - 2
-                  ? "TURN"
-                  : "BUILD",
+          role: "BUILD" as AuthorBeatRole,
           eventIds: [event.id],
           attention: "",
           change: "",
         })),
       };
-    }
-  }
-
-  if (selectedEvidence.length < 4) {
-    return {
-      ...plan,
-      beats: plan.beats.map((beat, index) => ({
-        ...beat,
-        order: index + 1,
-        role:
-          index === 0
-            ? "HOOK"
-            : index === plan.beats.length - 1
-              ? "PAYOFF"
-              : beat.role === "TURN"
-                ? "TURN"
-                : "BUILD",
-      })),
-    };
-  }
-
-  const targetBeatCount = Math.min(
-    4,
-    Math.max(3, Math.ceil(selectedEvidence.length / 2)),
-  );
-
-  if (plan.beats.length >= 3) {
-    return {
-      ...plan,
-      beats: plan.beats.map((beat, index) => ({
-        ...beat,
-        order: index + 1,
-        role:
-          index === 0
-            ? "HOOK"
-            : index === plan.beats.length - 1
-              ? "PAYOFF"
-              : beat.role === "TURN"
-                ? "TURN"
-                : "BUILD",
-      })),
-    };
-  }
-
-  const groups: string[][] = Array.from(
-    { length: targetBeatCount },
-    () => [],
-  );
-
-  selectedEvidence.forEach((event, index) => {
-    const groupIndex = Math.min(
-      targetBeatCount - 1,
-      Math.floor(index * targetBeatCount / selectedEvidence.length),
-    );
-    groups[groupIndex].push(event.id);
-  });
 
   return {
-    ...plan,
-    beats: groups
-      .filter((eventIds) => eventIds.length > 0)
-      .map((eventIds, index, all) => ({
-        order: index + 1,
-        role:
-          index === 0
-            ? "HOOK"
-            : index === all.length - 1
-              ? "PAYOFF"
+    ...sourcePlan,
+    beats: sourcePlan.beats.map((beat, index, all) => ({
+      ...beat,
+      order: index + 1,
+      role:
+        index === 0
+          ? "HOOK"
+          : index === all.length - 1
+            ? "PAYOFF"
+            : beat.role === "TURN"
+              ? "TURN"
               : "BUILD",
-        eventIds,
-        attention: "",
-        change: "",
-      })),
+    })),
   };
 }
 
@@ -942,7 +1363,7 @@ function fallbackPlan(
   const selected = new Set(discovery.selected.evidenceEventIds);
   const preferred = events.filter((event) => selected.has(event.id));
   const source = preferred.length ? preferred : [...events];
-  const limited = source.slice(0, Math.min(5, source.length));
+  const limited = source;
 
   return {
     thesis:
@@ -958,7 +1379,7 @@ function fallbackPlan(
             ? "PAYOFF"
             : "BUILD",
       eventIds: [event.id],
-      attention: "Make this supplied evidence felt without adding a new event.",
+      attention: "Carry this supplied evidence clearly into the experience.",
       change: event.text,
     })),
   };
@@ -1087,6 +1508,35 @@ function preservesSpecificTemporalAnchor(
   return sourceAnchors.some((anchor) => candidateAnchors.has(anchor));
 }
 
+function actionlessCompressionReason(
+  text: string,
+  beatFacts: readonly string[],
+  requireLiteralAction: boolean,
+): string | undefined {
+  // Bare Reality must keep the supplied action legible on the line itself.
+  // Expressive QRE cuts are judged as part of a whole production: they may
+  // imply, personify, exaggerate, or rhetorically transform the action rather
+  // than replay its verb. This is what allows cuts such as "Twice the battle"
+  // while keeping the factual memory underneath unchanged.
+  if (!requireLiteralAction) return undefined;
+
+  const source = clean(beatFacts.join(" ")).toLowerCase();
+  const candidate = clean(text).toLowerCase();
+  if (!candidate) return undefined;
+
+  const sourceHasAction = /\b(?:arriv(?:e|ed|ing)|finish(?:ed|ing)?|clean(?:ed|ing)?|drop(?:ped|s|ping)?|pick(?:ed|s|ing)?|bath(?:e|ed|ing)?|remove(?:d|s|ing)?|try|tried|feed|fed|refill(?:ed|s|ing)?|stay(?:ed|s|ing)?|walk(?:ed|s|ing)?|move(?:d|s|ing)?|carry|carried|load(?:ed|s|ing)?|unload(?:ed|s|ing)?|wash(?:ed|s|ing)?|repair(?:ed|s|ing)?|fix(?:ed|es|ing)?|open(?:ed|s|ing)?|close(?:d|s|ing)?|return(?:ed|s|ing)?|change(?:d|s|ing)?|give|gave|take|took|make|made)\b/.test(source);
+  if (!sourceHasAction) return undefined;
+
+  const candidateHasActionShape = /\b(?:arriv(?:e|ed|ing|al)|finish(?:ed|ing)?|clean(?:ed|ing)?|drop(?:ped|s|ping|off)?|pick(?:ed|s|ing|up)?|bath(?:e|ed|ing)?|remove(?:d|s|ing)?|try|tried|feed|fed|refill(?:ed|s|ing)?|stay(?:ed|s|ing)?|walk(?:ed|s|ing)?|move(?:d|s|ing)?|carry|carried|load(?:ed|s|ing)?|unload(?:ed|s|ing)?|wash(?:ed|s|ing)?|repair(?:ed|s|ing)?|fix(?:ed|es|ing)?|open(?:ed|s|ing)?|close(?:d|s|ing|closed)|return(?:ed|s|ing)?|change(?:d|s|ing)?|give|gave|take|took|make|made|confirm(?:ed|s|ing)?|clear(?:ed|s|ing)?|complete(?:d|s|ing)?|follow(?:ed|s|ing)?|resist(?:ed|s|ing|ance)?|object(?:ed|s|ing|ion)?|refus(?:e|ed|al)|done|down)\b/.test(candidate);
+  const compactTokens = replayTokens(candidate);
+
+  if (!candidateHasActionShape && compactTokens.length <= 5) {
+    return "actionless-compression";
+  }
+
+  return undefined;
+}
+
 function variantScore(
   text: string,
   beatFacts: readonly string[],
@@ -1094,6 +1544,7 @@ function variantScore(
   subject: string,
   prior: readonly string[],
   penalizeSourceReplay = true,
+  requireLiteralAction = false,
 ): { accepted: boolean; score: number; reasons: string[] } {
   const policy = evaluateAuthorCut(text, {
     subject,
@@ -1107,22 +1558,25 @@ function variantScore(
 
   const normalized = clean(text).toLowerCase();
   const repeated = prior.some((value) => clean(value).toLowerCase() === normalized);
+  const actionlessReason = actionlessCompressionReason(text, beatFacts, requireLiteralAction);
   const replayPenalty = penalizeSourceReplay
     ? sourceReplayPenalty(text, beatFacts)
     : 0;
-  const anchorAdjustment = temporalAnchorAdjustment(text, beatFacts);
   const score = Math.max(
     0,
     policy.score -
       (repeated ? 0.35 : 0) -
-      replayPenalty +
-      anchorAdjustment,
+      replayPenalty -
+      (actionlessReason ? 0.18 : 0),
   );
 
   return {
-    accepted: !repeated,
+    accepted: !repeated && !actionlessReason,
     score,
-    reasons: repeated ? ["repetition"] : [],
+    reasons: [
+      ...(repeated ? ["repetition"] : []),
+      ...(actionlessReason ? [actionlessReason] : []),
+    ],
   };
 }
 
@@ -1166,7 +1620,7 @@ function lockPlanToApprovedMeaning(
           .map(clean)
           .filter(Boolean)
           .join(" | "),
-        change: "Advance only supplied reality; do not add a hidden explanation.",
+        change: "Advance the supplied reality directly; the creative work is perceptual rather than factual.",
       })),
     };
   }
@@ -1226,55 +1680,7 @@ function ensurePostLockMemoryCanvas(
   plan: AuthorSemanticPlan,
   selectedEvidence: readonly AuthorCreativeEvent[],
 ): AuthorSemanticPlan {
-  if (selectedEvidence.length < 4 || plan.beats.length >= 3) {
-    return {
-      ...plan,
-      beats: plan.beats.map((beat, index, all) => ({
-        ...beat,
-        order: index + 1,
-        role:
-          index === 0
-            ? "HOOK"
-            : index === all.length - 1
-              ? "PAYOFF"
-              : beat.role === "TURN"
-                ? "TURN"
-                : "BUILD",
-      })),
-    };
-  }
-
-  const targetBeatCount = Math.min(
-    4,
-    Math.max(3, Math.ceil(selectedEvidence.length / 2)),
-  );
-  const groups: string[][] = Array.from({ length: targetBeatCount }, () => []);
-
-  selectedEvidence.forEach((event, index) => {
-    const groupIndex = Math.min(
-      targetBeatCount - 1,
-      Math.floor(index * targetBeatCount / selectedEvidence.length),
-    );
-    groups[groupIndex].push(event.id);
-  });
-
-  return {
-    ...plan,
-    beats: groups
-      .filter((eventIds) => eventIds.length > 0)
-      .map((eventIds, index, all) => ({
-        order: index + 1,
-        role:
-          index === 0
-            ? "HOOK"
-            : index === all.length - 1
-              ? "PAYOFF"
-              : "BUILD",
-        eventIds,
-        attention: "",
-        change: "",
-      })),
-  };
+  return enforceMemoryStructure(plan, selectedEvidence);
 }
 
 function memoryPayoffReplayPenalty(
@@ -1331,6 +1737,7 @@ function scoreMemorySequence(
       subject,
       prior,
       !realityDirect,
+      variantIndex === 3,
     );
     const payoffPenalty = memoryPayoffReplayPenalty(
       text,
@@ -1340,7 +1747,7 @@ function scoreMemorySequence(
       beat.change,
     );
     const dropsSpecificTimeAnchor =
-      !preservesSpecificTemporalAnchor(text, beatFacts);
+      variantIndex === 3 && !preservesSpecificTemporalAnchor(text, beatFacts);
     const line = {
       beat,
       beatFacts,
@@ -1374,6 +1781,7 @@ function scoreMemorySequence(
   const payoff = lines.length ? lines[lines.length - 1] : undefined;
   const payoffStrength = payoff?.accepted ? payoff.score : 0;
   const payoffDropsSpecificTime = Boolean(
+    variantIndex === 3 &&
     payoff &&
     !preservesSpecificTemporalAnchor(payoff.text, payoff.beatFacts),
   );
@@ -1413,6 +1821,7 @@ async function repairNominatedMemoryProduction(input: {
   suppliedReality: readonly AuthorCreativeEvent[];
   subject: string;
   thesis: string;
+  assignedTreatment?: AuthorCreativeTreatmentAssignment;
 }): Promise<{
   replacements: Map<number, string>;
   model: string;
@@ -1437,17 +1846,11 @@ async function repairNominatedMemoryProduction(input: {
         content: [
           "You are QRE Memory Production Repair.",
           ...QRE_CREATIVE_OPERATING_DOCTRINE,
-          "The creative conception has already been chosen. Preserve it.",
-          "Repair ONLY the failed cuts. Do not rewrite successful cuts.",
-          "Stay inside each failed beat's supplied evidence plus meaning already established by earlier successful cuts.",
-          "Keep the production's voice, rhythm, attitude, and trajectory.",
-          "Prefer a bold grounded transformation over literal replay.",
-          "Preserve distinctive source anchors when useful.",
-          "Nonliteral title-like framing, metaphor, status, attitude, compression, and recontextualization are welcome.",
-          "Do not add new actors, body parts, sensory details, scenery, actions, motives, causes, outcomes, or chronology.",
-          "Do not carry an earlier emotional or physical state forward into a later event unless supplied reality explicitly establishes continuity. Use callback/recontextualization instead of asserting persistence.",
-          "A repair should feel like the line the original production was trying to write, only grounded.",
-          "Return one replacement for every failed beat and nothing else.",
+          "A complete creative production already exists. Restore failed cuts without weakening the conception.",
+          "PRESERVE THE CONCEPTION. PRESERVE THE REALITY. RECOVER THE ENERGY.",
+          "The supplied reality is the whole available world. Repair may change expression, rhythm, and compression, but every factual implication must remain inside supplied evidence and prior established cuts.",
+          "Use the assigned treatment's perceptionDelta and expressiveBehaviors as repair authority. Do not invent a new treatment and do not flatten the cut into bare fact unless no grounded expression of the conception remains.",
+          "QRE makes the meaning felt and implied, not explained. A repaired cut is a hit, not prose: compress until removing another word would weaken meaning, rhythm, character, or surprise, then stop.",
         ].join("\n"),
       },
       {
@@ -1455,6 +1858,7 @@ async function repairNominatedMemoryProduction(input: {
         content: JSON.stringify({
           SUBJECT: input.subject,
           APPROVED_THESIS: input.thesis,
+          ASSIGNED_TREATMENT: input.assignedTreatment,
           FULL_PRODUCTION: input.production.lines.map((line, index) => ({
             order: line.beat.order,
             text: line.text,
@@ -1476,7 +1880,7 @@ async function repairNominatedMemoryProduction(input: {
             semanticMove: line.beat.change,
           })),
           instruction:
-            "Repair only FAILED_BEATS. Keep the same production conception and creative energy. Return short viewer-facing replacements, normally 2-7 words.",
+            "Repair only FAILED_BEATS. Preserve the assigned conception, perception delta, production voice/rhythm/trajectory, and supplied reality boundary. Make each replacement felt and implied rather than explained, and keep the underlying supplied action or change recoverable.",
         }),
       },
     ],
@@ -1498,8 +1902,8 @@ async function repairNominatedMemoryProduction(input: {
               additionalProperties: false,
               required: ["order", "text"],
               properties: {
-                order: { type: "integer", minimum: 1, maximum: 6 },
-                text: { type: "string", maxLength: 120 },
+                order: { type: "integer", minimum: 1 },
+                text: { type: "string", maxLength: 88 },
               },
             },
           },
@@ -1541,6 +1945,39 @@ function safeFallbackText(
   );
 }
 
+function buildDeterministicMouthFallback(
+  plan: AuthorSemanticPlan,
+  events: readonly AuthorCreativeEvent[],
+  memoryMode: boolean,
+): string {
+  if (memoryMode) {
+    return JSON.stringify({
+      productions: [
+        {
+          production: "D",
+          lines: plan.beats.map((beat) => ({
+            order: beat.order,
+            text: safeFallbackText(beat, events),
+          })),
+        },
+      ],
+      selectedProduction: 4,
+      selectionReason:
+        "Deterministic Bare Reality selected because Mouth did not return a renderable production.",
+    });
+  }
+
+  return JSON.stringify({
+    variantsByBeat: plan.beats.map((beat) => {
+      const text = safeFallbackText(beat, events);
+      return {
+        order: beat.order,
+        variants: [text, text, text, text],
+      };
+    }),
+  });
+}
+
 export async function createAuthorExperience(input: {
   subject: string;
   suppliedReality: readonly AuthorCreativeEvent[];
@@ -1554,7 +1991,20 @@ export async function createAuthorExperience(input: {
   modelCalls: number;
   diagnostics: {
     plan: AuthorSemanticPlan;
+    creativeNotice: AuthorCreativeNotice;
+    storyGravity: AuthorStoryGravity;
+    failureLessons: AuthorCreativeFailureLesson[];
     creativeTreatments: AuthorCreativeTreatmentAssignment[];
+    creativeSearchFallbackReason?: string;
+    rejectedTreatments: Array<{
+      treatment: AuthorCreativeTreatment;
+      reason: string;
+    }>;
+    treatmentSetAssessment: AuthorCreativeTreatmentSetAssessment;
+    productionContractComplete: {
+      creativeSetComplete: boolean;
+      renderable: boolean;
+    };
     variantsByBeat: Array<{ order: number; variants: string[] }>;
     choices: Array<{
       order: number;
@@ -1564,10 +2014,15 @@ export async function createAuthorExperience(input: {
       selected: string;
     }>;
     selectedProduction?: string;
+    mouthFallback?: {
+      reason: string;
+      production: string;
+    };
     memoryProductions?: Array<{
       production: string;
       accepted: boolean;
       score: number;
+      reasons: string[];
       lines: Array<{
         order: number;
         text: string;
@@ -1597,13 +2052,12 @@ export async function createAuthorExperience(input: {
   const isMemoryMode = experienceMode === "MEMORY";
   const useDeterministicSparsePlan =
     selectedEvidence.length > 0 && selectedEvidence.length <= 3;
-  const useDeterministicBusinessMemoryPlan =
+  const useDeterministicRealityDirectMemoryPlan =
     isMemoryMode &&
     realityDirect &&
-    isBusinessCreativeContext(input.domainContext) &&
     selectedEvidence.length > 0;
   const useDeterministicPlan =
-    useDeterministicSparsePlan || useDeterministicBusinessMemoryPlan;
+    useDeterministicSparsePlan || useDeterministicRealityDirectMemoryPlan;
   const useIdentityClusterPlan =
     useDeterministicSparsePlan &&
     experienceMode === "IDENTITY" &&
@@ -1619,21 +2073,20 @@ export async function createAuthorExperience(input: {
       {
         role: "system",
         content: [
-          "You are QRE Bare Author Structure Planner.",
-          "Discovery already owns meaning. You own ONLY evidence grouping and sequence shape.",
-          "Return 2 to 5 beats using only supplied authorized event IDs.",
-          "You may fuse adjacent or tightly related evidence into one beat or omit evidence that does not need screen time.",
-          "Do not write a thesis, interpretation, psychology, causality, motive, emotional explanation, or viewer-facing language.",
-          "Do not invent or rename events. Output structure only.",
-          "Use each evidence event ID at most once unless EXPERIENCE_SHAPE explicitly calls for callback, recurrence, repetition, or echo.",
+          "You are QRE Author Structure Planner.",
+          "Discovery owns the approved meaning and identifies the playable reality. Your responsibility is evidence grouping and sequence shape.",
+          "AUTHORIZED_EVIDENCE is the factual material available to this experience.",
+          "Build the strongest sequence from authorized event IDs and preserve the supplied relationships that make the experience meaningful.",
+          "Let the material determine the number of beats. A beat may contain one event or several tightly related events when grouping creates a stronger unit of experience.",
+          "Compression is structural, not destructive. Grouping changes organization while keeping the selected reality available to realization.",
+          "Use sequence to create room for progression, contrast, accumulation, interruption, return, reveal, callback, or payoff when those relationships are supported by the supplied material and approved experience shape.",
+          "The plan is structural rather than viewer-facing. Represent what each beat carries through its authorized event IDs.",
+          "Every authorized evidence item remains represented in the plan. Supplied recurrence may return when the approved experience shape calls for recurrence, echo, callback, or return.",
           ...(isMemoryMode ? [
-            "MEMORY STRUCTURE: give a substantial lived memory enough screen space to feel remembered, not summarized.",
-            "When 4 or more authorized evidence events carry the selected memory, usually prefer 3 to 4 beats. Compress only when the grouping creates a stronger experience.",
-            "When exactly 4 authorized events form a temporal progression with a distinct before-state, lived middle, after-state, and later recurrence/return, prefer 4 beats. Do not fuse the lived middle into the before-state merely to shorten the sequence.",
-            "A supplied duration or substantial activity between states can deserve its own beat because it gives the later contrast weight; preserve it structurally without claiming it caused the later state.",
-            "When authorized evidence contains an explicit supplied state contrast, preserve both sides of that contrast in the plan. Do not omit the later state merely because the causal explanation is unknown.",
-            "When supplied recurrence or return contributes to the approved perception, preserve that recurrence as available payoff material.",
-            "Avoid stuffing 3 or more distinct moments into one beat merely to shorten the sequence. Preserve room for setup, development, turn, and payoff.",
+            "MEMORY STRUCTURE: shape the supplied lived material so the memory has enough space to be experienced rather than merely summarized.",
+            "Preserve meaningful temporal progression, state contrast, duration, recurrence, return, and distinctive moments when they contribute to the approved memory.",
+            "A meaningful middle can carry its own structural weight. A later state or return can carry its own structural weight. Let their relationship determine the shape.",
+            "Choose the smallest sequence that preserves the full creative potential of the approved memory, with no predetermined beat count.",
           ] : []),
           ...(presentationContext ? [presentationContext] : []),
         ].join("\n"),
@@ -1645,7 +2098,7 @@ export async function createAuthorExperience(input: {
           AUTHORIZED_EVIDENCE: selectedEvidence,
           EXPERIENCE_SHAPE: input.creativeDiscovery.experienceShape,
           instruction:
-            "Return only the structural beat sequence. Use authorized evidence IDs only. Group evidence when useful; do not explain meaning.",
+            "Return the strongest structural beat sequence using the authorized evidence IDs. Preserve every authorized evidence item somewhere in the sequence; group related evidence when that strengthens the experience.",
         }),
       },
     ],
@@ -1661,13 +2114,12 @@ export async function createAuthorExperience(input: {
           beats: {
             type: "array",
             minItems: 1,
-            maxItems: 6,
             items: {
               type: "object",
               additionalProperties: false,
               required: ["order", "role", "eventIds"],
               properties: {
-                order: { type: "integer", minimum: 1, maximum: 6 },
+                order: { type: "integer", minimum: 1 },
                 role: { type: "string", enum: ["HOOK", "BUILD", "TURN", "PAYOFF"] },
                 eventIds: {
                   type: "array",
@@ -1725,8 +2177,8 @@ export async function createAuthorExperience(input: {
   debug("BARE-AUTHOR-PLAN", {
     mode: useIdentityClusterPlan
       ? "DETERMINISTIC_IDENTITY_CLUSTER"
-      : useDeterministicBusinessMemoryPlan
-        ? "DETERMINISTIC_BUSINESS_MEMORY"
+      : useDeterministicRealityDirectMemoryPlan
+        ? "DETERMINISTIC_REALITY_DIRECT_MEMORY"
         : useDeterministicSparsePlan
           ? "DETERMINISTIC_SPARSE"
           : "MODEL_STRUCTURE",
@@ -1779,12 +2231,26 @@ export async function createAuthorExperience(input: {
   const lensSearchEnabled = lensSearch.lensSearchEnabled;
   const lensMode = lensSearch.lensMode;
   const treatmentsForMouth = lensSearch.acceptedTreatments;
-  const lensProductionContractComplete =
+  const expressiveTreatmentsForMouth = treatmentsForMouth.filter((treatment) => !isBareTreatment(treatment));
+  const skipExpressiveMouth = lensSearchEnabled && expressiveTreatmentsForMouth.length === 0;
+  const creativeSetComplete =
     !lensSearch.lensSearchEnabled ||
-    (
-      treatmentsForMouth.length === 4 &&
-      lensSearch.treatmentSetAssessment.complete
-    );
+    lensSearch.treatmentSetAssessment.creativeSetComplete;
+  const runtimeRenderable =
+    !lensSearch.lensSearchEnabled ||
+    lensSearch.treatmentSetAssessment.renderable;
+  const treatmentAssignmentsForMouth = treatmentsForMouth
+    .map((assignment) => ({
+      production: treatmentProductionLetter(assignment),
+      ...assignment,
+    }))
+    .sort((a, b) => a.production.localeCompare(b.production));
+  const treatmentByVariantIndex = new Map(
+    treatmentAssignmentsForMouth.map((assignment) => [
+      treatmentVariantIndex(assignment),
+      assignment,
+    ]),
+  );
 
   debug("CREATIVE-LENS-SEARCH", {
     mode: lensMode,
@@ -1793,113 +2259,82 @@ export async function createAuthorExperience(input: {
     semanticMechanicCandidates,
     lensSearchEnabled,
     rawTreatmentResponse: lensSearch.rawTreatmentResponse,
+    searchFallbackReason: lensSearch.searchFallbackReason,
     treatments: treatmentsForMouth,
     rejectedTreatments: lensSearch.rejectedTreatments,
     treatmentSetAssessment: lensSearch.treatmentSetAssessment,
-    productionContractComplete: lensProductionContractComplete,
+    creativeSetComplete,
+    renderable: runtimeRenderable,
   });
 
-  if (!lensProductionContractComplete) {
+  if (!runtimeRenderable) {
     throw new Error(
-      `QRE Creative Lens contract incomplete: ${lensSearch.treatmentSetAssessment.reasons.join("; ") || `expected 4 accepted treatments, got ${treatmentsForMouth.length}`}`,
+      `QRE Creative Lens not renderable: ${lensSearch.treatmentSetAssessment.reasons.join("; ") || "deterministic Bare treatment unavailable"}`,
     );
   }
 
-  const mouthResult = await localModelGenerate(
+  let mouthFallbackReason: string | undefined;
+  if (skipExpressiveMouth) {
+    mouthFallbackReason = "no viable expressive treatments; skipped Mouth and returned deterministic Bare Reality";
+  }
+  const mouthResult = skipExpressiveMouth
+    ? {
+        text: buildDeterministicMouthFallback(plan, input.suppliedReality, isMemoryMode),
+        model: "deterministic-bare-mouth-skip",
+        provider: "local" as const,
+      }
+    : await localModelGenerate(
     [
       {
         role: "system",
         content: [
           "You are QRE Mouth.",
           ...QRE_CREATIVE_OPERATING_DOCTRINE,
-          "The Author already chose the semantic beats. Do not re-plan the story and do not invent a second meaning.",
-          "SEMANTIC AUTHORITY IS BEAT-SCOPED: a beat may use only its semanticMove plus evidence already established by earlier beats. Never pull a later beat's fact, reaction, payoff, or relation backward into an earlier cut.",
-          "Generate four radically different short realizations for every approved beat.",
-          "Most candidates should be 2 to 7 words. A tiny one-word attitude beat is allowed when it lands.",
-          "Concrete reality comes ONLY from the beat's supplied event labels.",
-          "Do not invent scenery, weather, light, temperature, body parts, gestures, sensory details, objects, people, places, causes, motives, outcomes, or successful completion.",
-          "An attempt remains an attempt. Do not turn trying into freedom, escape, removal, victory, or success.",
-          "Do not add comparative duration or temporal compression unless supplied. Avoid words like brief, briefly, long, quickly, suddenly, promptly, instantly, finally, or still when the beat facts do not establish that timing relation.",
-          "A stated duration is not a countdown or deadline. Do not say 'time's up', 'clock ran out', 'deadline', or imply a timer merely because a duration is supplied.",
-          "Do not invent manner of movement. A supplied walk does not authorize ambled, trotted, bounded, dragged, hurried, strolled, or another gait/manner unless supplied.",
-          "An emotion/state does not authorize wagging, smiling, trembling, shaking, jumping, posture, heartbeat, or another bodily manifestation.",
-          "Creative freedom is high for phrasing: implication, attitude, metaphor, personification, status, understatement, absurd seriousness, compressed voice, callback, and recontextualization.",
-          "Use the supplied material as the cast. Do not replace it with generic atmosphere.",
-          "Prefer source-specific cleverness over prettiness.",
+          "You receive grounded reality, an approved sequence, and optionally an assigned creative treatment. Turn them into the smallest, sharpest complete experience.",
+          "The production is the product. Read it vertically: each cut should set up, deepen, turn, recontextualize, or land the same experience.",
+          "Concrete reality comes from the supplied evidence carried by each beat plus concrete facts already established by earlier cuts.",
+          "Rhetorical transformation is wide open. Metaphor, status, title-like framing, personification, absurd seriousness, game logic, noir pressure, battle pressure, speed, spy logic, romance, horror, ceremony, accusation, evidence language, futuristic language, comedy, understatement, and unnamed expressive grammars are available as perception—not as new world facts.",
+          "A rhetorical role can be extreme while the world stays fixed. 'Evidence' can be a way to perceive a supplied bow; it does not create a courtroom. 'Loadout' can frame a supplied object; it does not create a literal game system.",
+          "An attempt remains unresolved unless the supplied reality gives its outcome. A supplied emotion or state remains that state rather than becoming an invented bodily action.",
+          "Specificity is fuel. Preserve the distinctive facts that make this reality this reality, but do not confuse operational metadata with the creative center.",
+          "Operational anchors such as clock time, date, geo, count, quantity, and measurement remain exact when used, but expressive productions normally leave them in provenance unless they materially create the perception. Never turn timestamps, logging, or completion bookkeeping into the creative center merely because they are precise.",
+          "Do not mistake list cadence, noun fragments, repeated task words, or timestamp formatting for authorship. The creative move must come from a relationship in the supplied reality.",
+          "QRE makes the meaning felt and implied, not explained. A cut is a hit, not prose. Compress until removing another word would weaken the meaning, rhythm, character, or surprise. Stop there.",
+          "Compression may transform wording, but it may not erase what happened. When a supplied beat is an action or change, the cut must still let the receiver recover that action or change rather than reducing it to a noun label.",
+          "The receiver should be able to recover what happened while also feeling that QRE saw it from an angle they would not have produced themselves.",
+          "STORY GRAVITY is evidence structure, not permission to invent meaning. The endpointEventId is HARD because QRE locked it from supplied reality. Make that ending feel earned through the supplied dependencies and sealing detail; never add psychology just because StoryGravity contains a center phrase.",
+          "Think backward before wording: endpoint <- sealing detail <- escalation <- signal. Then present forward. Every cut should increase the inevitability or meaning of the locked endpoint, unless this is a sparse portrait/world-opening where the endpoint is simply the final supplied state.",
+          "Do not stop at competent wording. Push the assigned perception until the sequence produces recognition, surprise, tension, comedy, beauty, menace, status, weirdness, or another earned what-the-fuck turn.",
+          "Mouth owns language and sequence. Presentation choices are outside Author.",
           ...(realityDirect ? [
-            "REALITY-DIRECT MODE: Discovery found no grounded hidden relation worth realizing. Do not manufacture a hidden thesis here. This does NOT disable the assigned Creative Lens.",
-            "In REALITY-DIRECT MODE, every concrete noun, action, condition, result, physical property, manner, and object must already be explicit in that beat's supplied evidence. Do not infer what cleaning probably involved, what a room probably contained, or what the result probably looked like.",
-            "Creative freedom remains high for NONLITERAL expression. You may use metaphor, title-like framing, status language, personification, absurd seriousness, ceremony, noir pressure, game logic, callback, implication, compression, rhythm, omission, and recontextualization when they clearly operate as rhetoric rather than new material facts.",
-            "A phrase may transform how a supplied fact FEELS without claiming a new event happened. Reality-direct means no hidden explanation, not no imagination.",
-            "Do not turn 'cleaned' into scrubbed, wiped, polished, spotless, pristine, sterile, tidy, shiny, or another stronger physical claim unless supplied. Do not introduce surfaces, tiles, mirrors, scent, silence, tools, grime, or other typical service details unless supplied.",
-            "When in doubt, preserve the supplied predicate rather than decorating it with plausible physical detail.",
+            "REALITY-DIRECT MODE: there is no hidden explanatory thesis to add. Let the supplied facts themselves carry the creative transformation.",
+            "Use nonliteral pressure aggressively while keeping every concrete noun, action, condition, result, physical property, manner, and object inside supplied evidence.",
           ] : []),
           ...(isMemoryMode ? [
-            "UNIVERSAL AUTHOR LAW: Identity synthesizes simultaneous truths into character. Memory synthesizes accumulated truths into experience. Same Author intelligence; different temporal shape.",
-            "MEMORY REALIZATION: these beats are parts of ONE remembered experience, not independent caption slots. Make the sequence accumulate meaning across cuts.",
-            "The accumulated facts already created ONE approved memory perception upstream. Your job is to reveal that one perception through time, not to invent a new interpretation for each cut.",
-            "Think of the supplied events the same way Identity treats multiple traits: raw material may fuse. A fact may become setup, texture, contrast, callback, or disappear from direct wording while still supporting the whole.",
-            "Do not make each cut correspond mechanically to one input fact. Follow the approved production shape and let facts combine when that strengthens the whole experience.",
-            "THINK PRODUCT, NOT LINES. The finished sequence is the product. Every cut is one component of that product and must earn its place by setting up, deepening, turning, or landing the SAME experience.",
-            "A cut does not need to be impressive alone. It needs to make the surrounding cuts stronger. Prefer a sequence whose parts depend on each other over a stack of individually clever captions.",
-            "Read each production vertically before choosing it: CUT 1 changes what CUT 2 means; CUT 2 changes what CUT 3 means; the last cut should make the earlier cuts feel more intentional in retrospect.",
-            "Use restraint strategically. One cut may be simple so another can hit harder. Do not make every cut compete for attention.",
-            "The viewer should feel one authored object unfolding through time, not several captions placed next to each other.",
-            "SERVICE MEMORIES: do not default to a ledger, checklist, work log, or receipt voice merely because the facts are tasks, counts, and timestamps. Exact anchors may remain visible, but the sequence still needs one perceptual treatment that accumulates across cuts.",
-            "CUSTOMER-FACING SERVICE MEMORIES: preserve recognizable event identity and enough substance that the recipient can understand what actually happened even when they did not supply the original facts.",
-            "You may fuse related supplied events when that makes the memory stronger, but do not compress several distinct moments into vague atmosphere merely to sound clever.",
-            "In service or receipt contexts, creativity must remain decipherable to the recipient. A playful transformation should still let them recover the underlying event without needing access to the original notes.",
-            "Favor a substantial customer-facing memory over an aggressively compressed summary when multiple distinct moments were supplied. Do not mechanically map one fact to one cut; preserve enough distinct moments for the experience to feel worth receiving.",
-            "Avoid solving every beat as FACT + punctuation + completion label. At least some cuts should transform the supplied action, count, or timing rhetorically while staying materially true; preserve anchors without making the whole product read like status reporting.",
-            "A service memory may feel precise, ceremonial, game-like, severe, playful, compact, or otherwise authored only when that treatment comes from the supplied sequence itself—not from invented worker psychology, unseen mess, difficulty, or client reaction.",
-            "Neutral encounters may become juxtaposition, texture, density, oddity, accumulation, contrast, or title-like framing, but do not turn that framing into a literal claim about the subject's internal state or behavior.",
-            "TITLE-LIKE FRAMING VS MATERIAL CLAIM: 'Squirrelly distraction.' can function as playful framing of a supplied squirrel encounter; 'Milo was distracted by the squirrels.' asserts a real attentional state and requires support. Prefer the first kind of freedom when it helps.",
-            "When a supplied fact is explicitly positive, negative, praised, criticized, liked, feared, or otherwise valenced, do not flatten away that valence merely to sound clever.",
-            "The final beat is a payoff for the whole approved memory. If its local fact is a timestamp, duration, count, or other measurement, use it as material for the payoff rather than merely restating the measurement.",
-            "Do not produce a final-beat candidate that is only a literal replay of the local fact when semanticMove asks you to land a broader approved relation.",
-            "Across the whole sequence, prefer progression: establish -> enrich -> land. Do not make three interchangeable labels.",
-            "WRITE FOUR COMPLETE PRODUCTIONS VERTICALLY. Finish Production A from first cut to payoff, then Production B, then C, then D. Do not generate four alternatives for beat 1 and then four alternatives for beat 2. Each production is one coherent object.",
+            "MEMORY REALIZATION: the beats are one accumulated experience, not independent caption slots.",
+            "Let facts fuse when the relationship becomes stronger, and let later cuts change the meaning of earlier cuts when the supplied sequence supports it.",
+            "A simple cut may create runway for a harder payoff. The strongest sequence does not require every line to compete for attention.",
+            "Service memories are still memories. Tasks, counts, and timestamps are material, not a mandate to sound like a receipt.",
+            "Customer-facing output remains decipherable: transformation may be wild, but the underlying event remains recoverable.",
+            "A duration, count, clock time, date, geo fact, or other operational anchor stays viewer-facing only when it materially gives the experience its identity; otherwise it may remain in provenance instead of the expressive cuts.",
+            "The final cut should make the earlier cuts feel more intentional in retrospect.",
             ...(lensSearchEnabled ? [
-              ...(autoBusinessLens ? [
-                "AUTO BUSINESS LENS: this business/service experience is intentionally exploring creative treatments. One production may be NONE / Bare Reality; the others should materially transform how the same supplied facts are experienced.",
-                "Do not reward NONE merely for being safest. Judge all four complete productions by coherence, specificity, surprise, payoff, usefulness to the recipient, and whether the treatment earns its presence while remaining true.",
-              ] : []),
-              "CREATIVE_TREATMENTS assigns one treatment to each production A-D. Treat that treatment as expressive permission and production identity, NOT as literal world facts.",
-              "PRODUCTION IDENTITY IS FIXED: Production A must realize CREATIVE_TREATMENTS production A, B must realize B, C must realize C, and D must realize D. Never swap treatments between variant positions.",
-              "There must be exactly four assigned CREATIVE_TREATMENTS when Lens is active. If a treatment slot is missing, do not silently shift later treatments into earlier letters.",
-              "If one assigned treatment is NONE / Bare Reality, that production must remain genuinely bare: direct supplied reality with minimal rhetorical transformation. Do not turn the bare slot into a pun, metaphor, title, or alternate creative treatment.",
-              "Before nominating a production, verify that every cut in that production actually expresses its assigned treatment. Do not nominate a production under the name of a treatment it failed to realize.",
-              "A semantic mechanic is neutral structure only. It is never a plot, genre, style, hidden cause, or viewer-facing text.",
-              "Apply each assigned treatment across the whole production so its cuts share one conception, rhythm, and attitude. Do not merely sprinkle genre vocabulary onto otherwise identical lines.",
-              "A treatment may transform status, metaphor, rhythm, compression, callback, ceremony, absurd seriousness, or attitude. It may NEVER manufacture a person, object, action, place, outcome, chronology, bodily reaction, motive, or hidden condition.",
-              "If a treatment would require an unsupplied concrete world element to work, realize the treatment more abstractly instead of inventing that element.",
-              "Give the four productions genuinely different creative approaches because their assigned treatments are genuinely different. Do not make four near-synonymous productions.",
+              "CREATIVE_TREATMENTS assigns production identities. Each expressive production realizes its own sourceRelation, evidenceEventIds, hiddenInference, treatment, perceptionDelta, and expressiveBehaviors across the whole sequence.",
+              "sourceRelation and evidenceEventIds are the grounded root of the creative leap. Keep that root alive while pushing far beyond literal paraphrase.",
+              "hiddenInference is optional private Author intent, not viewer-facing copy. When present, build the sequence so the receiver can reach it themselves. When empty, do not invent a thesis; realize the supplied relationship through framing, juxtaposition, character, status, contrast, callback, possibility, or recontextualization.",
+              "Realization beats explanation. Make the inference felt and implied through supplied facts, sequence, contrast, callback, personification, status, and recontextualization. Never explain what the viewer is supposed to understand.",
+              "Treat the assigned treatment as pressure, not literal world description. Push it hard enough that the same reality becomes a different experience.",
+              "Available expressive productions compete on coherence, specificity, perception shift, surprise, payoff, cumulative meaning, and how alive the whole object feels.",
+              "AMPLIFY REALITY: push metaphor, status, personification, rhetorical scale, double meaning, and semantic consequence hard. Do not retreat to literal receipt wording merely to stay grounded. Grounding protects the concrete world; it does not require literal phrasing.",
+              "A cut may imply the supplied action rather than naming its verb when the whole production keeps the event recoverable. Make the viewer feel and infer the move. Do not explain it.",
+              "Bare Reality is the truth-safe control. It wins only when no expressive production remains viable.",
             ] : [
-              "NO CREATIVE LENS IS REQUESTED. Realize the approved meaning directly. Do not impose a genre skin, procedural gimmick, or stylistic universe just to make the material sound authored.",
-              "The four productions should still explore genuinely different phrasings and sequence strategies, but they must emerge from supplied reality and approved meaning rather than from an invented genre shell.",
+              "Without an assigned creative treatment, realize the approved meaning directly and still search for strong sequence-level authorship rather than generic paraphrase.",
             ]),
-            "Within each production, later cuts should feel aware of what earlier cuts established. Build progression, contrast, callback, accumulation, or recontextualization instead of isolated labels.",
-            "Do not mistake formal synonyms for authorship. Replacing 'arrived' with 'commencement', 'cleaned' with 'sanitation/cleansing', or 'finished' with 'termination' without a larger sequence idea is weaker than preserving the plain fact inside a strong conception.",
-            "The treatment should be recognizable from the relationship among the cuts, not only from vocabulary pasted onto each cut.",
-            "PRESERVE DISTINCTIVE ANCHORS. A multi-event beat should not dissolve into generic atmosphere. Keep recognizable source-specific anchors—an animal, object, number, quoted evaluation, action, time, or other distinctive detail—unless the production has already established that anchor strongly enough for a clear callback.",
-            "QUANTITATIVE/TIME ANCHORS ARE EXPENSIVE TO LOSE. If a supplied beat contains a specific duration, count, clock time, day, week, or other numeric/time marker and that marker materially distinguishes the memory, preserve it directly or transform it recognizably somewhere in the production. Do not replace 'two hours' with generic atmosphere.",
-            "RECURRENCE PAYOFF SHOULD LAND THE SUPPLIED RETURN. When the final evidence is 'again', 'next week', 'returned', another visit, or equivalent recurrence, make that recurrence itself legible. Prefer a concrete callback to the supplied return over generic labels like 'pattern', 'cycle', 'seamless', or 'predictable'.",
-            "If the recurrence includes a specific time anchor such as next week, three days later, Friday, or another supplied interval/date, keep that time anchor recognizably alive in the payoff. 'Again' alone is weaker when the supplied WHEN is part of what makes the return hit.",
-            "The later return may make the earlier encounter feel newly significant in retrospect, but do not explain why the return happened.",
-            "Specificity is fuel. Transform it; do not erase it.",
-            "POSITIVE CREATIVE PATTERNS:",
-            "SUPPLIED: saw a pigeon. STRONG TITLE-LIKE FRAMING: 'Unexpected management.' The phrase changes perception without claiming the pigeon literally managed anything.",
-            "SUPPLIED: three friends arrived, then one brought cake. STRONG PROGRESSION: early cuts can establish the arrivals; the later cake cut can make the gathering feel newly significant without inventing why the cake came.",
-            "SUPPLIED: a task lasted 42 minutes. WEAK PAYOFF: '42 minutes.' STRONGER PAYOFF BEHAVIOR: use the duration as weight, punctuation, scale, or recontextualization of what the earlier cuts already established without labeling it objectively long or short.",
-            "SUPPLIED: someone was explicitly praised. Preserve the praise as positive evidence; do not flatten it into a neutral 'opinion'.",
-            "Aim for the transformation pattern, not these exact words.",
-            "Do not play safe merely because a fact is neutral. Neutral facts may still become funny, strange, ceremonial, suspicious, grand, tiny, absurdly official, or otherwise perceptually transformed as long as the transformation is clearly nonliteral and does not rewrite material reality.",
-          ] : []),
-          ...(isMemoryMode ? [
-            "OUTPUT SHAPE MATTERS: return four production objects A-D. Each production contains its own ordered cuts from beginning to payoff. Do not transpose the matrix into four variants per beat.",
-          ] : []),
-          "Do not explain the joke or meaning.",
-          "Do not mention receipts, prompts, models, beats, grounding, Author, Mouth, viewers, or internal process.",
+            "Return one complete production object for each listed production identity. Finish each production from first cut through payoff before starting the next.",
+          ] : [
+            "For each beat, produce materially different short realizations and let the strongest grounded line win.",
+          ]),
           ...(presentationContext ? [presentationContext] : []),
         ].join("\n"),
       },
@@ -1922,19 +2357,25 @@ export async function createAuthorExperience(input: {
           REALITY_DIRECT: realityDirect,
           LENS_MODE: lensMode,
           REQUESTED_LENS: requestedLens || (autoBusinessLens ? "AUTO" : "NONE"),
-          CREATIVE_TREATMENTS: treatmentsForMouth.map((assignment, index) => ({
-            production: String.fromCharCode(65 + index),
+          STORY_GRAVITY: lensSearch.storyGravity,
+          CREATIVE_TREATMENTS: treatmentAssignmentsForMouth.map((assignment) => ({
+            production: assignment.production,
             semanticMechanic: assignment.semanticMechanic,
+            sourceCandidateId: assignment.sourceCandidateId,
+            sourceRelation: assignment.sourceRelation,
+            evidenceEventIds: assignment.evidenceEventIds,
+            hiddenInference: assignment.hiddenInference,
             treatment: assignment.treatment,
-            devices: assignment.devices,
+            perceptionDelta: assignment.perceptionDelta,
+            expressiveBehaviors: assignment.expressiveBehaviors,
             intensity: assignment.intensity,
           })),
           instruction: useIdentityClusterPlan
             ? "This is one IDENTITY character cluster, not a checklist. Return four short candidate realizations that synthesize the combination into character. Do not enumerate every supplied preference or simply restate them. The viewer should infer personality from the combination. Do not invent an event."
             : isMemoryMode
               ? realityDirect
-                ? "Return four complete candidate productions in PRODUCTION-MAJOR form. Complete A from first cut to payoff, then B, then C, then D. Discovery found no grounded hidden relation, so stay in REALITY-DIRECT MODE: do not invent a hidden thesis, but fully realize each assigned CREATIVE_TREATMENT through nonliteral rhetoric. Use the treatment's own grammar—metaphor, title-like status, ceremonial weight, noir pressure, game logic, callback, compression, implication, rhythm, or other non-material transformation—while keeping concrete reality fixed. Do not add any concrete noun, action, condition, physical result, physical quality, object, manner, scenery detail, or typical service detail that is not explicit in the supplied beat evidence. Preserve enough recognizable reality that the recipient can recover what happened. Nominate the strongest whole production by number 1-4."
-                : "Return four complete candidate productions in PRODUCTION-MAJOR form. Apply the universal law: MEMORY = accumulated truths -> one experience perception. Complete Production A from first cut to payoff before writing Production B, then C, then D. Treat each production as one finished QRE object unfolding cut by cut, not as separate lines. The accumulated facts are shared raw material for the whole production, not one-fact-per-line assignments. Each cut should perform a different job in the same experience: establish, deepen, turn, or land. When supplied reality contains a before-state / lived middle / after-state / recurrence shape, preserve the shape and make the contrast felt without claiming the middle caused the after-state or the earlier encounter caused the return. Preserve distinctive source anchors while transforming them. If the memory supplies a specific duration/count/time marker that gives the middle its identity, keep that marker legible somewhere in the production. If the payoff is a supplied recurrence such as again/next week/return, make the return itself legible and let it retrospectively recontextualize the earlier cuts without inventing motive. The final cut must land the approved memory relation using its local evidence plus already-established prior evidence. Then nominate the strongest complete EXPRESSIVE production by number 1-3 based on whole-product coherence, specificity, progression, surprise, payoff, and how alive it feels—not on whether every individual line sounds impressive. Production 4 is Bare Reality and is an emergency truth fallback, not a creative competitor. Do not nominate 4 while any expressive production is viable. Keep factual reality inside supplied event IDs, but make each expressive production feel authored rather than enumerated."
+                ? "Return complete candidate productions in PRODUCTION-MAJOR form for the listed CREATIVE_TREATMENTS only. Make the meaning felt and implied, not explained. Push each assigned treatment as far as supplied reality supports through nonliteral rhetoric, sequence, status, metaphor, callback, and recontextualization. Keep the concrete world fixed and each underlying action/change recoverable. Operational anchors may stay in provenance unless they create the perception. Nominate the strongest complete production by number 1-4."
+                : "Return complete candidate productions in PRODUCTION-MAJOR form for the listed CREATIVE_TREATMENTS only. Make the meaning felt and implied, not explained. Treat each production as one finished QRE object unfolding through time. Push each assigned perception until the whole sequence reveals something surprising but true about supplied reality. Keep each underlying action/change recoverable. Operational anchors may stay in provenance unless they create the perception. The final cut should land the production using its local evidence plus already-established prior evidence. Nominate the strongest viable expressive production; Bare Reality is the truth fallback, not the creative target."
               : "Return four candidate lines per beat. The semantic plan controls meaning; the supplied event IDs control factual reality.",
         }),
       },
@@ -1942,7 +2383,7 @@ export async function createAuthorExperience(input: {
     "json",
     {
       numPredict: 1050,
-      temperature: isMemoryMode ? 0.9 : 0.78,
+      temperature: isMemoryMode ? 0.96 : 0.86,
       jsonSchema: {
         type: "object",
         additionalProperties: false,
@@ -1953,8 +2394,12 @@ export async function createAuthorExperience(input: {
           ? {
               productions: {
                 type: "array",
-                minItems: 4,
-                maxItems: 4,
+                minItems: lensSearchEnabled
+                  ? Math.max(1, treatmentAssignmentsForMouth.length)
+                  : 4,
+                maxItems: lensSearchEnabled
+                  ? Math.max(1, treatmentAssignmentsForMouth.length)
+                  : 4,
                 items: {
                   type: "object",
                   additionalProperties: false,
@@ -1970,8 +2415,8 @@ export async function createAuthorExperience(input: {
                         additionalProperties: false,
                         required: ["order", "text"],
                         properties: {
-                          order: { type: "integer", minimum: 1, maximum: 6 },
-                          text: { type: "string", maxLength: 120 },
+                          order: { type: "integer", minimum: 1 },
+                          text: { type: "string", maxLength: 88 },
                         },
                       },
                     },
@@ -1981,7 +2426,7 @@ export async function createAuthorExperience(input: {
               selectedProduction: {
                 type: "integer",
                 minimum: 1,
-                maximum: lensSearchEnabled ? 3 : 4,
+                maximum: 4,
               },
               selectionReason: { type: "string", maxLength: 220 },
             }
@@ -1995,12 +2440,12 @@ export async function createAuthorExperience(input: {
                   additionalProperties: false,
                   required: ["order", "variants"],
                   properties: {
-                    order: { type: "integer", minimum: 1, maximum: 6 },
+                    order: { type: "integer", minimum: 1 },
                     variants: {
                       type: "array",
                       minItems: 4,
                       maxItems: 4,
-                      items: { type: "string", maxLength: 120 },
+                      items: { type: "string", maxLength: 88 },
                     },
                   },
                 },
@@ -2008,17 +2453,37 @@ export async function createAuthorExperience(input: {
             },
       },
     },
-  );
+  ).catch((error: unknown) => {
+    mouthFallbackReason =
+      clean((error as { message?: unknown })?.message) ||
+      "mouth_model_failed";
+    return {
+      text: buildDeterministicMouthFallback(
+        plan,
+        input.suppliedReality,
+        isMemoryMode,
+      ),
+      model: "deterministic-bare-mouth-fallback",
+      provider: "local" as const,
+    };
+  });
 
   debug("MOUTH-CANDIDATES", mouthResult.text);
 
-  const parsedMouth = parseJson(mouthResult.text);
+  let parsedMouth = parseJson(mouthResult.text);
   const variantsByOrder = new Map<number, string[]>();
 
   if (isMemoryMode) {
     if (!Array.isArray(parsedMouth?.productions)) {
-      throw new Error(
-        "QRE MEMORY Mouth contract invalid: production-major productions are required",
+      mouthFallbackReason =
+        mouthFallbackReason ||
+        "QRE MEMORY Mouth contract invalid: production-major productions are required";
+      parsedMouth = parseJson(
+        buildDeterministicMouthFallback(
+          plan,
+          input.suppliedReality,
+          true,
+        ),
       );
     }
 
@@ -2026,7 +2491,10 @@ export async function createAuthorExperience(input: {
       variantsByOrder.set(beat.order, ["", "", "", ""]);
     }
 
-    for (const rawProduction of parsedMouth.productions) {
+    const rawProductions = Array.isArray(parsedMouth?.productions)
+      ? parsedMouth.productions
+      : [];
+    for (const rawProduction of rawProductions) {
       if (!rawProduction || typeof rawProduction !== "object") continue;
       const productionRecord = rawProduction as Record<string, unknown>;
       const production = clean(productionRecord.production).toUpperCase();
@@ -2044,6 +2512,19 @@ export async function createAuthorExperience(input: {
         while (variants.length < 4) variants.push("");
         variants[variantIndex] = text;
         variantsByOrder.set(order, variants.slice(0, 4));
+      }
+    }
+
+    // Production D is the deterministic truth control. Mouth may return a D
+    // production for contract compatibility, but its wording never competes.
+    // The control is rebuilt directly from the supplied evidence so Bare
+    // cannot smuggle interpretation, rhetoric, or invented state into reality.
+    if (lensSearchEnabled) {
+      for (const beat of plan.beats) {
+        const variants = [...(variantsByOrder.get(beat.order) ?? ["", "", "", ""])];
+        while (variants.length < 4) variants.push("");
+        variants[3] = safeFallbackText(beat, input.suppliedReality);
+        variantsByOrder.set(beat.order, variants.slice(0, 4));
       }
     }
   } else {
@@ -2078,6 +2559,7 @@ export async function createAuthorExperience(input: {
         production: string;
         accepted: boolean;
         score: number;
+        reasons: string[];
         lines: Array<{
           order: number;
           text: string;
@@ -2120,13 +2602,22 @@ export async function createAuthorExperience(input: {
 
     let repairedNomination: MemorySequenceCandidate | undefined;
 
-    if (nominatedAny && !nominatedAny.accepted) {
+    const nominatedTreatmentIsAvailable =
+      !lensSearchEnabled ||
+      treatmentByVariantIndex.has(nominatedAny?.variantIndex ?? -1);
+
+    if (
+      nominatedAny &&
+      nominatedTreatmentIsAvailable &&
+      !nominatedAny.accepted
+    ) {
       const repair = await repairNominatedMemoryProduction({
         production: nominatedAny,
         plan,
         suppliedReality: input.suppliedReality,
         subject: input.subject,
         thesis: plan.thesis,
+        assignedTreatment: treatmentByVariantIndex.get(nominatedAny.variantIndex),
       });
       memoryRepairModelCalls += repair.modelCalls;
 
@@ -2189,6 +2680,7 @@ export async function createAuthorExperience(input: {
     const acceptedExpressiveProductions = lensSearchEnabled
       ? acceptedProductions.filter(
           (production) =>
+            treatmentByVariantIndex.has(production.variantIndex) &&
             production.variantIndex < 3 &&
             expressiveProductionHasPerceptionDelta(production),
         )
@@ -2203,12 +2695,19 @@ export async function createAuthorExperience(input: {
     // Bare exists only as the final truth-safe fallback.
     const nominatedExpressiveProduction =
       nominatedProduction &&
-      (!lensSearchEnabled || nominatedProduction.variantIndex < 3)
+      (!lensSearchEnabled ||
+        (
+          treatmentByVariantIndex.has(nominatedProduction.variantIndex) &&
+          nominatedProduction.variantIndex < 3
+        ))
         ? nominatedProduction
         : undefined;
+    // QRE owns final selection. Model nomination is diagnostic evidence, not
+    // authority. Rank accepted whole productions with QRE's own sequence
+    // scoring; use Bare only when no expressive production survives.
     const winner =
-      nominatedExpressiveProduction ??
       topScoringExpressiveProduction ??
+      nominatedExpressiveProduction ??
       bareFallbackProduction;
 
     selectedMemoryProduction = winner
@@ -2218,6 +2717,15 @@ export async function createAuthorExperience(input: {
       production: String.fromCharCode(65 + production.variantIndex),
       accepted: production.accepted,
       score: production.score,
+      reasons: [
+        ...production.reasons,
+        ...(lensSearchEnabled &&
+        production.variantIndex < 3 &&
+        production.accepted &&
+        !expressiveProductionHasPerceptionDelta(production)
+          ? ["insufficient-perception-delta"]
+          : []),
+      ],
       lines: production.lines.map((line) => ({
         order: line.beat.order,
         text: line.text,
@@ -2372,12 +2880,29 @@ export async function createAuthorExperience(input: {
       memoryRepairModelCalls,
     diagnostics: {
       plan,
+      creativeNotice: lensSearch.creativeNotice,
+      storyGravity: lensSearch.storyGravity,
+      failureLessons: lensSearch.failureLessons,
       creativeTreatments: treatmentsForMouth,
+      creativeSearchFallbackReason: lensSearch.searchFallbackReason,
+      rejectedTreatments: lensSearch.rejectedTreatments,
+      treatmentSetAssessment: lensSearch.treatmentSetAssessment,
+      productionContractComplete: {
+        creativeSetComplete:
+          lensSearch.treatmentSetAssessment.creativeSetComplete,
+        renderable: lensSearch.treatmentSetAssessment.renderable,
+      },
       variantsByBeat: [...variantsByOrder.entries()]
         .sort(([a], [b]) => a - b)
         .map(([order, variants]) => ({ order, variants })),
       choices,
       selectedProduction: selectedMemoryProduction,
+      mouthFallback: mouthFallbackReason
+        ? {
+            reason: mouthFallbackReason,
+            production: selectedMemoryProduction ?? "D",
+          }
+        : undefined,
       memoryProductions: memoryProductionDiagnostics,
     },
   };
