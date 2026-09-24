@@ -22,7 +22,7 @@ export type AuthorCutPolicyResult = {
   score: number;
   metrics: {
     groundedRatio: number;
-    compression: number;
+    economy: number;
     implication: number;
     inventionRisk: number;
     explanation: number;
@@ -100,14 +100,14 @@ function groundedRatio(text: string, world: AuthorCutWorld): number {
   return grounded.length / candidate.length;
 }
 
-function compression(text: string): number {
+function lineEconomy(text: string): number {
   const count = clean(text).split(/\s+/).filter(Boolean).length;
   if (!count) return 0;
-  if (count <= 2) return 1;
-  if (count <= 4) return 0.98;
-  if (count <= 7) return 0.94;
-  if (count <= 10) return 0.72;
-  return 0.35;
+  // Length is not a quality proxy. Reward only pathological over-explaining,
+  // otherwise keep the score neutral and let impact/implication carry quality.
+  if (count <= 18) return 1;
+  if (count <= 28) return 0.9;
+  return 0.75;
 }
 
 function implication(text: string): number {
@@ -141,7 +141,7 @@ export function evaluateAuthorCut(
   const text = clean(textInput);
   const reasons: string[] = [];
   const grounded = groundedRatio(text, world);
-  const compressed = compression(text);
+  const economical = lineEconomy(text);
   const implied = implication(text);
   const invented = inventionRisk(text, world);
   const explained = EXPLANATION.test(text) ? 1 : 0;
@@ -159,7 +159,6 @@ export function evaluateAuthorCut(
     reasons.push("unsupported-recurrence");
   }
   if (explained >= 1) reasons.push("explanation");
-  if (wordCount > 10) reasons.push("too-long");
   if (
     TEMPORAL_COMPARISON.test(text) &&
     !TEMPORAL_COMPARISON.test(factualSourceText(world))
@@ -184,7 +183,7 @@ export function evaluateAuthorCut(
     Math.min(
       1,
       grounded * 0.34 +
-        compressed * 0.2 +
+        economical * 0.2 +
         implied * 0.3 +
         (1 - invented) * 0.16 -
         explained * 0.2,
@@ -197,7 +196,7 @@ export function evaluateAuthorCut(
     score: Number(score.toFixed(3)),
     metrics: {
       groundedRatio: Number(grounded.toFixed(3)),
-      compression: Number(compressed.toFixed(3)),
+      economy: Number(economical.toFixed(3)),
       implication: Number(implied.toFixed(3)),
       inventionRisk: Number(invented.toFixed(3)),
       explanation: explained,
