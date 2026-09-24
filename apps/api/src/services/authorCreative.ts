@@ -162,6 +162,12 @@ const KNOWN_EXPRESSIVE_BEHAVIOR_SEEDS = [
   "repetition",
 ] as const;
 
+function isPresentationDirection(value: string): boolean {
+  // This is a layer boundary, not a creativity blacklist. These terms describe
+  // audiovisual/rendering execution rather than semantic or verbal authorship.
+  return /\b(?:camera|shot|zoom|lighting|edit(?:ing)?|cutaway|close[ -]?up|intercut|color palette|colour palette|soundtrack|music|audio|sound design|sound effect|voiceover|staging|ui animation|visual transition|visual cues?|typography|overlay|graphics?|footage|slow[ -]?motion|desaturated)\b/i.test(value);
+}
+
 function normalizeExpressiveBehaviors(value: unknown): string[] {
   if (!Array.isArray(value)) return [];
   // Known operations are examples, not a ceiling. Preserve concise,
@@ -170,7 +176,8 @@ function normalizeExpressiveBehaviors(value: unknown): string[] {
     value
       .filter((item): item is string => typeof item === "string")
       .map((item) => clean(item).toLowerCase())
-      .filter((item) => item.length > 0 && item.length <= 48),
+      .filter((item) => item.length > 0 && item.length <= 48)
+      .filter((item) => !isPresentationDirection(item)),
   ).slice(0, 4);
 }
 
@@ -516,11 +523,10 @@ export function unsupportedTreatmentMaterialReason(input: {
     return "literalizes rhetorical framing into unsupplied reality";
   }
 
-  // Private Creative Search may occasionally leak presentation vocabulary
-  // (music, visual cues, camera language) while discovering an otherwise useful
-  // semantic conception. Do not discard the conception for that. Author/Mouth
-  // remains text-semantic only; presentation vocabulary is non-authoritative and
-  // must not become required reality or a reason to kill the treatment.
+  // Presentation direction is not Author material. If the model leaks it while
+  // discovering a useful conception, preserve the semantic conception but strip
+  // presentation-only expressive behaviors during normalization. Do not reward,
+  // propagate, or treat audiovisual direction as creative authority.
 
   // Do not let a creative reading manufacture concrete comparative properties
   // of the supplied world. Rhetorical scale ("twice the battle") remains
@@ -835,6 +841,8 @@ export async function searchAuthorCreativeLensTreatments(input: {
           "Amplify reality through metaphor, status, personification, rhetorical scale, irony, contrast, callback, omission, escalation, compression, and recontextualization.",
           "Rhetoric may be more extreme than reality. The concrete world may not become more specific than the evidence.",
           "Treatments describe semantic/verbal transformation only. No camera, visuals, typography, overlays, sound, editing, staging, or rendering instructions.",
+          "IMPORTANT: 'treatment' here does NOT mean a film, video, audiovisual, or production treatment. It means a private semantic conception: what the supplied reality means differently, how its facts relate, and what rhetorical/verbal pressure should shape the writing.",
+          "expressiveBehaviors must be semantic or rhetorical operations only. Never return music, sound, camera, visual cues, lighting, editing, performance direction, or other presentation instructions.",
           "Make the same reality read differently. Make meaning felt and implied, not explained.",
           "Protect the strange; police the facts.",
         ].join("\n"),
