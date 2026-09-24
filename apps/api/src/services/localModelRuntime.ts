@@ -46,12 +46,14 @@ function modelName(
 function fallbackModelName(
   primaryModel: string,
 ): string {
-  const configuredEnv = process.env.QRE_AUTHOR_FALLBACK_MODEL;
-  const configured = configuredEnv === undefined
-    ? "qwen2.5vl:7b"
-    : String(configuredEnv).trim();
+  const configured = String(
+    process.env.QRE_AUTHOR_FALLBACK_MODEL ?? "",
+  ).trim();
 
-  if (!configured) {
+  if (
+    !configured ||
+    /^(?:none|off|disabled)$/i.test(configured)
+  ) {
     return "";
   }
 
