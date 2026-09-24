@@ -140,6 +140,37 @@ function materialText(values: readonly string[]): string {
   return clean(values.join(" ")).toLowerCase();
 }
 
+const ALLOWED_EXPRESSIVE_BEHAVIORS = new Set([
+  "contrast",
+  "status",
+  "personification",
+  "rhetorical scale",
+  "irony",
+  "callback",
+  "omission",
+  "escalation",
+  "compression",
+  "juxtaposition",
+  "inversion",
+  "understatement",
+  "double meaning",
+  "recontextualization",
+  "anticipation",
+  "question",
+  "motif",
+  "repetition",
+]);
+
+function normalizeExpressiveBehaviors(value: unknown): string[] {
+  if (!Array.isArray(value)) return [];
+  return unique(
+    value
+      .filter((item): item is string => typeof item === "string")
+      .map((item) => clean(item).toLowerCase())
+      .filter((item) => ALLOWED_EXPRESSIVE_BEHAVIORS.has(item)),
+  ).slice(0, 4);
+}
+
 function clamp01(value: number): number {
   return Number(Math.max(0, Math.min(1, value)).toFixed(3));
 }
@@ -767,7 +798,7 @@ export async function searchAuthorCreativeLensTreatments(input: {
           ...QRE_CREATIVE_OPERATING_DOCTRINE,
           "Reality is fixed. Creative interpretation is aggressive. New concrete world facts are forbidden.",
           "Classify STORY_GRAVITY.mode as ARC, SEQUENCE, PORTRAIT, or WORLD_OPENING from the supplied event IDs only.",
-          "Find the strongest relationships already inside CREATIVE_EVIDENCE. Do not force a thesis, psychology, routine, hidden history, or genre.",
+          "Find the strongest relationships already inside CREATIVE_EVIDENCE. Do not force a thesis, psychology, routine, or hidden history.",
           "HARD_ENDPOINT_EVENT_ID is already locked by QRE. Earlier supplied evidence may earn it; the endpoint itself is not the creative idea.",
           "Operational anchors are provenance by default. Do not center timing, precision, logging, documentation, duration, or completion unless the supplied relationship truly depends on them.",
           "Search broadly in private. Return exactly three materially different latent relations and one finalist per relation in the same order.",
@@ -777,6 +808,13 @@ export async function searchAuthorCreativeLensTreatments(input: {
           "Do not summarize the reality. Make the reality acquire attitude. Do not explain the relationship; make the next move prove it.",
           "Prefer a relation that could only have come from THESE facts over a generic mood that could fit anything.",
           "A finalist should bend meaning as far as possible without bending reality.",
+          "CREATIVE PRESSURE IS NOT FACT. After finding the grounded relation, aggressively test it through different imaginative universes. Game, cyber/system, heist, noir, battle, bureaucracy, ritual, horror, sport, courtroom, myth, deadpan absurdity, status war, mission control, and entirely new model-discovered pressures are all legal rhetorical frames.",
+          "Do not merely name a genre. Use pressure to change the read of the supplied facts: status, stakes, rhythm, hierarchy, conflict, callback, irony, escalation, or meaning.",
+          "The three finalists must not share one mood. Make them compete from materially different creative pressures.",
+          "At least one finalist should be bold enough that a cautious model would probably not choose it, while still preserving exact concrete reality.",
+          "Penalize atmospheric vagueness. Ambiguity, impermanence, subtlety, transience, melancholy, emptiness, longing, and similar mood words are not a creative conception by themselves.",
+          "Prefer executable creative ideas: count can become escalation, resistance can become negotiation, an object can become status, completion can become verdict, repetition can become game logic, and sequence can become mission logic — only as rhetoric, never literal new facts.",
+          "Ask of every finalist: could this exact idea have emerged from almost any four facts? If yes, it is too generic. Make it depend on THESE facts.",
           "Each relation must name the supplied event IDs that make it possible. A missing fact is not a relation.",
           "hiddenInference is optional. Leave it empty unless the supplied facts genuinely support an unstated realization.",
           "Amplify reality through metaphor, status, personification, rhetorical scale, irony, contrast, callback, omission, escalation, compression, and recontextualization.",
@@ -1055,9 +1093,7 @@ export async function searchAuthorCreativeLensTreatments(input: {
             hiddenInference: clean(record.hiddenInference),
             treatment: clean(record.treatment),
             perceptionDelta: clean(record.perceptionDelta),
-            expressiveBehaviors: Array.isArray(record.expressiveBehaviors)
-              ? record.expressiveBehaviors.filter((item): item is string => typeof item === "string").map(clean).filter(Boolean)
-              : [],
+            expressiveBehaviors: normalizeExpressiveBehaviors(record.expressiveBehaviors),
             intensity: clean(record.intensity).toUpperCase() === "STRONG"
               ? "STRONG"
               : clean(record.intensity).toUpperCase() === "LIGHT"
@@ -1085,14 +1121,7 @@ export async function searchAuthorCreativeLensTreatments(input: {
         : Array.isArray(record.devices)
           ? record.devices
           : [];
-      const expressiveBehaviors = Array.isArray(expressiveBehaviorsSource)
-        ? unique(
-            expressiveBehaviorsSource
-              .filter((behavior): behavior is string => typeof behavior === "string")
-              .map(clean)
-              .filter(Boolean),
-          ).slice(0, 6)
-        : [];
+      const expressiveBehaviors = normalizeExpressiveBehaviors(expressiveBehaviorsSource);
       const rawIntensity = clean(record.intensity).toUpperCase();
       const intensity: AuthorCreativeTreatmentAssignment["intensity"] =
         rawIntensity === "LIGHT" || rawIntensity === "STRONG"
