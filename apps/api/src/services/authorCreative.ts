@@ -863,7 +863,11 @@ export async function searchAuthorCreativeLensTreatments(input: {
     ],
     "json",
     {
-      numPredict: 760,
+      // Creative Search now carries three complete latent relations plus three
+      // complete treatments without hard string clipping. Give the model enough
+      // room to close valid JSON; brevity is taught in the prompt, not enforced
+      // by truncating the response mid-conception.
+      numPredict: 1200,
       temperature: 0.98,
       jsonSchema: {
         type: "object",
