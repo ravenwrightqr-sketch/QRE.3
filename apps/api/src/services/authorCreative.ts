@@ -1655,6 +1655,29 @@ function actionlessCompressionReason(
   return undefined;
 }
 
+function unsupportedPressureInfrastructureReason(
+  text: string,
+  beatFacts: readonly string[],
+  semanticAuthority: readonly string[],
+): string | undefined {
+  const candidate = clean(text).toLowerCase();
+  if (!candidate) return undefined;
+
+  const authority = clean([...beatFacts, ...semanticAuthority].join(" ")).toLowerCase();
+
+  const claimsExternalInfrastructure =
+    /\b(?:assignment received|received assignment|awaiting (?:the )?next directive|awaiting directive|directive received|orders? received|command(?:s)? received|standard operating procedure observed|procedure observed|protocol observed|authorization received|approval received|report submitted|sign[- ]?off received)\b/i.test(candidate);
+
+  if (!claimsExternalInfrastructure) return undefined;
+
+  const sourceSupportsInfrastructure =
+    /\b(?:assignment|directive|order|command|procedure|protocol|authorization|approval|report|sign[- ]?off)\b/i.test(authority);
+
+  return sourceSupportsInfrastructure
+    ? undefined
+    : "pressure-materialized-unsupplied-external-system";
+}
+
 function variantScore(
   text: string,
   beatFacts: readonly string[],
@@ -1672,6 +1695,19 @@ function variantScore(
 
   if (!policy.accepted) {
     return { accepted: false, score: 0, reasons: policy.reasons };
+  }
+
+  const pressureInfrastructureReason = unsupportedPressureInfrastructureReason(
+    text,
+    beatFacts,
+    semanticAuthority,
+  );
+  if (pressureInfrastructureReason) {
+    return {
+      accepted: false,
+      score: 0,
+      reasons: [pressureInfrastructureReason],
+    };
   }
 
   const normalized = clean(text).toLowerCase();
@@ -1975,6 +2011,7 @@ async function repairNominatedMemoryProduction(input: {
           "PRESERVE THE CONCEPTION. PRESERVE THE REALITY. RECOVER THE ENERGY.",
           "The supplied reality is the whole available world. Repair may change expression, rhythm, and compression, but every factual implication must remain inside supplied evidence and prior established cuts.",
           "A failed cut may not borrow evidence from a later beat. Keep each replacement inside its own suppliedEvidence plus prior established evidence. Future facts must stay future.",
+          "Preserve the creative pressure without materializing its fictional infrastructure. A mission frame may yield objective/status language, but not a newly asserted assignment, directive, authority, procedure, confirmation, or communication unless supplied.",
           "Use the assigned treatment's perceptionDelta and expressiveBehaviors as repair authority. Do not invent a new treatment and do not flatten the cut into bare fact unless no grounded expression of the conception remains.",
           "QRE makes the meaning felt and implied, not explained. A repaired cut is a hit, not prose: compress until removing another word would weaken meaning, rhythm, character, or surprise, then stop.",
         ].join("\n"),
@@ -2457,6 +2494,8 @@ export async function createAuthorExperience(input: {
               "ABSENCE IS ALSO A FACT. Do not claim that a response, object, action, event, or interaction was absent unless supplied reality establishes that absence.",
               "A category does not license its typical contents. Keep creative force in status, rhetoric, logic, scale, sequence, and recontextualization instead of inventing material detail.",
               "Sensory residue is material reality too. Sensory conditions, bodily reactions, and environmental aftermath require supplied support unless the wording is unmistakably nonliteral rhetoric.",
+              "CREATIVE PRESSURE MAY SUPPLY A RHETORICAL ROLE, NOT A NEW INSTITUTION. Mission, battle, courtroom, ritual, protocol, system, and similar frames may change status and wording, but they do not create actual assignments, directives, approvals, commands, procedures, reports, sign-offs, authorities, enemies, teams, or communications unless supplied.",
+              "Prefer pressure-native transformations of supplied facts themselves: 'Kitchen: neutralized.' can be rhetoric. 'Assignment received.' or 'Awaiting next directive.' asserts new external reality and is not allowed without evidence.",
               "Bare Reality is the truth-safe control. It wins only when no expressive production remains viable.",
             ] : [
               "Without an assigned creative treatment, realize the approved meaning directly and still search for strong sequence-level authorship rather than generic paraphrase.",
@@ -2878,7 +2917,14 @@ export async function createAuthorExperience(input: {
     selectedMemoryProduction = winner
       ? String.fromCharCode(65 + winner.variantIndex)
       : undefined;
-    memoryProductionDiagnostics = productions.map((production) => ({
+    const effectiveProductions = productions.map((production) =>
+      repairedNomination &&
+      production.variantIndex === repairedNomination.variantIndex
+        ? repairedNomination
+        : production,
+    );
+
+    memoryProductionDiagnostics = effectiveProductions.map((production) => ({
       production: String.fromCharCode(65 + production.variantIndex),
       accepted: production.accepted,
       score: production.score,
@@ -2906,7 +2952,7 @@ export async function createAuthorExperience(input: {
       winner: winner
         ? String.fromCharCode(65 + winner.variantIndex)
         : "NONE",
-      productions: productions.map((production) => ({
+      productions: effectiveProductions.map((production) => ({
       production: String.fromCharCode(65 + production.variantIndex),
       accepted: production.accepted,
       score: production.score,
@@ -2929,7 +2975,7 @@ export async function createAuthorExperience(input: {
         .map(clean)
         .filter(Boolean);
 
-      const alternatives = productions.map((production) => {
+      const alternatives = effectiveProductions.map((production) => {
         const line = production.lines[index];
         return {
           text: line?.text ?? "",
