@@ -150,8 +150,8 @@ export function deriveAuthorCreativeFrameCandidates(input: {
   if ((hasResistance && (hasStatusObject || hasStateContrast)) || /status contest|status tension/i.test(discoveryText)) {
     addFrameCandidate(
       candidates,
-      "negotiation",
-      "supplied resistance or status tension makes the interaction read as a perspective contest",
+      "status_tension",
+      "supplied resistance or status difference creates a grounded tension between states or positions",
       0.92,
     );
   }
@@ -163,17 +163,17 @@ export function deriveAuthorCreativeFrameCandidates(input: {
   const timeOrCount =
     /\b(?:\d{1,2}:\d{2}|\d+\s*(?:rooms?|bathrooms?|boxes?|items?|hours?|minutes?|days?)|two|three|four|five|first|last)\b/i.test(text);
   const taskSignals = input.suppliedReality.filter((event) => serviceSignals.test(event.text));
-  const hasMeaningfulOperation =
+  const hasBoundedProgression =
     taskSignals.length >= 2 &&
     boundedWork &&
     timeOrCount &&
     serviceSignals.test(textWithContext);
 
-  if (hasMeaningfulOperation) {
+  if (hasBoundedProgression) {
     addFrameCandidate(
       candidates,
-      "operation",
-      "bounded supplied work progression has enough structure to read as an operation without adding facts",
+      "bounded_progression",
+      "supplied work has a bounded beginning, distinct middle actions, and an ending without implying style, urgency, or performance",
       0.84,
     );
   }
@@ -184,21 +184,19 @@ export function deriveAuthorCreativeFrameCandidates(input: {
   ) {
     addFrameCandidate(
       candidates,
-      "investigation",
-      "an unresolved supplied object or question creates a perspective of inquiry",
+      "unresolved_search",
+      "a supplied unresolved object or question creates a grounded unresolved relation",
       0.94,
     );
   }
 
   if (/\b(?:same|again|returned|return|repeated|recurring|every|sundays?|weekly|back)\b/i.test(text)) {
-    const frame = /\b(?:memorial|remember|record|song|card|birthday|old|kept)\b/i.test(text)
-      ? "refrain"
-      : "return";
+    const frame = "recurrence";
     addFrameCandidate(
       candidates,
       frame,
       "a repeated supplied detail can become the perspective anchor",
-      frame === "refrain" ? 0.93 : 0.86,
+      0.9,
     );
   }
 
@@ -208,8 +206,8 @@ export function deriveAuthorCreativeFrameCandidates(input: {
   ) {
     addFrameCandidate(
       candidates,
-      "quiet observation",
-      "the memory is stronger when observed with restraint than converted into a genre",
+      "reflective_observation",
+      "the supplied memory supports observation without requiring an added causal or dramatic relation",
       0.88,
     );
   }
@@ -220,8 +218,8 @@ export function deriveAuthorCreativeFrameCandidates(input: {
   ) {
     addFrameCandidate(
       candidates,
-      "reveal",
-      "a supplied visible state change can carry a compact perspective reveal",
+      "state_change",
+      "supplied before/after or visible-state evidence establishes a grounded difference between states",
       0.76,
     );
   }
@@ -335,7 +333,7 @@ export function unsupportedLensMaterialReason(input: {
   const text = input.text;
   const supplied = input.suppliedRealityText;
   const selectedFrame = clean(input.selectedFrame).toLowerCase();
-  const hasRecurrenceFrame = selectedFrame === "refrain" || selectedFrame === "return";
+  const hasRecurrenceFrame = selectedFrame === "recurrence";
   const sourceHasRecurrence =
     /\b(?:same|again|returned|return|repeated|recurring|every|sundays?|weekly|back)\b/i.test(supplied);
 
