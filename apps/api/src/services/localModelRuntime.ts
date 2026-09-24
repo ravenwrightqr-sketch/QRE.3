@@ -20,6 +20,7 @@ export type LocalModelJsonSchema = {
 
 export type LocalModelOptions = {
   numPredict?: number;
+  numCtx?: number;
   temperature?: number;
   jsonSchema?: LocalModelJsonSchema;
 };
@@ -145,6 +146,21 @@ function defaultNumPredict(
         768,
     )
   );
+}
+
+function defaultNumCtx(
+  options: LocalModelOptions,
+): number {
+  const raw =
+    options.numCtx ??
+    Number(
+      process.env.QRE_LOCAL_MODEL_NUM_CTX ||
+        8192,
+    );
+
+  return Number.isFinite(raw) && raw >= 4096
+    ? Math.floor(raw)
+    : 8192;
 }
 
 function stripDataUrl(
@@ -439,6 +455,7 @@ type LocalRequestBody = {
   options: {
     temperature: number;
     num_predict: number;
+    num_ctx: number;
   };
 };
 
@@ -501,6 +518,10 @@ async function request(
   "QRE REQUEST NUM_PREDICT:",
   body.options.num_predict,
 );
+    console.log(
+      "QRE REQUEST NUM_CTX:",
+      body.options.num_ctx,
+    );
     console.log(
       "QRE REQUEST MESSAGE COUNT:",
       body.messages.length,
@@ -764,6 +785,11 @@ export async function localModelGenerate(
       options,
     );
 
+  const numCtx =
+    defaultNumCtx(
+      options,
+    );
+
   const requestBody:
     LocalRequestBody = {
     model:
@@ -804,6 +830,8 @@ export async function localModelGenerate(
       temperature,
       num_predict:
         numPredict,
+      num_ctx:
+        numCtx,
     },
   };
 
