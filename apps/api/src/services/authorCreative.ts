@@ -70,22 +70,22 @@ export type AuthorSemanticPlan = {
   beats: AuthorSemanticBeat[];
 };
 
-export type AuthorCreativeFrame = {
+export type AuthorCreativeTreatmentAssignment = {
   id: string;
-  frame: string;
+  semanticMechanic: string;
   treatment: string;
   devices: string[];
   intensity: "LIGHT" | "MEDIUM" | "STRONG";
 };
 
-export type AuthorCreativeFrameCandidate = {
-  frame: string;
+export type AuthorSemanticMechanicCandidate = {
+  mechanic: string;
   reason: string;
   confidence: number;
 };
 
-const GENERIC_CREATIVE_FRAME =
-  /^(?:game|journey|mission|story|experience|transformation)$/i;
+const GENERIC_OR_STYLED_MECHANIC =
+  /^(?:game|journey|mission|story|experience|transformation|operation|heist|courtroom|spy|horror|noir|ceremony|bureaucratic|speedrun|quest|ballet|protocol|ritual|performance|audit)$/i;
 
 function materialText(values: readonly string[]): string {
   return clean(values.join(" ")).toLowerCase();
@@ -95,30 +95,29 @@ function clamp01(value: number): number {
   return Number(Math.max(0, Math.min(1, value)).toFixed(3));
 }
 
-function addFrameCandidate(
-  candidates: AuthorCreativeFrameCandidate[],
-  frame: string,
+function addSemanticMechanicCandidate(
+  candidates: AuthorSemanticMechanicCandidate[],
+  mechanic: string,
   reason: string,
   confidence: number,
 ): void {
-  const normalizedFrame = clean(frame).toLowerCase();
-  if (!normalizedFrame || GENERIC_CREATIVE_FRAME.test(normalizedFrame)) return;
-  if (candidates.some((candidate) => candidate.frame === normalizedFrame)) return;
+  const normalizedMechanic = clean(mechanic).toLowerCase();
+  if (!normalizedMechanic || GENERIC_OR_STYLED_MECHANIC.test(normalizedMechanic)) return;
+  if (candidates.some((candidate) => candidate.mechanic === normalizedMechanic)) return;
 
   candidates.push({
-    frame: normalizedFrame,
+    mechanic: normalizedMechanic,
     reason: clean(reason),
     confidence: clamp01(confidence),
   });
 }
-
-export function deriveAuthorCreativeFrameCandidates(input: {
+export function deriveAuthorSemanticMechanicCandidates(input: {
   subject?: string;
   suppliedReality: readonly AuthorCreativeEvent[];
   creativeDiscovery?: AuthorCreativeDiscovery;
   memory?: readonly string[];
   domainContext?: AuthorDomainContext;
-}): AuthorCreativeFrameCandidate[] {
+}): AuthorSemanticMechanicCandidate[] {
   const eventText = materialText(input.suppliedReality.map((event) => event.text));
   const discovery = input.creativeDiscovery;
   const discoveryText = materialText([
@@ -138,17 +137,23 @@ export function deriveAuthorCreativeFrameCandidates(input: {
   const text = clean(`${eventText} ${discoveryText} ${memoryText}`);
   const textWithContext = clean(`${text} ${contextText}`);
 
-  const candidates: AuthorCreativeFrameCandidate[] = [];
+  const candidates: AuthorSemanticMechanicCandidate[] = [];
+
   const hasResistance =
     /\b(?:nervous|scared|shy|guarded|hesitant|resisted|resistance|hates?|refused|tried|attempted|stole|steals|fierce|stubborn|defiant|rebellion)\b/i.test(text);
+
   const hasStatusObject =
     /\b(?:bow|ticket|badge|approval|approved|rank|status|official|claim|claimed|selected|chosen|crown|prize)\b/i.test(text);
+
   const hasStateContrast =
     /\b(?:before|after|left|arrived|came in|entered|finished|completed)\b/i.test(text) &&
     /\b(?:nervous|scared|shy|approved|happy|fabulous|clean|finished|complete|done)\b/i.test(text);
 
-  if ((hasResistance && (hasStatusObject || hasStateContrast)) || /status contest|status tension/i.test(discoveryText)) {
-    addFrameCandidate(
+  if (
+    (hasResistance && (hasStatusObject || hasStateContrast)) ||
+    /status contest|status tension/i.test(discoveryText)
+  ) {
+    addSemanticMechanicCandidate(
       candidates,
       "status_tension",
       "supplied resistance or status difference creates a grounded tension between states or positions",
@@ -158,11 +163,17 @@ export function deriveAuthorCreativeFrameCandidates(input: {
 
   const serviceSignals =
     /\b(?:service|clean(?:ed|ing)?|repair(?:ed|ing)?|groom(?:ed|ing)?|bath|bathroom|kitchen|packed|loaded|delivered|installed|inspection|appointment)\b/i;
+
   const boundedWork =
     /\b(?:arrived|started|began|first|then|next|finished|completed|done|left)\b/i.test(text);
+
   const timeOrCount =
     /\b(?:\d{1,2}:\d{2}|\d+\s*(?:rooms?|bathrooms?|boxes?|items?|hours?|minutes?|days?)|two|three|four|five|first|last)\b/i.test(text);
-  const taskSignals = input.suppliedReality.filter((event) => serviceSignals.test(event.text));
+
+  const taskSignals = input.suppliedReality.filter((event) =>
+    serviceSignals.test(event.text),
+  );
+
   const hasBoundedProgression =
     taskSignals.length >= 2 &&
     boundedWork &&
@@ -170,7 +181,7 @@ export function deriveAuthorCreativeFrameCandidates(input: {
     serviceSignals.test(textWithContext);
 
   if (hasBoundedProgression) {
-    addFrameCandidate(
+    addSemanticMechanicCandidate(
       candidates,
       "bounded_progression",
       "supplied work has a bounded beginning, distinct middle actions, and an ending without implying style, urgency, or performance",
@@ -182,7 +193,7 @@ export function deriveAuthorCreativeFrameCandidates(input: {
     /\b(?:missing|lost|vanished|unresolved|mystery|unknown|question|where|search|found)\b/i.test(text) &&
     /\b(?:box|object|item|key|card|record|bag|ticket|detail|thing)\b/i.test(text)
   ) {
-    addFrameCandidate(
+    addSemanticMechanicCandidate(
       candidates,
       "unresolved_search",
       "a supplied unresolved object or question creates a grounded unresolved relation",
@@ -190,12 +201,13 @@ export function deriveAuthorCreativeFrameCandidates(input: {
     );
   }
 
-  if (/\b(?:same|again|returned|return|repeated|recurring|every|sundays?|weekly|back)\b/i.test(text)) {
-    const frame = "recurrence";
-    addFrameCandidate(
+  if (
+    /\b(?:same|again|returned|return|repeated|recurring|every|sundays?|weekly|back)\b/i.test(text)
+  ) {
+    addSemanticMechanicCandidate(
       candidates,
-      frame,
-      "a repeated supplied detail can become the perspective anchor",
+      "recurrence",
+      "a repeated supplied detail creates a grounded recurrence relation",
       0.9,
     );
   }
@@ -204,10 +216,10 @@ export function deriveAuthorCreativeFrameCandidates(input: {
     /\b(?:memorial|remember|old records?|birthday cards?|same song|quiet|kept every)\b/i.test(text) &&
     !hasResistance
   ) {
-    addFrameCandidate(
+    addSemanticMechanicCandidate(
       candidates,
       "reflective_observation",
-      "the supplied memory supports observation without requiring an added causal or dramatic relation",
+      "supplied memory material supports grounded observation without prescribing an expressive style",
       0.88,
     );
   }
@@ -216,10 +228,10 @@ export function deriveAuthorCreativeFrameCandidates(input: {
     /\b(?:before|after|dirty|filthy|restored|cleaned|revealed|uncovered)\b/i.test(text) &&
     /\b(?:visible|looked|left|finished|done|result)\b/i.test(text)
   ) {
-    addFrameCandidate(
+    addSemanticMechanicCandidate(
       candidates,
       "state_change",
-      "supplied before/after or visible-state evidence establishes a grounded difference between states",
+      "supplied before-and-after or visible-state evidence establishes a grounded difference",
       0.76,
     );
   }
@@ -229,29 +241,30 @@ export function deriveAuthorCreativeFrameCandidates(input: {
     .slice(0, 6);
 }
 
-export function selectAuthorCreativeFrame(input: {
-  candidates: readonly AuthorCreativeFrameCandidate[];
+export function selectAuthorSemanticMechanic(input: {
+  candidates: readonly AuthorSemanticMechanicCandidate[];
   creativeDiscovery?: AuthorCreativeDiscovery;
-}): AuthorCreativeFrameCandidate {
+}): AuthorSemanticMechanicCandidate {
   const groundedCandidates = input.candidates
     .filter((candidate) => {
-      const frame = clean(candidate.frame);
-      return frame && !GENERIC_CREATIVE_FRAME.test(frame);
+      const mechanic = clean(candidate.mechanic);
+      return mechanic && !GENERIC_OR_STYLED_MECHANIC.test(mechanic);
     })
     .sort((a, b) => b.confidence - a.confidence);
 
   if (!groundedCandidates.length) {
     return {
-      frame: "NONE",
-      reason: "no grounded perspective frame is available from supplied reality",
+      mechanic: "NONE",
+      reason: "no grounded semantic mechanic is available from supplied reality",
       confidence: 1,
     };
   }
 
   const top = groundedCandidates[0]!;
+
   if (top.confidence < 0.72) {
     return {
-      frame: "NONE",
+      mechanic: "NONE",
       reason: "no candidate materially improves the supplied reality",
       confidence: 0.76,
     };
@@ -269,7 +282,11 @@ export type AuthorCreativeTreatment = {
 
 function isBareTreatment(treatment: AuthorCreativeTreatment): boolean {
   return /\b(?:none|bare reality|natural|minimal treatment)\b/i.test(
-    materialText([treatment.id, treatment.treatment, ...treatment.devices]),
+    materialText([
+      treatment.id,
+      treatment.treatment,
+      ...treatment.devices,
+    ]),
   );
 }
 
@@ -280,7 +297,10 @@ function treatmentHasSequenceRelationship(
   treatment: AuthorCreativeTreatment,
 ): boolean {
   return SEQUENCE_RELATIONSHIP_DEVICE.test(
-    materialText([treatment.treatment, ...treatment.devices]),
+    materialText([
+      treatment.treatment,
+      ...treatment.devices,
+    ]),
   );
 }
 
@@ -296,7 +316,10 @@ export function assessAuthorCreativeTreatmentSet(
   treatments: readonly AuthorCreativeTreatment[],
 ): AuthorCreativeTreatmentSetAssessment {
   const bare = treatments.filter(isBareTreatment);
-  const expressive = treatments.filter((treatment) => !isBareTreatment(treatment));
+  const expressive = treatments.filter(
+    (treatment) => !isBareTreatment(treatment),
+  );
+
   const sequenceRelationshipCount = expressive.filter(
     treatmentHasSequenceRelationship,
   ).length;
@@ -306,16 +329,17 @@ export function assessAuthorCreativeTreatmentSet(
   if (treatments.length !== 4) {
     reasons.push("requires exactly four treatments");
   }
+
   if (bare.length !== 1) {
     reasons.push("requires exactly one bare treatment");
   }
+
   if (expressive.length !== 3) {
     reasons.push("requires exactly three expressive treatments");
   }
-  // sequenceRelationshipCount is diagnostic only. Creative treatments are
-  // allowed to describe a sequence conception in language our heuristic does
-  // not recognize. Hard-gating on this vocabulary list teaches the model to
-  // echo QRE's preferred device names instead of discovering its own.
+
+  // Diagnostic only. Do not require the model to echo QRE's vocabulary
+  // in order for a creative conception to count as valid.
   return {
     complete: reasons.length === 0,
     bareCount: bare.length,
@@ -325,15 +349,15 @@ export function assessAuthorCreativeTreatmentSet(
   };
 }
 
-export function unsupportedLensMaterialReason(input: {
+export function unsupportedTreatmentMaterialReason(input: {
   text: string;
   suppliedRealityText: string;
-  selectedFrame: string;
+  semanticMechanic: string;
 }): string | undefined {
   const text = input.text;
   const supplied = input.suppliedRealityText;
-  const selectedFrame = clean(input.selectedFrame).toLowerCase();
-  const hasRecurrenceFrame = selectedFrame === "recurrence";
+  const selectedMechanic = clean(input.semanticMechanic).toLowerCase();
+  const hasRecurrenceMechanic = selectedMechanic === "recurrence";
   const sourceHasRecurrence =
     /\b(?:same|again|returned|return|repeated|recurring|every|sundays?|weekly|back)\b/i.test(supplied);
 
@@ -380,7 +404,7 @@ export function unsupportedLensMaterialReason(input: {
     /\b(?:service|visit|work|task|event|process|housekeeping)\s+(?:recurs?|repeats?|returns?)\b/i.test(text) ||
     /\b(?:again|weekly|every\s+\w+|returns?)\b[^.]{0,40}\b(?:service|visit|work|task|event|process|housekeeping)\b/i.test(text);
 
-  if (!hasRecurrenceFrame && !sourceHasRecurrence && claimsRealWorldRecurrence) {
+  if (!hasRecurrenceMechanic && !sourceHasRecurrence && claimsRealWorldRecurrence) {
     return "infers recurrence from a single supplied event";
   }
 
@@ -396,18 +420,18 @@ export function unsupportedLensMaterialReason(input: {
 }
 
 function authorCreativeTreatmentCompatibility(input: {
-  selectedFrame: AuthorCreativeFrameCandidate;
+  semanticMechanic: AuthorSemanticMechanicCandidate;
   treatment: AuthorCreativeTreatment;
   suppliedReality?: readonly AuthorCreativeEvent[];
 }): {
   compatible: boolean;
   reason: string;
 } {
-  const selected = clean(input.selectedFrame.frame).toLowerCase();
+  const selected = clean(input.semanticMechanic.mechanic).toLowerCase();
   if (!selected || selected === "none") {
     return {
       compatible: true,
-      reason: "no selected frame constraint",
+      reason: "no selected semantic mechanic constraint",
     };
   }
 
@@ -425,10 +449,10 @@ function authorCreativeTreatmentCompatibility(input: {
   }
 
   const suppliedRealityText = materialText((input.suppliedReality ?? []).map((event) => event.text));
-  const unsupportedReason = unsupportedLensMaterialReason({
+  const unsupportedReason = unsupportedTreatmentMaterialReason({
     text: candidate,
     suppliedRealityText,
-    selectedFrame: selected,
+    semanticMechanic: selected,
   });
 
   if (unsupportedReason) {
@@ -440,17 +464,17 @@ function authorCreativeTreatmentCompatibility(input: {
 
   return {
     compatible: true,
-    reason: "compatible with selected frame treatment boundary",
+    reason: "compatible with semantic mechanic treatment boundary",
   };
 }
 
-function treatmentAsMouthFrame(
+function treatmentAsAssignment(
   treatment: AuthorCreativeTreatment,
-  selectedFrame: AuthorCreativeFrameCandidate,
-): AuthorCreativeFrame {
+  semanticMechanic: AuthorSemanticMechanicCandidate,
+): AuthorCreativeTreatmentAssignment {
   return {
     id: treatment.id,
-    frame: isBareTreatment(treatment) ? "NONE / Bare Reality" : selectedFrame.frame,
+    semanticMechanic: isBareTreatment(treatment) ? "NONE" : semanticMechanic.mechanic,
     treatment: treatment.treatment,
     devices: treatment.devices,
     intensity: treatment.intensity,
@@ -464,10 +488,10 @@ export type AuthorCreativeTreatmentSearchResult = {
   rawTreatmentResponse: string;
   model: string;
   modelCalls: number;
-  selectedFrame: AuthorCreativeFrameCandidate;
-  frameCandidates: AuthorCreativeFrameCandidate[];
+  semanticMechanic: AuthorSemanticMechanicCandidate;
+  semanticMechanicCandidates: AuthorSemanticMechanicCandidate[];
   parsedTreatments: AuthorCreativeTreatment[];
-  acceptedTreatments: AuthorCreativeFrame[];
+  acceptedTreatments: AuthorCreativeTreatmentAssignment[];
   rejectedTreatments: Array<{
     treatment: AuthorCreativeTreatment;
     reason: string;
@@ -484,27 +508,20 @@ export async function searchAuthorCreativeLensTreatments(input: {
   experienceMode?: string;
   requestedLens?: string;
   domainContext?: AuthorDomainContext;
-  selectedFrame: AuthorCreativeFrameCandidate;
-  frameCandidates: readonly AuthorCreativeFrameCandidate[];
+  semanticMechanic: AuthorSemanticMechanicCandidate;
+  semanticMechanicCandidates: readonly AuthorSemanticMechanicCandidate[];
 }): Promise<AuthorCreativeTreatmentSearchResult> {
   const requestedLens = clean(input.requestedLens);
   const normalizedRequestedLens = requestedLens.toUpperCase();
   const explicitLensProvided = Boolean(requestedLens);
   const explicitLensOff = normalizedRequestedLens === "NONE";
-  const selectedFrame: AuthorCreativeFrameCandidate =
-    explicitLensProvided && !explicitLensOff
-      ? {
-          frame: requestedLens.toLowerCase(),
-          reason: "explicit requested lens governs treatment search",
-          confidence: 1,
-        }
-      : input.selectedFrame;
+  const semanticMechanic = input.semanticMechanic;
   const autoBusinessLens =
     !explicitLensProvided &&
     isBusinessCreativeContext(input.domainContext);
   const lensSearchEnabled =
     !explicitLensOff &&
-    selectedFrame.frame !== "NONE" &&
+    (semanticMechanic.mechanic !== "NONE" || explicitLensProvided) &&
     (explicitLensProvided || autoBusinessLens);
   const lensMode =
     explicitLensOff
@@ -516,11 +533,11 @@ export async function searchAuthorCreativeLensTreatments(input: {
           : "NONE";
   const modelSemanticBoundary = explicitLensProvided
     ? {
-        requestedLens: selectedFrame.frame,
-        reason: selectedFrame.reason,
+        requestedLens,
+        reason: semanticMechanic.reason,
       }
     : {
-        reason: selectedFrame.reason,
+        reason: semanticMechanic.reason,
       };
 
   const lensResult = lensSearchEnabled
@@ -531,11 +548,11 @@ export async function searchAuthorCreativeLensTreatments(input: {
         content: [
           "You are QRE Creative Treatment Search.",
           ...QRE_CREATIVE_OPERATING_DOCTRINE,
-          "Reality is fixed. The approved semantic boundary is closed.",
-          "The approved meaning and beat structure already exist. Do not rediscover the story and do not alter the semantic thesis.",
-          "SEMANTIC_BOUNDARY tells you what must remain true; it is not a style name, genre, voice, or treatment suggestion.",
-          "Do not generate, choose, rename, or imitate a semantic frame label.",
-          "Generate exactly three materially different expressive treatments inside the approved semantic boundary using only supplied reality.",
+          "Reality is fixed. Grounded semantic structure is closed.",
+          "The approved meaning and beat structure already exist. Do not rediscover factual reality and do not alter the semantic thesis.",
+          "SEMANTIC_BOUNDARY describes grounded structure only. It is not a style, genre, voice, or creative answer.",
+          "Do not turn the semantic mechanic into the treatment or echo its identifier as viewer-facing language.",
+          "Generate exactly three materially different expressive treatments using only supplied reality and the grounded semantic boundary.",
           "Do not generate Bare Reality. QRE supplies that control deterministically outside the model.",
           "The three expressive treatments must emerge from THIS material. Search for what is peculiar, funny, tense, disproportionate, awkward, elegant, repetitive, abrupt, specific, or otherwise usable in the supplied facts and their sequence.",
           "Do not choose from a house menu of genres. Invent the treatment that this material wants, even if the treatment has no familiar genre name.",
@@ -552,8 +569,8 @@ export async function searchAuthorCreativeLensTreatments(input: {
           "Use supplied timestamps, quantities, names, and other anchors creatively when useful. Preserve what makes them specific.",
           "Describe what the LANGUAGE and SEQUENCE will do. Do not describe camera, music, UI, staging, or other rendering implementation.",
           "Do not write final cuts. Give Mouth a concise governing conception and its devices.",
-          "The selected frame is semantic authority. Treatments may radically change expression while preserving that meaning.",
-          "Return concise treatment descriptions and devices only. Do not return a frame field.",
+          "The semantic mechanic is structural authority only. Treatments may radically change expression while preserving that structure and approved meaning.",
+          "Return concise treatment descriptions and devices only. Do not return a genre, style-label, or mechanic field.",
         ].join("\n"),
       },
       {
@@ -634,7 +651,7 @@ export async function searchAuthorCreativeLensTreatments(input: {
           ).slice(0, 6)
         : [];
       const rawIntensity = clean(record.intensity).toUpperCase();
-      const intensity: AuthorCreativeFrame["intensity"] =
+      const intensity: AuthorCreativeTreatmentAssignment["intensity"] =
         rawIntensity === "LIGHT" || rawIntensity === "STRONG"
           ? rawIntensity
           : "MEDIUM";
@@ -667,19 +684,19 @@ export async function searchAuthorCreativeLensTreatments(input: {
   const treatmentResults = parsedTreatments.map((treatment) => ({
     treatment,
     result: authorCreativeTreatmentCompatibility({
-      selectedFrame,
+      semanticMechanic,
       treatment,
       suppliedReality: input.suppliedReality,
     }),
   }));
   const acceptedTreatmentRecords =
-    selectedFrame.frame === "NONE"
+    semanticMechanic.mechanic === "NONE" && !explicitLensProvided
       ? []
       : treatmentResults
           .filter(({ result }) => result.compatible)
           .map(({ treatment }) => treatment);
   const rejectedTreatments =
-    selectedFrame.frame === "NONE"
+    semanticMechanic.mechanic === "NONE" && !explicitLensProvided
       ? []
       : treatmentResults
           .filter(({ result }) => !result.compatible)
@@ -699,7 +716,7 @@ export async function searchAuthorCreativeLensTreatments(input: {
   const distinctAcceptedTreatmentRecords =
     distinctTreatments(acceptedTreatmentRecords).slice(0, 4);
   const treatmentSetAssessment =
-    !lensSearchEnabled || selectedFrame.frame === "NONE"
+    !lensSearchEnabled
       ? {
           complete: true,
           bareCount: 0,
@@ -710,7 +727,7 @@ export async function searchAuthorCreativeLensTreatments(input: {
       : assessAuthorCreativeTreatmentSet(distinctAcceptedTreatmentRecords);
   const acceptedTreatments = treatmentSetAssessment.complete
     ? distinctAcceptedTreatmentRecords.map((treatment) =>
-        treatmentAsMouthFrame(treatment, selectedFrame),
+        treatmentAsAssignment(treatment, semanticMechanic),
       )
     : [];
 
@@ -721,8 +738,8 @@ export async function searchAuthorCreativeLensTreatments(input: {
     rawTreatmentResponse: lensSearchEnabled ? lensResult.text : "SKIPPED",
     model: lensResult.model,
     modelCalls: lensSearchEnabled ? 1 : 0,
-    selectedFrame,
-    frameCandidates: [...input.frameCandidates],
+    semanticMechanic,
+    semanticMechanicCandidates: [...input.semanticMechanicCandidates],
     parsedTreatments,
     acceptedTreatments,
     rejectedTreatments,
@@ -1537,7 +1554,7 @@ export async function createAuthorExperience(input: {
   modelCalls: number;
   diagnostics: {
     plan: AuthorSemanticPlan;
-    creativeFrames: AuthorCreativeFrame[];
+    creativeTreatments: AuthorCreativeTreatmentAssignment[];
     variantsByBeat: Array<{ order: number; variants: string[] }>;
     choices: Array<{
       order: number;
@@ -1729,21 +1746,21 @@ export async function createAuthorExperience(input: {
   const normalizedRequestedLens = requestedLens.toUpperCase();
   const explicitLensProvided = Boolean(requestedLens);
   const explicitLensOff = normalizedRequestedLens === "NONE";
-  const frameCandidates = deriveAuthorCreativeFrameCandidates({
+  const semanticMechanicCandidates = deriveAuthorSemanticMechanicCandidates({
     subject: input.subject,
     suppliedReality: input.suppliedReality,
     creativeDiscovery: input.creativeDiscovery,
     memory: input.memory,
     domainContext: input.domainContext,
   });
-  const selectedFrame = explicitLensOff
+  const semanticMechanic = explicitLensOff
     ? {
-        frame: "NONE",
+        mechanic: "NONE",
         reason: "an explicit NONE lens preserves natural realization",
         confidence: 1,
       }
-    : selectAuthorCreativeFrame({
-        candidates: frameCandidates,
+    : selectAuthorSemanticMechanic({
+        candidates: semanticMechanicCandidates,
         creativeDiscovery: input.creativeDiscovery,
       });
   const lensSearch = await searchAuthorCreativeLensTreatments({
@@ -1755,28 +1772,28 @@ export async function createAuthorExperience(input: {
     experienceMode,
     requestedLens,
     domainContext: input.domainContext,
-    selectedFrame,
-    frameCandidates,
+    semanticMechanic,
+    semanticMechanicCandidates,
   });
   const autoBusinessLens = lensSearch.autoBusinessLens;
   const lensSearchEnabled = lensSearch.lensSearchEnabled;
   const lensMode = lensSearch.lensMode;
-  const framesForMouth = lensSearch.acceptedTreatments;
+  const treatmentsForMouth = lensSearch.acceptedTreatments;
   const lensProductionContractComplete =
     !lensSearch.lensSearchEnabled ||
     (
-      framesForMouth.length === 4 &&
+      treatmentsForMouth.length === 4 &&
       lensSearch.treatmentSetAssessment.complete
     );
 
   debug("CREATIVE-LENS-SEARCH", {
     mode: lensMode,
     requestedLens: requestedLens || (autoBusinessLens ? "AUTO" : "NONE"),
-    selectedFrame: lensSearch.selectedFrame,
-    frameCandidates,
+    semanticMechanic: lensSearch.semanticMechanic,
+    semanticMechanicCandidates,
     lensSearchEnabled,
     rawTreatmentResponse: lensSearch.rawTreatmentResponse,
-    treatments: framesForMouth,
+    treatments: treatmentsForMouth,
     rejectedTreatments: lensSearch.rejectedTreatments,
     treatmentSetAssessment: lensSearch.treatmentSetAssessment,
     productionContractComplete: lensProductionContractComplete,
@@ -1784,7 +1801,7 @@ export async function createAuthorExperience(input: {
 
   if (!lensProductionContractComplete) {
     throw new Error(
-      `QRE Creative Lens contract incomplete: ${lensSearch.treatmentSetAssessment.reasons.join("; ") || `expected 4 accepted treatments, got ${framesForMouth.length}`}`,
+      `QRE Creative Lens contract incomplete: ${lensSearch.treatmentSetAssessment.reasons.join("; ") || `expected 4 accepted treatments, got ${treatmentsForMouth.length}`}`,
     );
   }
 
@@ -1828,7 +1845,7 @@ export async function createAuthorExperience(input: {
             "Read each production vertically before choosing it: CUT 1 changes what CUT 2 means; CUT 2 changes what CUT 3 means; the last cut should make the earlier cuts feel more intentional in retrospect.",
             "Use restraint strategically. One cut may be simple so another can hit harder. Do not make every cut compete for attention.",
             "The viewer should feel one authored object unfolding through time, not several captions placed next to each other.",
-            "OPERATIONAL/SERVICE MEMORIES: do not default to a ledger, checklist, work log, or receipt voice merely because the facts are tasks, counts, and timestamps. Exact anchors may remain visible, but the sequence still needs one perceptual treatment that accumulates across cuts.",
+            "SERVICE MEMORIES: do not default to a ledger, checklist, work log, or receipt voice merely because the facts are tasks, counts, and timestamps. Exact anchors may remain visible, but the sequence still needs one perceptual treatment that accumulates across cuts.",
             "CUSTOMER-FACING SERVICE MEMORIES: preserve recognizable event identity and enough substance that the recipient can understand what actually happened even when they did not supply the original facts.",
             "You may fuse related supplied events when that makes the memory stronger, but do not compress several distinct moments into vague atmosphere merely to sound clever.",
             "In service or receipt contexts, creativity must remain decipherable to the recipient. A playful transformation should still let them recover the underlying event without needing access to the original notes.",
@@ -1847,19 +1864,19 @@ export async function createAuthorExperience(input: {
                 "AUTO BUSINESS LENS: this business/service experience is intentionally exploring creative treatments. One production may be NONE / Bare Reality; the others should materially transform how the same supplied facts are experienced.",
                 "Do not reward NONE merely for being safest. Judge all four complete productions by coherence, specificity, surprise, payoff, usefulness to the recipient, and whether the treatment earns its presence while remaining true.",
               ] : []),
-              "CREATIVE_FRAMES assigns one selected-frame treatment to each production A-D. Treat that treatment as expressive permission and production identity, NOT as literal world facts.",
-              "PRODUCTION IDENTITY IS FIXED: Production A must realize CREATIVE_FRAMES production A, B must realize B, C must realize C, and D must realize D. Never swap treatments between variant positions.",
-              "There must be exactly four assigned CREATIVE_FRAMES when Lens is active. If a frame slot is missing, do not silently shift later treatments into earlier letters.",
+              "CREATIVE_TREATMENTS assigns one treatment to each production A-D. Treat that treatment as expressive permission and production identity, NOT as literal world facts.",
+              "PRODUCTION IDENTITY IS FIXED: Production A must realize CREATIVE_TREATMENTS production A, B must realize B, C must realize C, and D must realize D. Never swap treatments between variant positions.",
+              "There must be exactly four assigned CREATIVE_TREATMENTS when Lens is active. If a treatment slot is missing, do not silently shift later treatments into earlier letters.",
               "If one assigned treatment is NONE / Bare Reality, that production must remain genuinely bare: direct supplied reality with minimal rhetorical transformation. Do not turn the bare slot into a pun, metaphor, title, or alternate creative treatment.",
               "Before nominating a production, verify that every cut in that production actually expresses its assigned treatment. Do not nominate a production under the name of a treatment it failed to realize.",
-              "A selected deterministic frame is a perspective only. It is never a plot, event list, hidden cause, or viewer-facing text.",
+              "A semantic mechanic is neutral structure only. It is never a plot, genre, style, hidden cause, or viewer-facing text.",
               "Apply each assigned treatment across the whole production so its cuts share one conception, rhythm, and attitude. Do not merely sprinkle genre vocabulary onto otherwise identical lines.",
               "A treatment may transform status, metaphor, rhythm, compression, callback, ceremony, absurd seriousness, or attitude. It may NEVER manufacture a person, object, action, place, outcome, chronology, bodily reaction, motive, or hidden condition.",
               "If a treatment would require an unsupplied concrete world element to work, realize the treatment more abstractly instead of inventing that element.",
               "Give the four productions genuinely different creative approaches because their assigned treatments are genuinely different. Do not make four near-synonymous productions.",
             ] : [
               "NO CREATIVE LENS IS REQUESTED. Realize the approved meaning directly. Do not impose a genre skin, procedural gimmick, or stylistic universe just to make the material sound authored.",
-              "The four productions should still explore genuinely different phrasings and sequence strategies, but they must emerge from supplied reality and approved meaning rather than from an invented genre frame.",
+              "The four productions should still explore genuinely different phrasings and sequence strategies, but they must emerge from supplied reality and approved meaning rather than from an invented genre shell.",
             ]),
             "Within each production, later cuts should feel aware of what earlier cuts established. Build progression, contrast, callback, accumulation, or recontextualization instead of isolated labels.",
             "Do not mistake formal synonyms for authorship. Replacing 'arrived' with 'commencement', 'cleaned' with 'sanitation/cleansing', or 'finished' with 'termination' without a larger sequence idea is weaker than preserving the plain fact inside a strong conception.",
@@ -1905,18 +1922,18 @@ export async function createAuthorExperience(input: {
           REALITY_DIRECT: realityDirect,
           LENS_MODE: lensMode,
           REQUESTED_LENS: requestedLens || (autoBusinessLens ? "AUTO" : "NONE"),
-          CREATIVE_FRAMES: framesForMouth.map((frame, index) => ({
+          CREATIVE_TREATMENTS: treatmentsForMouth.map((assignment, index) => ({
             production: String.fromCharCode(65 + index),
-            frame: frame.frame,
-            treatment: frame.treatment,
-            devices: frame.devices,
-            intensity: frame.intensity,
+            semanticMechanic: assignment.semanticMechanic,
+            treatment: assignment.treatment,
+            devices: assignment.devices,
+            intensity: assignment.intensity,
           })),
           instruction: useIdentityClusterPlan
             ? "This is one IDENTITY character cluster, not a checklist. Return four short candidate realizations that synthesize the combination into character. Do not enumerate every supplied preference or simply restate them. The viewer should infer personality from the combination. Do not invent an event."
             : isMemoryMode
               ? realityDirect
-                ? "Return four complete candidate productions in PRODUCTION-MAJOR form. Complete A from first cut to payoff, then B, then C, then D. Discovery found no grounded hidden relation, so stay in REALITY-DIRECT MODE: do not invent a hidden thesis, but fully realize each assigned CREATIVE_FRAME through nonliteral rhetoric. Use the treatment's own grammar—metaphor, title-like status, ceremonial weight, noir pressure, game logic, callback, compression, implication, rhythm, or other non-material transformation—while keeping concrete reality fixed. Do not add any concrete noun, action, condition, physical result, physical quality, object, manner, scenery detail, or typical service detail that is not explicit in the supplied beat evidence. Preserve enough recognizable reality that the recipient can recover what happened. Nominate the strongest whole production by number 1-4."
+                ? "Return four complete candidate productions in PRODUCTION-MAJOR form. Complete A from first cut to payoff, then B, then C, then D. Discovery found no grounded hidden relation, so stay in REALITY-DIRECT MODE: do not invent a hidden thesis, but fully realize each assigned CREATIVE_TREATMENT through nonliteral rhetoric. Use the treatment's own grammar—metaphor, title-like status, ceremonial weight, noir pressure, game logic, callback, compression, implication, rhythm, or other non-material transformation—while keeping concrete reality fixed. Do not add any concrete noun, action, condition, physical result, physical quality, object, manner, scenery detail, or typical service detail that is not explicit in the supplied beat evidence. Preserve enough recognizable reality that the recipient can recover what happened. Nominate the strongest whole production by number 1-4."
                 : "Return four complete candidate productions in PRODUCTION-MAJOR form. Apply the universal law: MEMORY = accumulated truths -> one experience perception. Complete Production A from first cut to payoff before writing Production B, then C, then D. Treat each production as one finished QRE object unfolding cut by cut, not as separate lines. The accumulated facts are shared raw material for the whole production, not one-fact-per-line assignments. Each cut should perform a different job in the same experience: establish, deepen, turn, or land. When supplied reality contains a before-state / lived middle / after-state / recurrence shape, preserve the shape and make the contrast felt without claiming the middle caused the after-state or the earlier encounter caused the return. Preserve distinctive source anchors while transforming them. If the memory supplies a specific duration/count/time marker that gives the middle its identity, keep that marker legible somewhere in the production. If the payoff is a supplied recurrence such as again/next week/return, make the return itself legible and let it retrospectively recontextualize the earlier cuts without inventing motive. The final cut must land the approved memory relation using its local evidence plus already-established prior evidence. Then nominate the strongest complete EXPRESSIVE production by number 1-3 based on whole-product coherence, specificity, progression, surprise, payoff, and how alive it feels—not on whether every individual line sounds impressive. Production 4 is Bare Reality and is an emergency truth fallback, not a creative competitor. Do not nominate 4 while any expressive production is viable. Keep factual reality inside supplied event IDs, but make each expressive production feel authored rather than enumerated."
               : "Return four candidate lines per beat. The semantic plan controls meaning; the supplied event IDs control factual reality.",
         }),
@@ -2355,7 +2372,7 @@ export async function createAuthorExperience(input: {
       memoryRepairModelCalls,
     diagnostics: {
       plan,
-      creativeFrames: framesForMouth,
+      creativeTreatments: treatmentsForMouth,
       variantsByBeat: [...variantsByOrder.entries()]
         .sort(([a], [b]) => a - b)
         .map(([order, variants]) => ({ order, variants })),

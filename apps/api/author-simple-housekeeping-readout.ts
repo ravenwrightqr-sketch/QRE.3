@@ -30,8 +30,8 @@ for (const event of result.world.events) {
 console.log("\nCREATIVE DISCOVERY");
 console.log(JSON.stringify(result.diagnostics.creativeDiscovery ?? null, null, 2));
 
-console.log("\nSELECTED FRAME");
-console.log(JSON.stringify(result.diagnostics.selectedFrame ?? null, null, 2));
+console.log("\nSELECTED TREATMENT");
+console.log(JSON.stringify(result.diagnostics.selectedTreatment ?? null, null, 2));
 
 console.log("\nQRE OUTPUT");
 result.scenes.forEach((scene, index) => {

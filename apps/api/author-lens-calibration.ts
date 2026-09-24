@@ -1,8 +1,8 @@
 import type { AuthorDomainContext } from "@qre/contracts";
 import {
-  deriveAuthorCreativeFrameCandidates,
+  deriveAuthorSemanticMechanicCandidates,
   searchAuthorCreativeLensTreatments,
-  selectAuthorCreativeFrame,
+  selectAuthorSemanticMechanic,
   type AuthorCreativeEvent,
   type AuthorCreativeTreatment,
   type AuthorSemanticPlan,
@@ -21,18 +21,18 @@ const domainContext: AuthorDomainContext = {
   serviceType: "HOUSEKEEPING",
 };
 
-const frameCandidates = deriveAuthorCreativeFrameCandidates({
+const semanticMechanicCandidates = deriveAuthorSemanticMechanicCandidates({
   subject: "housekeeping service",
   suppliedReality,
   domainContext,
 });
 
-const selectedFrame = selectAuthorCreativeFrame({
-  candidates: frameCandidates,
+const semanticMechanic = selectAuthorSemanticMechanic({
+  candidates: semanticMechanicCandidates,
 });
 
-if (selectedFrame.frame !== "operation") {
-  throw new Error(`Expected deterministic selectedFrame=operation, got ${selectedFrame.frame}`);
+if (semanticMechanic.mechanic !== "bounded_progression") {
+  throw new Error(`Expected semanticMechanic=bounded_progression, got ${semanticMechanic.mechanic}`);
 }
 
 const plan: AuthorSemanticPlan = {
@@ -47,7 +47,7 @@ const plan: AuthorSemanticPlan = {
           : "BUILD",
     eventIds: [event.id],
     attention: event.text,
-    change: "Use this supplied housekeeping event as operational material without adding facts.",
+    change: "Use this supplied housekeeping event as bounded progression material without adding facts.",
   })),
 };
 
@@ -63,20 +63,20 @@ function printTreatment(index: number, treatment: {
 
 console.log("=== LENS CALIBRATION: HOUSEKEEPING ===");
 console.log("");
-console.log("SELECTED FRAME");
-console.log(selectedFrame.frame);
+console.log("SEMANTIC MECHANIC");
+console.log(semanticMechanic.mechanic);
 
 const lens = await searchAuthorCreativeLensTreatments({
   subject: "housekeeping service",
   suppliedReality,
   plan,
-  creativeOpportunity: "The supplied work has a bounded operational progression.",
-  relation: "arrival, task completion, and finish time make the service read as a contained operation.",
+  creativeOpportunity: "The supplied work has a bounded progression.",
+  relation: "arrival, task completion, and finish time create a contained bounded progression.",
   experienceMode: domainContext.experienceMode,
   requestedLens: undefined,
   domainContext,
-  selectedFrame,
-  frameCandidates,
+  semanticMechanic,
+  semanticMechanicCandidates,
 });
 
 console.log("");

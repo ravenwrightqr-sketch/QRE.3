@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import {
   assessAuthorCreativeTreatmentSet,
-  unsupportedLensMaterialReason,
+  unsupportedTreatmentMaterialReason,
   type AuthorCreativeTreatment,
 } from "./src/services/authorCreative.js";
 
@@ -102,11 +102,11 @@ const creativeFreedomCases = [
 
 for (const text of creativeFreedomCases) {
   assert.equal(
-    unsupportedLensMaterialReason({
+    unsupportedTreatmentMaterialReason({
       text,
       suppliedRealityText:
         "Arrived at 9:04 AM. Cleaned the kitchen. Cleaned two bathrooms. Finished at 11:47 AM.",
-      selectedFrame: "operation",
+      semanticMechanic: "bounded_progression",
     }),
     undefined,
     `creative rhetoric should survive: ${text}`,
@@ -123,11 +123,11 @@ const realityViolationCases = [
 
 for (const text of realityViolationCases) {
   assert.ok(
-    unsupportedLensMaterialReason({
+    unsupportedTreatmentMaterialReason({
       text,
       suppliedRealityText:
         "Arrived at 9:04 AM. Cleaned the kitchen. Cleaned two bathrooms. Finished at 11:47 AM.",
-      selectedFrame: "operation",
+      semanticMechanic: "bounded_progression",
     }),
     `reality-changing treatment should fail: ${text}`,
   );

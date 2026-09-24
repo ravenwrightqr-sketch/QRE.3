@@ -137,8 +137,8 @@ for (const test of selectedCases) {
   console.log("\nBARE AUTHOR PLAN");
   console.log(JSON.stringify(result.diagnostics.bareAuthorPlan ?? null, null, 2));
 
-  console.log("\nCREATIVE FRAMES");
-  console.log(JSON.stringify(result.diagnostics.creativeFrames ?? null, null, 2));
+  console.log("\nCREATIVE TREATMENTS");
+  console.log(JSON.stringify(result.diagnostics.creativeTreatments ?? null, null, 2));
 
   console.log("\nMOUTH VARIANTS");
   console.log(JSON.stringify(result.diagnostics.mouthVariants ?? null, null, 2));

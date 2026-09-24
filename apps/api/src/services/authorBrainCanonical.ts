@@ -6,8 +6,12 @@
  * raw input / supplied facts
  *   -> Reality Extractor
  *   -> RealityGraph
- *   -> Creative Read
- *   -> QRE Creative
+ *   -> Meaning
+ *   -> Creative Search
+ *   -> Creative Addition
+ *   -> Treatment
+ *   -> Realization
+ *   -> Grounding
  *   -> contract/runtime projection
  *
  * TypeScript owns truth, provenance and output contracts.
@@ -63,7 +67,7 @@ function memoryForActiveWorld(input: AuthorBrainTruth): string[] {
 type CreativeSelection = {
   relationship: string;
   latentMovie: string;
-  frame: string;
+  lens: string;
   confidence: number;
   why: string;
   risk: string;
@@ -73,7 +77,7 @@ function selectionFromDiscovery(discovery: AuthorCreativeDiscovery): CreativeSel
   return {
     relationship: discovery.selected.relationship,
     latentMovie: discovery.selected.perception,
-    frame: discovery.lens,
+    lens: discovery.lens,
     confidence: discovery.confidence,
     why: unique([
       discovery.selected.observerInference,
@@ -256,12 +260,12 @@ export type CanonicalAuthorResult = {
     semanticGate?: undefined;
     experienceJudge?: undefined;
     realizedFilmJudge?: undefined;
-    selectedFrame?: CreativeSelection;
+    selectedTreatment?: CreativeSelection;
     creativeDiscovery?: AuthorCreativeDiscovery;
     realityModel?: string;
     creativeDiscoveryModel?: string;
     bareAuthorPlan?: unknown;
-    creativeFrames?: unknown;
+    creativeTreatments?: unknown;
     mouthVariants?: unknown;
     mouthChoices?: unknown;
   };
@@ -553,7 +557,7 @@ export async function authorBrainCanonical(
 
   const brief: AuthorCreativeBrief = {
     angle: discoveryResult.discovery.lens,
-    engine: "Reality -> Creative Discovery -> Semantic Beat Plan -> Mouth -> Grounding",
+    engine: "Reality -> Memory/Relations -> Meaning -> Creative Search -> Creative Addition -> Treatment -> Realization -> Grounding -> Experience -> Persistence/Learning",
     question: "",
     strongestImage: events[0]?.text ?? "",
     tension:
@@ -596,12 +600,12 @@ export async function authorBrainCanonical(
       complete,
       selectedScore: complete ? discoveryResult.discovery.confidence : 0,
       rejectedCandidates: [],
-      selectedFrame: selection,
+      selectedTreatment: selection,
       creativeDiscovery: discoveryResult.discovery,
       realityModel: receipt.model,
       creativeDiscoveryModel: discoveryResult.model,
       bareAuthorPlan: creativeResult.diagnostics?.plan,
-      creativeFrames: creativeResult.diagnostics?.creativeFrames,
+      creativeTreatments: creativeResult.diagnostics?.creativeTreatments,
       mouthVariants: creativeResult.diagnostics?.variantsByBeat,
       mouthChoices: creativeResult.diagnostics?.choices,
     },
