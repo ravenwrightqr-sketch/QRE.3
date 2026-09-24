@@ -2012,7 +2012,7 @@ function buildDeterministicMouthFallback(
           })),
         },
       ],
-      selectedProduction: 4,
+      selectedProduction: "D",
       selectionReason:
         "Deterministic Bare Reality selected because Mouth did not return a renderable production.",
     });
@@ -2379,6 +2379,9 @@ export async function createAuthorExperience(input: {
               "Do not prefer a familiar named pressure merely because it is recognizable. Reward the production that discovers the strongest fact-dependent creative grammar, including a new grammar QRE has never named before.",
               "AMPLIFY REALITY: push metaphor, status, personification, rhetorical scale, double meaning, and semantic consequence hard. Do not retreat to literal receipt wording merely to stay grounded. Grounding protects the concrete world; it does not require literal phrasing.",
               "A cut may imply the supplied action rather than naming its verb when the whole production keeps the event recoverable. Make the viewer feel and infer the move. Do not explain it.",
+              "ABSENCE IS ALSO A FACT. Do not claim that a response, object, action, event, or interaction was absent unless supplied reality establishes that absence.",
+              "A category does not license its typical contents. Keep creative force in status, rhetoric, logic, scale, sequence, and recontextualization instead of inventing material detail.",
+              "Sensory residue is material reality too. Sensory conditions, bodily reactions, and environmental aftermath require supplied support unless the wording is unmistakably nonliteral rhetoric.",
               "Bare Reality is the truth-safe control. It wins only when no expressive production remains viable.",
             ] : [
               "Without an assigned creative treatment, realize the approved meaning directly and still search for strong sequence-level authorship rather than generic paraphrase.",
