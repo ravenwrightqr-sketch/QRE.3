@@ -1537,6 +1537,27 @@ function futureEvidenceLeakReason(
     : undefined;
 }
 
+function inventedExactClockAnchorReason(
+  text: string,
+  suppliedReality: readonly AuthorCreativeEvent[],
+): string | undefined {
+  const suppliedClocks = new Set<string>();
+  for (const event of suppliedReality) {
+    for (const match of clean(event.text).toLowerCase().matchAll(/\b(?:[01]?\d|2[0-3]):[0-5]\d\b/g)) {
+      suppliedClocks.add(match[0]);
+    }
+  }
+
+  const candidateClocks = [
+    ...clean(text).toLowerCase().matchAll(/\b(?:[01]?\d|2[0-3]):[0-5]\d\b/g),
+  ].map((match) => match[0]);
+
+  const invented = candidateClocks.filter((clock) => !suppliedClocks.has(clock));
+  return invented.length
+    ? `invented-operational-anchor: ${invented.slice(0, 3).join(", ")}`
+    : undefined;
+}
+
 function sourceReplayPenalty(text: string, beatFacts: readonly string[]): number {
   const candidate = replayTokens(text);
   if (!candidate.length) return 0;
@@ -1877,20 +1898,30 @@ function scoreMemorySequence(
       variantIndex < 3
         ? futureEvidenceLeakReason(text, index, plan, suppliedReality)
         : undefined;
+    const inventedOperationalAnchorReason =
+      variantIndex < 3
+        ? inventedExactClockAnchorReason(text, suppliedReality)
+        : undefined;
     const line = {
       beat,
       beatFacts,
       text,
       ...base,
-      accepted: base.accepted && !dropsSpecificTimeAnchor && !futureLeakReason,
-      score: futureLeakReason
-        ? 0
-        : Math.max(0, base.score - payoffPenalty),
+      accepted:
+        base.accepted &&
+        !dropsSpecificTimeAnchor &&
+        !futureLeakReason &&
+        !inventedOperationalAnchorReason,
+      score:
+        futureLeakReason || inventedOperationalAnchorReason
+          ? 0
+          : Math.max(0, base.score - payoffPenalty),
       reasons: [
         ...base.reasons,
         ...(payoffPenalty > 0 ? ["memory-payoff-replay"] : []),
         ...(dropsSpecificTimeAnchor ? ["drops-specific-time-anchor"] : []),
         ...(futureLeakReason ? [futureLeakReason] : []),
+        ...(inventedOperationalAnchorReason ? [inventedOperationalAnchorReason] : []),
       ],
     };
     if (text) prior.push(text);
@@ -2432,6 +2463,8 @@ export async function createAuthorExperience(input: {
           "An attempt remains unresolved unless the supplied reality gives its outcome. A supplied emotion or state remains that state rather than becoming an invented bodily action.",
           "Specificity is fuel. Preserve the distinctive facts that make this reality this reality, but do not confuse operational metadata with the creative center.",
           "Operational anchors such as clock time, date, geo, count, quantity, and measurement remain exact when used, but expressive productions normally leave them in provenance unless they materially create the perception. Never turn timestamps, logging, or completion bookkeeping into the creative center merely because they are precise.",
+          "Never invent an exact clock time, date, geo point, count, quantity, price, measurement, or other operational anchor. Exact operational anchors may only come from supplied reality.",
+          "Formatting is not the creative move. Turning facts into logs, timestamps, labels, records, or terse fragments is not enough by itself; the production must also change status, implication, consequence, relationship, tension, humor, threat, or another felt perception.",
           "Do not mistake list cadence, noun fragments, repeated task words, or timestamp formatting for authorship. The creative move must come from a relationship in the supplied reality.",
           "QRE makes the meaning felt and implied, not explained. A cut is a hit, not prose. Compress until removing another word would weaken the meaning, rhythm, character, or surprise. Stop there.",
           "BUILD THE WHOLE STRANGE WORLD PRIVATELY. REALIZE ONLY WHAT MAKES THAT WORLD FELT.",
