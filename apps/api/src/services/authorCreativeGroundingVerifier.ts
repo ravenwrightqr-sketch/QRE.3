@@ -294,12 +294,9 @@ export async function verifyAuthorCreativeGrounding(input: {
     if (!Number.isInteger(sceneIndex) || !Number.isInteger(clauseIndex)) continue;
     verificationByClause.set(`${sceneIndex}:${clauseIndex}`, item);
   }
-
-  const unsupportedTemporalComparison =
-    /\b(?:long|short|brief|briefly|quick|quickly|slow|slowly|fast|faster|slower|sudden|suddenly|prompt|promptly|instant|instantly|immediate|immediately|final|finally|still)\b/i;
-  const suppliedTemporalComparison = unsupportedTemporalComparison.test(suppliedRealityText);
-
-  const scenes = input.scenes.flatMap((scene, sceneIndex) => {
+  // Timing words are interpreted semantically by the verifier model and unsupported-claim reconciliation.
+  // There is no second vocabulary-level veto here.
+const scenes = input.scenes.flatMap((scene, sceneIndex) => {
     const fragments = beatClauseFragments(scene.text);
     const clauses = beatClauses(scene.text);
     const supportedIds = new Set<string>();
@@ -363,13 +360,8 @@ export async function verifyAuthorCreativeGrounding(input: {
 
       const fragment = fragments[clauseIndex];
       if (!fragment) continue;
-      if (
-        unsupportedTemporalComparison.test(fragment) &&
-        !suppliedTemporalComparison
-      ) {
-        continue;
-      }
-      if (
+      // No lexical temporal veto. Reject only when semantic verification identifies a real unsupported timing claim.
+if (
         hasUnsupportedSensoryClaim(fragment, suppliedRealityText) &&
         supportKind !== "FIGURATIVE" &&
         supportKind !== "CONTEXTUAL_TEXTURE"
