@@ -516,6 +516,14 @@ export async function searchAuthorCreativeLensTreatments(input: {
         : autoBusinessLens
           ? "AUTO_BUSINESS"
           : "NONE";
+  const modelSemanticBoundary = explicitLensProvided
+    ? {
+        requestedLens: selectedFrame.frame,
+        reason: selectedFrame.reason,
+      }
+    : {
+        reason: selectedFrame.reason,
+      };
 
   const lensResult = lensSearchEnabled
     ? await localModelGenerate(
@@ -525,11 +533,11 @@ export async function searchAuthorCreativeLensTreatments(input: {
         content: [
           "You are QRE Creative Treatment Search.",
           ...QRE_CREATIVE_OPERATING_DOCTRINE,
-          "Reality is fixed. Frame identity is closed.",
+          "Reality is fixed. The approved semantic boundary is closed.",
           "The approved meaning and beat structure already exist. Do not rediscover the story and do not alter the semantic thesis.",
-          "Do not reinterpret the source again. SELECTED_FRAME is the semantic authority for framing when it is not NONE.",
-          "Do not generate, choose, rename, or compare frame identities.",
-          "Generate exactly three materially different expressive treatments inside SELECTED_FRAME using only supplied reality.",
+          "SEMANTIC_BOUNDARY tells you what must remain true; it is not a style name, genre, voice, or treatment suggestion.",
+          "Do not generate, choose, rename, or imitate a semantic frame label.",
+          "Generate exactly three materially different expressive treatments inside the approved semantic boundary using only supplied reality.",
           "Do not generate Bare Reality. QRE supplies that control deterministically outside the model.",
           "The three expressive treatments must emerge from THIS material. Search for what is peculiar, funny, tense, disproportionate, awkward, elegant, repetitive, abrupt, specific, or otherwise usable in the supplied facts and their sequence.",
           "Do not choose from a house menu of genres. Invent the treatment that this material wants, even if the treatment has no familiar genre name.",
@@ -562,7 +570,7 @@ export async function searchAuthorCreativeLensTreatments(input: {
           EXPERIENCE_MODE: clean(input.experienceMode) || undefined,
           LENS_MODE: lensMode,
           REQUESTED_LENS: requestedLens || undefined,
-          SELECTED_FRAME: selectedFrame,
+          SEMANTIC_BOUNDARY: modelSemanticBoundary,
           instruction:
             "Find exactly three expressive conceptions discovered from this exact material. Do not generate Bare Reality and do not reach for a familiar genre just because it is available. Look at the supplied facts and sequence until you find three different governing ideas that could make the experience feel authored and surprising. Transform perception, not reality. Preserve the approved meaning and concrete world.",
         }),
@@ -1571,15 +1579,22 @@ export async function createAuthorExperience(input: {
   const selectedEvidence = input.suppliedReality.filter((event) =>
     playableIds.has(clean(event.id)),
   );
+  const isMemoryMode = experienceMode === "MEMORY";
   const useDeterministicSparsePlan =
     selectedEvidence.length > 0 && selectedEvidence.length <= 3;
+  const useDeterministicBusinessMemoryPlan =
+    isMemoryMode &&
+    realityDirect &&
+    isBusinessCreativeContext(input.domainContext) &&
+    selectedEvidence.length > 0;
+  const useDeterministicPlan =
+    useDeterministicSparsePlan || useDeterministicBusinessMemoryPlan;
   const useIdentityClusterPlan =
     useDeterministicSparsePlan &&
     experienceMode === "IDENTITY" &&
     selectedEvidence.length > 1;
-  const isMemoryMode = experienceMode === "MEMORY";
 
-  const planResult = useDeterministicSparsePlan
+  const planResult = useDeterministicPlan
     ? {
         text: "",
         model: "deterministic-sparse-plan",
@@ -1665,7 +1680,7 @@ export async function createAuthorExperience(input: {
           change: selected.perception || selected.relationship,
         }],
       }
-    : useDeterministicSparsePlan
+    : useDeterministicPlan
       ? fallbackPlan(selectedEvidence, input.creativeDiscovery)
       : normalizePlan(parseJson(planResult.text), allowedEventIds) ??
       fallbackPlan(input.suppliedReality, input.creativeDiscovery);
@@ -1695,10 +1710,12 @@ export async function createAuthorExperience(input: {
   debug("BARE-AUTHOR-PLAN", {
     mode: useIdentityClusterPlan
       ? "DETERMINISTIC_IDENTITY_CLUSTER"
-      : useDeterministicSparsePlan
-        ? "DETERMINISTIC_SPARSE"
-        : "MODEL_STRUCTURE",
-    raw: useDeterministicSparsePlan ? "SKIPPED_MODEL_PLAN" : planResult.text,
+      : useDeterministicBusinessMemoryPlan
+        ? "DETERMINISTIC_BUSINESS_MEMORY"
+        : useDeterministicSparsePlan
+          ? "DETERMINISTIC_SPARSE"
+          : "MODEL_STRUCTURE",
+    raw: useDeterministicPlan ? "SKIPPED_MODEL_PLAN" : planResult.text,
     memoryStructureAdjusted:
       isMemoryMode &&
       (
@@ -2335,7 +2352,7 @@ export async function createAuthorExperience(input: {
     scenes,
     model: mouthResult.model || (lensSearchEnabled ? lensSearch.model : "") || planResult.model,
     modelCalls:
-      (useDeterministicSparsePlan ? 1 : 2) +
+      (useDeterministicPlan ? 1 : 2) +
       lensSearch.modelCalls +
       memoryRepairModelCalls,
     diagnostics: {
