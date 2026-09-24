@@ -921,7 +921,7 @@ export async function searchAuthorCreativeLensTreatments(input: {
                   additionalProperties: false,
                   required: ["relation", "evidenceEventIds"],
                   properties: {
-                    relation: { type: "string", maxLength: 192 },
+                    relation: { type: "string" },
                     evidenceEventIds: {
                       type: "array",
                       minItems: 1,
@@ -942,15 +942,15 @@ export async function searchAuthorCreativeLensTreatments(input: {
               additionalProperties: false,
               required: ["creativePressure", "hiddenInference", "treatment", "perceptionDelta", "expressiveBehaviors", "intensity"],
               properties: {
-                creativePressure: { type: "string", maxLength: 72 },
-                hiddenInference: { type: "string", maxLength: 160 },
-                treatment: { type: "string", maxLength: 320 },
-                perceptionDelta: { type: "string", maxLength: 220 },
+                creativePressure: { type: "string" },
+                hiddenInference: { type: "string" },
+                treatment: { type: "string" },
+                perceptionDelta: { type: "string" },
                 expressiveBehaviors: {
                   type: "array",
                   minItems: 1,
                   maxItems: 4,
-                  items: { type: "string", maxLength: 48 },
+                  items: { type: "string" },
                 },
                 intensity: {
                   type: "string",
@@ -2037,7 +2037,7 @@ async function repairNominatedMemoryProduction(input: {
               required: ["order", "text"],
               properties: {
                 order: { type: "integer", minimum: 1 },
-                text: { type: "string", maxLength: 88 },
+                text: { type: "string" },
               },
             },
           },
@@ -2571,7 +2571,7 @@ export async function createAuthorExperience(input: {
                         required: ["order", "text"],
                         properties: {
                           order: { type: "integer", minimum: 1 },
-                          text: { type: "string", maxLength: 88 },
+                          text: { type: "string" },
                         },
                       },
                     },
@@ -2599,7 +2599,7 @@ export async function createAuthorExperience(input: {
                       type: "array",
                       minItems: 4,
                       maxItems: 4,
-                      items: { type: "string", maxLength: 88 },
+                      items: { type: "string" },
                     },
                   },
                 },
