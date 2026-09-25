@@ -2728,7 +2728,7 @@ export async function createAuthorExperience(input: {
     ],
     "json",
     {
-      numPredict: 1050,
+      numPredict: isIdentityMode ? 650 : 1050,
       temperature: isWholeProductionMode ? 0.96 : 0.86,
       jsonSchema: {
         type: "object",
