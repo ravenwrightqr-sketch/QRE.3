@@ -2338,7 +2338,9 @@ export async function createAuthorExperience(input: {
           AUTHORIZED_EVIDENCE: selectedEvidence,
           EXPERIENCE_SHAPE: input.creativeDiscovery.experienceShape,
           instruction:
-            "Return the strongest structural beat sequence using the authorized evidence IDs. Preserve every authorized evidence item somewhere in the sequence; group related evidence when that strengthens the experience.",
+  isIdentityMode && selectedEvidence.length >= 3
+    ? "Return an IDENTITY portrait with at least three structural beats. Preserve every authorized evidence item somewhere. Do not collapse the entire identity into one beat, and do not mechanically create one beat per field. Group evidence into a progression that establishes, develops, and lands character."
+    : "Return the strongest structural beat sequence using the authorized evidence IDs. Preserve every authorized evidence item somewhere in the sequence; group related evidence when that strengthens the experience.",
         }),
       },
     ],
@@ -2353,7 +2355,7 @@ export async function createAuthorExperience(input: {
         properties: {
           beats: {
             type: "array",
-            minItems: 1,
+            minItems: isIdentityMode && selectedEvidence.length >= 3 ? 3 : 1,
             items: {
               type: "object",
               additionalProperties: false,
