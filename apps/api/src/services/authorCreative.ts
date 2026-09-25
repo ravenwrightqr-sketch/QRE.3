@@ -1919,6 +1919,33 @@ type MemorySequenceCandidate = {
   reasons: string[];
 };
 
+function identityClusterFactDependence(
+  lines: readonly string[],
+  suppliedReality: readonly AuthorCreativeEvent[],
+): number {
+  const lineTokens = new Set(replayTokens(lines.join(" ")));
+  const tokenSets = suppliedReality.map((event) => new Set(replayTokens(event.text)));
+
+  const distinctiveSets = tokenSets
+    .map((tokens, index) => {
+      const otherTokens = new Set(
+        tokenSets
+          .filter((_, otherIndex) => otherIndex !== index)
+          .flatMap((set) => [...set]),
+      );
+      return [...tokens].filter((token) => !otherTokens.has(token));
+    })
+    .filter((tokens) => tokens.length > 0);
+
+  if (!distinctiveSets.length) return 1;
+
+  const represented = distinctiveSets.filter((tokens) =>
+    tokens.some((token) => lineTokens.has(token)),
+  ).length;
+
+  return represented / distinctiveSets.length;
+}
+
 function scoreMemorySequence(
   variantIndex: number,
   plan: AuthorSemanticPlan,
@@ -2010,17 +2037,39 @@ function scoreMemorySequence(
     !preservesSpecificTemporalAnchor(payoff.text, payoff.beatFacts),
   );
   const rejected = lines.length - acceptedLines.length;
+  const identityFactDependence = simultaneousIdentity
+    ? identityClusterFactDependence(
+        lines.map((line) => line.text),
+        suppliedReality,
+      )
+    : 0;
 
-  const score = Math.max(
-    0,
-    meanScore * 0.5 +
-      completeness * 0.25 +
-      payoffStrength * 0.2 +
-      uniqueRatio * 0.05 -
-      rejected * 0.2,
-  );
+  const score = simultaneousIdentity
+    ? Math.max(
+        0,
+        Math.min(
+          1,
+          meanScore * 0.42 +
+            completeness * 0.2 +
+            payoffStrength * 0.15 +
+            uniqueRatio * 0.05 +
+            identityFactDependence * 0.18 -
+            rejected * 0.2,
+        ),
+      )
+    : Math.max(
+        0,
+        meanScore * 0.5 +
+          completeness * 0.25 +
+          payoffStrength * 0.2 +
+          uniqueRatio * 0.05 -
+          rejected * 0.2,
+      );
 
   const reasons: string[] = [];
+  if (simultaneousIdentity && identityFactDependence < 0.75) {
+    reasons.push("weak-identity-fact-dependence");
+  }
   if (completeness < 1) reasons.push("incomplete-sequence");
   if (uniqueRatio < 1) reasons.push("repeated-line");
   if ((payoff?.reasons ?? []).includes("memory-payoff-replay")) {
@@ -3049,7 +3098,9 @@ export async function createAuthorExperience(input: {
       lines: production.lines.map((line) => ({
         order: line.beat.order,
         text: line.text,
-        sourceEventIds: [...line.beat.eventIds],
+        sourceEventIds: isIdentityMode
+          ? selectedEvidence.map((event) => event.id)
+          : [...line.beat.eventIds],
       })),
     }));
 
