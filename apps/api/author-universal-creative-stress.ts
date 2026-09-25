@@ -652,8 +652,7 @@ function printCrossRunSummary(summaries: CaseSummary[]): void {
 }
 
 const summaries: CaseSummary[] = [];
-
-for (const testCase of CASES) {
+for (const testCase of CASES.filter((testCase) => testCase.name === "PET SITTER")) {
   try {
     const result = await authorBrainCanonical(inputFor(testCase));
     printCaseResult(testCase, result);

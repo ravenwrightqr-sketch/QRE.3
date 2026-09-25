@@ -292,7 +292,9 @@ export function deriveAuthorSemanticMechanicCandidates(input: {
   }
 
   if (
-    /\b(?:same|again|returned|return|repeated|recurring|every|sundays?|weekly|back)\b/i.test(text)
+   /\b(?:same|again|returned|return|repeated|recurring|every|weekly)\b/i.test(text) ||
+/\b(?:came|went|go|going|return(?:ed)?)\s+back\b/i.test(text) ||
+/\bback\s+again\b/i.test(text)
   ) {
     addSemanticMechanicCandidate(
       candidates,
@@ -503,8 +505,7 @@ export function unsupportedTreatmentMaterialReason(input: {
   const supplied = clean(input.suppliedRealityText);
   const selectedMechanic = clean(input.semanticMechanic).toLowerCase();
   const sourceHasRecurrence =
-    /\b(?:same|again|returned|return|repeated|recurring|every|weekly|back)\b/i.test(supplied);
-
+/\b(?:same|again|returned|return|repeated|recurring|every|sundays?|weekly)\b/i
   // Treatment validation is intentionally permissive because this object is
   // private Author thinking, not viewer-facing documentary copy. Protect only
   // against conceptions that explicitly require manufacturing concrete world
@@ -1607,7 +1608,12 @@ function inventedOperationalAnchorReason(
     ? `invented-operational-anchor: ${invented.slice(0, 3).join(", ")}`
     : undefined;
 }
-
+export function testInventedOperationalAnchorReason(
+  text: string,
+  suppliedReality: readonly AuthorCreativeEvent[],
+): string | undefined {
+  return inventedOperationalAnchorReason(text, suppliedReality);
+}
 function sourceReplayPenalty(text: string, beatFacts: readonly string[]): number {
   const candidate = replayTokens(text);
   if (!candidate.length) return 0;
@@ -2862,11 +2868,12 @@ export async function createAuthorExperience(input: {
             )
             .sort((a, b) => b.score - a.score)[0];
 
-    if (
-      lensSearchEnabled &&
-      repairTarget &&
-      !repairTarget.accepted
-    ) {
+      if (
+  lensSearchEnabled &&
+  !mouthFallbackReason &&
+  repairTarget &&
+  !repairTarget.accepted
+) {
       const repair = await repairNominatedMemoryProduction({
         production: repairTarget,
         plan,
