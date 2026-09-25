@@ -843,6 +843,14 @@ export async function searchAuthorCreativeLensTreatments(input: {
           "Treatments describe semantic/verbal transformation only. No camera, visuals, typography, overlays, sound, editing, staging, or rendering instructions.",
           "IMPORTANT: 'treatment' here does NOT mean a film, video, audiovisual, or production treatment. It means a private semantic conception: what the supplied reality means differently, how its facts relate, and what rhetorical/verbal pressure should shape the writing.",
           "expressiveBehaviors must be semantic or rhetorical operations only. Never return music, sound, camera, visual cues, lighting, editing, performance direction, or other presentation instructions.",
+          ...(clean(input.experienceMode).toUpperCase() === "IDENTITY" ? [
+            "IDENTITY CREATIVE SEARCH: treat the supplied facts as simultaneous character material, not a plot and not a ranking exercise.",
+            "A cluster of likes may create a signature, tiny world, fixation map, taste constellation, recurring topic, playful status system, or another fact-dependent portrait without inventing why the entity likes them.",
+            "Do not turn equal likes into stronger/weaker preference, hierarchy, choosing, exclusivity, judgement, dominance, control, vulnerability, insecurity, deception, social status, or motive unless supplied reality explicitly supports it.",
+            "Do not invent unit numbers, classifications, diagnoses, routines, history, encounters, actions, or biography as part of the treatment.",
+            "Pressure may be wild, but it must operate on meaning: walks can become a standing invitation, bacon can become a sacred topic, small dogs can become automatic relevance — only as rhetoric around known preferences, never as events.",
+            "The strongest identity conception should make THESE facts feel like one character while leaving the viewer room to finish the thought.",
+          ] : []),
           "Make the same reality read differently. Make meaning felt and implied, not explained.",
           "Protect the strange; police the facts.",
         ].join("\n"),
@@ -1918,11 +1926,14 @@ function scoreMemorySequence(
   suppliedReality: readonly AuthorCreativeEvent[],
   subject: string,
   realityDirect = false,
+  simultaneousIdentity = false,
 ): MemorySequenceCandidate {
   const prior: string[] = [];
   const lines = plan.beats.map((beat, index) => {
-    const beatFacts = beat.eventIds
-      .map((id) => suppliedReality.find((event) => event.id === id)?.text ?? "")
+    const beatFacts = (simultaneousIdentity
+      ? suppliedReality.map((event) => event.text)
+      : beat.eventIds
+          .map((id) => suppliedReality.find((event) => event.id === id)?.text ?? ""))
       .map(clean)
       .filter(Boolean);
     const text = clean(variantsByOrder.get(beat.order)?.[variantIndex] ?? "");
@@ -1938,14 +1949,14 @@ function scoreMemorySequence(
     const payoffPenalty = memoryPayoffReplayPenalty(
       text,
       beatFacts,
-      true,
+      !simultaneousIdentity,
       index === plan.beats.length - 1,
       beat.change,
     );
     const dropsSpecificTimeAnchor =
       variantIndex === 3 && !preservesSpecificTemporalAnchor(text, beatFacts);
     const futureLeakReason =
-      variantIndex < 3
+      variantIndex < 3 && !simultaneousIdentity
         ? futureEvidenceLeakReason(text, index, plan, suppliedReality)
         : undefined;
     const operationalAnchorFailure =
@@ -2265,6 +2276,8 @@ export async function createAuthorExperience(input: {
     playableIds.has(clean(event.id)),
   );
   const isMemoryMode = experienceMode === "MEMORY";
+  const isIdentityMode = experienceMode === "IDENTITY";
+  const isWholeProductionMode = isMemoryMode || isIdentityMode;
   const useDeterministicSparsePlan =
     selectedEvidence.length > 0 && selectedEvidence.length <= 3;
   const useDeterministicRealityDirectMemoryPlan =
@@ -2302,6 +2315,18 @@ export async function createAuthorExperience(input: {
             "Preserve meaningful temporal progression, state contrast, duration, recurrence, return, and distinctive moments when they contribute to the approved memory.",
             "A meaningful middle can carry its own structural weight. A later state or return can carry its own structural weight. Let their relationship determine the shape.",
             "Choose the smallest sequence that preserves the full creative potential of the approved memory, with no predetermined beat count.",
+          ] : []),
+          ...(isIdentityMode ? [
+            "IDENTITY WHOLE-PRODUCTION REALIZATION:",
+            "These facts describe one persistent entity at the same time. They are not a chronology and not five independent caption slots.",
+            "Read the supplied identity cluster as one tiny world. Let one cut establish, another sharpen, another create attitude or curiosity, and another land the portrait.",
+            "A stable like may become importance, fixation, a playful question, status, anticipation, or a recurring topic. It may not become an event that supposedly happened.",
+            "Do not invent preference ranking. If several facts all say 'loves', none is stronger merely because it appears later or sounds more interesting.",
+            "Do not invent motive, dominance, insecurity, deception, snobbery, vulnerability, social hierarchy, ownership, routine, biography, or hidden psychology from neutral identity facts.",
+            "Identity facts are simultaneous authority. Any cut may combine multiple supplied identity facts when the combination creates character, provided every concrete implication stays inside the supplied cluster.",
+            "Do not keep repeating the subject's name once identity is established unless a callback earns it.",
+            "The sequence should create forward desire one cut at a time. Some cuts may simply establish reality; others may compress, question, reframe, imply, or land.",
+            "The viewer should construct part of the character. Stop before explaining the joke or the personality.",
           ] : []),
           ...(presentationContext ? [presentationContext] : []),
         ].join("\n"),
@@ -2494,7 +2519,7 @@ export async function createAuthorExperience(input: {
   }
   const mouthResult = skipExpressiveMouth
     ? {
-        text: buildDeterministicMouthFallback(plan, input.suppliedReality, isMemoryMode),
+        text: buildDeterministicMouthFallback(plan, input.suppliedReality, isWholeProductionMode),
         model: "deterministic-bare-mouth-skip",
         provider: "local" as const,
       }
@@ -2608,8 +2633,8 @@ export async function createAuthorExperience(input: {
             expressiveBehaviors: assignment.expressiveBehaviors,
             intensity: assignment.intensity,
           })),
-          instruction: useIdentityClusterPlan
-            ? "This is one IDENTITY character cluster, not a checklist. Return four short candidate realizations that synthesize the combination into character. Do not enumerate every supplied preference or simply restate them. The viewer should infer personality from the combination. Do not invent an event."
+          instruction: isIdentityMode
+            ? "Return complete candidate productions in PRODUCTION-MAJOR form for the listed CREATIVE_TREATMENTS only. This is one persistent IDENTITY portrait, not a checklist and not chronology. Build a short scroll experience from the whole supplied cluster. Establish identity once, then let facts acquire attitude, importance, curiosity, contrast, playful possibility, callback, or character through their combination. Any cut may draw from multiple supplied identity facts because they are simultaneous truths. Do not invent an event, biography, routine, motive, reaction, preference ranking, hidden psychology, or comparative strength not present in the input. Do not explain the character; make the viewer infer it. Nominate the strongest viable expressive production by A, B, or C. Bare D is truth fallback only."
             : isMemoryMode
               ? realityDirect
                 ? "Return complete candidate productions in PRODUCTION-MAJOR form for the listed CREATIVE_TREATMENTS only. Make the meaning felt and implied, not explained. Push each assigned treatment as far as supplied reality supports through nonliteral rhetoric, sequence, status, metaphor, callback, and recontextualization. Keep the concrete world fixed and each underlying action/change recoverable. Operational anchors may stay in provenance unless they create the perception. Nominate the strongest complete production by its production letter: A, B, C, or D."
@@ -2621,14 +2646,14 @@ export async function createAuthorExperience(input: {
     "json",
     {
       numPredict: 1050,
-      temperature: isMemoryMode ? 0.96 : 0.86,
+      temperature: isWholeProductionMode ? 0.96 : 0.86,
       jsonSchema: {
         type: "object",
         additionalProperties: false,
-        required: isMemoryMode
+        required: isWholeProductionMode
           ? ["productions", "selectedProduction", "selectionReason"]
           : ["variantsByBeat"],
-        properties: isMemoryMode
+        properties: isWholeProductionMode
           ? {
               productions: {
                 type: "array",
@@ -2698,7 +2723,7 @@ export async function createAuthorExperience(input: {
       text: buildDeterministicMouthFallback(
         plan,
         input.suppliedReality,
-        isMemoryMode,
+        isWholeProductionMode,
       ),
       model: "deterministic-bare-mouth-fallback",
       provider: "local" as const,
@@ -2710,7 +2735,7 @@ export async function createAuthorExperience(input: {
   let parsedMouth = parseJson(mouthResult.text);
   const variantsByOrder = new Map<number, string[]>();
 
-  if (isMemoryMode) {
+  if (isWholeProductionMode) {
     if (!Array.isArray(parsedMouth?.productions)) {
       mouthFallbackReason =
         mouthFallbackReason ||
@@ -2812,7 +2837,7 @@ export async function createAuthorExperience(input: {
     selected: string;
   }> = [];
 
-  if (isMemoryMode && plan.beats.length > 1) {
+  if (isWholeProductionMode && plan.beats.length > 1) {
     const productions = [0, 1, 2, 3]
       .map((variantIndex) =>
         scoreMemorySequence(
@@ -2822,6 +2847,7 @@ export async function createAuthorExperience(input: {
           input.suppliedReality,
           input.subject,
           realityDirect,
+          isIdentityMode,
         ),
       )
       .sort((a, b) => {
@@ -2863,6 +2889,7 @@ export async function createAuthorExperience(input: {
             .sort((a, b) => b.score - a.score)[0];
 
     if (
+      isMemoryMode &&
       lensSearchEnabled &&
       repairTarget &&
       !repairTarget.accepted
@@ -2899,6 +2926,7 @@ export async function createAuthorExperience(input: {
           input.suppliedReality,
           input.subject,
           realityDirect,
+          isIdentityMode,
         );
 
         debug("MEMORY-PRODUCTION-REPAIR", {
@@ -3091,7 +3119,9 @@ export async function createAuthorExperience(input: {
       scenes.push({
         text: selectedText,
         kind: beatKind(beat.role, index, plan.beats.length),
-        sourceEventIds: beat.eventIds,
+        sourceEventIds: isIdentityMode
+          ? selectedEvidence.map((event) => event.id)
+          : beat.eventIds,
       });
     }
   } else {
