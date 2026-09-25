@@ -1570,6 +1570,22 @@ function exactPercentAnchors(value: string): string[] {
   ].map((match) => `percent:${match[0]}`);
 }
 
+function exactMeasurementAnchors(value: string): string[] {
+  const text = clean(value).toLowerCase();
+  const unitPattern =
+    "(?:ml\/min|l\/min|gpm|km\/h|km\/hr|mph|m\/s|ft\/s|n\\u00b7m|n-m|nm|psi|kpa|mpa|bar|rpm|db|mah|wh|kwh|kw|mw|w|v|mv|a|ma|mcg|mg|kg|lbs?|oz|g|ml|cl|dl|liters?|litres?|gal(?:lons?)?|mm|cm|km|meters?|metres?|inches?|inch|ft|feet|yards?|yd|miles?|mi|degrees?|deg|\\u00b0f|\\u00b0c|f|c)";
+  const pattern = new RegExp(
+    `\\b(\\d+(?:\\.\\d+)?)\\s*(${unitPattern})\\b`,
+    "gi",
+  );
+
+  return [...text.matchAll(pattern)].map((match) => {
+    const amount = match[1];
+    const unit = clean(match[2]).toLowerCase().replace(/\s+/g, "");
+    return `measure:${amount}:${unit}`;
+  });
+}
+
 function inventedOperationalAnchorReason(
   text: string,
   suppliedReality: readonly AuthorCreativeEvent[],
@@ -1578,10 +1594,12 @@ function inventedOperationalAnchorReason(
   const suppliedAnchors = new Set([
     ...canonicalClockAnchors(suppliedText),
     ...exactPercentAnchors(suppliedText),
+    ...exactMeasurementAnchors(suppliedText),
   ]);
   const candidateAnchors = [
     ...canonicalClockAnchors(text),
     ...exactPercentAnchors(text),
+    ...exactMeasurementAnchors(text),
   ];
 
   const invented = candidateAnchors.filter((anchor) => !suppliedAnchors.has(anchor));
