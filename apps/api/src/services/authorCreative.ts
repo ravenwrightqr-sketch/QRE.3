@@ -2564,6 +2564,9 @@ export async function createAuthorExperience(input: {
       ...assignment,
     }))
     .sort((a, b) => a.production.localeCompare(b.production));
+  const mouthModelAssignments = isIdentityMode
+    ? treatmentAssignmentsForMouth.filter((assignment) => assignment.production !== "D")
+    : treatmentAssignmentsForMouth;
   const treatmentByVariantIndex = new Map(
     treatmentAssignmentsForMouth.map((assignment) => [
       treatmentVariantIndex(assignment),
@@ -2699,7 +2702,7 @@ export async function createAuthorExperience(input: {
           LENS_MODE: lensMode,
           REQUESTED_LENS: requestedLens || (autoBusinessLens ? "AUTO" : "NONE"),
           STORY_GRAVITY: lensSearch.storyGravity,
-          CREATIVE_TREATMENTS: treatmentAssignmentsForMouth.map((assignment) => ({
+          CREATIVE_TREATMENTS: mouthModelAssignments.map((assignment) => ({
             production: assignment.production,
             semanticMechanic: assignment.semanticMechanic,
             sourceCandidateId: assignment.sourceCandidateId,
@@ -2724,7 +2727,7 @@ export async function createAuthorExperience(input: {
     ],
     "json",
     {
-      numPredict: isIdentityMode ? 650 : 1050,
+      numPredict: isIdentityMode ? 520 : 1050,
       temperature: isWholeProductionMode ? 0.96 : 0.86,
       jsonSchema: {
         type: "object",
@@ -2737,17 +2740,20 @@ export async function createAuthorExperience(input: {
               productions: {
                 type: "array",
                 minItems: lensSearchEnabled
-                  ? Math.max(1, treatmentAssignmentsForMouth.length)
+                  ? Math.max(1, mouthModelAssignments.length)
                   : 4,
                 maxItems: lensSearchEnabled
-                  ? Math.max(1, treatmentAssignmentsForMouth.length)
+                  ? Math.max(1, mouthModelAssignments.length)
                   : 4,
                 items: {
                   type: "object",
                   additionalProperties: false,
                   required: ["production", "lines"],
                   properties: {
-                    production: { type: "string", enum: ["A", "B", "C", "D"] },
+                    production: {
+                      type: "string",
+                      enum: isIdentityMode ? ["A", "B", "C"] : ["A", "B", "C", "D"],
+                    },
                     lines: {
                       type: "array",
                       minItems: plan.beats.length,
@@ -2767,7 +2773,7 @@ export async function createAuthorExperience(input: {
               },
               selectedProduction: {
                 type: "string",
-                enum: ["A", "B", "C", "D"],
+                enum: isIdentityMode ? ["A", "B", "C"] : ["A", "B", "C", "D"],
               },
               selectionReason: { type: "string", maxLength: 220 },
             }
