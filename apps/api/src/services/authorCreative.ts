@@ -1930,7 +1930,7 @@ function scoreMemorySequence(
       variantIndex < 3
         ? futureEvidenceLeakReason(text, index, plan, suppliedReality)
         : undefined;
-    const inventedOperationalAnchorReason =
+    const operationalAnchorFailure =
       variantIndex < 3
         ? inventedOperationalAnchorReason(text, suppliedReality)
         : undefined;
@@ -1943,9 +1943,9 @@ function scoreMemorySequence(
         base.accepted &&
         !dropsSpecificTimeAnchor &&
         !futureLeakReason &&
-        !inventedOperationalAnchorReason,
+        !operationalAnchorFailure,
       score:
-        futureLeakReason || inventedOperationalAnchorReason
+        futureLeakReason || operationalAnchorFailure
           ? 0
           : Math.max(0, base.score - payoffPenalty),
       reasons: [
@@ -1953,7 +1953,7 @@ function scoreMemorySequence(
         ...(payoffPenalty > 0 ? ["memory-payoff-replay"] : []),
         ...(dropsSpecificTimeAnchor ? ["drops-specific-time-anchor"] : []),
         ...(futureLeakReason ? [futureLeakReason] : []),
-        ...(inventedOperationalAnchorReason ? [inventedOperationalAnchorReason] : []),
+        ...(operationalAnchorFailure ? [operationalAnchorFailure] : []),
       ],
     };
     if (text) prior.push(text);
