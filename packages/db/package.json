@@ -12,12 +12,14 @@
     }
   },
   "scripts": {
-    "build": "prisma generate --schema=./prisma/schema.prisma && tsc -p tsconfig.json",
-    "prisma:generate": "prisma generate --schema=./prisma/schema.prisma",
-    "prisma:migrate": "prisma migrate dev --schema=./prisma/schema.prisma",
-    "prisma:deploy": "prisma migrate deploy --schema=./prisma/schema.prisma",
-    "prisma:push": "prisma db push --schema=./prisma/schema.prisma",
-    "db:studio": "prisma studio --schema=./prisma/schema.prisma"
+    "build": "node ./scripts/with-db-env.mjs prisma generate --schema=./prisma/schema.prisma && tsc -p tsconfig.json",
+    "prisma:validate": "node ./scripts/with-db-env.mjs prisma validate --schema=./prisma/schema.prisma",
+    "prisma:status": "node ./scripts/with-db-env.mjs prisma migrate status --schema=./prisma/schema.prisma",
+    "prisma:generate": "node ./scripts/with-db-env.mjs prisma generate --schema=./prisma/schema.prisma",
+    "prisma:migrate": "node ./scripts/with-db-env.mjs prisma migrate dev --schema=./prisma/schema.prisma",
+    "prisma:deploy": "node ./scripts/with-db-env.mjs prisma migrate deploy --schema=./prisma/schema.prisma",
+    "prisma:push": "node ./scripts/with-db-env.mjs prisma db push --schema=./prisma/schema.prisma",
+    "db:studio": "node ./scripts/with-db-env.mjs prisma studio --schema=./prisma/schema.prisma"
   },
   "dependencies": {
     "@prisma/client": "6.19.3",

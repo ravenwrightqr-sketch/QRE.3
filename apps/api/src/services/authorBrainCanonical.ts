@@ -265,9 +265,18 @@ export type CanonicalAuthorResult = {
     realityModel?: string;
     creativeDiscoveryModel?: string;
     bareAuthorPlan?: unknown;
+    creativeNotice?: unknown;
     creativeTreatments?: unknown;
+    creativeSearchFallbackReason?: unknown;
+    rejectedTreatments?: unknown;
+    treatmentSetAssessment?: unknown;
+    productionContractComplete?: unknown;
     mouthVariants?: unknown;
     mouthChoices?: unknown;
+    selectedProduction?: unknown;
+    mouthFallback?: unknown;
+    memoryProductions?: unknown;
+    grounding?: unknown;
   };
   adaptiveQuestions: Array<{ kind: string; question: string; reason: string }>;
   world: ReturnType<typeof buildAuthorRealityGraph>;
@@ -605,9 +614,26 @@ export async function authorBrainCanonical(
       realityModel: receipt.model,
       creativeDiscoveryModel: discoveryResult.model,
       bareAuthorPlan: creativeResult.diagnostics?.plan,
+      creativeNotice: creativeResult.diagnostics?.creativeNotice,
       creativeTreatments: creativeResult.diagnostics?.creativeTreatments,
+      creativeSearchFallbackReason:
+        creativeResult.diagnostics?.creativeSearchFallbackReason,
+      rejectedTreatments: creativeResult.diagnostics?.rejectedTreatments,
+      treatmentSetAssessment: creativeResult.diagnostics?.treatmentSetAssessment,
+      productionContractComplete:
+        creativeResult.diagnostics?.productionContractComplete,
       mouthVariants: creativeResult.diagnostics?.variantsByBeat,
       mouthChoices: creativeResult.diagnostics?.choices,
+      selectedProduction: creativeResult.diagnostics?.selectedProduction,
+      mouthFallback: creativeResult.diagnostics?.mouthFallback,
+      memoryProductions: creativeResult.diagnostics?.memoryProductions,
+      grounding: {
+        model: verifiedCreative.model,
+        modelCalls: verifiedCreative.modelCalls + groundingRecoveryModelCalls,
+        acceptedScenes: verifiedCreative.scenes.length,
+        originalScenes: creativeResult.scenes.length,
+        recovered: groundingRecoveryModelCalls > 0,
+      },
     },
     adaptiveQuestions: [],
     world,

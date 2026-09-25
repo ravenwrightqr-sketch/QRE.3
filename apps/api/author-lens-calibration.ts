@@ -53,11 +53,13 @@ const plan: AuthorSemanticPlan = {
 
 function printTreatment(index: number, treatment: {
   treatment: string;
-  devices: readonly string[];
+  perceptionDelta: string;
+  expressiveBehaviors: readonly string[];
   intensity: string;
 }): void {
   console.log(`${index}. ${treatment.treatment}`);
-  console.log(`   devices: ${treatment.devices.join(", ")}`);
+  console.log(`   perceptionDelta: ${treatment.perceptionDelta}`);
+  console.log(`   expressiveBehaviors: ${treatment.expressiveBehaviors.join(", ")}`);
   console.log(`   intensity: ${treatment.intensity}`);
 }
 
