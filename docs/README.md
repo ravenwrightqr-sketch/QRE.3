@@ -12,6 +12,7 @@ This directory is organized around **canonical current architecture first**, foc
 | `AUTHOR_ARCHITECTURE_INDEX.md` | Ownership, boundaries, connected intelligence stack, canonical paths |
 | `AUTHOR_CURRENT_STATE.md` | What Author, memory, learning, Mouth, and acceptance currently do |
 | `RUNTIME_AND_ANALYTICS_CURRENT_STATE.md` | Runtime, event spine, analytics, learning boundary, persistence |
+| `SUPABASE_SETUP.md` | Supabase Postgres env wiring and Prisma migration commands |
 | `QRE_PRODUCTION_TODO.md` | Active work needed to reach universal production Author |
 | `LAUNCH_READINESS.md` | Launch / deployment readiness |
 

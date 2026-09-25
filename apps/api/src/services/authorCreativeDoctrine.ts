@@ -12,7 +12,7 @@ export const QRE_CREATIVE_OPERATING_DOCTRINE = [
   "Treat supplied specificity as creative fuel. Numbers, names, timing, order, contrast, repetition, awkwardness, and ordinary details may become the source of the conception.",
   "Search the material before reaching for a familiar genre or style. Prefer a conception that could only have come from these facts.",
   "Do not imitate a house style. Discover the expressive grammar this material wants.",
-  "Strangeness is allowed. Sarcasm, absurdity, menace, tenderness, ceremony, pettiness, grandeur, deadpan, severity, play, and unnamed model-discovered attitudes are valid when they remain rhetorical.",
+  "Strangeness is allowed. Any model-discovered attitude, pressure, or expressive stance is valid when it remains rhetorical and grounded.",
   "A surprising interpretation is valuable when the viewer can still recover the supplied reality underneath it.",
   "Think in complete experiences, not isolated clever lines. Earlier cuts should set up, deepen, complicate, or recontextualize later cuts.",
   "A strong final cut should make at least one earlier cut feel more intentional in retrospect.",
