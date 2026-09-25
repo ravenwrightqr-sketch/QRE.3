@@ -673,6 +673,38 @@ export type AuthorCreativeTreatmentSearchResult = {
   treatmentSetAssessment: AuthorCreativeTreatmentSetAssessment;
 };
 
+function resolveStoryEventId(
+  rawId: string,
+  suppliedReality: readonly AuthorCreativeEvent[],
+): string | undefined {
+  const id = clean(rawId);
+  if (!id) return undefined;
+
+  const exact = suppliedReality.find((event) => clean(event.id) === id);
+  if (exact) return clean(exact.id);
+
+  const rawTokens = id
+    .toLowerCase()
+    .split(/[^a-z0-9]+/)
+    .filter(Boolean);
+
+  if (rawTokens.length < 2) return undefined;
+
+  const compatible = suppliedReality.filter((event) => {
+    const eventTokens = new Set(
+      clean(event.id)
+        .toLowerCase()
+        .split(/[^a-z0-9]+/)
+        .filter(Boolean),
+    );
+    return rawTokens.every((token) => eventTokens.has(token));
+  });
+
+  return compatible.length === 1
+    ? clean(compatible[0]!.id)
+    : undefined;
+}
+
 function validStoryEventIds(
   value: unknown,
   suppliedReality: readonly AuthorCreativeEvent[],
@@ -682,8 +714,8 @@ function validStoryEventIds(
     ? unique(
         value
           .filter((id): id is string => typeof id === "string")
-          .map(clean)
-          .filter((id) => suppliedReality.some((event) => clean(event.id) === id)),
+          .map((id) => resolveStoryEventId(id, suppliedReality))
+          .filter((id): id is string => Boolean(id)),
       ).slice(0, limit)
     : [];
 }
