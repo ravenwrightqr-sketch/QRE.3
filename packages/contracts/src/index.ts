@@ -20,6 +20,7 @@ export * from "./experience/indexV13.js";
 export * from "./experience/memoryIntelligenceV14.js";
 export * from "./experience/memoryForesightV15.js";
 export * from "./experience/memorySpatialV16.js";
+export * from "./cogauthor/mouth.js";
 export type { MediaAsset, MediaType } from "./media.js";
 export type { SponsorPolicy, SponsorPlacement, SponsorFrequency, SponsorSignal } from "./experience/sponsor.js";
 export type { RewardKind, RewardCompliance, SponsorRewardProgram, RewardAttribution, RewardTransaction, RewardBalance, RewardRecommendation } from "./experience/sponsorRewards.js";
