@@ -1,10 +1,10 @@
 /**
  * QRE AUTHOR BEAT TRUTH GATE
  *
- * The upstream movie planner is a hypothesis generator. It is NOT a source of
- * facts. This gate converts a beat from free-form narrative claims into a
- * licensed evidence set plus a creative relationship. The mouth is allowed to
- * be inventive only inside that boundary.
+ * Epistemic firewall between a generative movie planner and final realization.
+ * The upstream beat is a hypothesis. Supplied evidence is the only source of
+ * concrete reality. The gate may select evidence and describe allowed
+ * relationships, but it never upgrades interpretation into fact.
  */
 
 import { localModelGenerate } from "./localModelRuntime.js";
@@ -20,7 +20,9 @@ export type GroundedBeat = {
 };
 
 function clean(value: unknown): string {
-  return String(value ?? "").replace(/\s+/g, " ").trim();
+  return String(value ?? "")
+    .replace(/\s+/g, " ")
+    .trim();
 }
 
 function words(value: string): Set<string> {
@@ -28,7 +30,9 @@ function words(value: string): Set<string> {
     clean(value)
       .toLowerCase()
       .split(/[^a-z0-9'-]+/i)
-      .filter((word) => word.length >= 3),
+      .filter(
+        (word) => word.length >= 3,
+      ),
   );
 }
 
@@ -43,165 +47,252 @@ function parse(raw: string): {
     .trim();
 
   try {
-    const value = JSON.parse(text) as Record<string, unknown>;
-    return value && typeof value === "object" ? value : undefined;
+    const value = JSON.parse(text) as Record<
+      string,
+      unknown
+    >;
+
+    return value &&
+      typeof value === "object"
+      ? value
+      : undefined;
   } catch {
     return undefined;
   }
 }
 
-function normalizeIndices(value: unknown, size: number): number[] {
-  if (!Array.isArray(value)) return [];
+function normalizeIndices(
+  value: unknown,
+  size: number,
+): number[] {
+  if (!Array.isArray(value)) {
+    return [];
+  }
 
   return [
     ...new Set(
       value
-        .map((item) => Number(item))
+        .map((item) =>
+          Number(item),
+        )
         .filter(
           (item) =>
-            Number.isInteger(item) && item >= 0 && item < size,
+            Number.isInteger(
+              item,
+            ) &&
+            item >= 0 &&
+            item < size,
         ),
     ),
   ];
 }
 
-function normalizeEvidence(evidence: string[]): string[] {
-  return [...new Set(evidence.map(clean).filter(Boolean))].slice(0, 16);
+function normalizeEvidence(
+  evidence: string[],
+): string[] {
+  return [
+    ...new Set(
+      evidence
+        .map(clean)
+        .filter(Boolean),
+    ),
+  ].slice(0, 16);
 }
 
-export async function groundAuthorBeat(input: {
-  subject?: string;
-  facts: string[];
-  moments: string[];
-  memory: string[];
-  beat: {
-    order: number;
-    role: string;
-    gainKind?: string;
-    change?: string;
-    frontier?: string;
-    nextNeed?: string;
-    necessity?: string;
-  };
-}): Promise<GroundedBeat> {
+export async function groundAuthorBeat(
+  input: {
+    subject?: string;
+    facts: string[];
+    moments: string[];
+    memory: string[];
+    beat: {
+      order: number;
+      role: string;
+      gainKind?: string;
+      change?: string;
+      frontier?: string;
+      nextNeed?: string;
+      necessity?: string;
+    };
+  },
+): Promise<GroundedBeat> {
   const normalizedBeat = {
     order: input.beat.order,
-    role: clean(input.beat.role) || "discovery",
-    gainKind: clean(input.beat.gainKind) || "discovery",
-    change: clean(input.beat.change),
-    frontier: clean(input.beat.frontier),
-    nextNeed: clean(input.beat.nextNeed),
-    necessity: clean(input.beat.necessity),
+    role:
+      clean(input.beat.role) ||
+      "discovery",
+    gainKind:
+      clean(input.beat.gainKind) ||
+      "discovery",
+    change: clean(
+      input.beat.change,
+    ),
+    frontier: clean(
+      input.beat.frontier,
+    ),
+    nextNeed: clean(
+      input.beat.nextNeed,
+    ),
+    necessity: clean(
+      input.beat.necessity,
+    ),
   };
 
-  // Stable identity attributes remain attached to the subject. They do not
-  // become independent story entities unless the actual prompt/memory makes
-  // the attribute narratively relevant.
-  const genderPattern =
+  const rawEvidence =
+    normalizeEvidence([
+      ...input.facts,
+      ...input.moments,
+      ...input.memory,
+    ]);
+
+  /*
+   * Identity attributes stay attached to the subject. They do not become an
+   * independent story entity unless the supplied prompt or evidence makes
+   * them materially relevant to the selected movie.
+   */
+  const identityPattern =
     /^(?:male|female|man|woman|boy|girl|gender|he|she|him|her|his|hers)$/i;
 
-  const rawEvidence = normalizeEvidence([
-    ...input.facts,
-    ...input.moments,
-    ...input.memory,
-  ]);
+  const identityEvidence =
+    rawEvidence.filter((item) =>
+      identityPattern.test(item),
+    );
 
-  const identityEvidence = rawEvidence.filter((item) =>
-    genderPattern.test(item),
-  );
-
-  const narrativeEvidence = rawEvidence.filter(
-    (item) => !genderPattern.test(item),
-  );
+  const narrativeEvidence =
+    rawEvidence.filter(
+      (item) =>
+        !identityPattern.test(item),
+    );
 
   const system = [
     "You are QRE's AUTHOR BEAT TRUTH GATE.",
-    "This is an epistemic firewall between a generative movie planner and the final author.",
+    "This is an epistemic firewall between a generative movie planner and final realization.",
     "The upstream beat is a HYPOTHESIS, never evidence. Treat every concrete claim inside it as untrusted until licensed by SUPPLIED_EVIDENCE.",
-    "You MUST select evidence only by integer index from SUPPLIED_EVIDENCE. Never create, merge, embellish, or paraphrase a new fact.",
-    "Do not use the gate to delete source evidence. SUPPLIED_EVIDENCE is the complete available truth set. The creative author decides which evidence matters for a specific line.",
-    "SUBJECT IDENTITY RULE: gender/sex labels are neutral subject metadata by default, not a second character, plot device, theme, conflict, or creative relationship. Never invent a 'male character', 'female character', 'male pride', 'female energy', romance, masquerade, or identity conflict from a gender attribute alone.",
-    "If the prompt does not explicitly make gender narratively meaningful, ignore it for creative search. The subject remains fully itself regardless of gender.",
-    "Breed, coat color, name, size, or other stable identity metadata should likewise remain subject context unless the supplied reality or prompt makes the attribute materially relevant to the chosen movie.",
-    "Classify unsupported upstream claims as forbiddenClaims. Examples: 'returns in a bow tie' is unsupported if the source separately says returned, bows, ties but never says they are worn together; 'dances with a ball' is unsupported if no dance is supplied; 'everyone is surprised' is unsupported if no reaction is supplied.",
-    "CreativeOpportunity is NOT a scene description. It must be a relationship between narrative evidence items: collision, contrast, double meaning, juxtaposition, status tension, repetition, callback, or character-specific absurdity.",
-    "CreativeOpportunity must NOT assert an action, event, location, body position, wardrobe placement, reaction, outcome, dialogue, chronology, or causal explanation.",
-    "Good creativeOpportunity: 'bows + balls create a comic word collision'. Good: 'returned + happy gives the arrival a buoyant tone'. Good: 'ties + bows create a double-meaning opportunity'.",
-    "Bad creativeOpportunity: 'Coco dances with a ball'. Bad: 'Coco wears a bow tie'. Bad: 'everyone is surprised'. Bad: 'male pride'. Bad: 'male character'.",
+    "Select evidence only by integer index from SUPPLIED_EVIDENCE. Never create, merge, embellish, or paraphrase a new fact.",
+    "Do not delete source evidence. SUPPLIED_EVIDENCE is the complete available truth set. The creative author decides which evidence matters for the line.",
+    "Stable identity attributes are subject metadata by default, not a second character, plot device, theme, conflict, romance, or identity narrative unless the source explicitly makes them relevant.",
+    "Preserve all factual material even when the current beat does not use it. Evidence selection is relevance, not truth deletion.",
+    "Breed, color, name, size, role, category, location, or other stable attributes remain context unless the supplied reality or prompt makes them materially relevant to the selected movie.",
+    "Classify unsupported upstream claims as forbiddenClaims whenever they upgrade separate evidence items into a new concrete event or relationship that the source never asserted.",
+    "Example rule: separate supplied details do not automatically authorize a new combined event. A pair of related objects does not mean they were used together; an action and object do not mean the object participated in that action; a reaction is not implied merely because an event seems surprising.",
+    "creativeOpportunity is NOT a scene description. It is only a relationship between supplied evidence: collision, contrast, double meaning, status tension, repetition, callback, recontextualization, implication, or character-specific absurdity.",
+    "creativeOpportunity must NOT assert a new action, event, location, body position, reaction, outcome, dialogue, chronology, or causal explanation.",
     "Do not judge the final sentence. Preserve the strongest creative possibility that remains true.",
-    "If the upstream beat is poisoned, discard the poisoned claim. Do NOT try to rescue it by guessing what probably happened.",
+    "If the upstream beat is poisoned, discard the poisoned claim. Do NOT rescue it by guessing what probably happened.",
     "Return JSON with evidenceIndices, creativeOpportunity, forbiddenClaims.",
   ].join("\n");
 
   const user = JSON.stringify({
-    SUBJECT: input.subject ?? "",
-    SUPPLIED_EVIDENCE: rawEvidence.map((text, index) => ({
-      index,
-      text,
-    })),
-    NARRATIVE_EVIDENCE: narrativeEvidence,
-    IDENTITY_METADATA: identityEvidence,
-    UPSTREAM_BEAT: normalizedBeat,
+    SUBJECT:
+      input.subject ?? "",
+    SUPPLIED_EVIDENCE:
+      rawEvidence.map(
+        (text, index) => ({
+          index,
+          text,
+        }),
+      ),
+    NARRATIVE_EVIDENCE:
+      narrativeEvidence,
+    IDENTITY_METADATA:
+      identityEvidence,
+    UPSTREAM_BEAT:
+      normalizedBeat,
   });
 
-  const result = await localModelGenerate(
-    [
-      { role: "system", content: system },
-      { role: "user", content: user },
-    ],
-    "json",
-    {
-      numPredict: 360,
-      temperature: 0.05,
-    },
+  const result =
+    await localModelGenerate(
+      [
+        {
+          role: "system",
+          content: system,
+        },
+        {
+          role: "user",
+          content: user,
+        },
+      ],
+      "json",
+      {
+        numPredict: 360,
+        temperature: 0.05,
+      },
+    );
+
+  const parsed = parse(
+    result.text,
   );
 
-  const parsed = parse(result.text);
+  const indices =
+    normalizeIndices(
+      parsed?.evidenceIndices,
+      rawEvidence.length,
+    );
 
-  const indices = normalizeIndices(
-    parsed?.evidenceIndices,
-    rawEvidence.length,
+  /*
+   * Preserve the complete supplied truth set. Model indices only identify
+   * which evidence is narratively strongest for this beat.
+   */
+  const approvedEvidence =
+    rawEvidence;
+
+  const selectedNarrative =
+    indices
+      .map(
+        (index) =>
+          rawEvidence[index],
+      )
+      .filter(Boolean)
+      .filter(
+        (item) =>
+          !identityPattern.test(
+            item,
+          ),
+      );
+
+  const modelOpportunity = clean(
+    parsed?.creativeOpportunity,
   );
-
-  // Preserve the complete supplied truth set. The model's indices identify
-  // the strongest narrative evidence; they do not authorize deleting facts.
-  const approvedEvidence = rawEvidence;
-
-  const selectedNarrative = indices
-    .map((index) => rawEvidence[index])
-    .filter(Boolean)
-    .filter((item) => !genderPattern.test(item));
-
-  const modelOpportunity = clean(parsed?.creativeOpportunity);
 
   const forbiddenIdentityPattern =
-    /\b(?:male|female|man|woman|boy|girl|gender|masquerade|pride|traditional|modern|camaraderie|romantic relationship|male character|female character)\b/i;
+    /\b(?:male|female|man|woman|boy|girl|gender|masquerade|pride|romantic relationship|gender conflict)\b/i;
 
   const concreteClaimPattern =
-    /\b(?:wears?|wearing|dances?|dancing|holds?|holding|walks?|walking|runs?|running|sits?|sitting|stands?|standing|returns? in|comes? home|arrives?|arriving|everyone|someone|nobody|surprised|shocked|laughs?|laughing|catches?|caught|ties? (?:a|the) knot)\b/i;
+    /\b(?:wears?|wearing|dances?|dancing|holds?|holding|walks?|walking|runs?|running|sits?|sitting|stands?|standing|arrives?|arriving|everyone|someone|nobody|surprised|shocked|laughs?|laughing|catches?|caught|ties?\s+(?:a|the)\s+\w+)\b/i;
 
-  const fallbackPool = selectedNarrative.length
-    ? selectedNarrative
-    : narrativeEvidence;
+  const fallbackPool =
+    selectedNarrative.length
+      ? selectedNarrative
+      : narrativeEvidence;
 
   const creativeOpportunity =
     modelOpportunity &&
-    !concreteClaimPattern.test(modelOpportunity) &&
-    !forbiddenIdentityPattern.test(modelOpportunity)
+    !concreteClaimPattern.test(
+      modelOpportunity,
+    ) &&
+    !forbiddenIdentityPattern.test(
+      modelOpportunity,
+    )
       ? modelOpportunity
       : `Find the sharpest relationship among: ${fallbackPool.join("; ")}`;
 
-  const forbiddenClaims = Array.isArray(parsed?.forbiddenClaims)
-    ? parsed!.forbiddenClaims
-        .map(clean)
-        .filter(Boolean)
-        .slice(0, 16)
-    : [];
+  const forbiddenClaims =
+    Array.isArray(
+      parsed?.forbiddenClaims,
+    )
+      ? parsed!.forbiddenClaims
+          .map(clean)
+          .filter(Boolean)
+          .slice(0, 16)
+      : [];
 
   return {
-    order: normalizedBeat.order,
-    role: normalizedBeat.role,
-    gainKind: normalizedBeat.gainKind,
+    order:
+      normalizedBeat.order,
+    role:
+      normalizedBeat.role,
+    gainKind:
+      normalizedBeat.gainKind,
     approvedEvidence,
     creativeOpportunity,
     forbiddenClaims,
