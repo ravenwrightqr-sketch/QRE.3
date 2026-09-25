@@ -1541,22 +1541,50 @@ function futureEvidenceLeakReason(
     : undefined;
 }
 
-function inventedExactClockAnchorReason(
+function canonicalClockAnchors(value: string): string[] {
+  const text = clean(value).toLowerCase();
+  const anchors: string[] = [];
+
+  for (const match of text.matchAll(/\b(\d{1,2}):([0-5]\d)\s*(am|pm|hours?)?\b/g)) {
+    let hour = Number(match[1]);
+    const minute = Number(match[2]);
+    const suffix = clean(match[3]).toLowerCase();
+
+    if (suffix === "am" || suffix === "pm") {
+      if (hour < 1 || hour > 12) continue;
+      if (suffix === "am") hour = hour === 12 ? 0 : hour;
+      if (suffix === "pm") hour = hour === 12 ? 12 : hour + 12;
+    } else if (hour > 23) {
+      continue;
+    }
+
+    anchors.push(`clock:${hour}:${String(minute).padStart(2, "0")}`);
+  }
+
+  return anchors;
+}
+
+function exactPercentAnchors(value: string): string[] {
+  return [
+    ...clean(value).matchAll(/\b\d+(?:\.\d+)?%/g),
+  ].map((match) => `percent:${match[0]}`);
+}
+
+function inventedOperationalAnchorReason(
   text: string,
   suppliedReality: readonly AuthorCreativeEvent[],
 ): string | undefined {
-  const suppliedClocks = new Set<string>();
-  for (const event of suppliedReality) {
-    for (const match of clean(event.text).toLowerCase().matchAll(/\b(?:[01]?\d|2[0-3]):[0-5]\d\b/g)) {
-      suppliedClocks.add(match[0]);
-    }
-  }
+  const suppliedText = suppliedReality.map((event) => clean(event.text)).join(" ");
+  const suppliedAnchors = new Set([
+    ...canonicalClockAnchors(suppliedText),
+    ...exactPercentAnchors(suppliedText),
+  ]);
+  const candidateAnchors = [
+    ...canonicalClockAnchors(text),
+    ...exactPercentAnchors(text),
+  ];
 
-  const candidateClocks = [
-    ...clean(text).toLowerCase().matchAll(/\b(?:[01]?\d|2[0-3]):[0-5]\d\b/g),
-  ].map((match) => match[0]);
-
-  const invented = candidateClocks.filter((clock) => !suppliedClocks.has(clock));
+  const invented = candidateAnchors.filter((anchor) => !suppliedAnchors.has(anchor));
   return invented.length
     ? `invented-operational-anchor: ${invented.slice(0, 3).join(", ")}`
     : undefined;
@@ -1904,7 +1932,7 @@ function scoreMemorySequence(
         : undefined;
     const inventedOperationalAnchorReason =
       variantIndex < 3
-        ? inventedExactClockAnchorReason(text, suppliedReality)
+        ? inventedOperationalAnchorReason(text, suppliedReality)
         : undefined;
     const line = {
       beat,
