@@ -1103,14 +1103,10 @@ export async function searchAuthorCreativeLensTreatments(input: {
           if (!value || typeof value !== "object") return undefined;
           const record = value as Record<string, unknown>;
           const relation = clean(record.relation);
-          const evidenceEventIds = Array.isArray(record.evidenceEventIds)
-            ? unique(
-                record.evidenceEventIds
-                  .filter((id): id is string => typeof id === "string")
-                  .map(clean)
-                  .filter((id) => input.suppliedReality.some((event) => clean(event.id) === id)),
-              )
-            : [];
+          const evidenceEventIds = validStoryEventIds(
+            record.evidenceEventIds,
+            input.suppliedReality,
+          );
           if (!relation || !evidenceEventIds.length) return undefined;
           return { relation, evidenceEventIds };
         })
