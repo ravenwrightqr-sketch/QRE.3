@@ -1609,7 +1609,7 @@ function exactPercentAnchors(value: string): string[] {
 function exactMeasurementAnchors(value: string): string[] {
   const text = clean(value).toLowerCase();
   const unitPattern =
-    "(?:ml\/min|l\/min|gpm|km\/h|km\/hr|mph|m\/s|ft\/s|n\\u00b7m|n-m|nm|psi|kpa|mpa|bar|rpm|db|mah|wh|kwh|kw|mw|w|v|mv|a|ma|mcg|mg|kg|lbs?|oz|g|ml|cl|dl|liters?|litres?|gal(?:lons?)?|mm|cm|km|meters?|metres?|inches?|inch|ft|feet|yards?|yd|miles?|mi|degrees?|deg|\\u00b0f|\\u00b0c|f|c)";
+    "(?:ml\/min|l\/min|gpm|km\/h|km\/hr|mph|m\/s|ft\/s|n\\u00b7m|n-m|nm|psi|kpa|mpa|bar|rpm|db|mah|wh|kwh|kw|mw|w|v|mv|a|ma|mcg|mg|milligrams?|kg|kilograms?|lbs?|pounds?|oz|ounces?|g|grams?|ml|cl|dl|liters?|litres?|gal(?:lons?)?|mm|cm|km|meters?|metres?|inches?|inch|ft|feet|yards?|yd|miles?|mi|degrees?|deg|\\u00b0f|\\u00b0c|f|c)";
   const pattern = new RegExp(
     `\\b(\\d+(?:\\.\\d+)?)\\s*(${unitPattern})\\b`,
     "gi",
@@ -2110,7 +2110,10 @@ function scoreMemorySequence(
   return {
     variantIndex,
     lines,
-    accepted: completeness === 1 && !payoffDropsSpecificTime,
+    accepted:
+      completeness === 1 &&
+      !payoffDropsSpecificTime &&
+      (!simultaneousIdentity || identityFactDependence >= 0.75),
     score: Number(score.toFixed(3)),
     reasons,
   };
@@ -2246,6 +2249,17 @@ function safeFallbackText(
       .map(clean)
       .find(Boolean) ?? ""
   );
+}
+
+function safeIdentityFallbackText(
+  beat: AuthorSemanticBeat,
+  events: readonly AuthorCreativeEvent[],
+): string {
+  return beat.eventIds
+    .map((id) => events.find((event) => event.id === id)?.text ?? "")
+    .map(clean)
+    .filter(Boolean)
+    .join(" ");
 }
 
 function buildDeterministicMouthFallback(
@@ -2716,7 +2730,7 @@ export async function createAuthorExperience(input: {
             intensity: assignment.intensity,
           })),
           instruction: isIdentityMode
-            ? "Return complete candidate productions in PRODUCTION-MAJOR form for the listed CREATIVE_TREATMENTS only. This is one persistent IDENTITY portrait, not a checklist and not chronology. Build a short scroll experience from the whole supplied cluster. Establish identity once, then let facts acquire attitude, importance, curiosity, contrast, playful possibility, callback, or character through their combination. Any cut may draw from multiple supplied identity facts because they are simultaneous truths. Do not invent an event, biography, routine, motive, reaction, preference ranking, hidden psychology, or comparative strength not present in the input. Do not explain the character; make the viewer infer it. Nominate the strongest viable expressive production by A, B, or C. Bare D is truth fallback only."
+            ? "Return complete candidate productions in PRODUCTION-MAJOR form for the listed CREATIVE_TREATMENTS only. This is one persistent IDENTITY portrait, not a checklist and not chronology. Build a short scroll experience from the whole supplied cluster. Establish identity once, then let facts acquire attitude, importance, curiosity, contrast, playful possibility, callback, or character through their combination. Any cut may draw from multiple supplied identity facts because they are simultaneous truths. Do not invent an event, biography, routine, motive, reaction, preference ranking, hidden psychology, or comparative strength not present in the input. Do not explain the character; make the viewer infer it. Make the conception materially depend on the distinctive preference cluster: if one supplied preference can disappear without changing the production, push the relationship farther. Nominate the strongest viable expressive production by A, B, or C. Bare D is truth fallback only."
             : isMemoryMode
               ? realityDirect
                 ? "Return complete candidate productions in PRODUCTION-MAJOR form for the listed CREATIVE_TREATMENTS only. Make the meaning felt and implied, not explained. Push each assigned treatment as far as supplied reality supports through nonliteral rhetoric, sequence, status, metaphor, callback, and recontextualization. Keep the concrete world fixed and each underlying action/change recoverable. Operational anchors may stay in provenance unless they create the perception. Nominate the strongest complete production by its production letter: A, B, C, or D."
@@ -2870,7 +2884,9 @@ export async function createAuthorExperience(input: {
       for (const beat of plan.beats) {
         const variants = [...(variantsByOrder.get(beat.order) ?? ["", "", "", ""])];
         while (variants.length < 4) variants.push("");
-        variants[3] = safeFallbackText(beat, input.suppliedReality);
+        variants[3] = isIdentityMode
+          ? safeIdentityFallbackText(beat, input.suppliedReality)
+          : safeFallbackText(beat, input.suppliedReality);
         variantsByOrder.set(beat.order, variants.slice(0, 4));
       }
     }
@@ -3182,7 +3198,9 @@ export async function createAuthorExperience(input: {
       const winnerLine = winner?.lines[index];
       const selectedText = winner
         ? winnerLine?.text ?? ""
-        : safeFallbackText(beat, input.suppliedReality);
+        : isIdentityMode
+          ? safeIdentityFallbackText(beat, input.suppliedReality)
+          : safeFallbackText(beat, input.suppliedReality);
 
       debug(`MOUTH-BEAT-${beat.order}-CHOICE`, {
         beat,
