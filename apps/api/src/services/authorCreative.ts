@@ -3,6 +3,11 @@ import { localModelGenerate } from "./localModelRuntime.js";
 import type { AuthorCreativeDiscovery } from "./authorCreativeDiscovery.js";
 import { evaluateAuthorCut } from "./authorCutFloor.js";
 import { QRE_CREATIVE_OPERATING_DOCTRINE } from "./authorCreativeDoctrine.js";
+import {
+  AUTHOR_REALITY_AUTHORITY_DOCTRINE,
+  projectAuthorRealityEvidence,
+  type AuthorRealityAuthority,
+} from "./authorRealityAuthority.js";
 
 const clean = (value: unknown): string =>
   String(value ?? "").replace(/\s+/g, " ").trim();
@@ -64,6 +69,7 @@ function parseJson(text: string): Record<string, unknown> | undefined {
 export type AuthorCreativeEvent = {
   id: string;
   text: string;
+  authority?: AuthorRealityAuthority;
 };
 
 export type AuthorBeatRole = "HOOK" | "BUILD" | "TURN" | "PAYOFF";
@@ -703,14 +709,12 @@ function isOperationalOnlyStoryEvent(event: AuthorCreativeEvent | undefined): bo
 
 function creativeEvidenceProjection(
   suppliedReality: readonly AuthorCreativeEvent[],
-): Array<{ id: string; text: string }> {
-  return suppliedReality.map((event) => {
+): Array<{ id: string; text: string; authority: AuthorRealityAuthority }> {
+  return projectAuthorRealityEvidence(suppliedReality).map((event) => {
     const exact = clean(event.text);
     // Creative Search does not need exact clock values to discover the story.
-    // Keep the semantic event (arrived / finished / action / object / state),
-    // while exact operational anchors remain in RealityGraph for provenance and
-    // later truth checking. This prevents precise metadata from becoming the
-    // accidental center of gravity simply because it looks distinctive.
+    // Keep the semantic event while exact operational anchors remain available
+    // for provenance and truth checking.
     const semanticText = exact
       .replace(/\b(?:[01]?\d|2[0-3]):[0-5]\d\s*(?:am|pm)?\b/gi, " ")
       .replace(/\s+/g, " ")
@@ -720,6 +724,7 @@ function creativeEvidenceProjection(
     return {
       id: clean(event.id),
       text: semanticText || exact,
+      authority: event.authority,
     };
   });
 }
@@ -1299,19 +1304,17 @@ export async function searchAuthorCreativeLensTreatments(input: {
   };
 }
 
-function presentationAffordance(domainContext?: AuthorDomainContext): string {
-  const contextRecord = (domainContext ?? {}) as Record<string, unknown>;
-  const experienceMode = clean(contextRecord.experienceMode).toUpperCase();
-
-  if (experienceMode !== "IDENTITY") return "";
+function realityAuthorityContext(
+  suppliedReality: readonly AuthorCreativeEvent[],
+): string {
+  const projected = projectAuthorRealityEvidence(suppliedReality);
+  const authorities = new Set(projected.map((event) => event.authority));
+  if (authorities.size === 1 && authorities.has("UNKNOWN")) return "";
 
   return [
-    "IDENTITY / PORTRAIT REALIZATION:",
-    "Stable preferences, relationships, known topics, and character facts are creative material for direct voice, fixation, tiny questions, callbacks, attitude, status, and playful self-presentation.",
-    "A known preference may become anticipation, importance, a question, or an open possibility. It may not become an invented event.",
-    "Synthesize combinations of truths into character instead of dressing up each fact separately.",
-    "Sparse identity reality does not require plot. It may open a world or create a discovery portrait.",
-    "Concrete events still come from supplied reality; identity treatment changes perception of supplied truths rather than manufacturing an occurrence.",
+    "REALITY AUTHORITY:",
+    ...AUTHOR_REALITY_AUTHORITY_DOCTRINE,
+    "Use the supplied authority labels as the hard boundary for what each fact can establish.",
   ].join("\n");
 }
 
@@ -2253,7 +2256,7 @@ export async function createAuthorExperience(input: {
   };
 }> {
   const allowedEventIds = new Set(input.suppliedReality.map((event) => event.id));
-  const presentationContext = presentationAffordance(input.domainContext);
+  const presentationContext = realityAuthorityContext(input.suppliedReality);
   const selected = input.creativeDiscovery.selected;
   const realityDirect =
     clean(selected.id).toLowerCase() === "reality-direct" ||
@@ -2279,10 +2282,6 @@ export async function createAuthorExperience(input: {
     selectedEvidence.length > 0;
   const useDeterministicPlan =
     useDeterministicSparsePlan || useDeterministicRealityDirectMemoryPlan;
-  const useIdentityClusterPlan =
-    useDeterministicSparsePlan &&
-    experienceMode === "IDENTITY" &&
-    selectedEvidence.length > 1;
 
   const planResult = useDeterministicPlan
     ? {
@@ -2316,7 +2315,7 @@ export async function createAuthorExperience(input: {
         role: "user",
         content: JSON.stringify({
           SUBJECT: input.subject,
-          AUTHORIZED_EVIDENCE: selectedEvidence,
+          AUTHORIZED_EVIDENCE: projectAuthorRealityEvidence(selectedEvidence),
           EXPERIENCE_SHAPE: input.creativeDiscovery.experienceShape,
           instruction:
             "Return the strongest structural beat sequence using the authorized evidence IDs. Preserve every authorized evidence item somewhere in the sequence; group related evidence when that strengthens the experience.",
@@ -2357,20 +2356,9 @@ export async function createAuthorExperience(input: {
     },
   );
 
-  const rawPlan = useIdentityClusterPlan
-    ? {
-        thesis: selected.perception || selected.relationship,
-        beats: [{
-          order: 1,
-          role: "PAYOFF" as AuthorBeatRole,
-          eventIds: selectedEvidence.map((event) => event.id),
-          attention: selectedEvidence.map((event) => event.text).join(" | "),
-          change: selected.perception || selected.relationship,
-        }],
-      }
-    : useDeterministicPlan
-      ? fallbackPlan(selectedEvidence, input.creativeDiscovery)
-      : normalizePlan(parseJson(planResult.text), allowedEventIds) ??
+  const rawPlan = useDeterministicPlan
+    ? fallbackPlan(selectedEvidence, input.creativeDiscovery)
+    : normalizePlan(parseJson(planResult.text), allowedEventIds) ??
       fallbackPlan(input.suppliedReality, input.creativeDiscovery);
 
   const structurallySafePlan = isMemoryMode
@@ -2396,13 +2384,11 @@ export async function createAuthorExperience(input: {
       );
 
   debug("BARE-AUTHOR-PLAN", {
-    mode: useIdentityClusterPlan
-      ? "DETERMINISTIC_IDENTITY_CLUSTER"
-      : useDeterministicRealityDirectMemoryPlan
-        ? "DETERMINISTIC_REALITY_DIRECT_MEMORY"
-        : useDeterministicSparsePlan
-          ? "DETERMINISTIC_SPARSE"
-          : "MODEL_STRUCTURE",
+    mode: useDeterministicRealityDirectMemoryPlan
+      ? "DETERMINISTIC_REALITY_DIRECT_MEMORY"
+      : useDeterministicSparsePlan
+        ? "DETERMINISTIC_SPARSE"
+        : "MODEL_STRUCTURE",
     raw: useDeterministicPlan ? "SKIPPED_MODEL_PLAN" : planResult.text,
     memoryStructureAdjusted:
       isMemoryMode &&
@@ -2585,7 +2571,7 @@ export async function createAuthorExperience(input: {
         role: "user",
         content: JSON.stringify({
           SUBJECT: input.subject,
-          SUPPLIED_REALITY: input.suppliedReality,
+          SUPPLIED_REALITY: projectAuthorRealityEvidence(input.suppliedReality),
           APPROVED_THESIS: plan.thesis,
           APPROVED_BEATS: plan.beats.map((beat, index) => ({
             order: beat.order,
@@ -2614,13 +2600,11 @@ export async function createAuthorExperience(input: {
             expressiveBehaviors: assignment.expressiveBehaviors,
             intensity: assignment.intensity,
           })),
-          instruction: useIdentityClusterPlan
-            ? "This is one IDENTITY character cluster, not a checklist. Return four short candidate realizations that synthesize the combination into character. Do not enumerate every supplied preference or simply restate them. The viewer should infer personality from the combination. Do not invent an event."
-            : isMemoryMode
-              ? realityDirect
-                ? "Return complete candidate productions in PRODUCTION-MAJOR form for the listed CREATIVE_TREATMENTS only. Make the meaning felt and implied, not explained. Push each assigned treatment as far as supplied reality supports through nonliteral rhetoric, sequence, status, metaphor, callback, and recontextualization. Keep the concrete world fixed and each underlying action/change recoverable. Operational anchors may stay in provenance unless they create the perception. Nominate the strongest complete production by its production letter: A, B, C, or D."
-                : "Return complete candidate productions in PRODUCTION-MAJOR form for the listed CREATIVE_TREATMENTS only. Make the meaning felt and implied, not explained. Treat each production as one finished QRE object unfolding through time. Push each assigned perception until the whole sequence reveals something surprising but true about supplied reality. Keep each underlying action/change recoverable. Operational anchors may stay in provenance unless they create the perception. The final cut should land the production using its local evidence plus already-established prior evidence. Nominate the strongest viable expressive production by its production letter: A, B, or C. Bare Reality D is the truth fallback, not the creative target."
-              : "Return four candidate lines per beat. The semantic plan controls meaning; the supplied event IDs control factual reality.",
+          instruction: isMemoryMode
+            ? realityDirect
+              ? "Return complete candidate productions in PRODUCTION-MAJOR form for the listed CREATIVE_TREATMENTS only. Make the meaning felt and implied, not explained. Push each assigned treatment as far as supplied reality supports through nonliteral rhetoric, sequence, status, metaphor, callback, and recontextualization. Keep the concrete world fixed and each underlying action/change recoverable. Operational anchors may stay in provenance unless they create the perception. Nominate the strongest complete production by its production letter: A, B, C, or D."
+              : "Return complete candidate productions in PRODUCTION-MAJOR form for the listed CREATIVE_TREATMENTS only. Make the meaning felt and implied, not explained. Treat each production as one finished QRE object unfolding through time. Push each assigned perception until the whole sequence reveals something surprising but true about supplied reality. Keep each underlying action/change recoverable. Operational anchors may stay in provenance unless they create the perception. The final cut should land the production using its local evidence plus already-established prior evidence. Nominate the strongest viable expressive production by its production letter: A, B, or C. Bare Reality D is the truth fallback, not the creative target."
+            : "Return four candidate lines per beat. The semantic plan controls meaning; the supplied evidence authority controls what each fact can establish.",
         }),
       },
     ],
