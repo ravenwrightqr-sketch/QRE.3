@@ -3,6 +3,10 @@ import { localModelGenerate } from "./localModelRuntime.js";
 import type { AuthorCreativeDiscovery } from "./authorCreativeDiscovery.js";
 import { evaluateAuthorCut } from "./authorCutFloor.js";
 import { QRE_CREATIVE_OPERATING_DOCTRINE } from "./authorCreativeDoctrine.js";
+import {
+  AUTHOR_REALITY_AUTHORITY_DOCTRINE,
+  projectAuthorRealityEvidence,
+} from "./authorRealityAuthority.js";
 
 const clean = (value: unknown): string =>
   String(value ?? "").replace(/\s+/g, " ").trim();
@@ -1299,6 +1303,19 @@ export async function searchAuthorCreativeLensTreatments(input: {
   };
 }
 
+function realityAuthorityContext(
+  evidence: readonly AuthorCreativeEvent[],
+): string {
+  const projected = projectAuthorRealityEvidence(evidence);
+  if (!projected.some((item) => item.authority !== "UNKNOWN")) return "";
+
+  return [
+    "UNIVERSAL REALITY AUTHORITY:",
+    ...AUTHOR_REALITY_AUTHORITY_DOCTRINE,
+    `AUTHORIZED_REALITY_KINDS: ${JSON.stringify(projected)}`,
+  ].join("\n");
+}
+
 function presentationAffordance(domainContext?: AuthorDomainContext): string {
   const contextRecord = (domainContext ?? {}) as Record<string, unknown>;
   const experienceMode = clean(contextRecord.experienceMode).toUpperCase();
@@ -2260,6 +2277,10 @@ export async function createAuthorExperience(input: {
     clean(selected.risk).toLowerCase() === "no_grounded_discovery_candidate";
   const contextRecord = (input.domainContext ?? {}) as Record<string, unknown>;
   const experienceMode = clean(contextRecord.experienceMode).toUpperCase();
+  const isMemoryMode = experienceMode === "MEMORY";
+  const authorityContext = isMemoryMode
+    ? ""
+    : realityAuthorityContext(input.suppliedReality);
   const playableIds = new Set(
     (
       input.creativeDiscovery.playableEventIds.length
@@ -2270,7 +2291,6 @@ export async function createAuthorExperience(input: {
   const selectedEvidence = input.suppliedReality.filter((event) =>
     playableIds.has(clean(event.id)),
   );
-  const isMemoryMode = experienceMode === "MEMORY";
   const useDeterministicSparsePlan =
     selectedEvidence.length > 0 && selectedEvidence.length <= 3;
   const useDeterministicRealityDirectMemoryPlan =
@@ -2310,6 +2330,7 @@ export async function createAuthorExperience(input: {
             "Choose the smallest sequence that preserves the full creative potential of the approved memory, with no predetermined beat count.",
           ] : []),
           ...(presentationContext ? [presentationContext] : []),
+          ...(authorityContext ? [authorityContext] : []),
         ].join("\n"),
       },
       {
@@ -2579,6 +2600,7 @@ export async function createAuthorExperience(input: {
             "For each beat, produce materially different short realizations and let the strongest grounded line win.",
           ]),
           ...(presentationContext ? [presentationContext] : []),
+          ...(authorityContext ? [authorityContext] : []),
         ].join("\n"),
       },
       {
