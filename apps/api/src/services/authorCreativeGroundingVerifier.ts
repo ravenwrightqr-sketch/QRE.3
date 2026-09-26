@@ -220,7 +220,6 @@ export async function verifyAuthorCreativeGrounding(input: {
     ],
     "json",
     {
-      model: process.env.QRE_AUTHOR_UTILITY_MODEL,
       numPredict: Math.max(420, atomicClauses.length * 90),
       temperature: 0.06,
       jsonSchema: {
