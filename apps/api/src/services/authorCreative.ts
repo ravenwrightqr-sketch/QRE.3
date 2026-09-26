@@ -163,8 +163,7 @@ const KNOWN_EXPRESSIVE_BEHAVIOR_SEEDS = [
 ] as const;
 
 function isPresentationDirection(value: string): boolean {
-  // This is a layer boundary, not a creativity blacklist. These terms describe
-  // audiovisual/rendering execution rather than semantic or verbal authorship.
+  // Deterministic layer-boundary guard. This is never sent to the model.
   return /\b(?:camera|shot|zoom|lighting|edit(?:ing)?|cutaway|close[ -]?up|intercut|color palette|colour palette|soundtrack|music|audio|sound design|sound effect|voiceover|staging|ui animation|visual transition|visual cues?|typography|overlay|graphics?|footage|slow[ -]?motion|desaturated)\b/i.test(value);
 }
 
@@ -523,10 +522,8 @@ export function unsupportedTreatmentMaterialReason(input: {
     return "literalizes rhetorical framing into unsupplied reality";
   }
 
-  // Presentation direction is not Author material. If the model leaks it while
-  // discovering a useful conception, preserve the semantic conception but strip
-  // presentation-only expressive behaviors during normalization. Do not reward,
-  // propagate, or treat audiovisual direction as creative authority.
+  // Presentation execution is not Author material. If it leaks into a private
+  // conception, strip that execution detail and preserve only the semantic idea.
 
   // Do not let a creative reading manufacture concrete comparative properties
   // of the supplied world. Rhetorical scale ("twice the battle") remains
@@ -794,7 +791,7 @@ function failureLessonFromReason(
   const map: Array<[RegExp, string, string]> = [
     [/inner state|motive|value|emotion/i, "interpretation -> unsupplied inner state", "Realize meaning through framing and implication; never convert it into a new motive, value, belief, or emotion."],
     [/operational time anchors/i, "operational anchor -> creative center", "Keep time, geo, counts, and measurements as provenance unless the supplied relationship makes the anchor itself meaningful."],
-    [/rendering direction/i, "semantic treatment -> presentation direction", "Creative Search chooses meaning and language behavior; camera, editing, staging, sound, and rendering stay outside Author."],
+    [/rendering direction/i, "semantic treatment -> presentation direction", "Creative Search chooses meaning and language behavior. Presentation execution stays outside Author."],
     [/recurrence/i, "single occurrence -> recurrence", "Do not promote one supplied occurrence into a routine, habit, cycle, or repeated history."],
     [/provenance/i, "creative leap -> mismatched evidence", "Every story move must carry the exact supplied events that make that move possible."],
     [/concrete reality|literalizes/i, "rhetorical frame -> new concrete world fact", "Bend interpretation, not reality. Rhetoric may be extreme; concrete events remain supplied-only."],
@@ -872,9 +869,9 @@ export async function searchAuthorCreativeLensTreatments(input: {
           "hiddenInference is optional. Leave it empty unless the supplied facts genuinely support an unstated realization.",
           "Amplify reality through metaphor, status, personification, rhetorical scale, irony, contrast, callback, omission, escalation, compression, and recontextualization.",
           "Rhetoric may be more extreme than reality. The concrete world may not become more specific than the evidence.",
-          "Treatments describe semantic/verbal transformation only. No camera, visuals, typography, overlays, sound, editing, staging, or rendering instructions.",
-          "IMPORTANT: 'treatment' here does NOT mean a film, video, audiovisual, or production treatment. It means a private semantic conception: what the supplied reality means differently, how its facts relate, and what rhetorical/verbal pressure should shape the writing.",
-          "expressiveBehaviors must be semantic or rhetorical operations only. Never return music, sound, camera, visual cues, lighting, editing, performance direction, or other presentation instructions.",
+          "Treatments describe semantic and verbal transformation only. Presentation execution is outside Author.",
+          "IMPORTANT: 'treatment' means a private semantic conception: what the supplied reality means differently, how its facts relate, and what rhetorical or verbal pressure should shape the writing.",
+          "expressiveBehaviors must be semantic or rhetorical operations only. Keep presentation execution outside Author.",
           ...(clean(input.experienceMode).toUpperCase() === "IDENTITY" ? [
             "IDENTITY CREATIVE SEARCH: treat the supplied facts as simultaneous character material, not a plot and not a ranking exercise.",
             "A cluster of likes may create a signature, tiny world, fixation map, taste constellation, recurring topic, playful status system, or another fact-dependent portrait without inventing why the entity likes them.",
