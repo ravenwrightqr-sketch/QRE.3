@@ -1977,6 +1977,22 @@ function identityClusterFactDependence(
   return represented / distinctiveSets.length;
 }
 
+function identitySubjectMentionCount(
+  lines: readonly string[],
+  subject: string,
+): number {
+  const normalizedSubject = clean(subject).toLowerCase();
+  if (!normalizedSubject) return 0;
+
+  const escaped = normalizedSubject.replace(/[.*+?^${}()|[\]\\]/g, "\\function scoreMemorySequence(
+  variantIndex: number,");
+  const pattern = new RegExp(`\\b${escaped}\\b`, "gi");
+  return lines.reduce(
+    (count, line) => count + (clean(line).match(pattern)?.length ?? 0),
+    0,
+  );
+}
+
 function scoreMemorySequence(
   variantIndex: number,
   plan: AuthorSemanticPlan,
@@ -2074,6 +2090,12 @@ function scoreMemorySequence(
         suppliedReality,
       )
     : 0;
+  const identitySubjectMentions = simultaneousIdentity
+    ? identitySubjectMentionCount(
+        lines.map((line) => line.text),
+        subject,
+      )
+    : 0;
 
   const score = simultaneousIdentity
     ? Math.max(
@@ -2101,6 +2123,9 @@ function scoreMemorySequence(
   if (simultaneousIdentity && identityFactDependence < 0.75) {
     reasons.push("weak-identity-fact-dependence");
   }
+  if (simultaneousIdentity && identitySubjectMentions > 1) {
+    reasons.push("repeated-identity-subject");
+  }
   if (completeness < 1) reasons.push("incomplete-sequence");
   if (uniqueRatio < 1) reasons.push("repeated-line");
   if ((payoff?.reasons ?? []).includes("memory-payoff-replay")) {
@@ -2116,7 +2141,10 @@ function scoreMemorySequence(
     accepted:
       completeness === 1 &&
       !payoffDropsSpecificTime &&
-      (!simultaneousIdentity || identityFactDependence >= 0.75),
+      (!simultaneousIdentity || (
+        identityFactDependence >= 0.75 &&
+        identitySubjectMentions <= 1
+      )),
     score: Number(score.toFixed(3)),
     reasons,
   };
@@ -2733,7 +2761,7 @@ export async function createAuthorExperience(input: {
             intensity: assignment.intensity,
           })),
           instruction: isIdentityMode
-            ? "Return complete candidate productions in PRODUCTION-MAJOR form for the listed CREATIVE_TREATMENTS only. This is one persistent IDENTITY portrait, not a checklist and not chronology. Build a short scroll experience from the whole supplied cluster. Establish identity once, then let facts acquire attitude, importance, curiosity, contrast, playful possibility, callback, or character through their combination. Any cut may draw from multiple supplied identity facts because they are simultaneous truths. Do not invent an event, biography, routine, motive, reaction, preference ranking, hidden psychology, or comparative strength not present in the input. Do not explain the character; make the viewer infer it. Make the conception materially depend on the distinctive preference cluster: if one supplied preference can disappear without changing the production, push the relationship farther. Fuse or distribute the facts so their relationship creates the character; merely packing every fact into one explanatory inventory sentence is not enough. Nominate the strongest viable expressive production by A, B, or C. Bare D is truth fallback only."
+            ? "Return complete candidate productions in PRODUCTION-MAJOR form for the listed CREATIVE_TREATMENTS only. This is one persistent IDENTITY portrait, not a checklist and not chronology. Build a short scroll experience from the whole supplied cluster. Establish the subject once. After that, write from inside the already-established identity without restating the subject. Let each cut carry attitude, implication, tension, curiosity, contrast, callback, or character through the relationship between supplied truths. The receiver should feel the read by moving through the cuts and complete part of it themselves. Any cut may draw from multiple supplied identity facts because they are simultaneous truths. Do not invent an event, biography, routine, motive, reaction, preference ranking, hidden psychology, or comparative strength not present in the input. Let implication do the work. Each cut should be the experience itself rather than commentary about the experience. Make the conception materially depend on the distinctive preference cluster: if one supplied preference can disappear without changing the production, push the relationship farther. Fuse or distribute the facts so their relationship creates the character; merely packing every fact into one explanatory inventory sentence is not enough. Nominate the strongest viable expressive production by A, B, or C. Bare D is truth fallback only."
             : isMemoryMode
               ? realityDirect
                 ? "Return complete candidate productions in PRODUCTION-MAJOR form for the listed CREATIVE_TREATMENTS only. Make the meaning felt and implied, not explained. Push each assigned treatment as far as supplied reality supports through nonliteral rhetoric, sequence, status, metaphor, callback, and recontextualization. Keep the concrete world fixed and each underlying action/change recoverable. Operational anchors may stay in provenance unless they create the perception. Nominate the strongest complete production by its production letter: A, B, C, or D."
