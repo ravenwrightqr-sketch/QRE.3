@@ -1,3 +1,5 @@
+import { mkdir, writeFile } from "node:fs/promises";
+import { join } from "node:path";
 import { discoverAuthorCreativeDirection } from "./src/services/authorCreativeDiscovery.js";
 import { createAuthorExperience } from "./src/services/authorCreative.js";
 
@@ -72,6 +74,34 @@ if (provenanceViolations.length) {
 } else {
   console.log("\nPASS | all scene provenance stays inside supplied identity facts");
 }
+
+const runRecord = {
+  recordedAt: new Date().toISOString(),
+  model: process.env.QRE_AUTHOR_FAST_MODEL ?? "",
+  fallbackModel: process.env.QRE_AUTHOR_FALLBACK_MODEL ?? "",
+  suppliedReality,
+  domainContext,
+  discovery: discoveryResult.discovery,
+  discoveryModel: discoveryResult.model,
+  discoveryModelCalls: discoveryResult.modelCalls,
+  plan: experience.diagnostics.plan,
+  creativeNotice: experience.diagnostics.creativeNotice,
+  creativeTreatments: experience.diagnostics.creativeTreatments,
+  treatmentSetAssessment: experience.diagnostics.treatmentSetAssessment,
+  memoryProductions: experience.diagnostics.memoryProductions ?? [],
+  selectedProduction: experience.diagnostics.selectedProduction ?? "NONE",
+  scenes: experience.scenes.map((scene) => ({
+    text: scene.text ?? scene.description ?? scene.title ?? "",
+    sourceEventIds: scene.sourceEventIds,
+  })),
+};
+
+const runDirectory = join(process.cwd(), ".qre-author-runs", "identity");
+await mkdir(runDirectory, { recursive: true });
+const runStamp = runRecord.recordedAt.replace(/[:.]/g, "-");
+const runPath = join(runDirectory, `milo-${runStamp}.json`);
+await writeFile(runPath, JSON.stringify(runRecord, null, 2), "utf8");
+console.log(`\nRUN DATA SAVED: ${runPath}`);
 
 console.log("\nHUMAN-EYE BAR");
 console.log("- Does this feel like Milo rather than a prettier list?");
