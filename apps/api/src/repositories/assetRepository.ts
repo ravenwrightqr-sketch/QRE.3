@@ -4,8 +4,13 @@ import type { AssetRepository, AssetRecord } from "@qre/engine";
 export function createAssetRepository(): AssetRepository {
   return {
     async findBySlug(slug: string): Promise<AssetRecord | null> {
-      const asset = await db.asset.findUnique({
-        where: { slug },
+      const asset = await db.asset.findFirst({
+        where: {
+          OR: [
+            { slug },
+            { token: slug },
+          ],
+        },
         include: {
           flows: { where: { active: true },orderBy: [
   { priority: "desc" },
