@@ -591,6 +591,14 @@ function authorCreativeTreatmentCompatibility(input: {
     suppliedRealityText,
     semanticMechanic: selected,
   });
+  const presentationLeak = isPresentationDirection(candidate);
+
+  if (presentationLeak) {
+    return {
+      compatible: false,
+      reason: "presentation execution leaked into Author treatment",
+    };
+  }
 
   if (unsupportedReason) {
     return {
@@ -877,7 +885,7 @@ export async function searchAuthorCreativeLensTreatments(input: {
             "A cluster of likes may create a signature, tiny world, fixation map, taste constellation, recurring topic, playful status system, or another fact-dependent portrait without inventing why the entity likes them.",
             "Do not turn equal likes into stronger/weaker preference, hierarchy, choosing, exclusivity, judgement, dominance, control, vulnerability, insecurity, deception, social status, or motive unless supplied reality explicitly supports it.",
             "Do not invent unit numbers, classifications, diagnoses, routines, history, encounters, actions, or biography as part of the treatment.",
-            "Pressure may be wild, but it must operate on meaning: walks can become a standing invitation, bacon can become a sacred topic, small dogs can become automatic relevance — only as rhetoric around known preferences, never as events.",
+            "Pressure may be wild, but it must operate on meaning around the supplied preferences. A preference names what matters to the entity; it does not establish that the preferred activity, object, encounter, or situation actually occurred.",
             "The strongest identity conception should make THESE facts feel like one character while leaving the viewer room to finish the thought.",
           ] : []),
           "Make the same reality read differently. Make meaning felt and implied, not explained.",
@@ -1981,6 +1989,46 @@ function identityClusterFactDependence(
   return represented / distinctiveSets.length;
 }
 
+function identityPreferenceOccurrenceReason(
+  text: string,
+  suppliedReality: readonly AuthorCreativeEvent[],
+): string | undefined {
+  const candidate = clean(text).toLowerCase();
+  const preferenceEvents = suppliedReality.filter((event) =>
+    /^identity-like-/i.test(clean(event.id)),
+  );
+  if (!preferenceEvents.length) return undefined;
+
+  const suppliedOccurrenceText = suppliedReality
+    .filter((event) => !/^identity-(?:like|name|species|type|kind|category)-?/i.test(clean(event.id)))
+    .map((event) => clean(event.text).toLowerCase())
+    .join(" ");
+
+  const walkPreference = preferenceEvents.some((event) =>
+    /\bwalks?\b/i.test(event.text),
+  );
+  if (walkPreference && !/\b(?:walked|went\s+(?:for|on)\s+a\s+walk|took\s+a\s+walk|on\s+a\s+walk|during\s+(?:the|a)\s+walk)\b/i.test(suppliedOccurrenceText)) {
+    if (
+      /\b(?:walked|went\s+(?:for|on)\s+a\s+walk|took\s+a\s+walk|on\s+a\s+walk|during\s+(?:the|a)\s+walk|walk\s+duration|route|terrain|pavement|leash)\b/i.test(candidate)
+    ) {
+      return "identity-preference-promoted-to-occurrence: walks";
+    }
+  }
+
+  const smallDogPreference = preferenceEvents.some((event) =>
+    /\bsmall\s+dogs?\b/i.test(event.text),
+  );
+  if (smallDogPreference && !/\b(?:met|saw|encountered|played\s+with|interacted\s+with)\b[^.!?]{0,32}\b(?:small|tiny)\s+dogs?\b/i.test(suppliedOccurrenceText)) {
+    if (
+      /\b(?:met|saw|encountered|interaction|proximity|approached|played\s+with|tiny\s+terrier|trembling\s+(?:dog|form))\b/i.test(candidate)
+    ) {
+      return "identity-preference-promoted-to-occurrence: small-dogs";
+    }
+  }
+
+  return undefined;
+}
+
 function identityInventedRecurrenceReason(
   text: string,
   suppliedReality: readonly AuthorCreativeEvent[],
@@ -2065,6 +2113,10 @@ function scoreMemorySequence(
       simultaneousIdentity && variantIndex < 3
         ? identityInventedRecurrenceReason(text, suppliedReality)
         : undefined;
+    const identityPreferenceOccurrenceFailure =
+      simultaneousIdentity && variantIndex < 3
+        ? identityPreferenceOccurrenceReason(text, suppliedReality)
+        : undefined;
     const line = {
       beat,
       beatFacts,
@@ -2075,9 +2127,13 @@ function scoreMemorySequence(
         !dropsSpecificTimeAnchor &&
         !futureLeakReason &&
         !operationalAnchorFailure &&
-        !identityRecurrenceFailure,
+        !identityRecurrenceFailure &&
+        !identityPreferenceOccurrenceFailure,
       score:
-        futureLeakReason || operationalAnchorFailure || identityRecurrenceFailure
+        futureLeakReason ||
+        operationalAnchorFailure ||
+        identityRecurrenceFailure ||
+        identityPreferenceOccurrenceFailure
           ? 0
           : Math.max(0, base.score - payoffPenalty),
       reasons: [
@@ -2087,6 +2143,7 @@ function scoreMemorySequence(
         ...(futureLeakReason ? [futureLeakReason] : []),
         ...(operationalAnchorFailure ? [operationalAnchorFailure] : []),
         ...(identityRecurrenceFailure ? [identityRecurrenceFailure] : []),
+        ...(identityPreferenceOccurrenceFailure ? [identityPreferenceOccurrenceFailure] : []),
       ],
     };
     if (text) prior.push(text);
@@ -2472,7 +2529,7 @@ export async function createAuthorExperience(input: {
             "IDENTITY WHOLE-PRODUCTION REALIZATION:",
             "These facts describe one persistent entity at the same time. They are not a chronology and not five independent caption slots.",
             "Read the supplied identity cluster as one tiny world. Let one cut establish, another sharpen, another create attitude or curiosity, and another land the portrait.",
-            "A stable like may become importance, fixation, a playful question, status, anticipation, or a recurring topic. It may not become an event that supposedly happened.",
+            "A stable like is a disposition fact, not evidence that an occurrence happened. It may become importance, fixation, a playful question, status, anticipation, or another rhetorical read while remaining a preference.",
             "Do not invent preference ranking. If several facts all say 'loves', none is stronger merely because it appears later or sounds more interesting.",
             "Do not invent motive, dominance, insecurity, deception, snobbery, vulnerability, social hierarchy, ownership, routine, biography, or hidden psychology from neutral identity facts.",
             "Identity facts are simultaneous authority. Any cut may combine multiple supplied identity facts when the combination creates character, provided every concrete implication stays inside the supplied cluster.",
