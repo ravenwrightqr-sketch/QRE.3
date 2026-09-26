@@ -144,6 +144,7 @@ export function evaluateAuthorCut(
   const wordCount = text.split(/\s+/).filter(Boolean).length;
 
   if (!text) reasons.push("empty");
+  if (wordCount > 12) reasons.push("overlong-cut");
   if (INTERNAL.test(text)) reasons.push("internal-language");
   if (CAMERA.test(text)) reasons.push("camera-language");
   if (invented >= 0.6) reasons.push("invented-concrete-reality");
