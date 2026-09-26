@@ -1616,6 +1616,33 @@ function exactMeasurementAnchors(value: string): string[] {
   });
 }
 
+function changedClockFormatReason(
+  text: string,
+  suppliedReality: readonly AuthorCreativeEvent[],
+): string | undefined {
+  const source = suppliedReality.map((event) => clean(event.text)).join(" ");
+  const candidate = clean(text);
+
+  const sourceUses12Hour =
+    /\b\d{1,2}(?::[0-5]\d)?\s*(?:am|pm)\b/i.test(source);
+  const sourceUses24Hour =
+    /\b(?:[01]?\d|2[0-3]):[0-5]\d\b(?!\s*(?:am|pm))/i.test(source);
+  const candidateUses12Hour =
+    /\b\d{1,2}(?::[0-5]\d)?\s*(?:am|pm)\b/i.test(candidate);
+  const candidateUses24Hour =
+    /\b(?:[01]?\d|2[0-3]):[0-5]\d\b(?!\s*(?:am|pm))/i.test(candidate);
+
+  if (sourceUses12Hour && candidateUses24Hour && !candidateUses12Hour) {
+    return "changed-clock-format";
+  }
+
+  if (sourceUses24Hour && candidateUses12Hour && !candidateUses24Hour) {
+    return "changed-clock-format";
+  }
+
+  return undefined;
+}
+
 function inventedOperationalAnchorReason(
   text: string,
   suppliedReality: readonly AuthorCreativeEvent[],
@@ -1985,7 +2012,8 @@ function scoreMemorySequence(
         : undefined;
     const operationalAnchorFailure =
       variantIndex < 3
-        ? inventedOperationalAnchorReason(text, suppliedReality)
+        ? inventedOperationalAnchorReason(text, suppliedReality) ??
+          changedClockFormatReason(text, suppliedReality)
         : undefined;
     const line = {
       beat,
@@ -2556,6 +2584,7 @@ export async function createAuthorExperience(input: {
           "Specificity is fuel. Preserve the distinctive facts that make this reality this reality, but do not confuse operational metadata with the creative center.",
           "Operational anchors such as clock time, date, geo, count, quantity, price, and measurement are ordinary supplied reality. Use them when they strengthen the experience, when the user wants them visible, or when they carry useful identity, sequence, proof, place, or meaning. Omit them when they add nothing.",
           "When an operational anchor is used, preserve its supplied value exactly. Never invent or alter an exact time, date, geo point, count, quantity, price, measurement, or other operational fact.",
+          "Preserve the supplied clock style. If reality says 5 PM, keep 5 PM; do not convert it to 17:00. If reality uses 24-hour time, keep that form unless the user explicitly asks for another format.",
           "Formatting alone is not the creative move. Logs, timestamps, labels, records, and terse fragments may be part of the creative language, but the production should also create a felt shift in status, implication, consequence, relationship, tension, humor, threat, or another perception.",
           "Do not mistake list cadence, noun fragments, repeated task words, or timestamp formatting for authorship. The creative move must come from a relationship in the supplied reality.",
           "QRE makes the meaning felt and implied, not explained. Every viewer-facing cut must be 12 words or fewer; aim for 2–7 words when possible. A cut is a hit, not prose. Fewer words, more feeling. Compress until removing another word would weaken the meaning, rhythm, character, or surprise. Stop there.",
