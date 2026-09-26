@@ -57,6 +57,10 @@ export type AuthorDomainContext = {
   serviceType?: string;
   serviceName?: string;
   subjectKind?: string;
+  /** Caller-facing alias used by current authoring inputs. Context only; never occurrence evidence. */
+  subjectType?: string;
+  /** Output surface/context hint. It may steer creative relevance but never create reality. */
+  outputType?: string;
   /** Canonical business onboarding context. Context only; never occurrence evidence. */
   services?: string[];
   differentiators?: string[];
