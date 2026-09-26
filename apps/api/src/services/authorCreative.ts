@@ -2071,7 +2071,7 @@ async function repairNominatedMemoryProduction(input: {
           "A failed cut may not borrow evidence from a later beat. Keep each replacement inside its own suppliedEvidence plus prior established evidence. Future facts must stay future.",
           "Preserve the creative pressure and its rhetorical world. Mission/game/system language may include fictional roles, assignments, directives, sectors, objectives, procedures, verdicts, or commands when the repaired sequence clearly reads as a creative frame rather than documentary fact. Police literal reality, not imaginative vocabulary.",
           "Use the assigned treatment's perceptionDelta and expressiveBehaviors as repair authority. Do not invent a new treatment and do not flatten the cut into bare fact unless no grounded expression of the conception remains.",
-          "QRE makes the meaning felt and implied, not explained. A repaired cut is a hit, not prose: compress until removing another word would weaken meaning, rhythm, character, or surprise, then stop.",
+          "QRE makes the meaning felt and implied, not explained. Every repaired cut must be 12 words or fewer; aim for 2–7 words when possible. A repaired cut is a hit, not prose: compress until removing another word would weaken meaning, rhythm, character, or surprise, then stop.",
         ].join("\n"),
       },
       {
@@ -2522,7 +2522,7 @@ export async function createAuthorExperience(input: {
           "When an operational anchor is used, preserve its supplied value exactly. Never invent or alter an exact time, date, geo point, count, quantity, price, measurement, or other operational fact.",
           "Formatting alone is not the creative move. Logs, timestamps, labels, records, and terse fragments may be part of the creative language, but the production should also create a felt shift in status, implication, consequence, relationship, tension, humor, threat, or another perception.",
           "Do not mistake list cadence, noun fragments, repeated task words, or timestamp formatting for authorship. The creative move must come from a relationship in the supplied reality.",
-          "QRE makes the meaning felt and implied, not explained. A cut is a hit, not prose. Compress until removing another word would weaken the meaning, rhythm, character, or surprise. Stop there.",
+          "QRE makes the meaning felt and implied, not explained. Every viewer-facing cut must be 12 words or fewer; aim for 2–7 words when possible. A cut is a hit, not prose. Fewer words, more feeling. Compress until removing another word would weaken the meaning, rhythm, character, or surprise. Stop there.",
           "BUILD THE WHOLE STRANGE WORLD PRIVATELY. REALIZE ONLY WHAT MAKES THAT WORLD FELT.",
           "The assigned creative pressure is internal creative physics, not a vocabulary pack. Let it change status, rhythm, consequence, implication, and perception before it changes surface nouns.",
           "Teach taste, not length. Let the idea determine the line. A line may be tiny, medium, or longer when its rhythm, turn, character, tension, surprise, or payoff earns the space.",
