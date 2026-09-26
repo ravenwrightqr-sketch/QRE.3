@@ -153,6 +153,12 @@ for (const test of selectedCases) {
 
   console.log("\nMODEL CALLS");
   console.log(result.diagnostics.modelCalls);
+
+  console.log("\nTOKEN USAGE");
+  console.log(`INPUT TOKENS: ${result.diagnostics.tokenUsage.inputTokens}`);
+  console.log(`OUTPUT TOKENS: ${result.diagnostics.tokenUsage.outputTokens}`);
+  console.log(`TOTAL TOKENS: ${result.diagnostics.tokenUsage.totalTokens}`);
+  console.log(`TOKEN-COUNTED REQUESTS: ${result.diagnostics.tokenUsage.requests}`);
 }
 
 console.log("\nQRE UNIVERSAL CORE ACCEPTANCE: COMPLETE");
