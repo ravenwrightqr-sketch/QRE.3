@@ -2256,6 +2256,8 @@ export async function createAuthorExperience(input: {
   };
 }> {
   const allowedEventIds = new Set(input.suppliedReality.map((event) => event.id));
+  const contextRecord = (input.domainContext ?? {}) as Record<string, unknown>;
+  const experienceMode = clean(contextRecord.experienceMode).toUpperCase();
   const isMemoryMode = experienceMode === "MEMORY";
   const presentationContext = isMemoryMode
     ? ""
@@ -2264,8 +2266,6 @@ export async function createAuthorExperience(input: {
   const realityDirect =
     clean(selected.id).toLowerCase() === "reality-direct" ||
     clean(selected.risk).toLowerCase() === "no_grounded_discovery_candidate";
-  const contextRecord = (input.domainContext ?? {}) as Record<string, unknown>;
-  const experienceMode = clean(contextRecord.experienceMode).toUpperCase();
   const playableIds = new Set(
     (
       input.creativeDiscovery.playableEventIds.length
