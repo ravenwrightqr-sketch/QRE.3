@@ -17,3 +17,4 @@ API_DUMP.txt
 *.env
 .env
 .env.*
+.qre-author-runs/
