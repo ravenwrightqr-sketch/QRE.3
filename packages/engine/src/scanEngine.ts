@@ -58,7 +58,27 @@ function acceptedAuthoredScenes(
     ? asset.experiences
     : [];
 
-  const scenes: AuthoredSceneRecord[] = records.flatMap(
+  const canonicalRecords = records.filter((record) => {
+    const blueprint: BlueprintRecord = isRecord(record.blueprint)
+      ? record.blueprint
+      : {};
+
+    const authoring = isRecord(blueprint.authoring)
+      ? blueprint.authoring
+      : undefined;
+
+    return authoring?.authoredBy === "qre-author-canonical";
+  });
+
+  // Once an asset has canonical Author chapters, the scan runtime serves those
+  // chapters instead of mixing them with older pre-canonical authored output.
+  // Legacy authored scenes remain a compatibility fallback for assets that have
+  // not yet been re-authored through authorBrainCanonical.
+  const authoredRecords = canonicalRecords.length
+    ? canonicalRecords
+    : records;
+
+  const scenes: AuthoredSceneRecord[] = authoredRecords.flatMap(
     (record): AuthoredSceneRecord[] => {
       const blueprint: BlueprintRecord = isRecord(record.blueprint)
         ? record.blueprint
