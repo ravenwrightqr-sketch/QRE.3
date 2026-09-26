@@ -2450,7 +2450,10 @@ export async function createAuthorExperience(input: {
   const runtimeRenderable =
     !lensSearch.lensSearchEnabled ||
     lensSearch.treatmentSetAssessment.renderable;
-  const treatmentAssignmentsForMouth = treatmentsForMouth
+  const treatmentAssignmentsForMouth = (isMemoryMode
+    ? expressiveTreatmentsForMouth
+    : treatmentsForMouth
+  )
     .map((assignment) => ({
       production: treatmentProductionLetter(assignment),
       ...assignment,
