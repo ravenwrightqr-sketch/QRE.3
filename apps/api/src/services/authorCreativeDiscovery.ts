@@ -350,6 +350,7 @@ async function verifyDiscoveryCandidates(input: {
     ],
     "json",
     {
+      model: process.env.QRE_AUTHOR_UTILITY_MODEL,
       numPredict: Math.max(420, input.candidates.length * 105),
       temperature: 0.08,
       jsonSchema: {
