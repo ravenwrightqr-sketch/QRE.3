@@ -19,6 +19,7 @@ export type LocalModelJsonSchema = {
 };
 
 export type LocalModelOptions = {
+  model?: string;
   numPredict?: number;
   numCtx?: number;
   temperature?: number;
@@ -770,7 +771,7 @@ export async function localModelGenerate(
 
   
   const primaryModel =
-    modelName();
+    modelName(options.model);
 
   const fallbackModel =
     fallbackModelName(
