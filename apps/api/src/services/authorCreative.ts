@@ -2328,6 +2328,7 @@ export async function createAuthorExperience(input: {
     ],
     "json",
     {
+      model: process.env.QRE_AUTHOR_UTILITY_MODEL,
       numPredict: 260,
       temperature: 0.18,
       jsonSchema: {
@@ -2620,7 +2621,7 @@ export async function createAuthorExperience(input: {
     ],
     "json",
     {
-      numPredict: 1050,
+      numPredict: isMemoryMode ? 480 : 520,
       temperature: isMemoryMode ? 0.96 : 0.86,
       jsonSchema: {
         type: "object",
