@@ -710,8 +710,8 @@ function isOperationalOnlyStoryEvent(event: AuthorCreativeEvent | undefined): bo
 
 function creativeEvidenceProjection(
   suppliedReality: readonly AuthorCreativeEvent[],
-): Array<{ id: string; text: string; authority: AuthorRealityAuthority }> {
-  return projectAuthorRealityEvidence(suppliedReality).map((event) => {
+): Array<{ id: string; text: string }> {
+  return suppliedReality.map((event) => {
     const exact = clean(event.text);
     // Creative Search does not need exact clock values to discover the story.
     // Keep the semantic event while exact operational anchors remain available
@@ -725,7 +725,6 @@ function creativeEvidenceProjection(
     return {
       id: clean(event.id),
       text: semanticText || exact,
-      authority: event.authority,
     };
   });
 }
@@ -1962,10 +1961,6 @@ function scoreMemorySequence(
       variantIndex < 3
         ? inventedOperationalAnchorReason(text, suppliedReality)
         : undefined;
-    const preferenceOccurrenceFailure =
-      variantIndex < 3
-        ? unsupportedPreferenceOccurrenceReason(text, suppliedReality)
-        : undefined;
     const line = {
       beat,
       beatFacts,
@@ -1975,10 +1970,9 @@ function scoreMemorySequence(
         base.accepted &&
         !dropsSpecificTimeAnchor &&
         !futureLeakReason &&
-        !operationalAnchorFailure &&
-        !preferenceOccurrenceFailure,
+        !operationalAnchorFailure,
       score:
-        futureLeakReason || operationalAnchorFailure || preferenceOccurrenceFailure
+        futureLeakReason || operationalAnchorFailure
           ? 0
           : Math.max(0, base.score - payoffPenalty),
       reasons: [
@@ -1987,7 +1981,6 @@ function scoreMemorySequence(
         ...(dropsSpecificTimeAnchor ? ["drops-specific-time-anchor"] : []),
         ...(futureLeakReason ? [futureLeakReason] : []),
         ...(operationalAnchorFailure ? [operationalAnchorFailure] : []),
-        ...(preferenceOccurrenceFailure ? [preferenceOccurrenceFailure] : []),
       ],
     };
     if (text) prior.push(text);
@@ -2263,7 +2256,10 @@ export async function createAuthorExperience(input: {
   };
 }> {
   const allowedEventIds = new Set(input.suppliedReality.map((event) => event.id));
-  const presentationContext = realityAuthorityContext(input.suppliedReality);
+  const isMemoryMode = experienceMode === "MEMORY";
+  const presentationContext = isMemoryMode
+    ? ""
+    : realityAuthorityContext(input.suppliedReality);
   const selected = input.creativeDiscovery.selected;
   const realityDirect =
     clean(selected.id).toLowerCase() === "reality-direct" ||
@@ -2280,7 +2276,6 @@ export async function createAuthorExperience(input: {
   const selectedEvidence = input.suppliedReality.filter((event) =>
     playableIds.has(clean(event.id)),
   );
-  const isMemoryMode = experienceMode === "MEMORY";
   const useDeterministicSparsePlan =
     selectedEvidence.length > 0 && selectedEvidence.length <= 3;
   const useDeterministicRealityDirectMemoryPlan =
@@ -2322,7 +2317,9 @@ export async function createAuthorExperience(input: {
         role: "user",
         content: JSON.stringify({
           SUBJECT: input.subject,
-          AUTHORIZED_EVIDENCE: projectAuthorRealityEvidence(selectedEvidence),
+          AUTHORIZED_EVIDENCE: isMemoryMode
+            ? selectedEvidence
+            : projectAuthorRealityEvidence(selectedEvidence),
           EXPERIENCE_SHAPE: input.creativeDiscovery.experienceShape,
           instruction:
             "Return the strongest structural beat sequence using the authorized evidence IDs. Preserve every authorized evidence item somewhere in the sequence; group related evidence when that strengthens the experience.",
@@ -2578,7 +2575,9 @@ export async function createAuthorExperience(input: {
         role: "user",
         content: JSON.stringify({
           SUBJECT: input.subject,
-          SUPPLIED_REALITY: projectAuthorRealityEvidence(input.suppliedReality),
+          SUPPLIED_REALITY: isMemoryMode
+            ? input.suppliedReality
+            : projectAuthorRealityEvidence(input.suppliedReality),
           APPROVED_THESIS: plan.thesis,
           APPROVED_BEATS: plan.beats.map((beat, index) => ({
             order: beat.order,
