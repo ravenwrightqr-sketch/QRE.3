@@ -1547,25 +1547,33 @@ function futureEvidenceLeakReason(
 
 function canonicalClockAnchors(value: string): string[] {
   const text = clean(value).toLowerCase();
-  const anchors: string[] = [];
+  const anchors = new Set<string>();
 
-  for (const match of text.matchAll(/\b(\d{1,2}):([0-5]\d)\s*(am|pm|hours?)?\b/g)) {
-    let hour = Number(match[1]);
-    const minute = Number(match[2]);
-    const suffix = clean(match[3]).toLowerCase();
+  const addClock = (rawHour: string, rawMinute: string | undefined, rawSuffix: string | undefined) => {
+    let hour = Number(rawHour);
+    const minute = Number(rawMinute ?? "0");
+    const suffix = clean(rawSuffix).toLowerCase();
 
     if (suffix === "am" || suffix === "pm") {
-      if (hour < 1 || hour > 12) continue;
+      if (hour < 1 || hour > 12) return;
       if (suffix === "am") hour = hour === 12 ? 0 : hour;
       if (suffix === "pm") hour = hour === 12 ? 12 : hour + 12;
     } else if (hour > 23) {
-      continue;
+      return;
     }
 
-    anchors.push(`clock:${hour}:${String(minute).padStart(2, "0")}`);
+    anchors.add(`clock:${hour}:${String(minute).padStart(2, "0")}`);
+  };
+
+  for (const match of text.matchAll(/\b(\d{1,2}):([0-5]\d)\s*(am|pm|hours?)?\b/g)) {
+    addClock(match[1]!, match[2], match[3]);
   }
 
-  return anchors;
+  for (const match of text.matchAll(/\b(\d{1,2})\s*(am|pm)\b/g)) {
+    addClock(match[1]!, "0", match[2]);
+  }
+
+  return [...anchors];
 }
 
 function exactPercentAnchors(value: string): string[] {
@@ -2278,12 +2286,17 @@ export async function createAuthorExperience(input: {
   );
   const useDeterministicSparsePlan =
     selectedEvidence.length > 0 && selectedEvidence.length <= 3;
+  const useDeterministicMemoryPlan =
+    isMemoryMode &&
+    selectedEvidence.length > 0;
   const useDeterministicRealityDirectMemoryPlan =
     isMemoryMode &&
     realityDirect &&
     selectedEvidence.length > 0;
   const useDeterministicPlan =
-    useDeterministicSparsePlan || useDeterministicRealityDirectMemoryPlan;
+    useDeterministicSparsePlan ||
+    useDeterministicMemoryPlan ||
+    useDeterministicRealityDirectMemoryPlan;
 
   const planResult = useDeterministicPlan
     ? {
@@ -2391,9 +2404,11 @@ export async function createAuthorExperience(input: {
   debug("BARE-AUTHOR-PLAN", {
     mode: useDeterministicRealityDirectMemoryPlan
       ? "DETERMINISTIC_REALITY_DIRECT_MEMORY"
-      : useDeterministicSparsePlan
-        ? "DETERMINISTIC_SPARSE"
-        : "MODEL_STRUCTURE",
+      : useDeterministicMemoryPlan
+        ? "DETERMINISTIC_MEMORY_SEQUENCE"
+        : useDeterministicSparsePlan
+          ? "DETERMINISTIC_SPARSE"
+          : "MODEL_STRUCTURE",
     raw: useDeterministicPlan ? "SKIPPED_MODEL_PLAN" : planResult.text,
     memoryStructureAdjusted:
       isMemoryMode &&
