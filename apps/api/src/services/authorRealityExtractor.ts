@@ -89,7 +89,11 @@ export async function extractAuthorReality(input: {
       },
     ],
     "json",
-    { numPredict: 320, temperature: 0.18 },
+    {
+      model: process.env.QRE_AUTHOR_UTILITY_MODEL,
+      numPredict: 320,
+      temperature: 0.18,
+    },
   );
 
   const parsed = parseJson(result.text);
