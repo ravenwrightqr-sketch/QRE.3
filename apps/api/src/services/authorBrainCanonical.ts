@@ -37,6 +37,10 @@ import {
 } from "./authorCreativeDiscovery.js";
 import { createAuthorExperience } from "./authorCreative.js";
 import { verifyAuthorCreativeGrounding } from "./authorCreativeGroundingVerifier.js";
+import {
+  getLocalModelUsage,
+  runWithLocalModelUsage,
+} from "./localModelRuntime.js";
 
 const clean = (value: unknown): string =>
   String(value ?? "").replace(/\s+/g, " ").trim();
@@ -277,6 +281,12 @@ export type CanonicalAuthorResult = {
     mouthFallback?: unknown;
     memoryProductions?: unknown;
     grounding?: unknown;
+    tokenUsage: {
+      inputTokens: number;
+      outputTokens: number;
+      totalTokens: number;
+      requests: number;
+    };
   };
   adaptiveQuestions: Array<{ kind: string; question: string; reason: string }>;
   world: ReturnType<typeof buildAuthorRealityGraph>;
@@ -285,6 +295,7 @@ export type CanonicalAuthorResult = {
 export async function authorBrainCanonical(
   input: AuthorBrainTruth,
 ): Promise<CanonicalAuthorResult> {
+  return runWithLocalModelUsage(async () => {
   const prompt = clean(input.prompt);
   const suppliedFacts = unique(input.facts);
   const suppliedMoments = unique(input.sourceMoments);
@@ -578,6 +589,9 @@ export async function authorBrainCanonical(
     avoid: ["invented literal reality", "fact replay", "mechanic leakage"],
   };
 
+  const tokenUsage =
+    getLocalModelUsage();
+
   return {
     readout: makeReadout({
       subject,
@@ -634,8 +648,10 @@ export async function authorBrainCanonical(
         originalScenes: creativeResult.scenes.length,
         recovered: groundingRecoveryModelCalls > 0,
       },
+      tokenUsage,
     },
     adaptiveQuestions: [],
     world,
   };
+  });
 }
