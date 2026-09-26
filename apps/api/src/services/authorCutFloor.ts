@@ -62,7 +62,7 @@ const TEMPORAL_COMPARISON =
   /\b(?:long|short|brief|briefly|quick|quickly|slow|slowly|fast|faster|slower)\b/i;
 
 const RECURRENCE_CLAIM =
-  /\b(?:again|returned|returns|returning|back|recurred|recurs|recurring|repeated|repeats|next\s+(?:day|week|month|year))\b/i;
+  /\b(?:again|returned|returns|returning|back|recurred|recurs|recurring|repeated|repeats|daily|every\s+(?:day|morning|afternoon|evening|night|week|month|year)|each\s+(?:day|morning|afternoon|evening|night|week|month|year)|next\s+(?:day|week|month|year)|always\s+\d+(?:\.\d+)?\s*(?:seconds?|minutes?|hours?|days?|weeks?|months?|years?))\b/i;
 
 function words(value: string): string[] {
   return clean(value)
