@@ -54,6 +54,42 @@ export function projectAuthorRealityEvidence(
   }));
 }
 
+export function unsupportedPreferenceOccurrenceReason(
+  text: string,
+  evidence: readonly AuthorRealityEvidence[],
+): string | undefined {
+  const authorities = projectAuthorRealityEvidence(evidence).map((item) => item.authority);
+  const hasPreference = authorities.includes("PREFERENCE");
+  const nonOccurrenceOnly = authorities.every((authority) =>
+    authority === "ATTRIBUTE" ||
+    authority === "PREFERENCE" ||
+    authority === "RELATIONSHIP" ||
+    authority === "MEASUREMENT",
+  );
+
+  if (!hasPreference || !nonOccurrenceOnly) return undefined;
+
+  const candidate = clean(text).toLowerCase();
+  const occurrencePhrases = [
+    "went for a ",
+    "went on a ",
+    "walked to ",
+    "walked through ",
+    "walked into ",
+    "took a walk",
+    "took the walk",
+    "during a walk",
+    "during the walk",
+    "arrived at ",
+    "arrived in ",
+    "left from ",
+  ];
+
+  return occurrencePhrases.some((phrase) => candidate.includes(phrase))
+    ? "preference-promoted-to-concrete-occurrence"
+    : undefined;
+}
+
 export const AUTHOR_REALITY_AUTHORITY_DOCTRINE = [
   "Every supplied truth has semantic authority. Creative interpretation may stretch meaning, never the kind of reality the evidence establishes.",
   "ATTRIBUTE establishes a property or identity fact. It does not establish an occurrence.",
