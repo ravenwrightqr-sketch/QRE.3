@@ -1952,7 +1952,13 @@ function identityClusterFactDependence(
   suppliedReality: readonly AuthorCreativeEvent[],
 ): number {
   const lineTokens = new Set(replayTokens(lines.join(" ")));
-  const tokenSets = suppliedReality.map((event) => new Set(replayTokens(event.text)));
+  const creativeFacts = suppliedReality.filter((event) =>
+    !/^identity-(?:name|species|type|kind|category)$/i.test(clean(event.id)),
+  );
+  const clusterFacts = creativeFacts.length >= 2
+    ? creativeFacts
+    : suppliedReality;
+  const tokenSets = clusterFacts.map((event) => new Set(replayTokens(event.text)));
 
   const distinctiveSets = tokenSets
     .map((tokens, index) => {
@@ -1999,7 +2005,7 @@ function scoreMemorySequence(
       subject,
       prior,
       !realityDirect,
-      variantIndex === 3,
+      variantIndex === 3 && !simultaneousIdentity,
     );
     const payoffPenalty = memoryPayoffReplayPenalty(
       text,
@@ -2730,7 +2736,7 @@ export async function createAuthorExperience(input: {
             intensity: assignment.intensity,
           })),
           instruction: isIdentityMode
-            ? "Return complete candidate productions in PRODUCTION-MAJOR form for the listed CREATIVE_TREATMENTS only. This is one persistent IDENTITY portrait, not a checklist and not chronology. Build a short scroll experience from the whole supplied cluster. Establish identity once, then let facts acquire attitude, importance, curiosity, contrast, playful possibility, callback, or character through their combination. Any cut may draw from multiple supplied identity facts because they are simultaneous truths. Do not invent an event, biography, routine, motive, reaction, preference ranking, hidden psychology, or comparative strength not present in the input. Do not explain the character; make the viewer infer it. Make the conception materially depend on the distinctive preference cluster: if one supplied preference can disappear without changing the production, push the relationship farther. Nominate the strongest viable expressive production by A, B, or C. Bare D is truth fallback only."
+            ? "Return complete candidate productions in PRODUCTION-MAJOR form for the listed CREATIVE_TREATMENTS only. This is one persistent IDENTITY portrait, not a checklist and not chronology. Build a short scroll experience from the whole supplied cluster. Establish identity once, then let facts acquire attitude, importance, curiosity, contrast, playful possibility, callback, or character through their combination. Any cut may draw from multiple supplied identity facts because they are simultaneous truths. Do not invent an event, biography, routine, motive, reaction, preference ranking, hidden psychology, or comparative strength not present in the input. Do not explain the character; make the viewer infer it. Make the conception materially depend on the distinctive preference cluster: if one supplied preference can disappear without changing the production, push the relationship farther. Fuse or distribute the facts so their relationship creates the character; merely packing every fact into one explanatory inventory sentence is not enough. Nominate the strongest viable expressive production by A, B, or C. Bare D is truth fallback only."
             : isMemoryMode
               ? realityDirect
                 ? "Return complete candidate productions in PRODUCTION-MAJOR form for the listed CREATIVE_TREATMENTS only. Make the meaning felt and implied, not explained. Push each assigned treatment as far as supplied reality supports through nonliteral rhetoric, sequence, status, metaphor, callback, and recontextualization. Keep the concrete world fixed and each underlying action/change recoverable. Operational anchors may stay in provenance unless they create the perception. Nominate the strongest complete production by its production letter: A, B, C, or D."
