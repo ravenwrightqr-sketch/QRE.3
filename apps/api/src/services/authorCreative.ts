@@ -1561,25 +1561,37 @@ function futureEvidenceLeakReason(
 
 function canonicalClockAnchors(value: string): string[] {
   const text = clean(value).toLowerCase();
-  const anchors: string[] = [];
+  const anchors = new Set<string>();
 
-  for (const match of text.matchAll(/\b(\d{1,2}):([0-5]\d)\s*(am|pm|hours?)?\b/g)) {
-    let hour = Number(match[1]);
-    const minute = Number(match[2]);
-    const suffix = clean(match[3]).toLowerCase();
+  const addClock = (
+    rawHour: string,
+    rawMinute: string | undefined,
+    rawSuffix: string | undefined,
+  ): void => {
+    let hour = Number(rawHour);
+    const minute = Number(rawMinute ?? "0");
+    const suffix = clean(rawSuffix).toLowerCase();
 
     if (suffix === "am" || suffix === "pm") {
-      if (hour < 1 || hour > 12) continue;
+      if (hour < 1 || hour > 12) return;
       if (suffix === "am") hour = hour === 12 ? 0 : hour;
       if (suffix === "pm") hour = hour === 12 ? 12 : hour + 12;
     } else if (hour > 23) {
-      continue;
+      return;
     }
 
-    anchors.push(`clock:${hour}:${String(minute).padStart(2, "0")}`);
+    anchors.add(`clock:${hour}:${String(minute).padStart(2, "0")}`);
+  };
+
+  for (const match of text.matchAll(/\b(\d{1,2}):([0-5]\d)\s*(am|pm|hours?)?\b/g)) {
+    addClock(match[1]!, match[2], match[3]);
   }
 
-  return anchors;
+  for (const match of text.matchAll(/\b(\d{1,2})\s*(am|pm)\b/g)) {
+    addClock(match[1]!, "0", match[2]);
+  }
+
+  return [...anchors];
 }
 
 function exactPercentAnchors(value: string): string[] {
@@ -2481,7 +2493,10 @@ export async function createAuthorExperience(input: {
   const runtimeRenderable =
     !lensSearch.lensSearchEnabled ||
     lensSearch.treatmentSetAssessment.renderable;
-  const treatmentAssignmentsForMouth = treatmentsForMouth
+  const treatmentAssignmentsForMouth = (isMemoryMode
+    ? expressiveTreatmentsForMouth
+    : treatmentsForMouth
+  )
     .map((assignment) => ({
       production: treatmentProductionLetter(assignment),
       ...assignment,
@@ -2648,7 +2663,7 @@ export async function createAuthorExperience(input: {
     ],
     "json",
     {
-      numPredict: 1050,
+      numPredict: isMemoryMode ? 480 : 520,
       temperature: isMemoryMode ? 0.96 : 0.86,
       jsonSchema: {
         type: "object",
