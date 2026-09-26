@@ -1594,6 +1594,10 @@ function canonicalClockAnchors(value: string): string[] {
     anchors.push(`clock:${hour}:${String(minute).padStart(2, "0")}`);
   }
 
+  for (const match of text.matchAll(/\b([01]\d|2[0-3])([0-5]\d)\s*hours?\b/g)) {
+    anchors.push(`clock:${Number(match[1])}:${match[2]}`);
+  }
+
   return anchors;
 }
 
@@ -1955,14 +1959,14 @@ function identityClusterFactDependence(
   const clusterFacts = creativeFacts.length >= 2
     ? creativeFacts
     : suppliedReality;
-  const tokenSets = clusterFacts.map((event) => new Set(replayTokens(event.text)));
 
-  const distinctiveSets = tokenSets
-    .map((tokens, index) => {
+  const distinctiveSets = clusterFacts
+    .map((event) => {
+      const tokens = new Set(replayTokens(event.text));
       const otherTokens = new Set(
-        tokenSets
-          .filter((_, otherIndex) => otherIndex !== index)
-          .flatMap((set) => [...set]),
+        suppliedReality
+          .filter((other) => clean(other.id) !== clean(event.id))
+          .flatMap((other) => replayTokens(other.text)),
       );
       return [...tokens].filter((token) => !otherTokens.has(token));
     })
@@ -1975,6 +1979,27 @@ function identityClusterFactDependence(
   ).length;
 
   return represented / distinctiveSets.length;
+}
+
+function identityInventedRecurrenceReason(
+  text: string,
+  suppliedReality: readonly AuthorCreativeEvent[],
+): string | undefined {
+  const supplied = clean(
+    suppliedReality.map((event) => event.text).join(" "),
+  ).toLowerCase();
+  const candidate = clean(text).toLowerCase();
+
+  const suppliedHasRecurrence =
+    /\b(?:every|each|daily|nightly|weekly|monthly|routine|regularly|again|repeated|recurring|usually)\b/.test(supplied);
+  if (suppliedHasRecurrence) return undefined;
+
+  const claimsRecurrence =
+    /\b(?:every\s+(?:morning|afternoon|evening|night|day|week|month)|each\s+(?:morning|afternoon|evening|night|day|week|month)|daily|nightly|weekly|monthly|routine|regularly|usually)\b/.test(candidate);
+
+  return claimsRecurrence
+    ? "invented-identity-recurrence"
+    : undefined;
 }
 
 function identitySubjectMentionCount(
@@ -2036,6 +2061,10 @@ function scoreMemorySequence(
       variantIndex < 3
         ? inventedOperationalAnchorReason(text, suppliedReality)
         : undefined;
+    const identityRecurrenceFailure =
+      simultaneousIdentity && variantIndex < 3
+        ? identityInventedRecurrenceReason(text, suppliedReality)
+        : undefined;
     const line = {
       beat,
       beatFacts,
@@ -2045,9 +2074,10 @@ function scoreMemorySequence(
         base.accepted &&
         !dropsSpecificTimeAnchor &&
         !futureLeakReason &&
-        !operationalAnchorFailure,
+        !operationalAnchorFailure &&
+        !identityRecurrenceFailure,
       score:
-        futureLeakReason || operationalAnchorFailure
+        futureLeakReason || operationalAnchorFailure || identityRecurrenceFailure
           ? 0
           : Math.max(0, base.score - payoffPenalty),
       reasons: [
@@ -2056,6 +2086,7 @@ function scoreMemorySequence(
         ...(dropsSpecificTimeAnchor ? ["drops-specific-time-anchor"] : []),
         ...(futureLeakReason ? [futureLeakReason] : []),
         ...(operationalAnchorFailure ? [operationalAnchorFailure] : []),
+        ...(identityRecurrenceFailure ? [identityRecurrenceFailure] : []),
       ],
     };
     if (text) prior.push(text);
