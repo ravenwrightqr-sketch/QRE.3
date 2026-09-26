@@ -1,3 +1,4 @@
+import { AsyncLocalStorage } from "node:async_hooks";
 import { Agent } from "undici";
 
 export type LocalModelMessage = {
@@ -11,6 +12,92 @@ export type LocalModelResult = {
   model: string;
   provider: "local";
 };
+
+export type LocalModelUsage = {
+  inputTokens: number;
+  outputTokens: number;
+  totalTokens: number;
+  requests: number;
+};
+
+const localModelUsage =
+  new AsyncLocalStorage<LocalModelUsage>();
+
+export async function runWithLocalModelUsage<T>(
+  operation: () => Promise<T>,
+): Promise<T> {
+  return localModelUsage.run(
+    {
+      inputTokens: 0,
+      outputTokens: 0,
+      totalTokens: 0,
+      requests: 0,
+    },
+    operation,
+  );
+}
+
+export function getLocalModelUsage(): LocalModelUsage {
+  const usage = localModelUsage.getStore();
+
+  return usage
+    ? { ...usage }
+    : {
+        inputTokens: 0,
+        outputTokens: 0,
+        totalTokens: 0,
+        requests: 0,
+      };
+}
+
+function numericTokenCount(
+  value: unknown,
+): number {
+  return typeof value === "number" &&
+    Number.isFinite(value) &&
+    value >= 0
+    ? Math.floor(value)
+    : 0;
+}
+
+function recordLocalModelUsage(
+  data: unknown,
+): void {
+  const usage = localModelUsage.getStore();
+
+  if (
+    !usage ||
+    typeof data !== "object" ||
+    data === null
+  ) {
+    return;
+  }
+
+  const record =
+    data as Record<string, unknown>;
+
+  const inputTokens =
+    numericTokenCount(
+      record.prompt_eval_count,
+    );
+
+  const outputTokens =
+    numericTokenCount(
+      record.eval_count,
+    );
+
+  usage.inputTokens +=
+    inputTokens;
+
+  usage.outputTokens +=
+    outputTokens;
+
+  usage.totalTokens +=
+    inputTokens +
+    outputTokens;
+
+  usage.requests += 1;
+}
 export type LocalModelJsonSchema = {
   type: "object";
   properties: Record<string, unknown>;
@@ -635,6 +722,10 @@ async function request(
 
     const json =
   await response.json();
+
+recordLocalModelUsage(
+  json,
+);
 
 if (
   typeof json === "object" &&
