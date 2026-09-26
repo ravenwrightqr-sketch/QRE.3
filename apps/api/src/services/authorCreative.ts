@@ -6,6 +6,7 @@ import { QRE_CREATIVE_OPERATING_DOCTRINE } from "./authorCreativeDoctrine.js";
 import {
   AUTHOR_REALITY_AUTHORITY_DOCTRINE,
   projectAuthorRealityEvidence,
+  unsupportedPreferenceOccurrenceReason,
   type AuthorRealityAuthority,
 } from "./authorRealityAuthority.js";
 
@@ -1961,6 +1962,10 @@ function scoreMemorySequence(
       variantIndex < 3
         ? inventedOperationalAnchorReason(text, suppliedReality)
         : undefined;
+    const preferenceOccurrenceFailure =
+      variantIndex < 3
+        ? unsupportedPreferenceOccurrenceReason(text, suppliedReality)
+        : undefined;
     const line = {
       beat,
       beatFacts,
@@ -1970,9 +1975,10 @@ function scoreMemorySequence(
         base.accepted &&
         !dropsSpecificTimeAnchor &&
         !futureLeakReason &&
-        !operationalAnchorFailure,
+        !operationalAnchorFailure &&
+        !preferenceOccurrenceFailure,
       score:
-        futureLeakReason || operationalAnchorFailure
+        futureLeakReason || operationalAnchorFailure || preferenceOccurrenceFailure
           ? 0
           : Math.max(0, base.score - payoffPenalty),
       reasons: [
@@ -1981,6 +1987,7 @@ function scoreMemorySequence(
         ...(dropsSpecificTimeAnchor ? ["drops-specific-time-anchor"] : []),
         ...(futureLeakReason ? [futureLeakReason] : []),
         ...(operationalAnchorFailure ? [operationalAnchorFailure] : []),
+        ...(preferenceOccurrenceFailure ? [preferenceOccurrenceFailure] : []),
       ],
     };
     if (text) prior.push(text);
@@ -3110,13 +3117,20 @@ export async function createAuthorExperience(input: {
             index === plan.beats.length - 1,
             beat.change,
           );
+          const preferenceOccurrenceFailure =
+            unsupportedPreferenceOccurrenceReason(text, input.suppliedReality);
           return {
             text,
             ...base,
-            score: Math.max(0, base.score - payoffPenalty),
-            reasons: payoffPenalty > 0
-              ? [...base.reasons, "memory-payoff-replay"]
-              : base.reasons,
+            accepted: base.accepted && !preferenceOccurrenceFailure,
+            score: preferenceOccurrenceFailure
+              ? 0
+              : Math.max(0, base.score - payoffPenalty),
+            reasons: [
+              ...base.reasons,
+              ...(payoffPenalty > 0 ? ["memory-payoff-replay"] : []),
+              ...(preferenceOccurrenceFailure ? [preferenceOccurrenceFailure] : []),
+            ],
           };
         });
 
