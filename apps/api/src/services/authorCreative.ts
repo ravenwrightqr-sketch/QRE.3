@@ -1984,8 +1984,7 @@ function identitySubjectMentionCount(
   const normalizedSubject = clean(subject).toLowerCase();
   if (!normalizedSubject) return 0;
 
-  const escaped = normalizedSubject.replace(/[.*+?^${}()|[\]\\]/g, "\\function scoreMemorySequence(
-  variantIndex: number,");
+  const escaped = normalizedSubject.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
   const pattern = new RegExp(`\\b${escaped}\\b`, "gi");
   return lines.reduce(
     (count, line) => count + (clean(line).match(pattern)?.length ?? 0),
