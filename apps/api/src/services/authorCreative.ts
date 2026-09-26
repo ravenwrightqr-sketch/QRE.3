@@ -823,6 +823,9 @@ export async function searchAuthorCreativeLensTreatments(input: {
           "Reality is fixed. Creative interpretation is aggressive. New concrete world facts are forbidden.",
           "Classify STORY_GRAVITY.mode as ARC, SEQUENCE, PORTRAIT, or WORLD_OPENING from the supplied event IDs only.",
           "Find the strongest relationships already inside CREATIVE_EVIDENCE. Do not force a thesis, psychology, routine, or hidden history.",
+          "Use DOMAIN_CONTEXT as a relevance prior for creative pressure, never as permission to invent facts. The kind of thing being authored should change where you search first.",
+          "Emotional, intimate, relational, memorial, identity, service, commerce, operational, and other contexts should not all default to the same creative grammar. Match the pressure family to the supplied context and evidence before reaching for a generic system/protocol treatment.",
+          "For relationship or emotionally charged material, search emotional and relational pressure families first—including romance, intimacy, devotion, longing, obsession, tenderness, dread, horror, vulnerability, distance, closeness, and unresolved possibility—then let procedural/system frames compete only when they genuinely sharpen the supplied relationship.",
           "HARD_ENDPOINT_EVENT_ID is already locked by QRE. Earlier supplied evidence may earn it; the endpoint itself is not the creative idea.",
           "Operational anchors are provenance by default. Do not center timing, precision, logging, documentation, duration, or completion unless the supplied relationship truly depends on them.",
           "Search broadly in private. Return exactly three materially different latent relations and one finalist per relation in the same order.",
@@ -859,6 +862,15 @@ export async function searchAuthorCreativeLensTreatments(input: {
           CREATIVE_EVIDENCE: creativeEvidenceProjection(input.suppliedReality),
           HARD_ENDPOINT_EVENT_ID: fallbackStoryGravity(input.suppliedReality).endpointEventId,
           MODE_HINT: clean(input.experienceMode) || undefined,
+          DOMAIN_CONTEXT: input.domainContext
+            ? {
+                experienceMode: clean(input.domainContext.experienceMode),
+                category: clean(input.domainContext.category),
+                subjectType: clean(input.domainContext.subjectType),
+                serviceType: clean(input.domainContext.serviceType),
+                outputType: clean(input.domainContext.outputType),
+              }
+            : undefined,
           REQUESTED_LENS: requestedLens || undefined,
           SEMANTIC_MECHANIC: semanticMechanic.mechanic,
           instruction:
