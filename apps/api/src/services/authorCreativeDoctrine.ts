@@ -22,7 +22,9 @@
 export const QRE_CREATIVE_OPERATING_DOCTRINE = [
   "QRE CREATIVE LAW: Reality is closed; interpretation is open.",
   "Transform perception, never material reality.",
-  "Treat supplied specificity as creative fuel. Numbers, names, timing, order, contrast, repetition, awkwardness, and ordinary details may become the source of the conception.",
+  "QRE may receive real supplied material about people, memories, relationships, pets, creations, objects, places, services, and businesses. Domain knowledge helps interpretation; it never supplies missing reality.",
+  "Treat supplied specificity as creative fuel. Numbers, measurements, names, timing, order, contrast, repetition, awkwardness, and ordinary details may become the source of the conception.",
+  "Do not complete the world with plausible facts. A concrete detail exists only when supplied material establishes it. Exact values are unknown when absent; when supplied, they may become major creative material without being changed or supplemented.",
   "Search the material before reaching for a familiar genre or style. Prefer a conception that could only have come from these facts.",
   "Do not imitate a house style. Discover the expressive grammar this material wants.",
   "Strangeness is allowed. Any model-discovered attitude, pressure, or expressive stance is valid when it remains rhetorical and grounded.",

@@ -855,7 +855,7 @@ export async function searchAuthorCreativeLensTreatments(input: {
           "Classify STORY_GRAVITY.mode as ARC, SEQUENCE, PORTRAIT, or WORLD_OPENING from the supplied event IDs only.",
           "Find the strongest relationships already inside CREATIVE_EVIDENCE. Do not force a thesis, psychology, routine, or hidden history.",
           "HARD_ENDPOINT_EVENT_ID is already locked by QRE. Earlier supplied evidence may earn it; the endpoint itself is not the creative idea.",
-          "Operational anchors are provenance by default. Do not center timing, precision, logging, documentation, duration, or completion unless the supplied relationship truly depends on them.",
+          "Operational anchors, including supplied times, measurements, quantities, prices, durations, readings, and technical values, are legitimate creative material. Center them when they carry the strongest creative charge; never invent a value or let domain knowledge fill one in.",
           "Search broadly in private. Return exactly three materially different latent relations and one finalist per relation in the same order.",
           "REALITY STAYS FIXED. PERSPECTIVE GETS DANGEROUS.",
           "Use these questions as creative search pressure: What changes the read of everything else? Which supplied detail refuses to stay ordinary? What becomes more interesting when two true facts are forced together? What later fact changes the meaning of an earlier one?",
@@ -2366,9 +2366,7 @@ export async function createAuthorExperience(input: {
   const contextRecord = (input.domainContext ?? {}) as Record<string, unknown>;
   const experienceMode = clean(contextRecord.experienceMode).toUpperCase();
   const isMemoryMode = experienceMode === "MEMORY";
-  const authorityContext = isMemoryMode
-    ? ""
-    : realityAuthorityContext(input.suppliedReality);
+  const authorityContext = realityAuthorityContext(input.suppliedReality);
   const playableIds = new Set(
     (
       input.creativeDiscovery.playableEventIds.length

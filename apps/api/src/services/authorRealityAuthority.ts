@@ -88,7 +88,9 @@ export const AUTHOR_REALITY_AUTHORITY_DOCTRINE = [
   "ATTRIBUTE establishes what something is; it does not establish an occurrence.",
   "RELATIONSHIP establishes only the supplied connection.",
   "STATE establishes only the supplied condition.",
-  "MEASUREMENT establishes only the supplied value.",
+  "MEASUREMENT establishes only the supplied value. Exact values, units, readings, rates, quantities, prices, durations, distances, dimensions, temperatures, counts, and technical specifications are unknown unless supplied.",
+  "Domain knowledge may explain what a supplied detail could mean, but it is never evidence that a plausible detail actually exists. Do not complete a person, memory, creation, service, business, place, object, or event with facts typical of its domain.",
+  "When an exact value is supplied, it is fully available as creative material: QRE may emphasize, repeat, recontextualize, personify, contrast, or build structure around it without changing the value or inventing another one.",
   "UNKNOWN remains usable as supplied reality but grants no extra event, chronology, motive, measurement, or outcome authority.",
   "Meaning may be wild. Concrete occurrence remains strict.",
 ] as const;
