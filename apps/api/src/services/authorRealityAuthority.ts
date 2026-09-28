@@ -1,3 +1,11 @@
+/**
+ * QRE CANONICAL AUTHOR BOUNDARY
+ *
+ * Reality Authority classifies supplied truth for downstream cognition.
+ * Do not modify authority doctrine or evidence classification as a side effect
+ * of unrelated Author work. See ./AUTHOR_ARCHITECTURE.md.
+ */
+
 export type AuthorRealityAuthority =
   | "ATTRIBUTE"
   | "PREFERENCE"

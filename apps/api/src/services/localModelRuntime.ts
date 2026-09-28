@@ -1,5 +1,14 @@
 import { Agent } from "undici";
 
+/**
+ * QRE CANONICAL AUTHOR BOUNDARY
+ *
+ * Local model runtime owns provider transport, fallback model behavior,
+ * timeouts, context size, temperatures, and token budgets. Do not change model
+ * behavior as a side effect of unrelated Author work.
+ * See ./AUTHOR_ARCHITECTURE.md.
+ */
+
 export type LocalModelMessage = {
   role: "system" | "user" | "assistant";
   content: string;
@@ -9,7 +18,7 @@ export type LocalModelMessage = {
 export type LocalModelResult = {
   text: string;
   model: string;
-  provider: "local";
+  provider: "local" | "openrouter";
 };
 export type LocalModelJsonSchema = {
   type: "object";
@@ -31,6 +40,41 @@ function baseUrl(): string {
     process.env.QRE_LOCAL_MODEL_URL ||
     "http://127.0.0.1:11434"
   ).replace(/\/$/, "");
+}
+
+function openRouterEnabled(): boolean {
+  return (
+    String(
+      process.env.QRE_MODEL_TRANSPORT ??
+        "",
+    ).toLowerCase() === "openrouter" ||
+    process.env.QRE_OPENROUTER_ENABLED ===
+      "true"
+  );
+}
+
+function openRouterBaseUrl(): string {
+  return (
+    process.env.QRE_OPENROUTER_BASE_URL ||
+    "https://openrouter.ai/api/v1"
+  ).replace(/\/$/, "");
+}
+
+function openRouterModelName(
+  modelOverride?: string,
+): string {
+  return (
+    modelOverride ||
+    process.env.QRE_OPENROUTER_MODEL ||
+    process.env.QRE_AI_MODEL ||
+    "google/gemma-3-12b-it:free"
+  );
+}
+
+function openRouterApiKey(): string {
+  return String(
+    process.env.OPENROUTER_API_KEY ?? "",
+  ).trim();
 }
 
 function modelName(
@@ -436,11 +480,414 @@ function outputText(
         ) {
           return content.trim();
         }
+
+        if (
+          Array.isArray(content)
+        ) {
+          return content
+            .map((part) => {
+              if (
+                typeof part ===
+                  "object" &&
+                part !== null &&
+                "text" in part
+              ) {
+                const text = (
+                  part as {
+                    text?: unknown;
+                  }
+                ).text;
+
+                return typeof text ===
+                  "string"
+                  ? text
+                  : "";
+              }
+
+              return "";
+            })
+            .filter(Boolean)
+            .join("\n")
+            .trim();
+        }
       }
     }
   }
 
   return "";
+}
+
+type OpenRouterResponseFormat =
+  | {
+      type: "json_object";
+    }
+  | {
+      type: "json_schema";
+      json_schema: {
+        name: string;
+        strict: true;
+        schema: LocalModelJsonSchema;
+      };
+    };
+
+type OpenRouterRequestBody = {
+  model: string;
+  stream: false;
+  messages: Array<{
+    role:
+      | "system"
+      | "user"
+      | "assistant";
+    content:
+      | string
+      | Array<
+          | {
+              type: "text";
+              text: string;
+            }
+          | {
+              type: "image_url";
+              image_url: {
+                url: string;
+              };
+            }
+        >;
+  }>;
+  temperature: number;
+  max_tokens: number;
+  response_format?: OpenRouterResponseFormat;
+  provider?: {
+    require_parameters: true;
+  };
+};
+
+class OpenRouterRequestError extends Error {
+  readonly status: number;
+  readonly detail: string;
+
+  constructor(
+    status: number,
+    detail: string,
+  ) {
+    super(
+      `OpenRouter model failed (${status}): ${detail.slice(
+        0,
+        300,
+      )}`,
+    );
+
+    this.name =
+      "OpenRouterRequestError";
+
+    this.status =
+      status;
+
+    this.detail =
+      detail;
+  }
+}
+
+function isOpenRouterParameterRoutingFailure(
+  error: unknown,
+): boolean {
+  if (
+    !(error instanceof OpenRouterRequestError)
+  ) {
+    return false;
+  }
+
+  if (
+    error.status !== 404
+  ) {
+    return false;
+  }
+
+  return /No endpoints found that can handle the requested parameters|Filter by Parameters|requested parameters/i.test(
+    error.detail,
+  );
+}
+
+function openRouterResponseFormat(
+  format?: "json",
+  jsonSchema?: LocalModelJsonSchema,
+): OpenRouterResponseFormat | undefined {
+  if (jsonSchema) {
+    return {
+      type: "json_schema",
+      json_schema: {
+        name: "qre_author_response",
+        strict: true,
+        schema: jsonSchema,
+      },
+    };
+  }
+
+  if (format === "json") {
+    return {
+      type: "json_object",
+    };
+  }
+
+  return undefined;
+}
+
+function openRouterMessages(
+  messages: LocalModelMessage[],
+): OpenRouterRequestBody["messages"] {
+  return messages.map((message) => ({
+    role:
+      message.role,
+
+    content:
+      message.images?.length
+        ? [
+            {
+              type: "text" as const,
+              text: message.content,
+            },
+            ...message.images.map((image) => ({
+              type: "image_url" as const,
+              image_url: {
+                url: image,
+              },
+            })),
+          ]
+        : message.content,
+  }));
+}
+
+async function requestOpenRouter(
+  body: OpenRouterRequestBody,
+): Promise<unknown> {
+  const apiKey =
+    openRouterApiKey();
+
+  if (!apiKey) {
+    throw new Error(
+      "OpenRouter transport requires OPENROUTER_API_KEY.",
+    );
+  }
+
+  const controller =
+    new AbortController();
+
+  const timeout =
+    timeoutMs();
+
+  const startedAt =
+    Date.now();
+
+  const timer =
+    setTimeout(() => {
+      console.log(
+        "QRE OPENROUTER TIMEOUT FIRING",
+        `after=${timeout}ms`,
+      );
+
+      controller.abort();
+    }, timeout);
+
+  const url =
+    `${openRouterBaseUrl()}/chat/completions`;
+
+  const serializedBody =
+    JSON.stringify(body);
+
+  try {
+    console.log(
+      "QRE OPENROUTER REQUEST START",
+    );
+
+    console.log(
+      "QRE OPENROUTER REQUEST URL:",
+      url,
+    );
+
+    console.log(
+      "QRE OPENROUTER REQUEST MODEL:",
+      body.model,
+    );
+
+    console.log(
+      "QRE OPENROUTER REQUEST FORMAT:",
+      body.response_format?.type ??
+        "default",
+    );
+
+    console.log(
+      "QRE OPENROUTER REQUEST MAX_TOKENS:",
+      body.max_tokens,
+    );
+
+    console.log(
+      "QRE OPENROUTER REQUEST MESSAGE COUNT:",
+      body.messages.length,
+    );
+
+    console.log(
+      "QRE OPENROUTER REQUEST BODY BYTES:",
+      Buffer.byteLength(
+        serializedBody,
+        "utf8",
+      ),
+    );
+
+    console.log(
+      "QRE OPENROUTER REQUEST CONTENT CHARS:",
+      body.messages.reduce(
+        (
+          total,
+          message,
+        ) => {
+          if (
+            typeof message.content ===
+            "string"
+          ) {
+            return (
+              total +
+              message.content.length
+            );
+          }
+
+          return (
+            total +
+            message.content.reduce(
+              (
+                partTotal,
+                part,
+              ) =>
+                part.type ===
+                "text"
+                  ? partTotal +
+                    part.text.length
+                  : partTotal,
+              0,
+            )
+          );
+        },
+        0,
+      ),
+    );
+
+    const response =
+      await fetch(
+        url,
+        {
+          method: "POST",
+          headers: {
+            "Content-Type":
+              "application/json",
+            Authorization:
+              `Bearer ${apiKey}`,
+          },
+          body:
+            serializedBody,
+          signal:
+            controller.signal,
+          dispatcher:
+            getDispatcher(),
+        } as RequestInit & {
+          dispatcher?: unknown;
+        },
+      );
+
+    console.log(
+      "QRE OPENROUTER RESPONSE STATUS:",
+      response.status,
+    );
+
+    console.log(
+      "QRE OPENROUTER TIME TO HEADERS MS:",
+      elapsedMs(
+        startedAt,
+      ),
+    );
+
+    if (!response.ok) {
+      const detail =
+        await response
+          .text()
+          .catch(
+            () => "",
+          );
+
+      console.log(
+        "QRE OPENROUTER RESPONSE ERROR BODY:",
+        detail,
+      );
+
+      throw new OpenRouterRequestError(
+        response.status,
+        detail,
+      );
+    }
+
+    const json =
+      await response.json();
+
+    if (
+      process.env
+        .QRE_AUTHOR_DEBUG_RAW ===
+      "true"
+    ) {
+      console.log(
+        "\n--- QRE RAW OPENROUTER RESPONSE JSON ---\n" +
+          JSON.stringify(
+            json,
+            null,
+            2,
+          ) +
+          "\n--- END QRE RAW OPENROUTER RESPONSE JSON ---\n",
+      );
+    }
+
+    console.log(
+      "QRE OPENROUTER RESPONSE JSON RECEIVED",
+    );
+
+    console.log(
+      "QRE OPENROUTER REQUEST TOTAL MS:",
+      elapsedMs(
+        startedAt,
+      ),
+    );
+
+    return json;
+  } catch (
+    error
+  ) {
+    console.log(
+      "QRE OPENROUTER REQUEST ERROR:",
+      error,
+    );
+
+    if (
+      isTransportError(
+        error,
+      )
+    ) {
+      console.log(
+        "QRE OPENROUTER REQUEST TRANSPORT FAILURE",
+        `code=${errorCode(error) ?? "unknown"}`,
+        `elapsedMs=${elapsedMs(
+          startedAt,
+        )}`,
+      );
+    }
+
+    throw error;
+  } finally {
+    clearTimeout(
+      timer,
+    );
+
+    console.log(
+      "QRE OPENROUTER REQUEST FINISHED",
+      `totalMs=${elapsedMs(
+        startedAt,
+      )}`,
+    );
+  }
 }
 type LocalRequestBody = {
   model: string;
@@ -838,6 +1285,111 @@ export async function localModelGenerate(
     },
   };
 
+  if (
+    openRouterEnabled()
+  ) {
+    const responseFormat =
+      openRouterResponseFormat(
+        format,
+        options.jsonSchema,
+      );
+
+    const openRouterModel =
+      openRouterModelName(
+        options.model,
+      );
+
+    const openRouterBody:
+      OpenRouterRequestBody = {
+      model:
+        openRouterModel,
+
+      stream:
+        false,
+
+      messages:
+        openRouterMessages(
+          messages,
+        ),
+
+      temperature,
+
+      max_tokens:
+        numPredict,
+
+      ...(responseFormat
+        ? {
+            response_format:
+              responseFormat,
+            provider: {
+              require_parameters:
+                true,
+            },
+          }
+        : {}),
+    };
+
+    let data: unknown;
+
+    try {
+      data =
+        await requestOpenRouter(
+          openRouterBody,
+        );
+    } catch (
+      error
+    ) {
+      if (
+        responseFormat?.type !==
+          "json_schema" ||
+        !isOpenRouterParameterRoutingFailure(
+          error,
+        )
+      ) {
+        throw error;
+      }
+
+      console.log(
+        "QRE OPENROUTER STRICT JSON_SCHEMA UNSUPPORTED",
+      );
+
+      console.log(
+        "QRE OPENROUTER RETRY FORMAT: json",
+      );
+
+      data =
+        await requestOpenRouter({
+          ...openRouterBody,
+          response_format: {
+            type: "json_object",
+          },
+        });
+    }
+
+    const text =
+      outputText(data);
+
+    if (
+      process.env
+        .QRE_AUTHOR_DEBUG_RAW ===
+      "true"
+    ) {
+      console.log(
+        "\n--- QRE RAW OPENROUTER MODEL OUTPUT ---\n" +
+          text +
+          "\n--- END QRE RAW OPENROUTER MODEL OUTPUT ---\n",
+      );
+    }
+
+    return {
+      text,
+      model:
+        openRouterModel,
+      provider:
+        "openrouter",
+    };
+  }
+
   try {
     const data =
       await request(
@@ -927,6 +1479,14 @@ export async function localModelGenerate(
 }
 
 export async function localModelHealthy(): Promise<boolean> {
+  if (
+    openRouterEnabled()
+  ) {
+    return Boolean(
+      openRouterApiKey(),
+    );
+  }
+
   const controller =
     new AbortController();
 
@@ -963,6 +1523,33 @@ export async function localModelHealthy(): Promise<boolean> {
 }
 
 export function localModelConfig() {
+  if (
+    openRouterEnabled()
+  ) {
+    return {
+      provider:
+        "openrouter" as const,
+
+      url:
+        openRouterBaseUrl(),
+
+      model:
+        openRouterModelName(),
+
+      timeoutMs:
+        timeoutMs(),
+
+      headersTimeoutMs:
+        headersTimeoutMs(),
+
+      bodyTimeoutMs:
+        bodyTimeoutMs(),
+
+      connectTimeoutMs:
+        connectTimeoutMs(),
+    };
+  }
+
   const model =
     modelName();
 

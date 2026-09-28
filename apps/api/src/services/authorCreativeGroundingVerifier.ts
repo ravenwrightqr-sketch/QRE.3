@@ -1,6 +1,14 @@
 import type { AuthorDomainContext, AuthorScene } from "@qre/contracts";
 import { localModelGenerate } from "./localModelRuntime.js";
 
+/**
+ * QRE CANONICAL AUTHOR BOUNDARY
+ *
+ * Atomic grounding is the final factual firewall. Do not weaken support kinds,
+ * unsupported-claim handling, verifier prompts, or accepted scene filtering as
+ * a side effect of unrelated Author work. See ./AUTHOR_ARCHITECTURE.md.
+ */
+
 const clean = (value: unknown): string =>
   String(value ?? "").replace(/\s+/g, " ").trim();
 
@@ -141,12 +149,12 @@ export async function verifyAuthorCreativeGrounding(input: {
     "You receive ATOMIC_CLAUSES plus the full SEQUENCE. Audit every clause independently, but interpret each clause pragmatically in the context of the full sequence.",
     "Distinguish MATERIAL REALITY from STORY TEXTURE.",
     "MATERIAL REALITY includes actors, deliberate actions, body actions, objects materially introduced into the event, ownership, motive, causality, chronology, success/failure, completed outcomes, relational status, and physical state changes. Material reality must be directly established by SUPPLIED_REALITY or be an unavoidable semantic paraphrase.",
-    "STORY TEXTURE may be allowed only when a clause is a nonliteral or hyperbolic rendering of the physical envelope already inherent in an explicitly supplied event. WORLD_CONTEXT may help interpret that texture but cannot supply missing scenery or physical details.",
+    "STORY TEXTURE may be allowed only when a clause is a nonliteral or hyperbolic expression of the physical envelope already inherent in an explicitly supplied event. WORLD_CONTEXT may help interpret that texture but cannot supply missing scenery or physical details.",
     "Story texture must not change what happened. It cannot add a new actor, deliberate action, body action, ownership, motive, causal relation, successful outcome, chronology, or consequential state.",
     "Typicality alone is not enough for material reality, but ordinary event texture can support non-material creative language. Example: in a supplied bath inside grooming context, 'Water. Everywhere.' can function as hyperbolic texture around the bath; it does not mean QRE knows a literal flood occurred.",
     "Exact measurements, technical specifications, quantities-with-units, readings, rates, calibration values, diagnostic values, and measured outcomes are MATERIAL REALITY. Never invent them for flavor. A line such as '250ml', '3.2 Nm', '7.1 L/min', '18% soil moisture', '42 PSI', or another exact measured value is UNSUPPORTED unless that value is supplied or unavoidably entailed by supplied reality.",
     "Documentary status language requires semantic judgment, not a word blacklist. A clearly nonliteral mission/game/status phrase may be FIGURATIVE when it merely dramatizes supplied completion or progress. But a clause that reads as a real observation, inspection, measurement, verification, diagnosis, pass/fail result, secured condition, anomaly finding, consumption result, or other documentary assertion is MATERIAL REALITY and requires support.",
-    "For example, 'Perimeter secured.' may be FIGURATIVE inside an unmistakable mission-style rendering of a supplied completion event. 'Visual sweep confirms perimeter secured' asserts an actual inspection and secured condition and is UNSUPPORTED unless supplied. Likewise, 'File closed.' may be rhetorical closure, while 'Status: Verified', 'No anomalies', 'Consumption: Complete', or 'Test: Pass' are factual status claims when presented as actual findings and require support.",
+    "For example, 'Perimeter secured.' may be FIGURATIVE inside an unmistakable mission-style expression of a supplied completion event. 'Inspection confirms perimeter secured' asserts an actual inspection and secured condition and is UNSUPPORTED unless supplied. Likewise, 'File closed.' may be rhetorical closure, while 'Status: Verified', 'No anomalies', 'Consumption: Complete', or 'Test: Pass' are factual status claims when presented as actual findings and require support.",
     "By contrast, a supplied bath does not establish that the subject shook, wagged, escaped, resisted, liked it, hated it, or became free.",
     "Do not convert emotion into body behavior. Happy does not establish wagging, smiling, jumping, posture, movement, or excitement.",
     "A neutral encounter does not establish reception by the other party. Meeting or seeing another person or animal does not by itself establish welcome, greeting, approval, affection, friendliness, invitation, or rejection.",
@@ -193,7 +201,7 @@ export async function verifyAuthorCreativeGrounding(input: {
     "Your fields must agree. If supported=true, unsupportedClaims MUST be []. If any unsupported material claim exists, set supported=false and supportKind=UNSUPPORTED.",
     "If supportKind is FIGURATIVE or CONTEXTUAL_TEXTURE, concreteClaims should normally be [] because the clause is being accepted as nonliteral framing rather than as a material assertion. Do not label a metaphorical word itself as a concrete claim while also accepting it as figurative texture.",
     "Do not put the clause itself into unsupportedClaims merely because it is compressed, figurative, or contextual texture. unsupportedClaims is only for material claims that exceed reality.",
-    "CONTEXTUAL_TEXTURE is allowed only for non-material scene texture. Never use it to excuse a new action, body behavior, outcome, motive, ownership, cause, chronology, or state change.",
+    "CONTEXTUAL_TEXTURE is allowed only for non-material contextual texture. Never use it to excuse a new action, body behavior, outcome, motive, ownership, cause, chronology, or state change.",
     "",
     "groundingHint is only a clue from the writer. Never treat it as evidence by itself.",
     "Return exactly one verification for every atomic clause, preserving sceneIndex and clauseIndex.",

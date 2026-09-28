@@ -1,4 +1,10 @@
 /*
+ * QRE CANONICAL AUTHOR BOUNDARY
+ *
+ * This orchestrator owns the canonical Author call graph. Do not change
+ * cognition, grounding, scoring, prompts, model behavior, or runtime contracts
+ * here as a side effect of unrelated Author work. See ./AUTHOR_ARCHITECTURE.md.
+ *
  * QRE CANONICAL AUTHOR
  *
  * One production creative path:

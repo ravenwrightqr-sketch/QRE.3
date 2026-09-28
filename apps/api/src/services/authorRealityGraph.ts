@@ -10,6 +10,12 @@ import type {
 import { looksLikeIdentityAssertion } from "@qre/contracts";
 
 /*
+ * QRE CANONICAL AUTHOR BOUNDARY
+ *
+ * RealityGraph is supplied-evidence authority. Do not change graph derivation,
+ * provenance, event structure, or truth boundaries as a side effect of
+ * unrelated Author work. See ./AUTHOR_ARCHITECTURE.md.
+ *
  * QRE FILE ROLE: RealityGraph construction.
  * AUTHORITY: supplied reality only.
  * ALLOWED: derive explainable semantic structure from explicit facts/moments.
