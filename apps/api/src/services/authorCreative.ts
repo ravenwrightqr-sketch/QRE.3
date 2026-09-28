@@ -1453,24 +1453,44 @@ function fallbackPlan(
   const preferred = events.filter((event) => selected.has(event.id));
   const source = preferred.length ? preferred : [...events];
   const limited = source;
+  const fallbackBeats: AuthorSemanticBeat[] = limited.map((event, index) => ({
+    order: index + 1,
+    role:
+      index === 0
+        ? "HOOK"
+        : index === limited.length - 1
+          ? "PAYOFF"
+          : "BUILD",
+    eventIds: [event.id],
+    attention: "Carry this supplied evidence clearly into the experience.",
+    change: event.text,
+  }));
+
+  if (fallbackBeats.length === 1) {
+    const only = fallbackBeats[0]!;
+    fallbackBeats.push({
+      ...only,
+      order: 2,
+      role: "PAYOFF",
+      attention: "Recontextualize the same supplied evidence without adding new reality.",
+      change:
+        discovery.selected.perception ||
+        discovery.selected.relationship ||
+        only.change,
+    });
+    fallbackBeats[0] = {
+      ...only,
+      role: "HOOK",
+      change: "Establish the supplied evidence without exhausting its meaning.",
+    };
+  }
 
   return {
     thesis:
       discovery.selected.id === "reality-direct"
         ? "Use supplied reality directly."
         : discovery.selected.perception || discovery.selected.relationship,
-    beats: limited.map((event, index) => ({
-      order: index + 1,
-      role:
-        index === 0
-          ? "HOOK"
-          : index === limited.length - 1
-            ? "PAYOFF"
-            : "BUILD",
-      eventIds: [event.id],
-      attention: "Carry this supplied evidence clearly into the experience.",
-      change: event.text,
-    })),
+    beats: fallbackBeats,
   };
 }
 
@@ -1856,13 +1876,18 @@ function lockPlanToApprovedMeaning(
   const allowEvidenceCallback = discovery.experienceShape.some((hint) =>
     /callback|recurrence|repetition|echo/i.test(clean(hint)),
   );
+  const planEvidenceIds = plan.beats
+    .flatMap((beat) => beat.eventIds.map(clean))
+    .filter(Boolean);
+  const allowSingleEvidenceMovement =
+    plan.beats.length > 1 && new Set(planEvidenceIds).size === 1;
   const seenEventIds = new Set<string>();
   const uniquePlanBeats = plan.beats
     .map((beat) => ({
       ...beat,
       eventIds: beat.eventIds.filter((id) => {
         const key = clean(id);
-        if (allowEvidenceCallback) return true;
+        if (allowEvidenceCallback || allowSingleEvidenceMovement) return true;
         if (seenEventIds.has(key)) return false;
         seenEventIds.add(key);
         return true;
@@ -2340,18 +2365,12 @@ export async function createAuthorExperience(input: {
   const selectedEvidence = input.suppliedReality.filter((event) =>
     playableIds.has(clean(event.id)),
   );
-  const useDeterministicSparsePlan =
-    selectedEvidence.length > 0 && selectedEvidence.length <= 3;
   const useDeterministicRealityDirectMemoryPlan =
     isMemoryMode &&
     realityDirect &&
     selectedEvidence.length > 0;
-  const useDeterministicPlan =
-    useDeterministicSparsePlan || useDeterministicRealityDirectMemoryPlan;
-  const useIdentityClusterPlan =
-    useDeterministicSparsePlan &&
-    experienceMode === "IDENTITY" &&
-    selectedEvidence.length > 1;
+  const useDeterministicPlan = useDeterministicRealityDirectMemoryPlan;
+  const useIdentityClusterPlan = false;
 
   const planResult = useDeterministicPlan
     ? {
@@ -2368,6 +2387,10 @@ export async function createAuthorExperience(input: {
           "AUTHORIZED_EVIDENCE is the factual material available to this experience.",
           "Build the strongest sequence from authorized event IDs and preserve the supplied relationships that make the experience meaningful.",
           "Let the material determine the number of beats. A beat may contain one event or several tightly related events when grouping creates a stronger unit of experience.",
+          "An authored QRE experience must move. Never collapse the entire experience into one playable beat.",
+          "Movement is expressive, not a checklist. Do not create one beat per supplied item merely to increase beat count, and do not mechanically split one thought into fragments.",
+          "A small amount of supplied material can still support several structural moves when the approved meaning can unfold through setup, pressure, contrast, turn, recontextualization, callback, or payoff.",
+          "When only one supplied evidence item carries the experience, that same evidence ID may support more than one structural beat if each beat performs a genuinely different expressive function. Reusing evidence does not authorize a new event or new fact.",
           "Compression is structural, not destructive. Grouping changes organization while keeping the selected reality available to realization.",
           "Use sequence to create room for progression, contrast, accumulation, interruption, return, reveal, callback, or payoff when those relationships are supported by the supplied material and approved experience shape.",
           "The plan is structural rather than viewer-facing. Represent what each beat carries through its authorized event IDs.",
@@ -2389,7 +2412,7 @@ export async function createAuthorExperience(input: {
           AUTHORIZED_EVIDENCE: selectedEvidence,
           EXPERIENCE_SHAPE: input.creativeDiscovery.experienceShape,
           instruction:
-            "Return the strongest structural beat sequence using the authorized evidence IDs. Preserve every authorized evidence item somewhere in the sequence; group related evidence when that strengthens the experience.",
+            "Return the strongest moving structural beat sequence using the authorized evidence IDs. The experience must contain more than one beat. Preserve every authorized evidence item somewhere in the sequence, but do not map facts mechanically to beats. Let the approved meaning unfold through distinct expressive moves. If only one evidence item carries the experience, it may be reused across beats without inventing additional reality.",
         }),
       },
     ],
@@ -2404,7 +2427,7 @@ export async function createAuthorExperience(input: {
         properties: {
           beats: {
             type: "array",
-            minItems: 1,
+            minItems: 2,
             items: {
               type: "object",
               additionalProperties: false,
@@ -2427,20 +2450,9 @@ export async function createAuthorExperience(input: {
     },
   );
 
-  const rawPlan = useIdentityClusterPlan
-    ? {
-        thesis: selected.perception || selected.relationship,
-        beats: [{
-          order: 1,
-          role: "PAYOFF" as AuthorBeatRole,
-          eventIds: selectedEvidence.map((event) => event.id),
-          attention: selectedEvidence.map((event) => event.text).join(" | "),
-          change: selected.perception || selected.relationship,
-        }],
-      }
-    : useDeterministicPlan
-      ? fallbackPlan(selectedEvidence, input.creativeDiscovery)
-      : normalizePlan(parseJson(planResult.text), allowedEventIds) ??
+  const rawPlan = useDeterministicPlan
+    ? fallbackPlan(selectedEvidence, input.creativeDiscovery)
+    : normalizePlan(parseJson(planResult.text), allowedEventIds) ??
       fallbackPlan(input.suppliedReality, input.creativeDiscovery);
 
   const structurallySafePlan = isMemoryMode
@@ -2466,13 +2478,9 @@ export async function createAuthorExperience(input: {
       );
 
   debug("BARE-AUTHOR-PLAN", {
-    mode: useIdentityClusterPlan
-      ? "DETERMINISTIC_IDENTITY_CLUSTER"
-      : useDeterministicRealityDirectMemoryPlan
-        ? "DETERMINISTIC_REALITY_DIRECT_MEMORY"
-        : useDeterministicSparsePlan
-          ? "DETERMINISTIC_SPARSE"
-          : "MODEL_STRUCTURE",
+    mode: useDeterministicRealityDirectMemoryPlan
+      ? "DETERMINISTIC_REALITY_DIRECT_MEMORY"
+      : "MODEL_STRUCTURE",
     raw: useDeterministicPlan ? "SKIPPED_MODEL_PLAN" : planResult.text,
     memoryStructureAdjusted:
       isMemoryMode &&
