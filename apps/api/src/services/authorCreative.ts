@@ -2490,7 +2490,7 @@ export async function createAuthorExperience(input: {
     ],
     "json",
     {
-      numPredict: 260,
+      numPredict: 700,
       temperature: 0.18,
       jsonSchema: {
         type: "object",
@@ -2535,16 +2535,37 @@ export async function createAuthorExperience(input: {
     },
   );
 
-  const rawPlan =
-    normalizePlan(parseJson(planResult.text), allowedEventIds, perceptualTreatmentIds) ??
-    fallbackPlan(selectedEvidence.length ? selectedEvidence : input.suppliedReality, input.creativeDiscovery);
+  const parsedPlan = parseJson(planResult.text);
+  const normalizedModelPlan = normalizePlan(
+    parsedPlan,
+    allowedEventIds,
+    perceptualTreatmentIds,
+  );
+  const rawPlan = normalizedModelPlan ??
+    fallbackPlan(
+      selectedEvidence.length ? selectedEvidence : input.suppliedReality,
+      input.creativeDiscovery,
+    );
 
   const structurallySafePlan = isMemoryMode
     ? enforceMemoryStructure(rawPlan, selectedEvidence)
     : rawPlan;
+  const preLockPlan = structurallySafePlan;
+  const lockAuthorizedEventIds = new Set(
+    (
+      input.creativeDiscovery.playableEventIds.length
+        ? input.creativeDiscovery.playableEventIds
+        : input.creativeDiscovery.selected.evidenceEventIds
+    ).map(clean).filter(Boolean),
+  );
+  const meaningLockReplacedModelMoves =
+    normalizedModelPlan !== undefined &&
+    !preLockPlan.moves.some((move) =>
+      move.eventIds.some((id) => lockAuthorizedEventIds.has(clean(id))),
+    );
 
   const initiallyLockedPlan = lockPlanToApprovedMeaning(
-    structurallySafePlan,
+    preLockPlan,
     input.suppliedReality,
     input.creativeDiscovery,
   );
@@ -2560,6 +2581,23 @@ export async function createAuthorExperience(input: {
         input.suppliedReality,
         input.creativeDiscovery,
       );
+
+  debug("COMPOSER-DECISION", {
+    numPredict: 700,
+    rawResponse: planResult.text,
+    parseSucceeded: parsedPlan !== undefined,
+    normalizeSucceeded: normalizedModelPlan !== undefined,
+    normalizedModelPlan,
+    fallbackStage: normalizedModelPlan === undefined
+      ? "PARSE_OR_NORMALIZE"
+      : meaningLockReplacedModelMoves
+        ? "MEANING_LOCK"
+        : "NONE",
+    preLockPlan,
+    postLockPlan: initiallyLockedPlan,
+    meaningLockReplacedModelMoves,
+    finalPlan: plan,
+  });
 
   debug("BARE-AUTHOR-PLAN", {
     mode: realityDirectMemoryUsesComposition
