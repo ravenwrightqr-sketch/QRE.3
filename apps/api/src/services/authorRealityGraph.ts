@@ -12,15 +12,27 @@ import { looksLikeIdentityAssertion } from "@qre/contracts";
 /*
  * QRE CANONICAL AUTHOR BOUNDARY
  *
- * RealityGraph is supplied-evidence authority. Do not change graph derivation,
- * provenance, event structure, or truth boundaries as a side effect of
- * unrelated Author work. See ./AUTHOR_ARCHITECTURE.md.
+ * FILE ROLE:
+ * Builds the closed supplied-reality graph: events, entities, relations,
+ * evidence, continuity, and derived structure used by later cognition.
  *
- * QRE FILE ROLE: RealityGraph construction.
- * AUTHORITY: supplied reality only.
- * ALLOWED: derive explainable semantic structure from explicit facts/moments.
- * FORBIDDEN: invented events, invented causality, generic predicates presented as truth.
- * MEDIA RULE: media is an artifact, not an inferred human action.
+ * OWNS:
+ * - splitting supplied material into canonical reality events
+ * - deriving explainable graph structure from explicit facts/moments
+ * - preserving provenance and event IDs used downstream
+ * - distinguishing supplied evidence from derived scaffolding
+ *
+ * DOES NOT OWN:
+ * - deciding final creative meaning
+ * - selecting playable moments
+ * - relaxing factual authority for prettier output
+ * - writing viewer-facing lines
+ *
+ * DRIFT WARNING:
+ * Derived structure may suggest meaning, never assert new reality. Do not
+ * invent events, causality, people, objects, locations, motives, outcomes, or
+ * generic predicates as truth. Media is an artifact, not an inferred human
+ * action. See ./AUTHOR_ARCHITECTURE.md.
  *
  * The graph is intentionally rich. Truth stays in evidence/event labels;
  * everything below is derived scaffolding for cognition, movie search and

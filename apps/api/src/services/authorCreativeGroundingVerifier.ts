@@ -4,9 +4,26 @@ import { localModelGenerate } from "./localModelRuntime.js";
 /**
  * QRE CANONICAL AUTHOR BOUNDARY
  *
- * Atomic grounding is the final factual firewall. Do not weaken support kinds,
- * unsupported-claim handling, verifier prompts, or accepted scene filtering as
- * a side effect of unrelated Author work. See ./AUTHOR_ARCHITECTURE.md.
+ * FILE ROLE:
+ * Final atomic grounding verifier. Checks realized scenes against supplied
+ * reality after Author has finished cognition and Mouth realization.
+ *
+ * OWNS:
+ * - clause-level unsupported-claim detection
+ * - support kind interpretation
+ * - accepted/rejected scene filtering
+ * - final factual firewall diagnostics
+ *
+ * DOES NOT OWN:
+ * - upstream Creative Discovery
+ * - Experience Composition or Mouth creativity
+ * - making weak creative output pass by relaxing truth
+ *
+ * DRIFT WARNING:
+ * Grounding asks "did QRE invent concrete reality?", not "did QRE repeat every
+ * supplied fact?" Do not weaken support kinds, unsupported-claim handling,
+ * verifier prompts, or accepted scene filtering as a side effect of unrelated
+ * Author work. See ./AUTHOR_ARCHITECTURE.md.
  */
 
 const clean = (value: unknown): string =>

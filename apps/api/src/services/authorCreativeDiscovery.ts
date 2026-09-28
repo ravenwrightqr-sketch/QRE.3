@@ -4,9 +4,28 @@ import { localModelGenerate } from "./localModelRuntime.js";
 /**
  * QRE CANONICAL AUTHOR BOUNDARY
  *
- * Creative Discovery owns upstream semantic candidates, discovery grounding,
- * and discovery repair. Do not modify prompts, schemas, grounding, repair, or
- * selection here as a side effect of unrelated Author work.
+ * FILE ROLE:
+ * Deep Creative Discovery. Searches supplied reality for grounded internal
+ * conceptions before downstream perceptual discovery and composition decide
+ * what becomes the experience.
+ *
+ * OWNS:
+ * - Creative Discovery response schema and prompt
+ * - candidate normalization and selected candidate identity
+ * - discovery grounding, repair, and truth-floor checks
+ * - playable/background evidence selection for later stages
+ *
+ * DOES NOT OWN:
+ * - Creative Lens treatment search
+ * - Experience Composition movement
+ * - Mouth language realization
+ * - final atomic grounding
+ * - model transport settings
+ *
+ * DRIFT WARNING:
+ * Discovery may think deeply and discover more meaning than final output
+ * expresses, but it may not change supplied material reality. Do not patch
+ * final prose problems here unless the issue is truly upstream discovery.
  * See ./AUTHOR_ARCHITECTURE.md.
  */
 

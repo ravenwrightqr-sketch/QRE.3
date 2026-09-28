@@ -54,6 +54,7 @@ const forbiddenTokens = [
 const allowedAuthorServiceFiles = new Set([
   "authorRealityExtractor.ts",
   "authorRealityGraph.ts",
+  "authorRealityAuthority.ts",
   "authorCreativeDiscovery.ts",
   "authorCreative.ts",
   "authorCreativeDoctrine.ts",
@@ -96,12 +97,13 @@ if (!/authorCutFloor\.js/.test(creative) || !/evaluateAuthorCut\s*\(/.test(creat
   failures.push("QRE Creative must pass Mouth candidates through deterministic cut policy");
 }
 if (
-  !/You are QRE Bare Author Structure Planner\./.test(creative) ||
-  !/Discovery already owns meaning\./.test(creative) ||
+  !/You are QRE Experience Composer\./.test(creative) ||
+  !/PERCEPTUAL_DISCOVERIES are possible ways this same reality can be read\./.test(creative) ||
+  !/APPROVED_MOVES/.test(creative) ||
   !/You are QRE Mouth\./.test(creative) ||
-  !/DETERMINISTIC_SPARSE/.test(creative)
+  !/Composition owns movement and provenance\. Mouth owns language realization\./.test(creative)
 ) {
-  failures.push("QRE Creative must separate Discovery meaning, Author structure, and Mouth realization");
+  failures.push("QRE Creative must separate Perceptual Discovery, Experience Composition, and Mouth realization");
 }
 
 const authorServiceDir = join(root, "apps/api/src/services");
@@ -139,4 +141,4 @@ if (failures.length) {
   console.error(`AUTHOR ARCHITECTURE GUARD FAILED · ${failures.length}`);
   process.exit(1);
 }
-console.log("GREEN · ONE AUTHOR PATH · REALITY -> DISCOVERY -> AUTHOR STRUCTURE -> MOUTH -> CUT FLOOR -> GROUNDING -> RUNTIME");
+console.log("GREEN - ONE AUTHOR PATH - REALITY -> DISCOVERY -> PERCEPTUAL DISCOVERY -> COMPOSITION -> MOUTH -> CUT FLOOR -> GROUNDING -> RUNTIME");

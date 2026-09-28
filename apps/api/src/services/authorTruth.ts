@@ -1,3 +1,22 @@
+/**
+ * QRE AUTHOR SUPPORT BOUNDARY
+ *
+ * FILE ROLE:
+ * Resolves stable subject truth from explicit subject input and active memory.
+ *
+ * OWNS:
+ * - subject identity/pronoun hints
+ * - active memory identity/attribute carry-forward
+ *
+ * DOES NOT OWN:
+ * - RealityGraph event construction
+ * - Creative Discovery or perception
+ * - final wording or grounding policy
+ *
+ * DRIFT WARNING:
+ * Treat memory as supplied context only when it is active and relevant. Do not
+ * infer personality, motive, chronology, or creative meaning here.
+ */
 import type { MemoryContext, SubjectTruth } from "@qre/contracts";
 
 const clean = (value: unknown) => String(value ?? "").replace(/\s+/g, " ").trim();

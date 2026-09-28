@@ -1,3 +1,25 @@
+/**
+ * QRE CANONICAL AUTHOR BOUNDARY
+ *
+ * FILE ROLE:
+ * Optional Reality Extractor. Converts under-specified user input into explicit
+ * supplied facts only when the caller did not already provide enough facts or a
+ * RealityGraph.
+ *
+ * OWNS:
+ * - recovering concrete reality explicitly supplied by the user
+ * - preserving subject/fact receipts for downstream RealityGraph construction
+ *
+ * DOES NOT OWN:
+ * - creative meaning, emotion, story, causality, or interpretation
+ * - RealityGraph relation derivation
+ * - Creative Discovery or Mouth wording
+ *
+ * DRIFT WARNING:
+ * Do not make this stage "helpful" by inferring likely conditions, motives,
+ * before/after states, or creative hooks. If it is not supplied, it is not a
+ * fact. See ./AUTHOR_ARCHITECTURE.md.
+ */
 import { localModelGenerate } from "./localModelRuntime.js";
 
 const clean = (value: unknown): string =>

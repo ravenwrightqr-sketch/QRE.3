@@ -11,9 +11,30 @@ import {
 /**
  * QRE CANONICAL AUTHOR BOUNDARY
  *
- * This file owns Structure Planner, Creative Search, Mouth realization, Mouth
- * repair/fallback, and acceptance/scoring glue. Model-facing behavior in this
- * file is architectural. See ./AUTHOR_ARCHITECTURE.md before changing prompts,
+ * FILE ROLE:
+ * Canonical Author middle path:
+ * Creative Lens / Perceptual Discovery -> Experience Composition -> Mouth.
+ *
+ * OWNS:
+ * - perceptual treatment search after Creative Discovery
+ * - semantic-mechanic diagnostics and treatment compatibility
+ * - experience composition: attention, grouping, omission, reuse, progression,
+ *   recontextualization, return, and payoff
+ * - Mouth realization, Mouth repair/fallback, and local production scoring
+ *
+ * DOES NOT OWN:
+ * - Reality extraction, RealityGraph truth, or Reality Authority categories
+ * - Creative Discovery candidate generation/repair/selection
+ * - final atomic grounding verifier policy
+ * - model provider transport, token budgets, or temperatures outside call sites
+ *
+ * DRIFT WARNING:
+ * Keep the stage boundary clean: Discovery finds more meaning than the final
+ * experience expresses; Composition decides perceptual movement and provenance;
+ * Mouth realizes the composed movement in language; grounding protects concrete
+ * reality. Do not make Mouth re-architect the experience, do not make coverage
+ * mean every supplied fact must be said, and do not add benchmark-specific
+ * creative patches. See ./AUTHOR_ARCHITECTURE.md before changing prompts,
  * cognition, grounding, scoring, or model behavior.
  */
 
@@ -79,19 +100,21 @@ export type AuthorCreativeEvent = {
   text: string;
 };
 
-export type AuthorBeatRole = "HOOK" | "BUILD" | "TURN" | "PAYOFF";
+export type AuthorExperienceMoveRole = "HOOK" | "BUILD" | "TURN" | "PAYOFF";
 
-export type AuthorSemanticBeat = {
+export type AuthorExperienceMove = {
   order: number;
-  role: AuthorBeatRole;
+  role: AuthorExperienceMoveRole;
   eventIds: string[];
-  attention: string;
-  change: string;
+  purpose: string;
+  perceptualMove: string;
 };
 
-export type AuthorSemanticPlan = {
+export type AuthorExperienceComposition = {
   thesis: string;
-  beats: AuthorSemanticBeat[];
+  perceptualTreatmentId?: string;
+  moves: AuthorExperienceMove[];
+  unusedEventIds: string[];
 };
 
 export type AuthorCreativeTreatmentAssignment = {
@@ -794,7 +817,6 @@ function failureLessonFromReason(
 export async function searchAuthorCreativeLensTreatments(input: {
   subject: string;
   suppliedReality: readonly AuthorCreativeEvent[];
-  plan: AuthorSemanticPlan;
   creativeOpportunity: string;
   relation: string;
   experienceMode?: string;
@@ -835,20 +857,22 @@ export async function searchAuthorCreativeLensTreatments(input: {
           "HARD_ENDPOINT_EVENT_ID is already locked by QRE. Earlier supplied evidence may earn it; the endpoint itself is not the creative idea.",
           "Operational anchors are provenance by default. Do not center timing, precision, logging, documentation, duration, or completion unless the supplied relationship truly depends on them.",
           "Search broadly in private. Return exactly three materially different latent relations and one finalist per relation in the same order.",
+          "REALITY STAYS FIXED. PERSPECTIVE GETS DANGEROUS.",
           "Use these questions as creative search pressure: What changes the read of everything else? Which supplied detail refuses to stay ordinary? What becomes more interesting when two true facts are forced together? What later fact changes the meaning of an earlier one?",
-          "Ask: What can be made larger in meaning without becoming larger in fact? Where is the status shift? What is the smallest detail carrying the most story? What can be twisted rhetorically without creating a new event?",
-          "Ask: Which fact can become a verdict, trophy, threat, joke, challenge, battle, ritual, callback, or character signal without ceasing to be the same fact?",
+          "Ask: What perspective can occupy the same reality without adding an event? What attitude can be implied with almost no language? What can be made larger in meaning without becoming larger in fact? What is the smallest detail carrying the most story?",
+          "Search through perspective, attitude, implication, recontextualization, double meaning, rhetorical scale, personification, contrast, callback, tiny-detail dominance, semantic consequence, and model-discovered territory we did not name. These are examples of freedom, not a taxonomy, checklist, or menu.",
           "Do not summarize the reality. Make the reality acquire attitude. Do not explain the relationship; make the next move prove it.",
           "Prefer a relation that could only have come from THESE facts over a generic mood that could fit anything.",
           "A finalist should bend meaning as far as possible without bending reality.",
-          "CREATIVE PRESSURE IS NOT FACT. After finding the grounded relation, aggressively test it through different imaginative universes. Game, cyber/system, heist, noir, battle, bureaucracy, ritual, horror, sport, courtroom, myth, deadpan absurdity, status war, mission control, and entirely new model-discovered pressures are all legal rhetorical frames.",
-          "Do not merely name a genre. Use pressure to change the read of the supplied facts: status, stakes, rhythm, hierarchy, conflict, callback, irony, escalation, or meaning.",
-          "The three finalists must not share one mood. Make them compete from materially different creative pressures.",
-          "For each treatment, creativePressure names the governing pressure in a few words. It may use a known universe or invent a new one. The name is diagnostic, not a template.",
-          "Known pressures are seeds, never a menu and never a ceiling. If the facts suggest a stranger pressure, invent it.",
+          "CREATIVE PRESSURE IS NOT FACT. A known rhetorical frame is valid only when the supplied reality genuinely makes it the strongest discovery; otherwise find the grammar this material creates for itself.",
+          "Do not merely name a genre, pressure, or universe. Use pressure to change the perception of the supplied facts through implication, consequence, relation, emphasis, rhythm, or meaning.",
+          "The three finalists must represent genuinely different perceptual discoveries. Three different costumes for the same underlying frame do not count as creative diversity.",
+          "For example, bureaucracy, war, and protocol can all secretly be the same control/status conception. Do not blacklist those frames; use one when it is truly strongest, but do not return cousins as if they were three discoveries.",
+          "If multiple searches independently converge because one perception is overwhelmingly strong in the supplied material, preserve that possibility. The requirement is genuine search, not artificial diversity.",
+          "For each treatment, creativePressure names the governing perceptual pressure in a few words. It may name a known frame only when that frame is earned, or describe a stranger model-discovered grammar.",
           "At least one finalist should be bold enough that a cautious model would probably not choose it, while still preserving exact concrete reality.",
           "Penalize atmospheric vagueness. Ambiguity, impermanence, subtlety, transience, melancholy, emptiness, longing, and similar mood words are not a creative conception by themselves.",
-          "Prefer executable creative ideas: count can become escalation, resistance can become negotiation, an object can become status, completion can become verdict, repetition can become game logic, and sequence can become mission logic — only as rhetoric, never literal new facts.",
+          "Prefer executable creative ideas: a supplied detail can create perspective, attitude, consequence, double meaning, callback, or a strange private logic only as rhetoric, never literal new facts.",
           "Ask of every finalist: could this exact idea have emerged from almost any four facts? If yes, it is too generic. Make it depend on THESE facts.",
           "Each relation must name the supplied event IDs that make it possible. A missing fact is not a relation.",
           "hiddenInference is optional. Leave it empty unless the supplied facts genuinely support an unstated realization.",
@@ -866,10 +890,13 @@ export async function searchAuthorCreativeLensTreatments(input: {
         content: JSON.stringify({
           SUBJECT: input.subject,
           CREATIVE_EVIDENCE: creativeEvidenceProjection(input.suppliedReality),
+          CREATIVE_DISCOVERY: {
+            perception: clean(input.creativeOpportunity) || undefined,
+            relationship: clean(input.relation) || undefined,
+          },
           HARD_ENDPOINT_EVENT_ID: fallbackStoryGravity(input.suppliedReality).endpointEventId,
           MODE_HINT: clean(input.experienceMode) || undefined,
           REQUESTED_LENS: requestedLens || undefined,
-          SEMANTIC_MECHANIC: semanticMechanic.mechanic,
           instruction:
             "Return STORY_GRAVITY plus exactly three distinct latent relations and exactly three finalist moves. Finalist 1 uses relation 1, finalist 2 relation 2, finalist 3 relation 3. Keep provenance in the relations; do not repeat relation text or event IDs inside finalists. Leave hiddenInference empty when no real unstated realization is earned.",
         }),
@@ -1352,7 +1379,7 @@ function isBusinessCreativeContext(domainContext?: AuthorDomainContext): boolean
     /\b(?:SERVICE|BUSINESS|COMMERCE|RETAIL|RESTAURANT|HOSPITALITY|GROOMING)\b/.test(category);
 }
 
-function normalizeRole(value: unknown, index: number, total: number): AuthorBeatRole {
+function normalizeRole(value: unknown, index: number, total: number): AuthorExperienceMoveRole {
   const role = clean(value).toUpperCase();
   if (role === "HOOK" || role === "BUILD" || role === "TURN" || role === "PAYOFF") {
     return role;
@@ -1365,11 +1392,12 @@ function normalizeRole(value: unknown, index: number, total: number): AuthorBeat
 function normalizePlan(
   value: Record<string, unknown> | undefined,
   allowedEventIds: Set<string>,
-): AuthorSemanticPlan | undefined {
-  const rawBeats = Array.isArray(value?.beats) ? value!.beats : [];
-  const beats: AuthorSemanticBeat[] = [];
+  allowedTreatmentIds: Set<string> = new Set(),
+): AuthorExperienceComposition | undefined {
+  const rawMoves = Array.isArray(value?.moves) ? value!.moves : [];
+  const moves: AuthorExperienceMove[] = [];
 
-  for (const [index, raw] of rawBeats.entries()) {
+  for (const [index, raw] of rawMoves.entries()) {
     if (!raw || typeof raw !== "object") continue;
     const record = raw as Record<string, unknown>;
     const eventIds = Array.isArray(record.eventIds)
@@ -1382,63 +1410,59 @@ function normalizePlan(
 
     if (!eventIds.length) continue;
 
-    beats.push({
-      order: beats.length + 1,
-      role: normalizeRole(record.role, index, rawBeats.length),
+    moves.push({
+      order: moves.length + 1,
+      role: normalizeRole(record.role, index, rawMoves.length),
       eventIds,
-      attention: clean(record.attention),
-      change: clean(record.change),
+      purpose: clean(record.purpose),
+      perceptualMove: clean(record.perceptualMove),
     });
   }
 
-  if (!beats.length) return undefined;
+  if (!moves.length) return undefined;
+
+  const usedIds = new Set(moves.flatMap((move) => move.eventIds).map(clean));
+  const unusedEventIds = Array.isArray(value?.unusedEventIds)
+    ? unique(
+        value.unusedEventIds
+          .filter((id): id is string => typeof id === "string")
+          .map(clean)
+          .filter((id) => allowedEventIds.has(id) && !usedIds.has(id)),
+      )
+    : [];
 
   return {
     thesis: clean(value?.thesis),
-    beats,
+    perceptualTreatmentId: allowedTreatmentIds.has(clean(value?.perceptualTreatmentId))
+      ? clean(value?.perceptualTreatmentId)
+      : undefined,
+    moves,
+    unusedEventIds,
   };
 }
 
 function enforceMemoryStructure(
-  plan: AuthorSemanticPlan,
+  plan: AuthorExperienceComposition,
   selectedEvidence: readonly AuthorCreativeEvent[],
-): AuthorSemanticPlan {
-  if (!selectedEvidence.length) return plan;
-
-  const selectedIds = selectedEvidence.map((event) => clean(event.id));
-  const selectedSet = new Set(selectedIds);
-  const covered = new Set(
-    plan.beats
-      .flatMap((beat) => beat.eventIds)
-      .map(clean)
-      .filter((id) => selectedSet.has(id)),
-  );
-
-  const completeCoverage = selectedIds.every((id) => covered.has(id));
-  const sourcePlan = completeCoverage
-    ? plan
-    : {
-        ...plan,
-        beats: selectedEvidence.map((event, index) => ({
-          order: index + 1,
-          role: "BUILD" as AuthorBeatRole,
-          eventIds: [event.id],
-          attention: "",
-          change: "",
-        })),
-      };
+): AuthorExperienceComposition {
+  const selectedIds = new Set(selectedEvidence.map((event) => clean(event.id)));
+  const usedIds = new Set(plan.moves.flatMap((move) => move.eventIds).map(clean));
+  const unusedEventIds = unique([
+    ...plan.unusedEventIds.filter((id) => selectedIds.has(clean(id)) && !usedIds.has(clean(id))),
+  ]);
 
   return {
-    ...sourcePlan,
-    beats: sourcePlan.beats.map((beat, index, all) => ({
-      ...beat,
+    ...plan,
+    unusedEventIds,
+    moves: plan.moves.map((move, index, all) => ({
+      ...move,
       order: index + 1,
       role:
         index === 0
           ? "HOOK"
           : index === all.length - 1
             ? "PAYOFF"
-            : beat.role === "TURN"
+            : move.role === "TURN"
               ? "TURN"
               : "BUILD",
     })),
@@ -1448,12 +1472,12 @@ function enforceMemoryStructure(
 function fallbackPlan(
   events: readonly AuthorCreativeEvent[],
   discovery: AuthorCreativeDiscovery,
-): AuthorSemanticPlan {
+): AuthorExperienceComposition {
   const selected = new Set(discovery.selected.evidenceEventIds);
   const preferred = events.filter((event) => selected.has(event.id));
   const source = preferred.length ? preferred : [...events];
   const limited = source;
-  const fallbackBeats: AuthorSemanticBeat[] = limited.map((event, index) => ({
+  const fallbackMoves: AuthorExperienceMove[] = limited.map((event, index) => ({
     order: index + 1,
     role:
       index === 0
@@ -1462,26 +1486,26 @@ function fallbackPlan(
           ? "PAYOFF"
           : "BUILD",
     eventIds: [event.id],
-    attention: "Carry this supplied evidence clearly into the experience.",
-    change: event.text,
+    purpose: "Carry this supplied evidence clearly into the experience.",
+    perceptualMove: event.text,
   }));
 
-  if (fallbackBeats.length === 1) {
-    const only = fallbackBeats[0]!;
-    fallbackBeats.push({
+  if (fallbackMoves.length === 1) {
+    const only = fallbackMoves[0]!;
+    fallbackMoves.push({
       ...only,
       order: 2,
       role: "PAYOFF",
-      attention: "Recontextualize the same supplied evidence without adding new reality.",
-      change:
+      purpose: "Recontextualize the same supplied evidence without adding new reality.",
+      perceptualMove:
         discovery.selected.perception ||
         discovery.selected.relationship ||
-        only.change,
+        only.perceptualMove,
     });
-    fallbackBeats[0] = {
+    fallbackMoves[0] = {
       ...only,
       role: "HOOK",
-      change: "Establish the supplied evidence without exhausting its meaning.",
+      perceptualMove: "Establish the supplied evidence without exhausting its meaning.",
     };
   }
 
@@ -1490,11 +1514,14 @@ function fallbackPlan(
       discovery.selected.id === "reality-direct"
         ? "Use supplied reality directly."
         : discovery.selected.perception || discovery.selected.relationship,
-    beats: fallbackBeats,
+    moves: fallbackMoves,
+    unusedEventIds: events
+      .map((event) => event.id)
+      .filter((id) => !fallbackMoves.some((move) => move.eventIds.includes(id))),
   };
 }
 
-function beatKind(role: AuthorBeatRole, index: number, total: number): AuthorScene["kind"] {
+function beatKind(role: AuthorExperienceMoveRole, index: number, total: number): AuthorScene["kind"] {
   if (role === "HOOK" || index === 0) return "hook";
   if (role === "PAYOFF" || index === total - 1) return "payoff";
   if (role === "TURN") return "turn";
@@ -1524,19 +1551,19 @@ function replayTokens(value: string): string[] {
 function futureEvidenceLeakReason(
   text: string,
   beatIndex: number,
-  plan: AuthorSemanticPlan,
+  plan: AuthorExperienceComposition,
   suppliedReality: readonly AuthorCreativeEvent[],
 ): string | undefined {
   if (!clean(text)) return undefined;
 
   const establishedIds = new Set(
-    plan.beats
+    plan.moves
       .slice(0, beatIndex + 1)
       .flatMap((beat) => beat.eventIds)
       .map(clean),
   );
   const futureIds = new Set(
-    plan.beats
+    plan.moves
       .slice(beatIndex + 1)
       .flatMap((beat) => beat.eventIds)
       .map(clean),
@@ -1868,55 +1895,14 @@ function variantScore(
 }
 
 function lockPlanToApprovedMeaning(
-  plan: AuthorSemanticPlan,
+  plan: AuthorExperienceComposition,
   events: readonly AuthorCreativeEvent[],
   discovery: AuthorCreativeDiscovery,
-): AuthorSemanticPlan {
+): AuthorExperienceComposition {
   const selected = discovery.selected;
-  const allowEvidenceCallback = discovery.experienceShape.some((hint) =>
-    /callback|recurrence|repetition|echo/i.test(clean(hint)),
-  );
-  const planEvidenceIds = plan.beats
-    .flatMap((beat) => beat.eventIds.map(clean))
-    .filter(Boolean);
-  const allowSingleEvidenceMovement =
-    plan.beats.length > 1 && new Set(planEvidenceIds).size === 1;
-  const seenEventIds = new Set<string>();
-  const uniquePlanBeats = plan.beats
-    .map((beat) => ({
-      ...beat,
-      eventIds: beat.eventIds.filter((id) => {
-        const key = clean(id);
-        if (allowEvidenceCallback || allowSingleEvidenceMovement) return true;
-        if (seenEventIds.has(key)) return false;
-        seenEventIds.add(key);
-        return true;
-      }),
-    }))
-    .filter((beat) => beat.eventIds.length > 0);
-  const planWithUniqueEvidence = {
-    ...plan,
-    beats: uniquePlanBeats,
-  };
   const approvedMeaning = clean(selected.perception || selected.relationship);
   const approvedRelation = clean(selected.relationship);
   const realityDirect = clean(selected.id).toLowerCase() === "reality-direct";
-
-  if (realityDirect) {
-    return {
-      thesis: "Use supplied reality directly.",
-      beats: planWithUniqueEvidence.beats.map((beat) => ({
-        ...beat,
-        attention: beat.eventIds
-          .map((id) => events.find((event) => event.id === id)?.text ?? "")
-          .map(clean)
-          .filter(Boolean)
-          .join(" | "),
-        change: "Advance the supplied reality directly; the creative work is perceptual rather than factual.",
-      })),
-    };
-  }
-
   const authorizedEventIds = new Set(
     (
       discovery.playableEventIds.length
@@ -1925,53 +1911,80 @@ function lockPlanToApprovedMeaning(
     ).map(clean).filter(Boolean),
   );
 
-  const scopedBeats = planWithUniqueEvidence.beats
-    .map((beat) => ({
-      ...beat,
-      eventIds: beat.eventIds.filter((id) => authorizedEventIds.has(clean(id))),
+  const scopedMoves = plan.moves
+    .map((move) => ({
+      ...move,
+      eventIds: move.eventIds.filter((id) => authorizedEventIds.has(clean(id))),
     }))
-    .filter((beat) => beat.eventIds.length > 0);
-
-  const beats = scopedBeats.length
-    ? scopedBeats
+    .filter((move) => move.eventIds.length > 0);
+  const compositionMoves = scopedMoves.length
+    ? scopedMoves
     : fallbackPlan(
         events.filter((event) => authorizedEventIds.has(clean(event.id))),
         discovery,
-      ).beats;
+      ).moves;
+  const usedIds = new Set(compositionMoves.flatMap((move) => move.eventIds).map(clean));
+  const unusedEventIds = unique(
+    plan.unusedEventIds.filter((id) =>
+      authorizedEventIds.has(clean(id)) && !usedIds.has(clean(id)),
+    ),
+  );
+
+  if (realityDirect) {
+    return {
+      thesis: "Use supplied reality directly.",
+      perceptualTreatmentId: plan.perceptualTreatmentId,
+      moves: compositionMoves.map((move) => ({
+        ...move,
+        purpose: move.purpose ||
+          move.eventIds
+            .map((id) => events.find((event) => event.id === id)?.text ?? "")
+            .map(clean)
+            .filter(Boolean)
+            .join(" | "),
+        perceptualMove: move.perceptualMove ||
+          "Advance the supplied reality directly; the creative work is perceptual rather than factual.",
+      })),
+      unusedEventIds,
+    };
+  }
 
   return {
     thesis: approvedMeaning || approvedRelation || "Approved grounded perception.",
-    beats: beats.map((beat, index) => {
+    perceptualTreatmentId: plan.perceptualTreatmentId,
+    moves: compositionMoves.map((move, index) => {
       const isFirst = index === 0;
-      const isLast = index === beats.length - 1;
-      const attention = beat.eventIds
+      const isLast = index === compositionMoves.length - 1;
+      const purpose = move.purpose ||
+        move.eventIds
         .map((id) => events.find((event) => event.id === id)?.text ?? "")
         .map(clean)
         .filter(Boolean)
         .join(" | ");
 
-      const change = beats.length === 1
+      const perceptualMove = move.perceptualMove || (compositionMoves.length === 1
         ? approvedMeaning || approvedRelation || "Realize this supplied evidence."
         : isFirst
           ? "Establish only this beat's supplied evidence. Do not import later evidence or state the full relation yet."
           : isLast
             ? approvedMeaning || approvedRelation || "Land the approved relation using only this beat and prior established evidence."
-            : "Advance the approved relation using only this beat and already-established prior evidence. Do not import later evidence.";
+            : "Advance the approved relation using only this beat and already-established prior evidence. Do not import later evidence.");
 
       return {
-        ...beat,
+        ...move,
         order: index + 1,
-        attention,
-        change,
+        purpose,
+        perceptualMove,
       };
     }),
+    unusedEventIds,
   };
 }
 
 function ensurePostLockMemoryCanvas(
-  plan: AuthorSemanticPlan,
+  plan: AuthorExperienceComposition,
   selectedEvidence: readonly AuthorCreativeEvent[],
-): AuthorSemanticPlan {
+): AuthorExperienceComposition {
   return enforceMemoryStructure(plan, selectedEvidence);
 }
 
@@ -1995,7 +2008,7 @@ function memoryPayoffReplayPenalty(
 type MemorySequenceCandidate = {
   variantIndex: number;
   lines: Array<{
-    beat: AuthorSemanticBeat;
+    beat: AuthorExperienceMove;
     beatFacts: string[];
     text: string;
     accepted: boolean;
@@ -2009,14 +2022,14 @@ type MemorySequenceCandidate = {
 
 function scoreMemorySequence(
   variantIndex: number,
-  plan: AuthorSemanticPlan,
+  plan: AuthorExperienceComposition,
   variantsByOrder: Map<number, string[]>,
   suppliedReality: readonly AuthorCreativeEvent[],
   subject: string,
   realityDirect = false,
 ): MemorySequenceCandidate {
   const prior: string[] = [];
-  const lines = plan.beats.map((beat, index) => {
+  const lines = plan.moves.map((beat, index) => {
     const beatFacts = beat.eventIds
       .map((id) => suppliedReality.find((event) => event.id === id)?.text ?? "")
       .map(clean)
@@ -2025,7 +2038,7 @@ function scoreMemorySequence(
     const base = variantScore(
       text,
       beatFacts,
-      [beat.change].map(clean).filter(Boolean),
+      [beat.perceptualMove].map(clean).filter(Boolean),
       subject,
       prior,
       !realityDirect,
@@ -2035,8 +2048,8 @@ function scoreMemorySequence(
       text,
       beatFacts,
       true,
-      index === plan.beats.length - 1,
-      beat.change,
+      index === plan.moves.length - 1,
+      beat.perceptualMove,
     );
     const dropsSpecificTimeAnchor =
       variantIndex === 3 && !preservesSpecificTemporalAnchor(text, beatFacts);
@@ -2076,8 +2089,8 @@ function scoreMemorySequence(
   });
 
   const acceptedLines = lines.filter((line) => line.accepted && line.text);
-  const completeness = plan.beats.length
-    ? acceptedLines.length / plan.beats.length
+  const completeness = plan.moves.length
+    ? acceptedLines.length / plan.moves.length
     : 0;
   const meanScore = acceptedLines.length
     ? acceptedLines.reduce((sum, line) => sum + line.score, 0) / acceptedLines.length
@@ -2107,7 +2120,7 @@ function scoreMemorySequence(
   );
 
   const reasons: string[] = [];
-  if (completeness < 1) reasons.push("incomplete-sequence");
+  if (completeness < 1) reasons.push("incomplete-composition");
   if (uniqueRatio < 1) reasons.push("repeated-line");
   if ((payoff?.reasons ?? []).includes("memory-payoff-replay")) {
     reasons.push("weak-payoff-replay");
@@ -2127,7 +2140,7 @@ function scoreMemorySequence(
 
 async function repairNominatedMemoryProduction(input: {
   production: MemorySequenceCandidate;
-  plan: AuthorSemanticPlan;
+  plan: AuthorExperienceComposition;
   suppliedReality: readonly AuthorCreativeEvent[];
   subject: string;
   thesis: string;
@@ -2159,17 +2172,17 @@ async function repairNominatedMemoryProduction(input: {
           "A complete creative realization already exists. Restore failed lines without weakening the conception.",
           "PRESERVE THE CONCEPTION. PRESERVE THE REALITY. RECOVER THE ENERGY.",
           "The supplied reality is the whole available world. Repair may change expression, rhythm, and compression, but every factual implication must remain inside supplied evidence and prior established lines.",
-          "A failed line may not borrow evidence from a later beat. Keep each replacement inside its own suppliedEvidence plus prior established evidence. Future facts must stay future.",
-          "Preserve the creative pressure and its rhetorical world. Mission/game/system language may include fictional roles, assignments, directives, sectors, objectives, procedures, verdicts, or commands when the repaired sequence clearly reads as a creative frame rather than documentary fact. Police literal reality, not imaginative vocabulary.",
+          "A failed line may not borrow evidence from a later move. Keep each replacement inside its own suppliedEvidence plus prior established evidence. Future facts must stay future.",
+          "Preserve the selected perception. Police literal reality, not imaginative vocabulary.",
           "Use the assigned treatment's perceptionDelta and expressiveBehaviors as repair authority. Do not invent a new treatment and do not flatten the line into bare fact unless no grounded expression of the conception remains.",
-          "QRE makes the meaning felt and implied, not explained. Every repaired line must be 12 words or fewer; aim for 2-7 words when possible. A repaired line is a concise expressive hit, not prose: compress until removing another word would weaken meaning, rhythm, character, or surprise, then stop.",
+          "Discover more meaning than you express. A repaired line is a hit of perceptual impact, not a length target. Keep phone readability while preserving meaning, rhythm, character, or surprise.",
         ].join("\n"),
       },
       {
         role: "user",
         content: JSON.stringify({
           SUBJECT: input.subject,
-          APPROVED_THESIS: input.thesis,
+          EXPERIENCE_THESIS: input.thesis,
           ASSIGNED_TREATMENT: input.assignedTreatment,
           FULL_PRODUCTION: input.production.lines.map((line, index) => ({
             order: line.beat.order,
@@ -2177,22 +2190,22 @@ async function repairNominatedMemoryProduction(input: {
             accepted: line.accepted,
             reasons: line.reasons,
             suppliedEvidence: line.beatFacts,
-            semanticMove: line.beat.change,
+            semanticMove: line.beat.perceptualMove,
             keepExactly: line.accepted,
             priorLines: input.production.lines
               .slice(0, index)
               .map((prior) => prior.text)
               .filter(Boolean),
           })),
-          FAILED_BEATS: failed.map(({ line }) => ({
+          FAILED_MOVES: failed.map(({ line }) => ({
             order: line.beat.order,
             rejectedText: line.text,
             reasons: line.reasons,
             suppliedEvidence: line.beatFacts,
-            semanticMove: line.beat.change,
+            semanticMove: line.beat.perceptualMove,
           })),
           instruction:
-            "Repair only FAILED_BEATS. Preserve the assigned conception, perception delta, expression voice/rhythm/progression, and supplied reality boundary. Make each replacement felt and implied rather than explained, and keep the underlying supplied action or change recoverable.",
+            "Repair only FAILED_MOVES. Preserve the assigned conception, perception delta, expression voice/rhythm/progression, and supplied reality boundary. Make each replacement felt and implied rather than explained, and keep the underlying supplied action or change recoverable.",
         }),
       },
     ],
@@ -2246,7 +2259,7 @@ async function repairNominatedMemoryProduction(input: {
 }
 
 function safeFallbackText(
-  beat: AuthorSemanticBeat,
+  beat: AuthorExperienceMove,
   events: readonly AuthorCreativeEvent[],
 ): string {
   return (
@@ -2258,7 +2271,7 @@ function safeFallbackText(
 }
 
 function buildDeterministicMouthFallback(
-  plan: AuthorSemanticPlan,
+  plan: AuthorExperienceComposition,
   events: readonly AuthorCreativeEvent[],
   memoryMode: boolean,
 ): string {
@@ -2267,7 +2280,7 @@ function buildDeterministicMouthFallback(
       productions: [
         {
           production: "D",
-          lines: plan.beats.map((beat) => ({
+          lines: plan.moves.map((beat) => ({
             order: beat.order,
             text: safeFallbackText(beat, events),
           })),
@@ -2280,7 +2293,7 @@ function buildDeterministicMouthFallback(
   }
 
   return JSON.stringify({
-    variantsByBeat: plan.beats.map((beat) => {
+    variantsByMove: plan.moves.map((beat) => {
       const text = safeFallbackText(beat, events);
       return {
         order: beat.order,
@@ -2302,7 +2315,7 @@ export async function createAuthorExperience(input: {
   model: string;
   modelCalls: number;
   diagnostics: {
-    plan: AuthorSemanticPlan;
+    plan: AuthorExperienceComposition;
     creativeNotice: AuthorCreativeNotice;
     storyGravity: AuthorStoryGravity;
     failureLessons: AuthorCreativeFailureLesson[];
@@ -2317,10 +2330,11 @@ export async function createAuthorExperience(input: {
       creativeSetComplete: boolean;
       renderable: boolean;
     };
+    variantsByMove: Array<{ order: number; variants: string[] }>;
     variantsByBeat: Array<{ order: number; variants: string[] }>;
     choices: Array<{
       order: number;
-      beat: AuthorSemanticBeat;
+      beat: AuthorExperienceMove;
       beatFacts: string[];
       candidates: Array<{ text: string; accepted: boolean; score: number; reasons: string[] }>;
       selected: string;
@@ -2365,41 +2379,91 @@ export async function createAuthorExperience(input: {
   const selectedEvidence = input.suppliedReality.filter((event) =>
     playableIds.has(clean(event.id)),
   );
-  const useDeterministicRealityDirectMemoryPlan =
+  const realityDirectMemoryUsesComposition =
     isMemoryMode &&
     realityDirect &&
     selectedEvidence.length > 0;
-  const useDeterministicPlan = useDeterministicRealityDirectMemoryPlan;
   const useIdentityClusterPlan = false;
-
-  const planResult = useDeterministicPlan
+  const requestedLens = clean(input.requestedLens);
+  const normalizedRequestedLens = requestedLens.toUpperCase();
+  const explicitLensOff = normalizedRequestedLens === "NONE";
+  const semanticMechanicCandidates = deriveAuthorSemanticMechanicCandidates({
+    subject: input.subject,
+    suppliedReality: input.suppliedReality,
+    creativeDiscovery: input.creativeDiscovery,
+    memory: input.memory,
+    domainContext: input.domainContext,
+  });
+  const semanticMechanic = explicitLensOff
     ? {
-        text: "",
-        model: "deterministic-sparse-plan",
+        mechanic: "NONE",
+        reason: "an explicit NONE lens preserves natural realization",
+        confidence: 1,
       }
-    : await localModelGenerate(
+    : selectAuthorSemanticMechanic({
+        candidates: semanticMechanicCandidates,
+        creativeDiscovery: input.creativeDiscovery,
+      });
+  const lensReality = selectedEvidence.length ? selectedEvidence : input.suppliedReality;
+  const lensSearch = await searchAuthorCreativeLensTreatments({
+    subject: input.subject,
+    suppliedReality: lensReality,
+    creativeOpportunity: selected.perception,
+    relation: selected.relationship,
+    experienceMode,
+    requestedLens,
+    domainContext: input.domainContext,
+    semanticMechanic,
+    semanticMechanicCandidates,
+  });
+  const autoBusinessLens = lensSearch.autoBusinessLens;
+  const lensSearchEnabled = lensSearch.lensSearchEnabled;
+  const lensMode = lensSearch.lensMode;
+  const availablePerceptualTreatments = lensSearch.acceptedTreatments.filter(
+    (treatment) => !isBareTreatment(treatment),
+  );
+  const perceptualTreatmentIds = new Set(
+    availablePerceptualTreatments.map((treatment) => treatment.id),
+  );
+  const perceptualDiscoveriesForComposer = availablePerceptualTreatments.map((treatment) => ({
+    id: treatment.id,
+    sourceCandidateId: treatment.sourceCandidateId,
+    sourceRelation: treatment.sourceRelation,
+    evidenceEventIds: treatment.evidenceEventIds,
+    creativePressure: treatment.creativePressure,
+    hiddenInference: treatment.hiddenInference || undefined,
+    treatment: treatment.treatment,
+    perceptionDelta: treatment.perceptionDelta,
+    expressiveBehaviors: treatment.expressiveBehaviors,
+    intensity: treatment.intensity,
+  }));
+
+  const planResult = await localModelGenerate(
     [
       {
         role: "system",
         content: [
-          "You are QRE Author Structure Planner.",
-          "Discovery owns the approved meaning and identifies the playable reality. Your responsibility is evidence grouping and sequence shape.",
+          "You are QRE Experience Composer.",
+          "Discovery and Perceptual Discovery find more meaning than the experience will express. Your responsibility is deciding what becomes the experience.",
           "AUTHORIZED_EVIDENCE is the factual material available to this experience.",
-          "Build the strongest sequence from authorized event IDs and preserve the supplied relationships that make the experience meaningful.",
-          "Let the material determine the number of beats. A beat may contain one event or several tightly related events when grouping creates a stronger unit of experience.",
-          "An authored QRE experience must move. Never collapse the entire experience into one playable beat.",
-          "Movement is expressive, not a checklist. Do not create one beat per supplied item merely to increase beat count, and do not mechanically split one thought into fragments.",
-          "A small amount of supplied material can still support several structural moves when the approved meaning can unfold through setup, pressure, contrast, turn, recontextualization, callback, or payoff.",
-          "When only one supplied evidence item carries the experience, that same evidence ID may support more than one structural beat if each beat performs a genuinely different expressive function. Reusing evidence does not authorize a new event or new fact.",
-          "Compression is structural, not destructive. Grouping changes organization while keeping the selected reality available to realization.",
-          "Use sequence to create room for progression, contrast, accumulation, interruption, return, reveal, callback, or payoff when those relationships are supported by the supplied material and approved experience shape.",
-          "The plan is structural rather than viewer-facing. Represent what each beat carries through its authorized event IDs.",
-          "Every authorized evidence item remains represented in the plan. Supplied recurrence may return when the approved experience shape calls for recurrence, echo, callback, or return.",
+          "PERCEPTUAL_DISCOVERIES are possible ways this same reality can be read. Choose the territory that best composes into movement, or choose NONE only when no discovery fits.",
+          "Build the strongest composed experience from authorized event IDs and preserve the supplied relationships that make the experience meaningful.",
+          "Let the material determine the number of moves. Fact count does not determine move count.",
+          "A move is a unit of perceptual impact, not a unit of length and not a required narrative formula.",
+          "A move may use one event, group several events, reuse an earlier event, or return to a prior event as callback or payoff when the supplied material earns it.",
+          "One evidence item may support several moves if each move changes what the viewer notices, expects, assumes, feels, connects, or understands.",
+          "Some authorized evidence may intentionally remain unused. Record it in unusedEventIds instead of forcing it into the expression.",
+          "Movement is expressive, not a checklist. Do not create one move per supplied item merely to increase move count, and do not mechanically split one thought into fragments.",
+          "HOOK, BUILD, TURN, and PAYOFF are structural metadata only. Do not require every role, do not require a TURN, and do not require a fixed number of BUILD moves.",
+          "The intelligence belongs primarily in purpose and perceptualMove. purpose says what the move does in the experience; perceptualMove says how perception changes.",
+          "Choose a perceptualTreatmentId that governs the composition. Do not copy a treatment as prose; compose movement from it.",
+          "Composition may change attention and meaning. It may not create new concrete events, actions, people, places, chronology, physical states, or world facts.",
+          "REALITY STAYS FIXED. PERSPECTIVE GETS DANGEROUS.",
           ...(isMemoryMode ? [
-            "MEMORY STRUCTURE: shape the supplied lived material so the memory has enough space to be experienced rather than merely summarized.",
+            "MEMORY COMPOSITION: shape the supplied lived material so the memory has enough space to be experienced rather than merely summarized.",
             "Preserve meaningful temporal progression, state contrast, duration, recurrence, return, and distinctive moments when they contribute to the approved memory.",
-            "A meaningful middle can carry its own structural weight. A later state or return can carry its own structural weight. Let their relationship determine the shape.",
-            "Choose the smallest sequence that preserves the full creative potential of the approved memory, with no predetermined beat count.",
+            "A meaningful middle can carry its own weight. A later state or return can carry its own weight. Let their relationship determine the shape.",
+            "Choose the smallest composition that preserves the full creative potential of the approved memory, with no predetermined move count.",
           ] : []),
           ...(presentationContext ? [presentationContext] : []),
           ...(authorityContext ? [authorityContext] : []),
@@ -2410,9 +2474,19 @@ export async function createAuthorExperience(input: {
         content: JSON.stringify({
           SUBJECT: input.subject,
           AUTHORIZED_EVIDENCE: selectedEvidence,
+          CREATIVE_DISCOVERY: {
+            selectedCandidateId: input.creativeDiscovery.selectedCandidateId,
+            perception: selected.perception,
+            relationship: selected.relationship,
+            evidenceEventIds: selected.evidenceEventIds,
+            playableEventIds: input.creativeDiscovery.playableEventIds,
+            backgroundEventIds: input.creativeDiscovery.backgroundEventIds,
+          },
+          PERCEPTUAL_DISCOVERIES: perceptualDiscoveriesForComposer,
+          STORY_GRAVITY: lensSearch.storyGravity,
           EXPERIENCE_SHAPE: input.creativeDiscovery.experienceShape,
           instruction:
-            "Return the strongest moving structural beat sequence using the authorized evidence IDs. The experience must contain more than one beat. Preserve every authorized evidence item somewhere in the sequence, but do not map facts mechanically to beats. Let the approved meaning unfold through distinct expressive moves. If only one evidence item carries the experience, it may be reused across beats without inventing additional reality.",
+            "Return the strongest experience composition using only authorized event IDs. Choose perceptualTreatmentId from PERCEPTUAL_DISCOVERIES, or NONE only when no discovery fits. Decide the number of moves, evidence grouping, evidence reuse, asymmetric attention, intentional omissions, callback/recontextualization, progression, and payoff. Preserve provenance on every move through eventIds. Put authorized evidence that is intentionally not expressed in unusedEventIds. Do not write final lines.",
         }),
       },
     ],
@@ -2423,15 +2497,22 @@ export async function createAuthorExperience(input: {
       jsonSchema: {
         type: "object",
         additionalProperties: false,
-        required: ["beats"],
+        required: ["thesis", "perceptualTreatmentId", "moves", "unusedEventIds"],
         properties: {
-          beats: {
+          thesis: { type: "string" },
+          perceptualTreatmentId: {
+            type: "string",
+            enum: availablePerceptualTreatments.length
+              ? availablePerceptualTreatments.map((treatment) => treatment.id)
+              : ["NONE"],
+          },
+          moves: {
             type: "array",
             minItems: 2,
             items: {
               type: "object",
               additionalProperties: false,
-              required: ["order", "role", "eventIds"],
+              required: ["order", "role", "eventIds", "purpose", "perceptualMove"],
               properties: {
                 order: { type: "integer", minimum: 1 },
                 role: { type: "string", enum: ["HOOK", "BUILD", "TURN", "PAYOFF"] },
@@ -2441,19 +2522,24 @@ export async function createAuthorExperience(input: {
                   maxItems: 32,
                   items: { type: "string", maxLength: 64 },
                 },
-
+                purpose: { type: "string" },
+                perceptualMove: { type: "string" },
               },
             },
+          },
+          unusedEventIds: {
+            type: "array",
+            maxItems: 64,
+            items: { type: "string", maxLength: 64 },
           },
         },
       },
     },
   );
 
-  const rawPlan = useDeterministicPlan
-    ? fallbackPlan(selectedEvidence, input.creativeDiscovery)
-    : normalizePlan(parseJson(planResult.text), allowedEventIds) ??
-      fallbackPlan(input.suppliedReality, input.creativeDiscovery);
+  const rawPlan =
+    normalizePlan(parseJson(planResult.text), allowedEventIds, perceptualTreatmentIds) ??
+    fallbackPlan(selectedEvidence.length ? selectedEvidence : input.suppliedReality, input.creativeDiscovery);
 
   const structurallySafePlan = isMemoryMode
     ? enforceMemoryStructure(rawPlan, selectedEvidence)
@@ -2478,69 +2564,35 @@ export async function createAuthorExperience(input: {
       );
 
   debug("BARE-AUTHOR-PLAN", {
-    mode: useDeterministicRealityDirectMemoryPlan
-      ? "DETERMINISTIC_REALITY_DIRECT_MEMORY"
-      : "MODEL_STRUCTURE",
-    raw: useDeterministicPlan ? "SKIPPED_MODEL_PLAN" : planResult.text,
+    mode: realityDirectMemoryUsesComposition
+      ? "REALITY_DIRECT_MEMORY_COMPOSITION"
+      : "MODEL_EXPERIENCE_COMPOSITION",
+    raw: planResult.text,
     memoryStructureAdjusted:
       isMemoryMode &&
       (
-        JSON.stringify(structurallySafePlan.beats.map((beat) => beat.eventIds)) !==
-          JSON.stringify(rawPlan.beats.map((beat) => beat.eventIds)) ||
-        JSON.stringify(plan.beats.map((beat) => beat.eventIds)) !==
-          JSON.stringify(initiallyLockedPlan.beats.map((beat) => beat.eventIds))
+        JSON.stringify(structurallySafePlan.moves.map((move) => move.eventIds)) !==
+          JSON.stringify(rawPlan.moves.map((move) => move.eventIds)) ||
+        JSON.stringify(plan.moves.map((move) => move.eventIds)) !==
+          JSON.stringify(initiallyLockedPlan.moves.map((move) => move.eventIds))
       ),
     selectedPlan: plan,
   });
 
-  const requestedLens = clean(input.requestedLens);
-  const normalizedRequestedLens = requestedLens.toUpperCase();
-  const explicitLensProvided = Boolean(requestedLens);
-  const explicitLensOff = normalizedRequestedLens === "NONE";
-  const semanticMechanicCandidates = deriveAuthorSemanticMechanicCandidates({
-    subject: input.subject,
-    suppliedReality: input.suppliedReality,
-    creativeDiscovery: input.creativeDiscovery,
-    memory: input.memory,
-    domainContext: input.domainContext,
-  });
-  const semanticMechanic = explicitLensOff
-    ? {
-        mechanic: "NONE",
-        reason: "an explicit NONE lens preserves natural realization",
-        confidence: 1,
-      }
-    : selectAuthorSemanticMechanic({
-        candidates: semanticMechanicCandidates,
-        creativeDiscovery: input.creativeDiscovery,
-      });
-  const lensSearch = await searchAuthorCreativeLensTreatments({
-    subject: input.subject,
-    suppliedReality: input.suppliedReality,
-    plan,
-    creativeOpportunity: selected.perception,
-    relation: selected.relationship,
-    experienceMode,
-    requestedLens,
-    domainContext: input.domainContext,
-    semanticMechanic,
-    semanticMechanicCandidates,
-  });
-  const autoBusinessLens = lensSearch.autoBusinessLens;
-  const lensSearchEnabled = lensSearch.lensSearchEnabled;
-  const lensMode = lensSearch.lensMode;
   const treatmentsForMouth = lensSearch.acceptedTreatments;
-  const expressiveTreatmentsForMouth = treatmentsForMouth.filter((treatment) => !isBareTreatment(treatment));
-  const skipExpressiveMouth = lensSearchEnabled && expressiveTreatmentsForMouth.length === 0;
+  const selectedTreatmentForMouth =
+    availablePerceptualTreatments.find((treatment) => treatment.id === plan.perceptualTreatmentId) ??
+    availablePerceptualTreatments[0];
+  const skipExpressiveMouth = lensSearchEnabled && availablePerceptualTreatments.length === 0;
   const creativeSetComplete =
     !lensSearch.lensSearchEnabled ||
     lensSearch.treatmentSetAssessment.creativeSetComplete;
   const runtimeRenderable =
     !lensSearch.lensSearchEnabled ||
     lensSearch.treatmentSetAssessment.renderable;
-  const treatmentAssignmentsForMouth = (isMemoryMode
-    ? expressiveTreatmentsForMouth
-    : treatmentsForMouth
+  const treatmentAssignmentsForMouth = (selectedTreatmentForMouth
+    ? [selectedTreatmentForMouth]
+    : []
   )
     .map((assignment) => ({
       production: treatmentProductionLetter(assignment),
@@ -2579,12 +2631,15 @@ export async function createAuthorExperience(input: {
   if (skipExpressiveMouth) {
     mouthFallbackReason = "no viable expressive treatments; skipped Mouth and returned deterministic Bare Reality";
   }
+  const allowedMouthProductions = lensSearchEnabled && treatmentAssignmentsForMouth.length
+    ? treatmentAssignmentsForMouth.map((assignment) => assignment.production)
+    : ["A", "B", "C", "D"];
   /**
    * QRE CANONICAL MOUTH - PROTECTED
    *
-   * Do not modify Mouth prompts, doctrine, schema, repair behavior, or
-   * realization semantics unless the task explicitly authorizes a Mouth change.
-   * Upstream cognition work does not authorize Mouth changes.
+   * Mouth realizes Experience Composition in language. It does not choose the
+   * creative territory, redesign the composition, or require verbal coverage of
+   * every supplied fact. Grounding remains downstream.
    * See ./AUTHOR_ARCHITECTURE.md.
    */
   const mouthResult = skipExpressiveMouth
@@ -2600,11 +2655,10 @@ export async function createAuthorExperience(input: {
         content: [
           "You are QRE Mouth.",
           ...QRE_CREATIVE_OPERATING_DOCTRINE,
-          "You receive grounded reality, an approved sequence, and optionally an assigned creative treatment. Turn them into the smallest, sharpest complete experience.",
-          "The realization is the product. Read it vertically: each moment should set up, deepen, turn, recontextualize, or land the same experience.",
-          "Concrete reality comes from the supplied evidence carried by each beat plus concrete facts already established by earlier lines.",
-          "Rhetorical transformation is wide open. Metaphor, status, title-like framing, personification, absurd seriousness, game logic, noir pressure, battle pressure, speed, spy logic, romance, horror, ceremony, accusation, evidence language, futuristic language, comedy, understatement, and unnamed expressive grammars are available as perception—not as new world facts.",
-          "A rhetorical role can be extreme while the world stays fixed. 'Evidence' can be a way to perceive a supplied bow; it does not create a courtroom. 'Loadout' can frame a supplied object; it does not create a literal game system.",
+          "You receive grounded reality, an experience composition, and the perceptual treatment chosen by Composition. Realize that composed movement in language.",
+          "The realization is the product. Read it vertically: each move should set up, deepen, turn, recontextualize, or land the same experience.",
+          "Concrete reality comes from the supplied evidence carried by each move plus concrete facts already established by earlier lines.",
+          "Rhetorical transformation is wide open as perception, implication, emphasis, status, scale, contrast, voice, or rhythm. It may not become a new concrete world fact.",
           "An attempt remains unresolved unless the supplied reality gives its outcome. A supplied emotion or state remains that state rather than becoming an invented bodily action.",
           "Specificity is fuel. Preserve the distinctive facts that make this reality this reality, but do not confuse operational metadata with the creative center.",
           "Operational anchors such as clock time, date, geo, count, quantity, price, and measurement are ordinary supplied reality. Use them when they strengthen the experience, when the user wants them visible, or when they carry useful identity, sequence, proof, place, or meaning. Omit them when they add nothing.",
@@ -2612,61 +2666,54 @@ export async function createAuthorExperience(input: {
           "Preserve the supplied clock style. If reality says 5 PM, keep 5 PM; do not convert it to 17:00. If reality uses 24-hour time, keep that form unless the user explicitly asks for another format.",
           "Formatting alone is not the creative move. Logs, timestamps, labels, records, and terse fragments may be part of the creative language, but the realization should also create a felt shift in status, implication, consequence, relationship, tension, humor, threat, or another perception.",
           "Do not mistake list cadence, noun fragments, repeated task words, or timestamp formatting for authorship. The creative move must come from a relationship in the supplied reality.",
-          "QRE makes the meaning felt and implied, not explained. Every viewer-facing line must be 12 words or fewer; aim for 2-7 words when possible. A line is a hit, not prose. Fewer words, more feeling. Compress until removing another word would weaken the meaning, rhythm, character, or surprise. Stop there.",
-          "BUILD THE WHOLE STRANGE WORLD PRIVATELY. REALIZE ONLY WHAT MAKES THAT WORLD FELT.",
+          "Discover more meaning than you express. Let the viewer construct part of the meaning.",
+          "A hit is a unit of perceptual impact, not a unit of length. Phone readability matters, but rhythm may vary when the composition earns it.",
+          "Build the full perception privately. Realize only what makes that perception felt.",
           "The assigned creative pressure is internal creative physics, not a vocabulary pack. Let it change status, rhythm, consequence, implication, and perception before it changes surface nouns.",
-          "Teach taste, not length. Let the idea determine the line. A line may be tiny, medium, or longer when its rhythm, turn, character, tension, surprise, or payoff earns the space.",
-          "Prefer impact over explanation. Do not shorten merely to be short, and do not lengthen merely to explain.",
+          "Let the idea determine the line. Do not shorten merely to be short, and do not lengthen merely to explain.",
           "Creative precision is the target: every word should strengthen the perception, voice, rhythm, or consequence of the supplied reality.",
-          "Use world-specific language when it makes the frame snap into focus, but do not mechanically repeat the same genre vocabulary across every line.",
-          "A strong realization may use fragments, full sentences, abrupt hits, or a longer turn. Vary form naturally according to what the experience needs.",
-          "If every line announces the creative frame, trust implication more. If removing the frame leaves ordinary receipt language, push the perception harder.",
+          "A strong realization may use fragments, full sentences, abrupt hits, or a longer turn. Let form follow the composed move.",
           "Let status, consequence, double meaning, contrast, callback, implication, weirdness, and payoff carry the world without explaining it.",
           "Do not explain the lens or summarize the meaning. Make the receiver feel the creative read through the writing itself.",
-          "Compression may transform wording, but it may not erase what happened. When a supplied beat is an action or change, the line must still let the receiver recover that action or change rather than reducing it to a noun label.",
+          "Compression may transform wording, but it may not erase what happened. When a supplied move includes an action or change, the line must still let the receiver recover that action or change rather than reducing it to a noun label.",
           "The receiver should be able to recover what happened while also feeling that QRE saw it from an angle they would not have produced themselves.",
           "STORY GRAVITY is evidence structure, not permission to invent meaning. The endpointEventId is HARD because QRE locked it from supplied reality. Make that ending feel earned through the supplied dependencies and sealing detail; never add psychology just because StoryGravity contains a center phrase.",
           "Think backward before wording: endpoint <- sealing detail <- escalation <- signal. Then present forward. Every moment should increase the inevitability or meaning of the locked endpoint, unless this is a sparse portrait/world-opening where the endpoint is simply the final supplied state.",
-          "Do not stop at competent wording. Push the assigned perception until the sequence produces recognition, surprise, tension, comedy, beauty, menace, status, weirdness, or another earned what-the-fuck turn.",
-          "Mouth owns language and sequence. Downstream realization choices are outside Author.",
+          "Do not stop at competent wording. Push the assigned perception until the sequence produces earned recognition, surprise, tension, comedy, beauty, menace, status, weirdness, or another perceptual turn.",
+          "Composition owns movement and provenance. Mouth owns language realization.",
           ...(realityDirect ? [
             "REALITY-DIRECT MODE: there is no hidden explanatory thesis to add. Let the supplied facts themselves carry the creative transformation.",
             "Use nonliteral pressure aggressively while keeping every concrete noun, action, condition, result, physical property, manner, and object inside supplied evidence.",
           ] : []),
           ...(isMemoryMode ? [
-            "MEMORY REALIZATION: the beats are one accumulated experience, not independent caption slots.",
+            "MEMORY REALIZATION: the moves are one accumulated experience, not independent caption slots.",
             "Let facts fuse when the relationship becomes stronger, and let later moments change the meaning of earlier moments when the supplied sequence supports it.",
             "A simple line may create runway for a harder payoff. The strongest sequence does not require every line to compete for attention.",
             "Service memories are still memories. Tasks, counts, and timestamps are material, not a mandate to sound like a receipt.",
             "Customer-facing output remains decipherable: transformation may be wild, but the underlying event remains recoverable.",
             "A duration, count, clock time, date, geo fact, or other operational anchor stays viewer-facing only when it materially gives the experience its identity; otherwise it may remain in provenance instead of the expressive lines.",
             "The final moment should make the earlier moments feel more intentional in retrospect.",
-            ...(lensSearchEnabled ? [
-              "CREATIVE_TREATMENTS assigns variant identities. Each expressive variant realizes its own sourceRelation, evidenceEventIds, hiddenInference, treatment, perceptionDelta, and expressiveBehaviors across the whole sequence.",
+            ...(treatmentAssignmentsForMouth.length ? [
+              "CREATIVE_TREATMENTS contains the perceptual territory selected by Composition. Realize that territory; do not choose a different one.",
               "sourceRelation and evidenceEventIds are the grounded root of the creative leap. Keep that root alive while pushing far beyond literal paraphrase.",
               "hiddenInference is optional private Author intent, not viewer-facing copy. When present, build the sequence so the receiver can reach it themselves. When empty, do not invent a thesis; realize the supplied relationship through framing, juxtaposition, character, status, contrast, callback, possibility, or recontextualization.",
-              "Realization beats explanation. Make the inference felt and implied through supplied facts, sequence, contrast, callback, personification, status, and recontextualization. Never explain what the viewer is supposed to understand.",
+              "Realization beats explanation. Make the inference felt and implied through supplied facts, sequence, contrast, callback, personification, status, and recontextualization.",
               "Treat the assigned treatment as pressure, not literal world description. Push it hard enough that the same reality becomes a different experience.",
-              "Available expressive variants compete on coherence, specificity, perception shift, surprise, payoff, cumulative meaning, and how alive the whole experience feels.",
-              "Do not prefer a familiar named pressure merely because it is recognizable. Reward the variant that discovers the strongest fact-dependent creative grammar, including a new grammar QRE has never named before.",
               "Complete the thought. Keep latent relations and treatments concise, but never end a relation, treatment, or perceptionDelta mid-phrase merely to be brief.",
-              "Prefer one complete compact sentence over a longer explanation. Finish the semantic idea before spending words on examples or execution details.",
               "AMPLIFY REALITY: push metaphor, status, personification, rhetorical scale, double meaning, and semantic consequence hard. Do not retreat to literal receipt wording merely to stay grounded. Grounding protects the concrete world; it does not require literal phrasing.",
               "A line may imply the supplied action rather than naming its verb when the whole realization keeps the event recoverable. Make the viewer feel and infer the move. Do not explain it.",
               "ABSENCE IS ALSO A FACT. Do not claim that a response, object, action, event, or interaction was absent unless supplied reality establishes that absence.",
               "A category does not license its typical contents. Keep creative force in status, rhetoric, logic, scale, sequence, and recontextualization instead of inventing material detail.",
               "Sensory residue is material reality too. Sensory conditions, bodily reactions, and environmental aftermath require supplied support unless the wording is unmistakably nonliteral rhetoric.",
-              "CREATIVE PRESSURE MAY BUILD A CLEARLY FICTIONAL RHETORICAL FRAME around supplied reality. Mission, game, battle, courtroom, ritual, protocol, system, status, and other pressure-native language may include roles, directives, assignments, verdicts, objectives, levels, sectors, sign-offs, or commands when the whole sequence clearly reads as metaphorical framing rather than documentary fact.",
-              "Judge the whole realization, not isolated vocabulary. 'Assignment received.' or 'Awaiting next directive.' may be legal inside an unmistakable mission/game grammar. Reject only when the wording would reasonably be understood as asserting a real external event, person, communication, institution, or outcome that supplied reality did not establish.",
               "Bare Reality is the truth-safe control. It wins only when no expressive variant remains viable.",
             ] : [
               "Without an assigned creative treatment, realize the approved meaning directly and still search for strong sequence-level authorship rather than generic paraphrase.",
             ]),
-            "Return one complete variant object for each listed variant identity. Finish each variant from first line through payoff before starting the next.",
-            "BEAT EVIDENCE IS ORDERED AUTHORITY. A line at order N may use that beat's supplied evidence plus evidence already established by earlier orders. It may not move a later room, object, timestamp, action, result, or other supplied fact into an earlier line.",
-            "Do not reshuffle facts merely to create rhythm. Transform the meaning of each beat where it actually occurs.",
+            "Return one complete production object for each listed production identity. Finish each production from first line through payoff before starting the next.",
+            "MOVE EVIDENCE IS ORDERED AUTHORITY. A line at order N may use that move's supplied evidence plus evidence already established by earlier orders. It may not move a later room, object, timestamp, action, result, or other supplied fact into an earlier line.",
+            "Do not reshuffle facts merely to create rhythm. Transform the meaning of each move where it actually occurs.",
           ] : [
-            "For each beat, produce materially different short realizations and let the strongest grounded line win.",
+            "For each move, produce materially different realizations and let the strongest grounded line win.",
           ]),
           ...(presentationContext ? [presentationContext] : []),
           ...(authorityContext ? [authorityContext] : []),
@@ -2677,14 +2724,17 @@ export async function createAuthorExperience(input: {
         content: JSON.stringify({
           SUBJECT: input.subject,
           SUPPLIED_REALITY: input.suppliedReality,
-          APPROVED_THESIS: plan.thesis,
-          APPROVED_BEATS: plan.beats.map((beat, index) => ({
+          EXPERIENCE_COMPOSITION: {
+            thesis: plan.thesis,
+            perceptualTreatmentId: plan.perceptualTreatmentId ?? "NONE",
+          },
+          APPROVED_MOVES: plan.moves.map((beat, index) => ({
             order: beat.order,
             role: beat.role,
             eventIds: beat.eventIds,
-            attentionEvidence: beat.attention,
-            semanticMove: beat.change,
-            mayUseFullRelation: index === plan.beats.length - 1,
+            attentionEvidence: beat.purpose,
+            semanticMove: beat.perceptualMove,
+            mayUseFullRelation: index === plan.moves.length - 1,
           })),
           CREATIVE_OPPORTUNITY: selected.perception,
           RELATION: selected.relationship,
@@ -2694,7 +2744,6 @@ export async function createAuthorExperience(input: {
           STORY_GRAVITY: lensSearch.storyGravity,
           CREATIVE_TREATMENTS: treatmentAssignmentsForMouth.map((assignment) => ({
             production: assignment.production,
-            semanticMechanic: assignment.semanticMechanic,
             sourceCandidateId: assignment.sourceCandidateId,
             sourceRelation: assignment.sourceRelation,
             evidenceEventIds: assignment.evidenceEventIds,
@@ -2709,9 +2758,9 @@ export async function createAuthorExperience(input: {
             ? "This is one IDENTITY character cluster, not a checklist. Return four short candidate realizations that synthesize the combination into character. Do not enumerate every supplied preference or simply restate them. The viewer should infer personality from the combination. Do not invent an event."
             : isMemoryMode
               ? realityDirect
-                ? "Return complete candidate variants using the existing productions array for the listed CREATIVE_TREATMENTS only. Make the meaning felt and implied, not explained. Push each assigned treatment as far as supplied reality supports through nonliteral rhetoric, sequence, status, metaphor, callback, and recontextualization. Keep the concrete world fixed and each underlying action/change recoverable. Operational anchors may stay in provenance unless they create the perception. Nominate the strongest complete variant by its letter: A, B, C, or D."
-                : "Return complete candidate variants using the existing productions array for the listed CREATIVE_TREATMENTS only. Make the meaning felt and implied, not explained. Treat each variant as one finished QRE experience unfolding through time. Push each assigned perception until the whole sequence reveals something surprising but true about supplied reality. Keep each underlying action/change recoverable. Operational anchors may stay in provenance unless they create the perception. The final moment should land the realization using its local evidence plus already-established prior evidence. Nominate the strongest viable expressive variant by its letter: A, B, or C. Bare Reality D is the truth fallback, not the creative target."
-              : "Return four candidate lines per beat. The semantic plan controls meaning; the supplied event IDs control factual reality.",
+                ? "Return complete productions for the listed CREATIVE_TREATMENTS only. Make the meaning felt and implied, not explained. Push the composed treatment as far as supplied reality supports through nonliteral rhetoric, sequence, status, metaphor, callback, and recontextualization. Keep the concrete world fixed and each underlying action/change recoverable. Operational anchors may stay in provenance unless they create the perception. Select only a listed production."
+                : "Return complete productions for the listed CREATIVE_TREATMENTS only. Make the meaning felt and implied, not explained. Treat the selected production as one finished QRE experience unfolding through the approved moves. Push the assigned perception until the whole sequence reveals something surprising but true about supplied reality. Keep each underlying action/change recoverable. Operational anchors may stay in provenance unless they create the perception. The final moment should land the realization using its local evidence plus already-established prior evidence. Bare Reality D is the truth fallback, not the creative target."
+              : "Return four candidate lines per move. The experience composition controls movement; the supplied event IDs control factual reality.",
         }),
       },
     ],
@@ -2724,7 +2773,7 @@ export async function createAuthorExperience(input: {
         additionalProperties: false,
         required: isMemoryMode
           ? ["productions", "selectedProduction", "selectionReason"]
-          : ["variantsByBeat"],
+          : ["variantsByMove"],
         properties: isMemoryMode
           ? {
               productions: {
@@ -2740,11 +2789,11 @@ export async function createAuthorExperience(input: {
                   additionalProperties: false,
                   required: ["production", "lines"],
                   properties: {
-                    production: { type: "string", enum: ["A", "B", "C", "D"] },
+                    production: { type: "string", enum: allowedMouthProductions },
                     lines: {
                       type: "array",
-                      minItems: plan.beats.length,
-                      maxItems: plan.beats.length,
+                      minItems: plan.moves.length,
+                      maxItems: plan.moves.length,
                       items: {
                         type: "object",
                         additionalProperties: false,
@@ -2760,15 +2809,15 @@ export async function createAuthorExperience(input: {
               },
               selectedProduction: {
                 type: "string",
-                enum: ["A", "B", "C", "D"],
+                enum: allowedMouthProductions,
               },
               selectionReason: { type: "string", maxLength: 220 },
             }
           : {
-              variantsByBeat: {
+              variantsByMove: {
                 type: "array",
-                minItems: plan.beats.length,
-                maxItems: plan.beats.length,
+                minItems: plan.moves.length,
+                maxItems: plan.moves.length,
                 items: {
                   type: "object",
                   additionalProperties: false,
@@ -2821,7 +2870,7 @@ export async function createAuthorExperience(input: {
       );
     }
 
-    for (const beat of plan.beats) {
+    for (const beat of plan.moves) {
       variantsByOrder.set(beat.order, ["", "", "", ""]);
     }
 
@@ -2854,7 +2903,7 @@ export async function createAuthorExperience(input: {
     // The control is rebuilt directly from the supplied evidence so Bare
     // cannot smuggle interpretation, rhetoric, or invented state into reality.
     if (lensSearchEnabled) {
-      for (const beat of plan.beats) {
+      for (const beat of plan.moves) {
         const variants = [...(variantsByOrder.get(beat.order) ?? ["", "", "", ""])];
         while (variants.length < 4) variants.push("");
         variants[3] = safeFallbackText(beat, input.suppliedReality);
@@ -2862,8 +2911,8 @@ export async function createAuthorExperience(input: {
       }
     }
   } else {
-    const rawVariants = Array.isArray(parsedMouth?.variantsByBeat)
-      ? parsedMouth!.variantsByBeat
+    const rawVariants = Array.isArray(parsedMouth?.variantsByMove)
+      ? parsedMouth!.variantsByMove
       : [];
 
     for (const raw of rawVariants) {
@@ -2903,13 +2952,13 @@ export async function createAuthorExperience(input: {
     | undefined;
   const choices: Array<{
     order: number;
-    beat: AuthorSemanticBeat;
+    beat: AuthorExperienceMove;
     beatFacts: string[];
     candidates: Array<{ text: string; accepted: boolean; score: number; reasons: string[] }>;
     selected: string;
   }> = [];
 
-  if (isMemoryMode && plan.beats.length > 1) {
+  if (isMemoryMode && plan.moves.length > 1) {
     const productions = [0, 1, 2, 3]
       .map((variantIndex) =>
         scoreMemorySequence(
@@ -3146,7 +3195,7 @@ export async function createAuthorExperience(input: {
       })),
     });
 
-    for (const [index, beat] of plan.beats.entries()) {
+    for (const [index, beat] of plan.moves.entries()) {
       const beatFacts = beat.eventIds
         .map((id) => input.suppliedReality.find((event) => event.id === id)?.text ?? "")
         .map(clean)
@@ -3188,14 +3237,14 @@ export async function createAuthorExperience(input: {
       if (!selectedText) continue;
       scenes.push({
         text: selectedText,
-        kind: beatKind(beat.role, index, plan.beats.length),
+        kind: beatKind(beat.role, index, plan.moves.length),
         sourceEventIds: beat.eventIds,
       });
     }
   } else {
     const prior: string[] = [];
 
-    for (const [index, beat] of plan.beats.entries()) {
+    for (const [index, beat] of plan.moves.entries()) {
       const beatFacts = beat.eventIds
         .map((id) => input.suppliedReality.find((event) => event.id === id)?.text ?? "")
         .map(clean)
@@ -3206,7 +3255,7 @@ export async function createAuthorExperience(input: {
           const base = variantScore(
             text,
             beatFacts,
-            [beat.change].map(clean).filter(Boolean),
+            [beat.perceptualMove].map(clean).filter(Boolean),
             input.subject,
             prior,
           );
@@ -3214,8 +3263,8 @@ export async function createAuthorExperience(input: {
             text,
             beatFacts,
             isMemoryMode,
-            index === plan.beats.length - 1,
-            beat.change,
+            index === plan.moves.length - 1,
+            beat.perceptualMove,
           );
           return {
             text,
@@ -3252,7 +3301,7 @@ export async function createAuthorExperience(input: {
 
       scenes.push({
         text: selectedText,
-        kind: beatKind(beat.role, index, plan.beats.length),
+        kind: beatKind(beat.role, index, plan.moves.length),
         sourceEventIds: beat.eventIds,
       });
       prior.push(selectedText);
@@ -3263,7 +3312,7 @@ export async function createAuthorExperience(input: {
     scenes,
     model: mouthResult.model || (lensSearchEnabled ? lensSearch.model : "") || planResult.model,
     modelCalls:
-      (useDeterministicPlan ? 1 : 2) +
+      2 +
       lensSearch.modelCalls +
       memoryRepairModelCalls,
     diagnostics: {
@@ -3280,6 +3329,9 @@ export async function createAuthorExperience(input: {
           lensSearch.treatmentSetAssessment.creativeSetComplete,
         renderable: lensSearch.treatmentSetAssessment.renderable,
       },
+      variantsByMove: [...variantsByOrder.entries()]
+        .sort(([a], [b]) => a - b)
+        .map(([order, variants]) => ({ order, variants })),
       variantsByBeat: [...variantsByOrder.entries()]
         .sort(([a], [b]) => a - b)
         .map(([order, variants]) => ({ order, variants })),

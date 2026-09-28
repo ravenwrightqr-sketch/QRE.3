@@ -1,3 +1,24 @@
+/**
+ * QRE AUTHOR PREFERENCE BOUNDARY
+ *
+ * FILE ROLE:
+ * Converts accepted/rejected feedback and trajectory strings into coarse
+ * behavior preferences for future Author state adaptation.
+ *
+ * OWNS:
+ * - preference metrics such as compression, callback, surprise, acceleration,
+ *   revisit affinity, and explanation aversion
+ *
+ * DOES NOT OWN:
+ * - factual authority
+ * - creative prompt rewriting
+ * - candidate scoring or acceptance
+ * - benchmark-specific behavior
+ *
+ * DRIFT WARNING:
+ * Preference is pressure, not truth. Do not let learned style signals create
+ * facts, override grounding, or become hidden domain-specific cognition.
+ */
 const clean = (value: unknown): string => String(value ?? "").replace(/\s+/g, " ").trim().toLowerCase();
 const metric = (value: number): number => Number(Math.max(0, Math.min(1, value)).toFixed(3));
 const unique = (values: readonly string[]): string[] => [...new Set(values.map((value) => clean(value)).filter(Boolean))];

@@ -1,3 +1,24 @@
+/**
+ * QRE PARALLEL PROVIDER BOUNDARY
+ *
+ * FILE ROLE:
+ * Legacy/parallel prose-oriented AI provider helpers. This is not the canonical
+ * QRE Author middle path unless a caller explicitly uses it.
+ *
+ * OWNS:
+ * - provider-facing helpers for this older prose pipeline
+ * - local/external enablement checks for this path
+ *
+ * DOES NOT OWN:
+ * - canonical Author cognition in authorBrainCanonical()
+ * - Creative Discovery, Perceptual Discovery, Composition, Mouth, or grounding
+ * - OpenRouter transport behavior in localModelRuntime.ts
+ *
+ * DRIFT WARNING:
+ * Do not merge this into canonical Author or "clean up" differences merely
+ * because its instructions differ. First prove the canonical runtime calls this
+ * path, then change only the authorized boundary.
+ */
 import { localModelGenerate, localModelConfig } from "./localModelRuntime.js";
 
 export type AiAuthorInput = {

@@ -3,10 +3,24 @@ import { Agent } from "undici";
 /**
  * QRE CANONICAL AUTHOR BOUNDARY
  *
- * Local model runtime owns provider transport, fallback model behavior,
- * timeouts, context size, temperatures, and token budgets. Do not change model
- * behavior as a side effect of unrelated Author work.
- * See ./AUTHOR_ARCHITECTURE.md.
+ * FILE ROLE:
+ * Provider transport for local Ollama and temporary OpenRouter-compatible
+ * hosted inference.
+ *
+ * OWNS:
+ * - request transport, response extraction, provider fallback behavior
+ * - model names, timeouts, keep-alive, context size, token budgets, temperature
+ *   defaults, and OpenRouter compatibility handling
+ *
+ * DOES NOT OWN:
+ * - Author prompts or schemas
+ * - Creative Discovery, Composition, Mouth, scoring, or grounding
+ * - benchmark-specific output behavior
+ *
+ * DRIFT WARNING:
+ * Transport changes must not alter cognition. Do not add prompt repair,
+ * creative fallback, hidden schema changes, temperature changes, or model-call
+ * routing as a side effect of provider work. See ./AUTHOR_ARCHITECTURE.md.
  */
 
 export type LocalModelMessage = {

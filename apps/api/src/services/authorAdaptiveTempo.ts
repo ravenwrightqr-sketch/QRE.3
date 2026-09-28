@@ -1,3 +1,24 @@
+/**
+ * QRE AUTHOR TEMPO BOUNDARY
+ *
+ * FILE ROLE:
+ * Applies learned behavior-profile pressure to Author experience-state tempo.
+ *
+ * OWNS:
+ * - deterministic tempo adaptation from existing state and learned preference
+ * - state-level bias toward acceleration, callback, revisit, compression, or
+ *   surprise
+ *
+ * DOES NOT OWN:
+ * - supplied reality
+ * - creative prompt content
+ * - Mouth wording
+ * - grounding or scoring thresholds
+ *
+ * DRIFT WARNING:
+ * Tempo changes pacing pressure only. It must not invent events, force a fixed
+ * rhythm pattern, or bypass Composition/Mouth ownership.
+ */
 import type { AuthorExperienceState } from "@qre/contracts";
 import type { AuthorBehaviorProfile } from "./authorBehaviorProfile.js";
 

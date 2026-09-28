@@ -1,10 +1,25 @@
 /**
  * QRE BARE AUTHOR CUT POLICY
  *
- * Deterministic viewer-facing safety/quality floor.
- * The model may invent language and perception; it may not invent concrete reality.
- * Semantic authority may license nonliteral framing even when surface words do not
- * overlap the source. Concrete-world authorization remains factual only.
+ * FILE ROLE:
+ * Deterministic viewer-facing safety/quality floor used while evaluating
+ * candidate lines and productions before final grounding.
+ *
+ * OWNS:
+ * - local cut acceptance/rejection metrics
+ * - invention-risk and explanation-risk scoring
+ * - allowing semantic authority to license nonliteral framing
+ *
+ * DOES NOT OWN:
+ * - Creative Discovery authority
+ * - final atomic grounding verifier policy
+ * - prompt design or model transport
+ *
+ * DRIFT WARNING:
+ * The model may invent language and perception; it may not invent concrete
+ * reality. Semantic authority may license framing words even when surface words
+ * do not overlap the source. Concrete-world authorization remains factual only.
+ * Do not turn this into a coverage requirement or a benchmark-specific filter.
  */
 export type AuthorCutWorld = {
   subject?: string;

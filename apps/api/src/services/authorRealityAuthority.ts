@@ -1,9 +1,25 @@
 /**
  * QRE CANONICAL AUTHOR BOUNDARY
  *
- * Reality Authority classifies supplied truth for downstream cognition.
- * Do not modify authority doctrine or evidence classification as a side effect
- * of unrelated Author work. See ./AUTHOR_ARCHITECTURE.md.
+ * FILE ROLE:
+ * Classifies what each supplied evidence item authorizes: attribute,
+ * preference, event, relationship, state, measurement, or unknown.
+ *
+ * OWNS:
+ * - Reality Authority categories
+ * - evidence projections consumed by model-facing Author stages
+ * - doctrine that separates material truth from creative interpretation
+ *
+ * DOES NOT OWN:
+ * - creative importance
+ * - candidate selection
+ * - final wording
+ * - exceptions for a specific benchmark case
+ *
+ * DRIFT WARNING:
+ * Authority kind constrains factual claims; it must not prescribe what QRE
+ * should imagine. Do not weaken this layer to make a creative output pass.
+ * See ./AUTHOR_ARCHITECTURE.md.
  */
 
 export type AuthorRealityAuthority =

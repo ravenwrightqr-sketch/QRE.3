@@ -1,3 +1,23 @@
+/**
+ * QRE AUTHOR MEMORY BOUNDARY
+ *
+ * FILE ROLE:
+ * Merges Author experience states and writes memory batches that future Author
+ * runs may receive as context.
+ *
+ * OWNS:
+ * - memory write projection from completed Author state
+ * - merging recent Author state snapshots
+ *
+ * DOES NOT OWN:
+ * - creating new supplied reality
+ * - Creative Discovery or Composition decisions
+ * - model prompts, scoring, or grounding rules
+ *
+ * DRIFT WARNING:
+ * Memory can preserve observed state; it must not rewrite the past or promote
+ * diagnostic interpretations into facts for future runs.
+ */
 import type {
   AuthorExperienceState,
   MemoryContext,

@@ -1,27 +1,30 @@
 /*
  * QRE CANONICAL AUTHOR BOUNDARY
  *
- * This orchestrator owns the canonical Author call graph. Do not change
- * cognition, grounding, scoring, prompts, model behavior, or runtime contracts
- * here as a side effect of unrelated Author work. See ./AUTHOR_ARCHITECTURE.md.
+ * FILE ROLE:
+ * Orchestrates the production Author path from supplied reality through
+ * Creative Discovery, Perceptual Discovery/Composition/Mouth, grounding, and
+ * runtime projection.
  *
- * QRE CANONICAL AUTHOR
+ * OWNS:
+ * - choosing supplied graph vs Reality Extractor
+ * - building the RealityGraph
+ * - passing canonical supplied events into Author cognition
+ * - calling the grounded creative experience builder
+ * - invoking final grounding and exposing diagnostics
  *
- * One production creative path:
+ * DOES NOT OWN:
+ * - Reality Authority rules
+ * - Creative Discovery prompts, repair, or selection
+ * - Composition/Mouth prompts or scoring
+ * - model transport, token budgets, or temperatures
  *
- * raw input / supplied facts
- *   -> Reality Extractor
- *   -> RealityGraph
- *   -> Meaning
- *   -> Creative Search
- *   -> Creative Addition
- *   -> Treatment
- *   -> Realization
- *   -> Grounding
- *   -> contract/runtime projection
+ * DRIFT WARNING:
+ * This is glue. Do not "fix" Author behavior here by smuggling new cognition,
+ * prompt text, grounding exceptions, fallback policy, or scoring logic into the
+ * orchestrator. Change the owning stage instead, and only when authorized.
  *
- * TypeScript owns truth, provenance and output contracts.
- * The model owns creative interpretation and realization.
+ * See ./AUTHOR_ARCHITECTURE.md before editing canonical Author behavior.
  */
 import type {
   AuthorBrainTruth,

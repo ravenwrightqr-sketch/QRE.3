@@ -1,3 +1,24 @@
+/**
+ * QRE AUTHOR STATE BOUNDARY
+ *
+ * FILE ROLE:
+ * Derives and updates Author experience-state diagnostics from RealityGraph,
+ * latent candidates, tempo, and continuity signals.
+ *
+ * OWNS:
+ * - continuity/tempo/readout state calculations
+ * - state metrics used for diagnostics and memory carry-forward
+ *
+ * DOES NOT OWN:
+ * - supplied reality truth
+ * - Creative Discovery or Composition prompts
+ * - final scene wording or grounding policy
+ *
+ * DRIFT WARNING:
+ * State can describe pressure, continuity, and opportunity; it must not invent
+ * facts or quietly steer model prompts unless a stage explicitly consumes it
+ * by contract.
+ */
 import type {
   AuthorExperienceState,
   AuthorTempo,

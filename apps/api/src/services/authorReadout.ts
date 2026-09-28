@@ -1,3 +1,24 @@
+/**
+ * QRE AUTHOR DIAGNOSTIC BOUNDARY
+ *
+ * FILE ROLE:
+ * Builds a structured readout of Author state, candidates, gates, and selected
+ * creative path for diagnostics and runtime observability.
+ *
+ * OWNS:
+ * - diagnostic projection of Author decisions
+ * - readout scoring summaries and trace-friendly labels
+ *
+ * DOES NOT OWN:
+ * - changing Author cognition
+ * - selecting winners differently
+ * - grounding exceptions
+ * - model prompts or provider settings
+ *
+ * DRIFT WARNING:
+ * Diagnostics observe the machine; they must not become hidden model authority
+ * or a second scoring system unless explicitly authorized.
+ */
 import type {
   AuthorExperienceState,
   LatentMovieCandidate,

@@ -1,10 +1,23 @@
 /**
  * QRE UNIVERSAL CREATIVE OPERATING DOCTRINE
  *
- * Model-agnostic creative conditioning shared by every model-facing Author
- * stage that searches or realizes expressive treatments.
+ * FILE ROLE:
+ * Shared model-facing creative law for Author stages that search for or
+ * realize expressive perception.
  *
- * Reality is closed. Interpretation is open.
+ * OWNS:
+ * - universal creative doctrine reused by model-facing Author calls
+ * - the high-level rule: Reality is closed; interpretation is open
+ *
+ * DOES NOT OWN:
+ * - stage-specific prompts, schemas, token budgets, or temperatures
+ * - Reality Authority categories
+ * - grounding exceptions
+ *
+ * DRIFT WARNING:
+ * This is not a style guide, benchmark patch file, or genre menu. Keep it
+ * universal. Do not add Coco/Milo/bow/bacon/service-case examples here, and do
+ * not use doctrine edits to bypass a more specific stage boundary.
  */
 export const QRE_CREATIVE_OPERATING_DOCTRINE = [
   "QRE CREATIVE LAW: Reality is closed; interpretation is open.",
