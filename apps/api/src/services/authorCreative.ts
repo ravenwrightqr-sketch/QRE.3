@@ -32,6 +32,13 @@ function debug(label: string, value: unknown): void {
   console.log(`\n--- QRE ${label} ---\n${text}\n--- END QRE ${label} ---\n`);
 }
 
+const DIRECT_CREATIVE_AUTHOR_EXPERIMENT_FLAG =
+  "QRE_AUTHOR_DIRECT_CREATIVE_EXPERIMENT";
+
+function directCreativeAuthorExperimentEnabled(): boolean {
+  return process.env[DIRECT_CREATIVE_AUTHOR_EXPERIMENT_FLAG] === "true";
+}
+
 function parseJson(text: string): Record<string, unknown> | undefined {
   const source = clean(text)
     .replace(/^\`\`\`(?:json)?/i, "")
@@ -2352,6 +2359,158 @@ export function evaluateAuthorMemoryProductions(
   }).evaluation;
 }
 
+function directAuthorTreatmentRecords(
+  suppliedReality: readonly AuthorCreativeEvent[],
+): AuthorCreativeTreatmentAssignment[] {
+  const evidenceEventIds = suppliedReality.map((event) => clean(event.id)).filter(Boolean);
+  const expressive = (["A", "B", "C"] as const).map((production, index) => ({
+    id: `treatment-${index + 1}`,
+    semanticMechanic: "NONE",
+    sourceCandidateId: `direct-author[${production}]`,
+    sourceRelation: "line-owned sourceEventIds supply direct creative provenance",
+    evidenceEventIds,
+    creativePressure: "direct expression from supplied reality",
+    hiddenInference: "",
+    treatment: "direct expressive production",
+    perceptionDelta: "perception authored directly in the production",
+    expressiveBehaviors: ["direct author production"],
+    intensity: "MEDIUM" as const,
+  }));
+
+  return [
+    ...expressive,
+    {
+      id: "treatment-4",
+      semanticMechanic: "NONE",
+      sourceCandidateId: "bare",
+      sourceRelation: "bare supplied reality",
+      evidenceEventIds,
+      creativePressure: "BARE",
+      hiddenInference: "",
+      treatment:
+        "NONE / Bare Reality. Present only the supplied facts in their natural sequence with minimal treatment.",
+      perceptionDelta: "No added perception; direct supplied reality remains visible as the control.",
+      expressiveBehaviors: ["bare reality"],
+      intensity: "LIGHT",
+    },
+  ];
+}
+
+function directAuthorTreatmentSearchResult(input: {
+  suppliedReality: readonly AuthorCreativeEvent[];
+  semanticMechanic: AuthorSemanticMechanicCandidate;
+  semanticMechanicCandidates: readonly AuthorSemanticMechanicCandidate[];
+}): AuthorCreativeTreatmentSearchResult {
+  const acceptedTreatments = directAuthorTreatmentRecords(input.suppliedReality);
+  const parsedTreatments = acceptedTreatments.map(({ semanticMechanic, ...treatment }) => {
+    void semanticMechanic;
+    return treatment;
+  });
+
+  return {
+    lensSearchEnabled: true,
+    lensMode: "AUTO",
+    autoBusinessLens: false,
+    rawTreatmentResponse: "DIRECT_CREATIVE_AUTHOR_EXPERIMENT",
+    model: "direct-creative-author-experiment",
+    modelCalls: 0,
+    semanticMechanic: input.semanticMechanic,
+    semanticMechanicCandidates: [...input.semanticMechanicCandidates],
+    creativeNotice: { latentRelations: [] },
+    storyGravity: fallbackStoryGravity(input.suppliedReality),
+    failureLessons: [],
+    parsedTreatments,
+    acceptedTreatments,
+    rejectedTreatments: [],
+    treatmentSetAssessment: assessAuthorCreativeTreatmentSet(parsedTreatments),
+  };
+}
+
+async function generateDirectAuthorMemoryProductions(input: {
+  subject: string;
+  suppliedReality: readonly AuthorCreativeEvent[];
+}): Promise<{
+  text: string;
+  model: string;
+  provider: "local";
+}> {
+  return localModelGenerate(
+    [
+      {
+        role: "system",
+        content: [
+          "You are QRE Direct Creative Author.",
+          "Reality is evidence for thought, not a script to rewrite.",
+          "Create three genuinely different complete expressive productions: A, B, and C.",
+          "The expressive production itself is the creative discovery. Reason privately; return only the productions.",
+          "Do not summarize facts, paraphrase facts, enumerate facts, replace facts with synonyms, translate actions into abstractions, explain what facts mean, or construct a mandatory story arc.",
+          "Think because of the supplied reality and express the resulting perception directly.",
+          "A/B/C do not owe full fact coverage, collective evidence coverage, or divided evidence. One supplied atom may support an entire production. Unused supplied facts are legal. Multiple productions may use the same evidence.",
+          "sourceEventIds are provenance only: choose the supplied events that licensed each line's perception. They are not output slots or coverage requirements.",
+          "Interpretation is open: invent perception, attitude, implication, metaphorical thought, judgment, humor, recontextualization, status, absurdity, understatement, or rhetorical exaggeration.",
+          "Reality is closed: do not invent unsupported people, objects, places, physical actions, sensory facts, measurements, motives, outcomes, recurrence, chronology, physical conditions, or any new concrete occurrence.",
+          "Do not output conception, attention, interpretation, rationale, theme, semantic mechanic, lens name, meaning, explanation, winner selection, or D.",
+        ].join("\n"),
+      },
+      {
+        role: "user",
+        content: JSON.stringify({
+          SUBJECT: input.subject,
+          SUPPLIED_REALITY: input.suppliedReality,
+          PRODUCTIONS: ["A", "B", "C"],
+          instruction:
+            "Return exactly three production objects, one each for A, B, and C. Each production owns its own expressive lines. Each line must include order, text, and sourceEventIds. Do not select a winner and do not write D.",
+        }),
+      },
+    ],
+    "json",
+    {
+      numPredict: 1050,
+      temperature: 0.98,
+      jsonSchema: {
+        type: "object",
+        additionalProperties: false,
+        required: ["productions"],
+        properties: {
+          productions: {
+            type: "array",
+            minItems: 3,
+            maxItems: 3,
+            items: {
+              type: "object",
+              additionalProperties: false,
+              required: ["production", "lines"],
+              properties: {
+                production: { type: "string", enum: ["A", "B", "C"] },
+                lines: {
+                  type: "array",
+                  minItems: 1,
+                  maxItems: 12,
+                  items: {
+                    type: "object",
+                    additionalProperties: false,
+                    required: ["order", "text", "sourceEventIds"],
+                    properties: {
+                      order: { type: "integer", minimum: 1 },
+                      text: { type: "string" },
+                      sourceEventIds: {
+                        type: "array",
+                        minItems: 1,
+                        maxItems: 32,
+                        items: { type: "string", maxLength: 64 },
+                      },
+                    },
+                  },
+                },
+              },
+            },
+          },
+        },
+      },
+    },
+  );
+}
+
 function buildDeterministicMouthFallback(
   plan: AuthorSemanticPlan,
   events: readonly AuthorCreativeEvent[],
@@ -2458,6 +2617,8 @@ export async function createAuthorExperience(input: {
     playableIds.has(clean(event.id)),
   );
   const isMemoryMode = experienceMode === "MEMORY";
+  const directCreativeAuthorExperiment =
+    isMemoryMode && directCreativeAuthorExperimentEnabled();
   const useDeterministicSparsePlan =
     selectedEvidence.length > 0 && selectedEvidence.length <= 3;
   const useDeterministicRealityDirectMemoryPlan =
@@ -2623,18 +2784,24 @@ export async function createAuthorExperience(input: {
         candidates: semanticMechanicCandidates,
         creativeDiscovery: input.creativeDiscovery,
       });
-  const lensSearch = await searchAuthorCreativeLensTreatments({
-    subject: input.subject,
-    suppliedReality: input.suppliedReality,
-    plan,
-    creativeOpportunity: selected.perception,
-    relation: selected.relationship,
-    experienceMode,
-    requestedLens,
-    domainContext: input.domainContext,
-    semanticMechanic,
-    semanticMechanicCandidates,
-  });
+  const lensSearch = directCreativeAuthorExperiment
+    ? directAuthorTreatmentSearchResult({
+        suppliedReality: input.suppliedReality,
+        semanticMechanic,
+        semanticMechanicCandidates,
+      })
+    : await searchAuthorCreativeLensTreatments({
+        subject: input.subject,
+        suppliedReality: input.suppliedReality,
+        plan,
+        creativeOpportunity: selected.perception,
+        relation: selected.relationship,
+        experienceMode,
+        requestedLens,
+        domainContext: input.domainContext,
+        semanticMechanic,
+        semanticMechanicCandidates,
+      });
   const autoBusinessLens = lensSearch.autoBusinessLens;
   const lensSearchEnabled = lensSearch.lensSearchEnabled;
   const lensMode = lensSearch.lensMode;
@@ -2663,6 +2830,8 @@ export async function createAuthorExperience(input: {
 
   debug("CREATIVE-LENS-SEARCH", {
     mode: lensMode,
+    directCreativeAuthorExperiment,
+    directCreativeAuthorExperimentFlag: DIRECT_CREATIVE_AUTHOR_EXPERIMENT_FLAG,
     requestedLens: requestedLens || (autoBusinessLens ? "AUTO" : "NONE"),
     semanticMechanic: lensSearch.semanticMechanic,
     semanticMechanicCandidates,
@@ -2686,7 +2855,25 @@ export async function createAuthorExperience(input: {
   if (skipExpressiveMouth) {
     mouthFallbackReason = "no viable expressive treatments; skipped Mouth and returned deterministic Bare Reality";
   }
-  const mouthResult = skipExpressiveMouth
+  const mouthResult = directCreativeAuthorExperiment
+    ? await generateDirectAuthorMemoryProductions({
+        subject: input.subject,
+        suppliedReality: input.suppliedReality,
+      }).catch((error: unknown) => {
+        mouthFallbackReason =
+          clean((error as { message?: unknown })?.message) ||
+          "direct_creative_author_model_failed";
+        return {
+          text: buildDeterministicMouthFallback(
+            plan,
+            input.suppliedReality,
+            isMemoryMode,
+          ),
+          model: "deterministic-bare-direct-author-fallback",
+          provider: "local" as const,
+        };
+      })
+    : skipExpressiveMouth
     ? {
         text: buildDeterministicMouthFallback(plan, input.suppliedReality, isMemoryMode),
         model: "deterministic-bare-mouth-skip",
@@ -2905,7 +3092,12 @@ export async function createAuthorExperience(input: {
     };
   });
 
-  debug("MOUTH-CANDIDATES", mouthResult.text);
+  debug(
+    directCreativeAuthorExperiment
+      ? "DIRECT-CREATIVE-AUTHOR-PRODUCTIONS"
+      : "MOUTH-CANDIDATES",
+    mouthResult.text,
+  );
 
   let parsedMouth = parseJson(mouthResult.text);
   const variantsByOrder = new Map<number, string[]>();
