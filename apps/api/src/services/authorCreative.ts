@@ -115,6 +115,22 @@ export type AuthorMemoryMouthProduction = {
   lines: AuthorMemoryMouthLine[];
 };
 
+export type AuthorDirectTextProduction = {
+  production: AuthorProductionLetter;
+  lines: Array<{
+    order: number;
+    text: string;
+  }>;
+};
+
+export type AuthorDirectProvenanceAssignment = {
+  production: AuthorProductionLetter;
+  lines: Array<{
+    order: number;
+    sourceEventIds: string[];
+  }>;
+};
+
 export type AuthorCreativeTreatmentMouthAssignment =
   Omit<AuthorCreativeTreatmentAssignment, "semanticMechanic"> & {
     production: AuthorProductionLetter;
@@ -2426,6 +2442,213 @@ function directAuthorTreatmentSearchResult(input: {
   };
 }
 
+function sentenceForDirectReality(value: string): string {
+  const text = clean(value);
+  if (!text) return "";
+  return /[.!?]$/.test(text) ? text : `${text}.`;
+}
+
+export function directCreativeRealityText(
+  suppliedReality: readonly AuthorCreativeEvent[],
+): string {
+  return suppliedReality
+    .map((event) => sentenceForDirectReality(event.text))
+    .filter(Boolean)
+    .join(" ");
+}
+
+function normalizeDirectAuthorTextProductions(
+  value: unknown,
+): AuthorDirectTextProduction[] {
+  if (!Array.isArray(value)) return [];
+
+  return value
+    .map((rawProduction): AuthorDirectTextProduction | undefined => {
+      if (!rawProduction || typeof rawProduction !== "object") return undefined;
+      const productionRecord = rawProduction as Record<string, unknown>;
+      const production = clean(productionRecord.production).toUpperCase();
+      if (!["A", "B", "C"].includes(production) || !Array.isArray(productionRecord.lines)) {
+        return undefined;
+      }
+
+      const lines = productionRecord.lines
+        .map((rawLine): AuthorDirectTextProduction["lines"][number] | undefined => {
+          if (!rawLine || typeof rawLine !== "object") return undefined;
+          const lineRecord = rawLine as Record<string, unknown>;
+          const order = Number(lineRecord.order);
+          const text = stripProductionLabel(lineRecord.text);
+          if (!Number.isInteger(order) || !text) return undefined;
+          return { order, text };
+        })
+        .filter((line): line is AuthorDirectTextProduction["lines"][number] => Boolean(line))
+        .sort((a, b) => a.order - b.order);
+
+      return {
+        production: production as AuthorProductionLetter,
+        lines,
+      };
+    })
+    .filter((production): production is AuthorDirectTextProduction => Boolean(production));
+}
+
+export function attachDirectAuthorProvenanceToProductions(input: {
+  authoredProductions: readonly AuthorDirectTextProduction[];
+  provenanceAssignments: readonly AuthorDirectProvenanceAssignment[];
+  suppliedReality: readonly AuthorCreativeEvent[];
+}): AuthorMemoryMouthProduction[] {
+  const assignmentByLine = new Map<string, string[]>();
+
+  for (const assignment of input.provenanceAssignments) {
+    if (!["A", "B", "C"].includes(assignment.production)) continue;
+    for (const line of assignment.lines) {
+      if (!Number.isInteger(line.order)) continue;
+      const sourceEventIds = validStoryEventIds(
+        line.sourceEventIds,
+        input.suppliedReality,
+        32,
+      );
+      if (!sourceEventIds.length) continue;
+      assignmentByLine.set(`${assignment.production}:${line.order}`, sourceEventIds);
+    }
+  }
+
+  return input.authoredProductions
+    .map((production) => ({
+      production: production.production,
+      lines: production.lines
+        .map((line): AuthorMemoryMouthLine | undefined => {
+          const sourceEventIds = assignmentByLine.get(`${production.production}:${line.order}`) ?? [];
+          if (!sourceEventIds.length) return undefined;
+          return {
+            order: line.order,
+            text: line.text,
+            sourceEventIds,
+          };
+        })
+        .filter((line): line is AuthorMemoryMouthLine => Boolean(line)),
+    }))
+    .filter((production) => production.lines.length > 0);
+}
+
+async function assignDirectAuthorProductionProvenance(input: {
+  suppliedReality: readonly AuthorCreativeEvent[];
+  authoredProductions: readonly AuthorDirectTextProduction[];
+}): Promise<{
+  productions: AuthorMemoryMouthProduction[];
+  model: string;
+  modelCalls: number;
+}> {
+  const result = await localModelGenerate(
+    [
+      {
+        role: "system",
+        content: [
+          "You are QRE Direct Author Provenance.",
+          "A creative Author already wrote immutable A/B/C productions.",
+          "Your only job is to attach supplied evidence IDs to each existing line.",
+          "Do not rewrite text. Do not repair text. Do not score creativity. Do not select a winner.",
+          "Do not assign evidence by line position. Do not require full coverage. Do not assign every event to every line.",
+          "Choose only the supplied event IDs that license the already-authored line.",
+          "The same event may support multiple lines. Several events may support one line. Unused supplied events are legal.",
+          "Return evidence IDs only.",
+        ].join("\n"),
+      },
+      {
+        role: "user",
+        content: JSON.stringify({
+          SUPPLIED_REALITY: input.suppliedReality,
+          AUTHORED_PRODUCTIONS: input.authoredProductions,
+          instruction:
+            "For each authored line, return the sourceEventIds that license it. Preserve production letters and line orders. Do not include text.",
+        }),
+      },
+    ],
+    "json",
+    {
+      numPredict: 520,
+      temperature: 0.12,
+      jsonSchema: {
+        type: "object",
+        additionalProperties: false,
+        required: ["assignments"],
+        properties: {
+          assignments: {
+            type: "array",
+            minItems: 3,
+            maxItems: 3,
+            items: {
+              type: "object",
+              additionalProperties: false,
+              required: ["production", "lines"],
+              properties: {
+                production: { type: "string", enum: ["A", "B", "C"] },
+                lines: {
+                  type: "array",
+                  minItems: 0,
+                  maxItems: 12,
+                  items: {
+                    type: "object",
+                    additionalProperties: false,
+                    required: ["order", "sourceEventIds"],
+                    properties: {
+                      order: { type: "integer", minimum: 1 },
+                      sourceEventIds: {
+                        type: "array",
+                        minItems: 1,
+                        maxItems: 32,
+                        items: { type: "string", maxLength: 64 },
+                      },
+                    },
+                  },
+                },
+              },
+            },
+          },
+        },
+      },
+    },
+  );
+
+  const parsed = parseJson(result.text);
+  const assignments = Array.isArray(parsed?.assignments)
+    ? parsed.assignments
+        .map((rawAssignment): AuthorDirectProvenanceAssignment | undefined => {
+          if (!rawAssignment || typeof rawAssignment !== "object") return undefined;
+          const assignmentRecord = rawAssignment as Record<string, unknown>;
+          const production = clean(assignmentRecord.production).toUpperCase();
+          if (!["A", "B", "C"].includes(production) || !Array.isArray(assignmentRecord.lines)) {
+            return undefined;
+          }
+          return {
+            production: production as AuthorProductionLetter,
+            lines: assignmentRecord.lines
+              .map((rawLine): AuthorDirectProvenanceAssignment["lines"][number] | undefined => {
+                if (!rawLine || typeof rawLine !== "object") return undefined;
+                const lineRecord = rawLine as Record<string, unknown>;
+                const order = Number(lineRecord.order);
+                const sourceEventIds = Array.isArray(lineRecord.sourceEventIds)
+                  ? lineRecord.sourceEventIds.filter((id): id is string => typeof id === "string")
+                  : [];
+                if (!Number.isInteger(order) || !sourceEventIds.length) return undefined;
+                return { order, sourceEventIds };
+              })
+              .filter((line): line is AuthorDirectProvenanceAssignment["lines"][number] => Boolean(line)),
+          };
+        })
+        .filter((assignment): assignment is AuthorDirectProvenanceAssignment => Boolean(assignment))
+    : [];
+
+  return {
+    productions: attachDirectAuthorProvenanceToProductions({
+      authoredProductions: input.authoredProductions,
+      provenanceAssignments: assignments,
+      suppliedReality: input.suppliedReality,
+    }),
+    model: result.model,
+    modelCalls: 1,
+  };
+}
+
 async function generateDirectAuthorMemoryProductions(input: {
   subject: string;
   suppliedReality: readonly AuthorCreativeEvent[];
@@ -2445,21 +2668,21 @@ async function generateDirectAuthorMemoryProductions(input: {
           "The expressive production itself is the creative discovery. Reason privately; return only the productions.",
           "Do not summarize facts, paraphrase facts, enumerate facts, replace facts with synonyms, translate actions into abstractions, explain what facts mean, or construct a mandatory story arc.",
           "Think because of the supplied reality and express the resulting perception directly.",
-          "A/B/C do not owe full fact coverage, collective evidence coverage, or divided evidence. One supplied atom may support an entire production. Unused supplied facts are legal. Multiple productions may use the same evidence.",
-          "sourceEventIds are provenance only: choose the supplied events that licensed each line's perception. They are not output slots or coverage requirements.",
+          "The number of lines has no relationship to the number of supplied facts. Do not construct a line for each fact.",
+          "A production may be one line. One small supplied detail may carry the entire production. Most supplied facts may remain unused.",
           "Interpretation is open: invent perception, attitude, implication, metaphorical thought, judgment, humor, recontextualization, status, absurdity, understatement, or rhetorical exaggeration.",
           "Reality is closed: do not invent unsupported people, objects, places, physical actions, sensory facts, measurements, motives, outcomes, recurrence, chronology, physical conditions, or any new concrete occurrence.",
-          "Do not output conception, attention, interpretation, rationale, theme, semantic mechanic, lens name, meaning, explanation, winner selection, or D.",
+          "Do not output sourceEventIds, conception, attention, interpretation, rationale, theme, semantic mechanic, lens name, meaning, explanation, winner selection, or D.",
         ].join("\n"),
       },
       {
         role: "user",
         content: JSON.stringify({
           SUBJECT: input.subject,
-          SUPPLIED_REALITY: input.suppliedReality,
+          REALITY: directCreativeRealityText(input.suppliedReality),
           PRODUCTIONS: ["A", "B", "C"],
           instruction:
-            "Return exactly three production objects, one each for A, B, and C. Each production owns its own expressive lines. Each line must include order, text, and sourceEventIds. Do not select a winner and do not write D.",
+            "Return exactly three production objects, one each for A, B, and C. Each production owns its own expressive lines. Each line must include only order and text. Do not select a winner and do not write D.",
         }),
       },
     ],
@@ -2489,16 +2712,10 @@ async function generateDirectAuthorMemoryProductions(input: {
                   items: {
                     type: "object",
                     additionalProperties: false,
-                    required: ["order", "text", "sourceEventIds"],
+                    required: ["order", "text"],
                     properties: {
                       order: { type: "integer", minimum: 1 },
                       text: { type: "string" },
-                      sourceEventIds: {
-                        type: "array",
-                        minItems: 1,
-                        maxItems: 32,
-                        items: { type: "string", maxLength: 64 },
-                      },
                     },
                   },
                 },
@@ -2852,6 +3069,7 @@ export async function createAuthorExperience(input: {
   }
 
   let mouthFallbackReason: string | undefined;
+  let directAuthorProvenanceModelCalls = 0;
   if (skipExpressiveMouth) {
     mouthFallbackReason = "no viable expressive treatments; skipped Mouth and returned deterministic Bare Reality";
   }
@@ -3100,6 +3318,42 @@ export async function createAuthorExperience(input: {
   );
 
   let parsedMouth = parseJson(mouthResult.text);
+
+  if (directCreativeAuthorExperiment && Array.isArray(parsedMouth?.productions)) {
+    const authoredProductions = normalizeDirectAuthorTextProductions(parsedMouth.productions);
+
+    if (authoredProductions.length) {
+      const provenanceResult = await assignDirectAuthorProductionProvenance({
+        suppliedReality: input.suppliedReality,
+        authoredProductions,
+      }).catch((error: unknown) => {
+        mouthFallbackReason =
+          clean((error as { message?: unknown })?.message) ||
+          "direct_creative_author_provenance_failed";
+        return undefined;
+      });
+
+      directAuthorProvenanceModelCalls += provenanceResult?.modelCalls ?? 0;
+
+      if (provenanceResult?.productions.length) {
+        parsedMouth = {
+          productions: provenanceResult.productions,
+        };
+      } else {
+        mouthFallbackReason =
+          mouthFallbackReason ||
+          "direct creative author provenance produced no grounded line evidence";
+        parsedMouth = parseJson(
+          buildDeterministicMouthFallback(
+            plan,
+            input.suppliedReality,
+            true,
+          ),
+        );
+      }
+    }
+  }
+
   const variantsByOrder = new Map<number, string[]>();
   const memoryMouthProductions: AuthorMemoryMouthProduction[] = [];
 
@@ -3460,7 +3714,8 @@ export async function createAuthorExperience(input: {
     modelCalls:
       (useDeterministicPlan ? 1 : 2) +
       lensSearch.modelCalls +
-      memoryRepairModelCalls,
+      memoryRepairModelCalls +
+      directAuthorProvenanceModelCalls,
     diagnostics: {
       plan,
       creativeNotice: lensSearch.creativeNotice,
