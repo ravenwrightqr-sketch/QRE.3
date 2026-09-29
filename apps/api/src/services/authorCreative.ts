@@ -815,42 +815,15 @@ export async function searchAuthorCreativeLensTreatments(input: {
         content: [
           "You are QRE Creative Search.",
           ...QRE_CREATIVE_OPERATING_DOCTRINE,
-          "Reality is fixed. Creative interpretation is aggressive. New concrete world facts are forbidden.",
-          "Classify STORY_GRAVITY.mode as ARC, SEQUENCE, PORTRAIT, or WORLD_OPENING from the supplied event IDs only.",
-          "Find the strongest relationships already inside CREATIVE_EVIDENCE. Do not force a thesis, psychology, routine, or hidden history.",
-          "HARD_ENDPOINT_EVENT_ID is already locked by QRE. Earlier supplied evidence may earn it; the endpoint itself is not the creative idea.",
-          "Operational anchors are provenance by default. Do not center timing, precision, logging, documentation, duration, or completion unless the supplied relationship truly depends on them.",
-          "Search broadly in private. Return exactly three materially different latent relations and one finalist per relation in the same order.",
-          "QRE AUTHORS PERCEPTION, NOT STORY. Notice what is worth noticing; do not construct a narrative to explain every event.",
-          "DISCOVER, DO NOT DIAGNOSE. A creative conception may change how a supplied fact lands, connects, or is noticed, but it may not reverse, explain away, or replace that fact.",
-          "Supplied states remain true. Supplied emotion remains true. An attempted action establishes the attempt, not motive, preference, rebellion, ownership, success, or hidden psychology.",
-          "The three relations must begin from genuinely independent observations. If two candidates depend on substantially the same underlying interpretation, discard one and search again.",
-          "Difference is not a new tone, genre, vocabulary, intensity, or costume over the same thesis. What is worth noticing must actually change.",
-          "ATTENTION, NOT COVERAGE. One supplied detail may carry an entire conception. Unused facts are legal; fact count is not creative depth.",
-          "IMPLICATION, NOT EXPLANATION. COMPRESSION, NOT SUMMARY. RECONTEXTUALIZE, DO NOT CONTRADICT. Stop before explaining the connection.",
-          "Use these questions as creative search pressure: What changes the read of everything else? Which supplied detail refuses to stay ordinary? What becomes more interesting when two true facts are forced together? What later fact changes the meaning of an earlier one?",
-          "Ask: What can be made larger in meaning without becoming larger in fact? What is the smallest detail carrying the most story? What can be twisted rhetorically without creating a new event?",
-          "Ask: Which supplied detail has creative charge, and what genuinely different perception can emerge from it without ceasing to be the same fact?",
-          "Do not summarize the reality. Make the reality acquire attitude. Do not explain the relationship; make the next move prove it.",
-          "Prefer a relation that could only have come from THESE facts over a generic mood that could fit anything.",
-          "A finalist should bend meaning as far as possible without bending reality.",
-          "CREATIVE PRESSURE IS NOT FACT. After finding a grounded relation, search freely for the expressive territory this specific material earns. Do not choose from or imitate a predefined creative taxonomy. Invent the pressure from the supplied reality itself.",
-          "Do not merely name a genre or familiar style. The pressure must change how the supplied facts are perceived, and it must arise from this material rather than from a stock framing.",
-          "The three finalists must not share one mood. Make them compete from materially different creative pressures.",
-          "For each treatment, creativePressure names the governing pressure in a few words. It may use a known universe or invent a new one. The name is diagnostic, not a template.",
-          "There is no default pressure and no preferred genre. Let the facts suggest the territory, including territory not anticipated by QRE.",
-          "At least one finalist should be bold enough that a cautious model would probably not choose it, while still preserving exact concrete reality.",
-          "Penalize atmospheric vagueness. Ambiguity, impermanence, subtlety, transience, melancholy, emptiness, longing, and similar mood words are not a creative conception by themselves.",
-          "Prefer executable creative ideas over labels. A conception should alter the viewer's perception of the supplied reality without requiring invented concrete facts.",
-          "Ask of every finalist: could this exact idea have emerged from almost any four facts? If yes, it is too generic. Make it depend on THESE facts.",
-          "Each relation must name the supplied event IDs that make it possible. A missing fact is not a relation.",
-          "hiddenInference is optional. Leave it empty unless the supplied facts genuinely support an unstated realization.",
-          "You may use any grounded rhetorical or semantic operation you discover. Do not treat examples, categories, or familiar techniques as a menu.",
-          "Rhetoric may be more extreme than reality. The concrete world may not become more specific than the evidence.",
-          "Treatments describe semantic/verbal transformation only. No camera, visuals, typography, overlays, sound, editing, staging, or rendering instructions.",
-          "IMPORTANT: 'treatment' here does NOT mean a film, video, audiovisual, or production treatment. It means a private semantic conception: what the supplied reality means differently, how its facts relate, and what rhetorical/verbal pressure should shape the writing.",
-          "expressiveBehaviors must be semantic or rhetorical operations only. Never return music, sound, camera, visual cues, lighting, editing, performance direction, or other presentation instructions.",
-          "Make the same reality read differently. Make meaning felt and implied, not explained.",
+          "Your only job is to NOTICE three independently interesting things in the supplied reality.",
+          "QRE authors perception, not story. Do not build an arc, plot, sequence, conflict, escalation, resolution, hidden psychology, motive, or explanation.",
+          "Each notice starts from whatever supplied detail actually catches your attention. One detail is enough. Several may combine when the connection is already present in the facts.",
+          "A notice may change how a true fact feels, lands, connects, or is noticed. It may not negate, explain away, or replace any supplied proposition.",
+          "Do not infer motive from an attempt. Do not infer hidden emotion from an action. Do not turn chronology into causality.",
+          "The three notices must be genuinely different observations, not three tones, genres, metaphors, or costumes over one interpretation.",
+          "Do not choose a genre. Do not write a treatment. Do not describe how to write it. Do not explain what the experience means.",
+          "Return the smallest private creative conception that would let another Author express the perception.",
+          "Attention is selective. A notice does not need to use every fact. Unused facts are legal.",
           "Protect the strange; police the facts.",
         ].join("\n"),
       },
@@ -858,114 +831,39 @@ export async function searchAuthorCreativeLensTreatments(input: {
         role: "user",
         content: JSON.stringify({
           SUBJECT: input.subject,
-          CREATIVE_EVIDENCE: creativeEvidenceProjection(input.suppliedReality),
-          HARD_ENDPOINT_EVENT_ID: fallbackStoryGravity(input.suppliedReality).endpointEventId,
-          MODE_HINT: clean(input.experienceMode) || undefined,
+          SUPPLIED_REALITY: creativeEvidenceProjection(input.suppliedReality),
           REQUESTED_LENS: requestedLens || undefined,
           instruction:
-            "Return STORY_GRAVITY plus exactly three distinct latent relations and exactly three finalist moves. Finalist 1 uses relation 1, finalist 2 relation 2, finalist 3 relation 3. Keep provenance in the relations; do not repeat relation text or event IDs inside finalists. Leave hiddenInference empty when no real unstated realization is earned.",
+            "Return exactly three independent notices. For each: what caught your attention, the supplied event IDs that support it, and a compact private conception. Do not return story structure, latent relations, treatments, hidden inference, perception deltas, expressive behavior menus, or narrative instructions.",
         }),
       },
     ],
     "json",
     {
-      // Creative Search now carries three complete latent relations plus three
-      // complete treatments without hard string clipping. Give the model enough
-      // room to close valid JSON; brevity is taught in the prompt, not enforced
-      // by truncating the response mid-conception.
-      numPredict: 1200,
+      numPredict: 520,
       temperature: 0.98,
       jsonSchema: {
         type: "object",
         additionalProperties: false,
-        required: ["storyGravity", "creativeNotice", "treatments"],
+        required: ["notices"],
         properties: {
-          storyGravity: {
-            type: "object",
-            additionalProperties: false,
-            required: [
-              "mode",
-              "centerEventIds",
-              "openingSignalEventIds",
-              "characterSignalEventIds",
-              "tensionEventIds",
-              "escalationEventIds",
-              "sealingDetailEventId",
-              "backwardDependencies",
-            ],
-            properties: {
-              mode: { type: "string", enum: ["ARC", "SEQUENCE", "PORTRAIT", "WORLD_OPENING"] },
-              centerEventIds: { type: "array", minItems: 1, maxItems: 6, items: { type: "string", maxLength: 64 } },
-              openingSignalEventIds: { type: "array", minItems: 0, maxItems: 4, items: { type: "string", maxLength: 64 } },
-              characterSignalEventIds: { type: "array", minItems: 0, maxItems: 4, items: { type: "string", maxLength: 64 } },
-              tensionEventIds: { type: "array", minItems: 0, maxItems: 4, items: { type: "string", maxLength: 64 } },
-              escalationEventIds: { type: "array", minItems: 0, maxItems: 6, items: { type: "string", maxLength: 64 } },
-              sealingDetailEventId: { type: "string", maxLength: 64 },
-              backwardDependencies: {
-                type: "array",
-                minItems: 0,
-                maxItems: 6,
-                items: {
-                  type: "object",
-                  additionalProperties: false,
-                  required: ["eventId", "supportsEventId"],
-                  properties: {
-                    eventId: { type: "string", maxLength: 64 },
-                    supportsEventId: { type: "string", maxLength: 64 },
-                  },
-                },
-              },
-            },
-          },
-          creativeNotice: {
-            type: "object",
-            additionalProperties: false,
-            required: ["latentRelations"],
-            properties: {
-              latentRelations: {
-                type: "array",
-                minItems: 3,
-                maxItems: 3,
-                items: {
-                  type: "object",
-                  additionalProperties: false,
-                  required: ["relation", "evidenceEventIds"],
-                  properties: {
-                    relation: { type: "string" },
-                    evidenceEventIds: {
-                      type: "array",
-                      minItems: 1,
-                      maxItems: 16,
-                      items: { type: "string", maxLength: 64 },
-                    },
-                  },
-                },
-              },
-            },
-          },
-          treatments: {
+          notices: {
             type: "array",
             minItems: 3,
             maxItems: 3,
             items: {
               type: "object",
               additionalProperties: false,
-              required: ["creativePressure", "hiddenInference", "treatment", "perceptionDelta", "expressiveBehaviors", "intensity"],
+              required: ["attention", "evidenceEventIds", "conception"],
               properties: {
-                creativePressure: { type: "string" },
-                hiddenInference: { type: "string" },
-                treatment: { type: "string" },
-                perceptionDelta: { type: "string" },
-                expressiveBehaviors: {
+                attention: { type: "string" },
+                evidenceEventIds: {
                   type: "array",
                   minItems: 1,
-                  maxItems: 4,
-                  items: { type: "string" },
+                  maxItems: 16,
+                  items: { type: "string", maxLength: 64 },
                 },
-                intensity: {
-                  type: "string",
-                  enum: ["LIGHT", "MEDIUM", "STRONG"],
-                },
+                conception: { type: "string" },
               },
             },
           },
@@ -992,209 +890,56 @@ export async function searchAuthorCreativeLensTreatments(input: {
     ? parseJson(lensResult.text)
     : undefined;
   const fallbackGravity = fallbackStoryGravity(input.suppliedReality);
-  const rawStoryGravity =
-    parsedLens?.storyGravity && typeof parsedLens.storyGravity === "object"
-      ? parsedLens.storyGravity as Record<string, unknown>
-      : {};
-  const suppliedEventIds = new Set(input.suppliedReality.map((event) => clean(event.id)));
-  // Endpoint authority belongs to QRE, not the model. The final supplied event is
-  // locked before creative search so interpretation cannot mutate the ending.
-  const endpointEventId = fallbackGravity.endpointEventId;
-  const rawSealingDetailEventId = clean(rawStoryGravity.sealingDetailEventId);
-  const rawSealingEvent = input.suppliedReality.find((event) => clean(event.id) === rawSealingDetailEventId);
-  const hasNonOperationalPreEndpointEvidence = input.suppliedReality
-    .slice(0, -1)
-    .some((event) => !isOperationalOnlyStoryEvent(event));
-  const sealingDetailEventId = suppliedEventIds.has(rawSealingDetailEventId) &&
-    !(hasNonOperationalPreEndpointEvidence && isOperationalOnlyStoryEvent(rawSealingEvent))
-      ? rawSealingDetailEventId
-      : fallbackGravity.sealingDetailEventId;
-  const rawBackwardDependencies = Array.isArray(rawStoryGravity.backwardDependencies)
-    ? rawStoryGravity.backwardDependencies
-    : [];
-  const eventOrder = new Map(input.suppliedReality.map((event, index) => [clean(event.id), index]));
-  const parsedBackwardDependencies = rawBackwardDependencies
-    .map((value): AuthorStoryGravity["backwardDependencies"][number] | undefined => {
-      if (!value || typeof value !== "object") return undefined;
-      const record = value as Record<string, unknown>;
-      const eventId = clean(record.eventId);
-      const supportsEventId = clean(record.supportsEventId);
-      if (!suppliedEventIds.has(eventId) || !suppliedEventIds.has(supportsEventId)) return undefined;
-      const fromOrder = eventOrder.get(eventId);
-      const toOrder = eventOrder.get(supportsEventId);
-      // Backward search is discovered from the endpoint, but each dependency edge
-      // must still point forward through reality: earlier evidence earns later evidence.
-      if (fromOrder === undefined || toOrder === undefined || fromOrder >= toOrder) return undefined;
-      return {
-        eventId,
-        supportsEventId,
-        function: "earlier supplied evidence earns the later supplied evidence",
-      };
-    })
-    .filter((value): value is AuthorStoryGravity["backwardDependencies"][number] => Boolean(value))
-    .slice(0, 6);
-  const rawStoryMode = clean(rawStoryGravity.mode).toUpperCase();
-  const storyMode: AuthorStoryGravity["mode"] =
-    rawStoryMode === "ARC" || rawStoryMode === "SEQUENCE" || rawStoryMode === "PORTRAIT" || rawStoryMode === "WORLD_OPENING"
-      ? rawStoryMode
-      : fallbackGravity.mode;
-  const centerEventIds = validStoryEventIds(rawStoryGravity.centerEventIds, input.suppliedReality, 6);
-  const nonOperationalSignalIds = (value: unknown, limit: number) =>
-    validStoryEventIds(value, input.suppliedReality, limit).filter((eventId) =>
-      !isOperationalOnlyStoryEvent(input.suppliedReality.find((event) => clean(event.id) === eventId)),
-    );
-  const storyGravity: AuthorStoryGravity = {
-    mode: storyMode,
-    centerEventIds: centerEventIds.length ? centerEventIds : fallbackGravity.centerEventIds,
-    openingSignalEventIds: validStoryEventIds(rawStoryGravity.openingSignalEventIds, input.suppliedReality, 4),
-    characterSignalEventIds: nonOperationalSignalIds(rawStoryGravity.characterSignalEventIds, 4),
-    tensionEventIds: nonOperationalSignalIds(rawStoryGravity.tensionEventIds, 4),
-    escalationEventIds: nonOperationalSignalIds(rawStoryGravity.escalationEventIds, 6),
-    sealingDetailEventId,
-    endpointEventId,
-    endpointMode: fallbackGravity.endpointMode,
-    endpointAuthority: "HARD",
-    backwardDependencies: parsedBackwardDependencies.length
-      ? parsedBackwardDependencies
-      : fallbackGravity.backwardDependencies,
-  };
+  // AUTO Creative Search no longer asks the model to invent story structure.
+  // Keep deterministic gravity only as legacy transport/provenance for downstream code.
+  const storyGravity: AuthorStoryGravity = fallbackGravity;
 
-  const rawCreativeNotice =
-    parsedLens?.creativeNotice && typeof parsedLens.creativeNotice === "object"
-      ? parsedLens.creativeNotice as Record<string, unknown>
-      : {};
-  const latentRelations = Array.isArray(rawCreativeNotice.latentRelations)
-    ? rawCreativeNotice.latentRelations
-        .map((value): AuthorCreativeNotice["latentRelations"][number] | undefined => {
-          if (!value || typeof value !== "object") return undefined;
-          const record = value as Record<string, unknown>;
-          const relation = clean(record.relation);
-          const evidenceEventIds = Array.isArray(record.evidenceEventIds)
-            ? unique(
-                record.evidenceEventIds
-                  .filter((id): id is string => typeof id === "string")
-                  .map(clean)
-                  .filter((id) => input.suppliedReality.some((event) => clean(event.id) === id)),
-              )
-            : [];
-          if (!relation || !evidenceEventIds.length) return undefined;
-          return { relation, evidenceEventIds };
-        })
-        .filter((value): value is AuthorCreativeNotice["latentRelations"][number] => Boolean(value))
-        .slice(0, 3)
-    : [];
-  const creativeNotice: AuthorCreativeNotice = {
-    latentRelations,
-  };
-  const rawTreatments = Array.isArray(parsedLens?.treatments) ? parsedLens.treatments : [];
+  const rawNotices = Array.isArray(parsedLens?.notices) ? parsedLens.notices : [];
   const parseRejectedTreatments: Array<{
     treatment: AuthorCreativeTreatment;
     reason: string;
   }> = [];
-  const modelTreatments: AuthorCreativeTreatment[] = rawTreatments
+  const latentRelations: AuthorCreativeNotice["latentRelations"] = [];
+  const modelTreatments: AuthorCreativeTreatment[] = rawNotices
     .map((value, index): AuthorCreativeTreatment | undefined => {
-      const placeholder = (reason: string, record: Record<string, unknown> = {}) => {
-        const expectedRelationRecord = latentRelations[index];
-        const evidenceEventIds = expectedRelationRecord?.evidenceEventIds ?? [];
-        parseRejectedTreatments.push({
-          treatment: {
-            id: `treatment-${index + 1}`,
-            sourceCandidateId: expectedRelationRecord ? `latentRelations[${index}]` : "unparsed",
-            sourceRelation: clean(expectedRelationRecord?.relation) || "unparsed",
-            evidenceEventIds,
-            creativePressure: clean(record.creativePressure),
-            hiddenInference: clean(record.hiddenInference),
-            treatment: clean(record.treatment),
-            perceptionDelta: clean(record.perceptionDelta),
-            expressiveBehaviors: normalizeExpressiveBehaviors(record.expressiveBehaviors),
-            intensity: clean(record.intensity).toUpperCase() === "STRONG"
-              ? "STRONG"
-              : clean(record.intensity).toUpperCase() === "LIGHT"
-                ? "LIGHT"
-                : "MEDIUM",
-          },
-          reason,
-        });
-      };
-
-      if (!value || typeof value !== "object") {
-        placeholder("invalid treatment object");
-        return undefined;
-      }
+      if (!value || typeof value !== "object") return undefined;
       const record = value as Record<string, unknown>;
-      const expectedRelationRecord = latentRelations[index];
-      const sourceCandidateId = expectedRelationRecord ? `latentRelations[${index}]` : "";
-      const sourceRelation = clean(expectedRelationRecord?.relation);
-      const evidenceEventIds = expectedRelationRecord?.evidenceEventIds ?? [];
-      const creativePressure = clean(record.creativePressure);
-      const hiddenInference = clean(record.hiddenInference);
-      const treatment = clean(record.treatment);
-      const perceptionDelta = clean(record.perceptionDelta);
-      const expressiveBehaviorsSource = Array.isArray(record.expressiveBehaviors)
-        ? record.expressiveBehaviors
-        : Array.isArray(record.devices)
-          ? record.devices
-          : [];
-      const expressiveBehaviors = normalizeExpressiveBehaviors(expressiveBehaviorsSource);
-      const rawIntensity = clean(record.intensity).toUpperCase();
-      const intensity: AuthorCreativeTreatmentAssignment["intensity"] =
-        rawIntensity === "LIGHT" || rawIntensity === "STRONG"
-          ? rawIntensity
-          : "MEDIUM";
+      const attention = clean(record.attention);
+      const conception = clean(record.conception);
+      const evidenceEventIds = Array.isArray(record.evidenceEventIds)
+        ? unique(
+            record.evidenceEventIds
+              .filter((id): id is string => typeof id === "string")
+              .map(clean)
+              .filter((id) => input.suppliedReality.some((event) => clean(event.id) === id)),
+          )
+        : [];
+      if (!attention || !conception || !evidenceEventIds.length) return undefined;
 
-      const ownsDistinctRelation = Boolean(expectedRelationRecord && sourceRelation);
-      const provenanceMatches = Boolean(expectedRelationRecord && evidenceEventIds.length);
-      const finalistBoundaryReason = unsupportedTreatmentMaterialReason({
-        text: materialText([
-          sourceRelation,
-          creativePressure,
-          hiddenInference,
-          treatment,
-          perceptionDelta,
-          ...expressiveBehaviors,
-        ]),
-        suppliedRealityText: materialText(input.suppliedReality.map((event) => event.text)),
-        semanticMechanic: semanticMechanic.mechanic,
+      latentRelations.push({
+        relation: attention,
+        evidenceEventIds,
       });
-      // Operational anchors are allowed to become creative fuel. Exact times,
-      // counts, order, logs, arrivals, and completions may inspire a treatment
-      // when the model finds an interesting read in them. They remain factual
-      // anchors in RealityGraph and are policed at realized-cut grounding, not
-      // used here to kill a private conception before Mouth can explore it.
-      const structuralReason =
-        !sourceCandidateId ? "missing source candidate id" :
-        !sourceRelation ? "missing source relation" :
-        !evidenceEventIds.length ? "missing grounded evidence event ids" :
-        !creativePressure ? "missing creative pressure" :
-        !ownsDistinctRelation ? "finalist must use its own distinct latent relation" :
-        !provenanceMatches ? "finalist provenance does not match returned latent relation" :
-        finalistBoundaryReason ? finalistBoundaryReason :
-        !treatment ? "missing treatment" :
-        !perceptionDelta ? "missing perception delta" :
-        !expressiveBehaviors.length ? "missing expressive behaviors" :
-        undefined;
-
-      if (structuralReason) {
-        placeholder(structuralReason, record);
-        return undefined;
-      }
 
       return {
         id: `treatment-${index + 1}`,
-        sourceCandidateId,
-        sourceRelation,
+        sourceCandidateId: `notice[${index}]`,
+        sourceRelation: attention,
         evidenceEventIds,
-        creativePressure,
-        hiddenInference,
-        treatment,
-        perceptionDelta,
-        expressiveBehaviors,
-        intensity,
+        creativePressure: conception,
+        hiddenInference: "",
+        treatment: conception,
+        perceptionDelta: conception,
+        expressiveBehaviors: ["notice"],
+        intensity: "MEDIUM",
       };
     })
     .filter((value): value is AuthorCreativeTreatment => Boolean(value))
-    .filter((treatment) => !isBareTreatment(treatment))
     .slice(0, 3);
+
+  const creativeNotice: AuthorCreativeNotice = {
+    latentRelations,
+  };
 
   const deterministicBareTreatment: AuthorCreativeTreatment = {
     id: "treatment-4",
@@ -1244,8 +989,6 @@ export async function searchAuthorCreativeLensTreatments(input: {
       const key = materialText([
         treatment.sourceRelation,
         treatment.treatment,
-        treatment.perceptionDelta,
-        ...treatment.expressiveBehaviors,
       ]);
       if (!key || seen.has(key)) return false;
       seen.add(key);
