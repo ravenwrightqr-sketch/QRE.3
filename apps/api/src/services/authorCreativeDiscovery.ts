@@ -727,19 +727,19 @@ export async function discoverAuthorCreativeDirection(input: {
     ...(lensStageOwnsFraming ? [
       "",
       "BUSINESS CREATIVE HANDOFF:",
-      "A downstream Creative Lens stage owns genre, stylistic universe, and rhetorical treatment for this business/service memory.",
-      "Discovery must NOT pre-solve the style by calling the service a ballet, ritual, audit, mission, game, ceremony, noir pressure, courtroom, performance, protocol, operation, or another creative universe.",
+      "A downstream Creative Lens stage owns perceptual interpretation, semantic amplification, and rhetorical treatment for this business/service memory.",
+      "Discovery must NOT pre-solve the style by assigning a ready-made creative container, performance metaphor, or execution premise.",
       "Instead identify the strongest GROUNDED MATERIAL OPPORTUNITY the Lens can transform: distinctive action sequence, count, exact time anchors, recurrence, contrast, object, quote, customer reaction, unusual combination, or other supplied structure.",
       "Keep perception and relationship structurally descriptive enough that several radically different Lens treatments could all realize them truthfully.",
       "Do not throw away distinctive middle service events merely because start/end timing is easy to dramatize. Preserve the evidence corridor that makes this specific service memory recognizable.",
       "The Discovery output itself does not need to sound clever. Its job here is to hand Lens good material, not steal Lens's job.",
       "For a multi-event service MEMORY, do not collapse the handoff to one timestamp or one isolated task when the recognizable service is carried by several supplied events. Preserve the service corridor unless one detail truly dominates by supplied evidence.",
-      "If every candidate needs a genre-like metaphor or hidden evaluation to feel interesting, prefer reality-direct handoff over inventing a mini-theme. Lens will supply the creative treatment downstream.",
+      "If every candidate needs a prepackaged metaphor or hidden evaluation to feel interesting, prefer reality-direct handoff. Lens will supply the creative treatment downstream.",
     ] : []),
     "",
     "SELECT FOR LIFE.",
     ...(lensStageOwnsFraming ? [
-      "Choose the read that preserves the strongest specific grounded material for downstream creative framing. Prefer useful structural opportunity over a pre-styled metaphor.",
+      "Choose the read that preserves the strongest specific grounded material for downstream semantic amplification. Prefer useful structural opportunity over a pre-styled metaphor.",
     ] : [
       "Choose the read that feels most specific, grounded, surprising, compressible, and worth realizing.",
     ]),
@@ -783,7 +783,7 @@ export async function discoverAuthorCreativeDirection(input: {
           },
           instruction:
             lensStageOwnsFraming
-              ? "This business/service memory will go through Creative Lens Search after Discovery. Find four grounded MATERIAL reads, not four stylistic treatments. Preserve the most distinctive supplied structure and evidence corridor that Lens can transform: actions, counts, exact time anchors, recurrence, contrast, quotes, objects, reactions, or unusual combinations. Do not name a genre, creative universe, performance metaphor, ritual, ballet, audit, mission, game, ceremony, protocol, operation, or other treatment here. Do not discard distinctive middle events merely to focus on start/end timing. Select the read that gives Lens the richest truthful raw material. Do not write final lines."
+              ? "This business/service memory will go through Creative Lens Search after Discovery. Find four grounded MATERIAL reads, not four stylistic treatments. Preserve the most distinctive supplied structure and evidence corridor that Lens can transform: actions, counts, exact time anchors, recurrence, contrast, quotes, objects, reactions, or unusual combinations. Do not name a ready-made creative container, performance metaphor, execution premise, or treatment here. Do not discard distinctive middle events merely to focus on start/end timing. Select the read that gives Lens the richest truthful raw material. Do not write final lines."
               : "Find four genuinely different grounded reads in the supplied material. Apply the universal law: IDENTITY = simultaneous truths -> one character perception; MEMORY = accumulated truths -> one experience perception. Search for creative charge before locking on: explore outward or deeper through implication, contrast, reversal, significance, status, tension, temporal meaning, emotional movement, rhetorical possibility, or other model-discovered territory, but do not turn that list into a checklist. In IDENTITY mode, do not merely bundle the traits into a nicer list; look for the character signal created by their specificity or combination. In MEMORY mode, do not interpret each event separately and then summarize them. First find the single perception created by the accumulated event as a whole, then identify which supplied material carries that perception. A tiny detail may dominate when it has the strongest charge; other supplied material may remain context, contrast, reinforcement, or provenance. Prefer grounded patterns such as variety, accumulation, density, juxtaposition, recurrence, rhythm, social texture, oddity, or contrast over invented positivity/negativity; neutral encounters stay neutral unless the facts supply valence. Treat the input only as material about the world: do not analyze the list, phrasing, repetition of wording, formatting, field order, or the act of recording those facts. Search especially for perceptual transformations: what status, significance, atmosphere, relationship, contrast, absurdity, intimacy, tension, ceremony, or other felt meaning the SAME material can take on without that transformation becoming a new historical fact. Keep each read concise: what you noticed, the playable perceptual relation, and its evidence. Do not manufacture literal order, ranking, causality, urgency, preference strength, deliberateness, selection, exclusivity, curation, motive, ownership, or hidden pressure. A figurative relation may change how reality feels; it may not rewrite what materially happened. Select the read with the most life and creative potential. Do not write final lines.",
         }),
       },

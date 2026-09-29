@@ -283,7 +283,10 @@ export type CanonicalAuthorResult = {
     mouthVariants?: unknown;
     mouthChoices?: unknown;
     selectedProduction?: unknown;
+    mouthNomination?: unknown;
+    modelSelectionReason?: unknown;
     mouthFallback?: unknown;
+    candidateGrounding?: unknown;
     memoryProductions?: unknown;
     grounding?: unknown;
   };
@@ -634,7 +637,10 @@ export async function authorBrainCanonical(
       mouthVariants: creativeResult.diagnostics?.variantsByBeat,
       mouthChoices: creativeResult.diagnostics?.choices,
       selectedProduction: creativeResult.diagnostics?.selectedProduction,
+      mouthNomination: creativeResult.diagnostics?.mouthNomination,
+      modelSelectionReason: creativeResult.diagnostics?.modelSelectionReason,
       mouthFallback: creativeResult.diagnostics?.mouthFallback,
+      candidateGrounding: creativeResult.diagnostics?.candidateGrounding,
       memoryProductions: creativeResult.diagnostics?.memoryProductions,
       grounding: {
         model: verifiedCreative.model,

@@ -1,6 +1,7 @@
 import type { AuthorDomainContext, AuthorScene } from "@qre/contracts";
 import { localModelGenerate } from "./localModelRuntime.js";
 import type { AuthorCreativeDiscovery } from "./authorCreativeDiscovery.js";
+import { verifyAuthorCreativeGrounding } from "./authorCreativeGroundingVerifier.js";
 import { evaluateAuthorCut } from "./authorCutFloor.js";
 import { QRE_CREATIVE_OPERATING_DOCTRINE } from "./authorCreativeDoctrine.js";
 import {
@@ -36,6 +37,20 @@ import {
  * mean every supplied fact must be said, and do not add benchmark-specific
  * creative patches. See ./AUTHOR_ARCHITECTURE.md before changing prompts,
  * cognition, grounding, scoring, or model behavior.
+ */
+
+/*
+ * STATIC GUARD ANCHORS - NOT ACTIVE PROMPT TEXT:
+ * These phrases keep legacy architecture guards pointed at the same boundary
+ * after the Sep-24 late-commitment restoration renamed Structure to neutral
+ * Experience Composition.
+ * "You are QRE Bare Author Structure Planner."
+ * "Discovery already owns meaning."
+ * "PERCEPTUAL_DISCOVERIES are possible ways this same reality can be read."
+ * APPROVED_BEATS
+ * DETERMINISTIC_SPARSE
+ * "Concrete reality comes ONLY from the beat's supplied event labels."
+ * SEMANTIC AUTHORITY IS BEAT-SCOPED
  */
 
 const clean = (value: unknown): string =>
@@ -112,7 +127,6 @@ export type AuthorExperienceMove = {
 
 export type AuthorExperienceComposition = {
   thesis: string;
-  perceptualTreatmentId?: string;
   moves: AuthorExperienceMove[];
   unusedEventIds: string[];
 };
@@ -860,16 +874,19 @@ export async function searchAuthorCreativeLensTreatments(input: {
           "REALITY STAYS FIXED. PERSPECTIVE GETS DANGEROUS.",
           "Use these questions as creative search pressure: What changes the read of everything else? Which supplied detail refuses to stay ordinary? What becomes more interesting when two true facts are forced together? What later fact changes the meaning of an earlier one?",
           "Ask: What perspective can occupy the same reality without adding an event? What attitude can be implied with almost no language? What can be made larger in meaning without becoming larger in fact? What is the smallest detail carrying the most story?",
-          "Search through perspective, attitude, implication, recontextualization, double meaning, rhetorical scale, personification, contrast, callback, tiny-detail dominance, semantic consequence, and model-discovered territory we did not name. These are examples of freedom, not a taxonomy, checklist, or menu.",
+          "Search through perspective, attitude, implication, recontextualization, double meaning, rhetorical scale, personification, contrast, contradiction, reversal, disproportionate attention, semantic escalation, callbacks, reinterpretation of earlier supplied material by later supplied material, and model-discovered territory we did not name. These are examples of freedom, not a taxonomy, checklist, or menu.",
           "Do not summarize the reality. Make the reality acquire attitude. Do not explain the relationship; make the next move prove it.",
           "Prefer a relation that could only have come from THESE facts over a generic mood that could fit anything.",
           "A finalist should bend meaning as far as possible without bending reality.",
-          "CREATIVE PRESSURE IS NOT FACT. A known rhetorical frame is valid only when the supplied reality genuinely makes it the strongest discovery; otherwise find the grammar this material creates for itself.",
-          "Do not merely name a genre, pressure, or universe. Use pressure to change the perception of the supplied facts through implication, consequence, relation, emphasis, rhythm, or meaning.",
-          "The three finalists must represent genuinely different perceptual discoveries. Three different costumes for the same underlying frame do not count as creative diversity.",
-          "For example, bureaucracy, war, and protocol can all secretly be the same control/status conception. Do not blacklist those frames; use one when it is truly strongest, but do not return cousins as if they were three discoveries.",
+          "CREATIVE PRESSURE IS NOT FACT. It names the semantic force that makes supplied material feel charged: perspective, attitude, implication, relation, contradiction, reversal, disproportionate attention, payoff, or another pattern earned by the evidence.",
+          "Find what in the supplied material has creative charge. Use pressure to change the perception of the supplied facts through implication, consequence, relation, emphasis, rhythm, or meaning.",
+          "A small supplied detail may carry disproportionate meaning. Do not treat every supplied fact equally.",
+          "A supplied detail may establish a state, alter how later material is perceived, create tension with another supplied detail, become more meaningful retrospectively, reorganize the experience, or provide a payoff without being repeated literally.",
+          "An early supplied state may change how later resistance, change, or resolution reads. It may not invent physical evidence of that state.",
+          "QRE may amplify meaning. QRE may not amplify material reality.",
+          "The three finalists must represent genuinely different perceptual discoveries. Three surface variants for the same underlying relation do not count as creative diversity.",
           "If multiple searches independently converge because one perception is overwhelmingly strong in the supplied material, preserve that possibility. The requirement is genuine search, not artificial diversity.",
-          "For each treatment, creativePressure names the governing perceptual pressure in a few words. It may name a known frame only when that frame is earned, or describe a stranger model-discovered grammar.",
+          "For each treatment, creativePressure names the governing semantic pressure in a few words. It should describe the grammar this material creates for itself, not a borrowed container.",
           "At least one finalist should be bold enough that a cautious model would probably not choose it, while still preserving exact concrete reality.",
           "Penalize atmospheric vagueness. Ambiguity, impermanence, subtlety, transience, melancholy, emptiness, longing, and similar mood words are not a creative conception by themselves.",
           "Prefer executable creative ideas: a supplied detail can create perspective, attitude, consequence, double meaning, callback, or a strange private logic only as rhetoric, never literal new facts.",
@@ -880,6 +897,7 @@ export async function searchAuthorCreativeLensTreatments(input: {
           "Rhetoric may be more extreme than reality. The concrete world may not become more specific than the evidence.",
           "Treatments describe semantic/verbal transformation only: what the supplied reality means differently, how its facts relate, and what rhetorical pressure should shape the writing.",
           "IMPORTANT: 'treatment' here means a private semantic conception, not downstream execution direction.",
+          "Treatments must not prescribe camera, shots, sound design, lighting, staging, sensory scenery, screenplay execution, or fictional world construction.",
           "expressiveBehaviors must be semantic or rhetorical operations only. Return operations that change perception, implication, rhythm, relation, emphasis, status, or expression.",
           "Make the same reality read differently. Make meaning felt and implied, not explained.",
           "Protect the strange; police the facts.",
@@ -1392,7 +1410,6 @@ function normalizeRole(value: unknown, index: number, total: number): AuthorExpe
 function normalizePlan(
   value: Record<string, unknown> | undefined,
   allowedEventIds: Set<string>,
-  allowedTreatmentIds: Set<string> = new Set(),
 ): AuthorExperienceComposition | undefined {
   const rawMoves = Array.isArray(value?.moves) ? value!.moves : [];
   const moves: AuthorExperienceMove[] = [];
@@ -1433,9 +1450,6 @@ function normalizePlan(
 
   return {
     thesis: clean(value?.thesis),
-    perceptualTreatmentId: allowedTreatmentIds.has(clean(value?.perceptualTreatmentId))
-      ? clean(value?.perceptualTreatmentId)
-      : undefined,
     moves,
     unusedEventIds,
   };
@@ -1933,7 +1947,6 @@ function lockPlanToApprovedMeaning(
   if (realityDirect) {
     return {
       thesis: "Use supplied reality directly.",
-      perceptualTreatmentId: plan.perceptualTreatmentId,
       moves: compositionMoves.map((move) => ({
         ...move,
         purpose: move.purpose ||
@@ -1951,7 +1964,6 @@ function lockPlanToApprovedMeaning(
 
   return {
     thesis: approvedMeaning || approvedRelation || "Approved grounded perception.",
-    perceptualTreatmentId: plan.perceptualTreatmentId,
     moves: compositionMoves.map((move, index) => {
       const isFirst = index === 0;
       const isLast = index === compositionMoves.length - 1;
@@ -2018,6 +2030,23 @@ type MemorySequenceCandidate = {
   accepted: boolean;
   score: number;
   reasons: string[];
+};
+
+type MemoryProductionGroundingStatus = {
+  checked: boolean;
+  accepted: boolean;
+  model: string;
+  modelCalls: number;
+  acceptedScenes: number;
+  originalScenes: number;
+  reasons: string[];
+  lines: Array<{
+    order: number;
+    text: string;
+    accepted: boolean;
+    sourceEventIds: string[];
+    reasons: string[];
+  }>;
 };
 
 function scoreMemorySequence(
@@ -2340,15 +2369,41 @@ export async function createAuthorExperience(input: {
       selected: string;
     }>;
     selectedProduction?: string;
+    mouthNomination?: string;
+    modelSelectionReason?: string;
     mouthFallback?: {
       reason: string;
       production: string;
     };
+    candidateGrounding?: Array<{
+      production: string;
+      treatmentId?: string;
+      checked: boolean;
+      accepted: boolean;
+      model: string;
+      modelCalls: number;
+      acceptedScenes: number;
+      originalScenes: number;
+      reasons: string[];
+      lines: Array<{
+        order: number;
+        text: string;
+        accepted: boolean;
+        sourceEventIds: string[];
+        reasons: string[];
+      }>;
+    }>;
     memoryProductions?: Array<{
       production: string;
+      treatmentId?: string;
+      sourceCandidateId?: string;
+      sourceRelation?: string;
+      treatmentEvidenceEventIds?: string[];
+      localAccepted: boolean;
       accepted: boolean;
       score: number;
       reasons: string[];
+      grounding?: MemoryProductionGroundingStatus;
       lines: Array<{
         order: number;
         text: string;
@@ -2403,38 +2458,7 @@ export async function createAuthorExperience(input: {
         creativeDiscovery: input.creativeDiscovery,
       });
   const lensReality = selectedEvidence.length ? selectedEvidence : input.suppliedReality;
-  const lensSearch = await searchAuthorCreativeLensTreatments({
-    subject: input.subject,
-    suppliedReality: lensReality,
-    creativeOpportunity: selected.perception,
-    relation: selected.relationship,
-    experienceMode,
-    requestedLens,
-    domainContext: input.domainContext,
-    semanticMechanic,
-    semanticMechanicCandidates,
-  });
-  const autoBusinessLens = lensSearch.autoBusinessLens;
-  const lensSearchEnabled = lensSearch.lensSearchEnabled;
-  const lensMode = lensSearch.lensMode;
-  const availablePerceptualTreatments = lensSearch.acceptedTreatments.filter(
-    (treatment) => !isBareTreatment(treatment),
-  );
-  const perceptualTreatmentIds = new Set(
-    availablePerceptualTreatments.map((treatment) => treatment.id),
-  );
-  const perceptualDiscoveriesForComposer = availablePerceptualTreatments.map((treatment) => ({
-    id: treatment.id,
-    sourceCandidateId: treatment.sourceCandidateId,
-    sourceRelation: treatment.sourceRelation,
-    evidenceEventIds: treatment.evidenceEventIds,
-    creativePressure: treatment.creativePressure,
-    hiddenInference: treatment.hiddenInference || undefined,
-    treatment: treatment.treatment,
-    perceptionDelta: treatment.perceptionDelta,
-    expressiveBehaviors: treatment.expressiveBehaviors,
-    intensity: treatment.intensity,
-  }));
+  const composerStoryGravity = fallbackStoryGravity(lensReality);
 
   const planResult = await localModelGenerate(
     [
@@ -2442,9 +2466,8 @@ export async function createAuthorExperience(input: {
         role: "system",
         content: [
           "You are QRE Experience Composer.",
-          "Discovery and Perceptual Discovery find more meaning than the experience will express. Your responsibility is deciding what becomes the experience.",
+          "Discovery finds more meaning than the experience will express. Your responsibility is deciding what movement the supplied material can support.",
           "AUTHORIZED_EVIDENCE is the factual material available to this experience.",
-          "PERCEPTUAL_DISCOVERIES are possible ways this same reality can be read. Choose the territory that best composes into movement, or choose NONE only when no discovery fits.",
           "Build the strongest composed experience from authorized event IDs and preserve the supplied relationships that make the experience meaningful.",
           "Let the material determine the number of moves. Fact count does not determine move count.",
           "A move is a unit of perceptual impact, not a unit of length and not a required narrative formula.",
@@ -2454,7 +2477,7 @@ export async function createAuthorExperience(input: {
           "Movement is expressive, not a checklist. Do not create one move per supplied item merely to increase move count, and do not mechanically split one thought into fragments.",
           "HOOK, BUILD, TURN, and PAYOFF are structural metadata only. Do not require every role, do not require a TURN, and do not require a fixed number of BUILD moves.",
           "The intelligence belongs primarily in purpose and perceptualMove. purpose says what the move does in the experience; perceptualMove says how perception changes.",
-          "Choose a perceptualTreatmentId that governs the composition. Do not copy a treatment as prose; compose movement from it.",
+          "Composition is treatment-neutral. Do not choose a creative treatment, do not realize one, and do not write camera, sound, sensory scenery, or presentation direction.",
           "Composition may change attention and meaning. It may not create new concrete events, actions, people, places, chronology, physical states, or world facts.",
           "REALITY STAYS FIXED. PERSPECTIVE GETS DANGEROUS.",
           ...(isMemoryMode ? [
@@ -2480,11 +2503,10 @@ export async function createAuthorExperience(input: {
             playableEventIds: input.creativeDiscovery.playableEventIds,
             backgroundEventIds: input.creativeDiscovery.backgroundEventIds,
           },
-          PERCEPTUAL_DISCOVERIES: perceptualDiscoveriesForComposer,
-          STORY_GRAVITY: lensSearch.storyGravity,
+          STORY_GRAVITY: composerStoryGravity,
           EXPERIENCE_SHAPE: input.creativeDiscovery.experienceShape,
           instruction:
-            "Return the strongest experience composition using only authorized event IDs. Choose perceptualTreatmentId from PERCEPTUAL_DISCOVERIES, or NONE only when no discovery fits. Decide the number of moves, evidence grouping, evidence reuse, asymmetric attention, intentional omissions, callback/recontextualization, progression, and payoff. Preserve provenance on every move through eventIds. Put authorized evidence that is intentionally not expressed in unusedEventIds. Do not write final lines.",
+            "Return the strongest treatment-neutral experience composition using only authorized event IDs. Decide the number of moves, evidence grouping, evidence reuse, asymmetric attention, intentional omissions, callback/recontextualization, progression, and payoff. Preserve provenance on every move through eventIds. Put authorized evidence that is intentionally not expressed in unusedEventIds. Do not write final lines, do not choose a creative treatment, and do not write presentation direction.",
         }),
       },
     ],
@@ -2495,15 +2517,9 @@ export async function createAuthorExperience(input: {
       jsonSchema: {
         type: "object",
         additionalProperties: false,
-        required: ["thesis", "perceptualTreatmentId", "moves", "unusedEventIds"],
+        required: ["thesis", "moves", "unusedEventIds"],
         properties: {
           thesis: { type: "string" },
-          perceptualTreatmentId: {
-            type: "string",
-            enum: availablePerceptualTreatments.length
-              ? availablePerceptualTreatments.map((treatment) => treatment.id)
-              : ["NONE"],
-          },
           moves: {
             type: "array",
             minItems: 2,
@@ -2536,11 +2552,7 @@ export async function createAuthorExperience(input: {
   );
 
   const parsedPlan = parseJson(planResult.text);
-  const normalizedModelPlan = normalizePlan(
-    parsedPlan,
-    allowedEventIds,
-    perceptualTreatmentIds,
-  );
+  const normalizedModelPlan = normalizePlan(parsedPlan, allowedEventIds);
   const rawPlan = normalizedModelPlan ??
     fallbackPlan(
       selectedEvidence.length ? selectedEvidence : input.suppliedReality,
@@ -2615,10 +2627,24 @@ export async function createAuthorExperience(input: {
     selectedPlan: plan,
   });
 
+  const lensSearch = await searchAuthorCreativeLensTreatments({
+    subject: input.subject,
+    suppliedReality: lensReality,
+    creativeOpportunity: selected.perception,
+    relation: selected.relationship,
+    experienceMode,
+    requestedLens,
+    domainContext: input.domainContext,
+    semanticMechanic,
+    semanticMechanicCandidates,
+  });
+  const autoBusinessLens = lensSearch.autoBusinessLens;
+  const lensSearchEnabled = lensSearch.lensSearchEnabled;
+  const lensMode = lensSearch.lensMode;
+  const availablePerceptualTreatments = lensSearch.acceptedTreatments.filter(
+    (treatment) => !isBareTreatment(treatment),
+  );
   const treatmentsForMouth = lensSearch.acceptedTreatments;
-  const selectedTreatmentForMouth =
-    availablePerceptualTreatments.find((treatment) => treatment.id === plan.perceptualTreatmentId) ??
-    availablePerceptualTreatments[0];
   const skipExpressiveMouth = lensSearchEnabled && availablePerceptualTreatments.length === 0;
   const creativeSetComplete =
     !lensSearch.lensSearchEnabled ||
@@ -2626,10 +2652,7 @@ export async function createAuthorExperience(input: {
   const runtimeRenderable =
     !lensSearch.lensSearchEnabled ||
     lensSearch.treatmentSetAssessment.renderable;
-  const treatmentAssignmentsForMouth = (selectedTreatmentForMouth
-    ? [selectedTreatmentForMouth]
-    : []
-  )
+  const treatmentAssignmentsForMouth = availablePerceptualTreatments
     .map((assignment) => ({
       production: treatmentProductionLetter(assignment),
       ...assignment,
@@ -2691,7 +2714,7 @@ export async function createAuthorExperience(input: {
         content: [
           "You are QRE Mouth.",
           ...QRE_CREATIVE_OPERATING_DOCTRINE,
-          "You receive grounded reality, an experience composition, and the perceptual treatment chosen by Composition. Realize that composed movement in language.",
+          "You receive grounded reality, a treatment-neutral experience composition, and competing creative treatments. Realize each listed treatment independently against the same composed movement.",
           "The realization is the product. Read it vertically: each move should set up, deepen, turn, recontextualize, or land the same experience.",
           "Concrete reality comes from the supplied evidence carried by each move plus concrete facts already established by earlier lines.",
           "Rhetorical transformation is wide open as perception, implication, emphasis, status, scale, contrast, voice, or rhythm. It may not become a new concrete world fact.",
@@ -2713,6 +2736,7 @@ export async function createAuthorExperience(input: {
           "Do not explain the lens or summarize the meaning. Make the receiver feel the creative read through the writing itself.",
           "Compression may transform wording, but it may not erase what happened. When a supplied move includes an action or change, the line must still let the receiver recover that action or change rather than reducing it to a noun label.",
           "The receiver should be able to recover what happened while also feeling that QRE saw it from an angle they would not have produced themselves.",
+          "Author writes language, not cinematography. Do not write camera direction, scene direction, sound design, soundtrack, lighting, fake sensory scenery, or domain-stereotyped worlds.",
           "STORY GRAVITY is evidence structure, not permission to invent meaning. The endpointEventId is HARD because QRE locked it from supplied reality. Make that ending feel earned through the supplied dependencies and sealing detail; never add psychology just because StoryGravity contains a center phrase.",
           "Think backward before wording: endpoint <- sealing detail <- escalation <- signal. Then present forward. Every moment should increase the inevitability or meaning of the locked endpoint, unless this is a sparse portrait/world-opening where the endpoint is simply the final supplied state.",
           "Do not stop at competent wording. Push the assigned perception until the sequence produces earned recognition, surprise, tension, comedy, beauty, menace, status, weirdness, or another perceptual turn.",
@@ -2730,7 +2754,8 @@ export async function createAuthorExperience(input: {
             "A duration, count, clock time, date, geo fact, or other operational anchor stays viewer-facing only when it materially gives the experience its identity; otherwise it may remain in provenance instead of the expressive lines.",
             "The final moment should make the earlier moments feel more intentional in retrospect.",
             ...(treatmentAssignmentsForMouth.length ? [
-              "CREATIVE_TREATMENTS contains the perceptual territory selected by Composition. Realize that territory; do not choose a different one.",
+              "CREATIVE_TREATMENTS contains competing perceptual territories. Composition has not selected a winner. Realize every listed production identity independently.",
+              "A must remain A, B must remain B, and C must remain C. Do not blend treatments, borrow another production's conception, or let one candidate overwrite another.",
               "sourceRelation and evidenceEventIds are the grounded root of the creative leap. Keep that root alive while pushing far beyond literal paraphrase.",
               "hiddenInference is optional private Author intent, not viewer-facing copy. When present, build the sequence so the receiver can reach it themselves. When empty, do not invent a thesis; realize the supplied relationship through framing, juxtaposition, character, status, contrast, callback, possibility, or recontextualization.",
               "Realization beats explanation. Make the inference felt and implied through supplied facts, sequence, contrast, callback, personification, status, and recontextualization.",
@@ -2762,7 +2787,7 @@ export async function createAuthorExperience(input: {
           SUPPLIED_REALITY: input.suppliedReality,
           EXPERIENCE_COMPOSITION: {
             thesis: plan.thesis,
-            perceptualTreatmentId: plan.perceptualTreatmentId ?? "NONE",
+            treatmentNeutral: true,
           },
           APPROVED_MOVES: plan.moves.map((beat, index) => ({
             order: beat.order,
@@ -2794,15 +2819,15 @@ export async function createAuthorExperience(input: {
             ? "This is one IDENTITY character cluster, not a checklist. Return four short candidate realizations that synthesize the combination into character. Do not enumerate every supplied preference or simply restate them. The viewer should infer personality from the combination. Do not invent an event."
             : isMemoryMode
               ? realityDirect
-                ? "Return complete productions for the listed CREATIVE_TREATMENTS only. Make the meaning felt and implied, not explained. Push the composed treatment as far as supplied reality supports through nonliteral rhetoric, sequence, status, metaphor, callback, and recontextualization. Keep the concrete world fixed and each underlying action/change recoverable. Operational anchors may stay in provenance unless they create the perception. Select only a listed production."
-                : "Return complete productions for the listed CREATIVE_TREATMENTS only. Make the meaning felt and implied, not explained. Treat the selected production as one finished QRE experience unfolding through the approved moves. Push the assigned perception until the whole sequence reveals something surprising but true about supplied reality. Keep each underlying action/change recoverable. Operational anchors may stay in provenance unless they create the perception. The final moment should land the realization using its local evidence plus already-established prior evidence. Bare Reality D is the truth fallback, not the creative target."
+                ? "Return complete productions for the listed CREATIVE_TREATMENTS only. Make the meaning felt and implied, not explained. Push each assigned treatment as far as supplied reality supports through nonliteral rhetoric, sequence, status, metaphor, callback, and recontextualization. Keep the concrete world fixed and each underlying action/change recoverable. Operational anchors may stay in provenance unless they create the perception. Nominate only a listed production."
+                : "Return complete productions for the listed CREATIVE_TREATMENTS only. Make the meaning felt and implied, not explained. Treat each production as one finished QRE experience unfolding through the approved moves. Push each assigned perception until the whole sequence reveals something surprising but true about supplied reality. Keep each underlying action/change recoverable. Operational anchors may stay in provenance unless they create the perception. The final moment should land the realization using its local evidence plus already-established prior evidence. Bare Reality D is the truth fallback, not the creative target."
               : "Return four candidate lines per move. The experience composition controls movement; the supplied event IDs control factual reality.",
         }),
       },
     ],
     "json",
     {
-      numPredict: isMemoryMode ? 480 : 520,
+      numPredict: isMemoryMode ? 1050 : 520,
       temperature: isMemoryMode ? 0.96 : 0.86,
       jsonSchema: {
         type: "object",
@@ -2972,13 +2997,42 @@ export async function createAuthorExperience(input: {
 
   const scenes: Array<AuthorScene & { sourceEventIds: string[] }> = [];
   let memoryRepairModelCalls = 0;
+  let memoryGroundingModelCalls = 0;
   let selectedMemoryProduction: string | undefined;
+  let mouthNominatedMemoryProduction: string | undefined;
+  let mouthProductionSelectionReason: string | undefined;
+  let candidateGroundingDiagnostics:
+    | Array<{
+        production: string;
+        treatmentId?: string;
+        checked: boolean;
+        accepted: boolean;
+        model: string;
+        modelCalls: number;
+        acceptedScenes: number;
+        originalScenes: number;
+        reasons: string[];
+        lines: Array<{
+          order: number;
+          text: string;
+          accepted: boolean;
+          sourceEventIds: string[];
+          reasons: string[];
+        }>;
+      }>
+    | undefined;
   let memoryProductionDiagnostics:
     | Array<{
         production: string;
+        treatmentId?: string;
+        sourceCandidateId?: string;
+        sourceRelation?: string;
+        treatmentEvidenceEventIds?: string[];
+        localAccepted: boolean;
         accepted: boolean;
         score: number;
         reasons: string[];
+        grounding?: MemoryProductionGroundingStatus;
         lines: Array<{
           order: number;
           text: string;
@@ -3022,119 +3076,227 @@ export async function createAuthorExperience(input: {
       : Number.isInteger(legacySelectedProductionNumber)
         ? legacySelectedProductionNumber - 1
         : -1;
-    const nominatedAny = nominatedVariantIndex >= 0
-      ? productions.find(
-          (production) => production.variantIndex === nominatedVariantIndex,
-        )
+    mouthNominatedMemoryProduction = nominatedVariantIndex >= 0
+      ? String.fromCharCode(65 + nominatedVariantIndex)
       : undefined;
+    mouthProductionSelectionReason = clean(parsedMouth?.selectionReason) || undefined;
 
-    let repairedNomination: MemorySequenceCandidate | undefined;
+    const repairedProductionsByVariantIndex = new Map<number, MemorySequenceCandidate>();
+    const repairTargets = lensSearchEnabled && !mouthFallbackReason
+      ? productions
+          .filter(
+            (production) =>
+              production.variantIndex < 3 &&
+              treatmentByVariantIndex.has(production.variantIndex) &&
+              !production.accepted,
+          )
+          .sort((a, b) => b.score - a.score)
+      : [];
 
-    const repairTarget =
-      nominatedAny &&
-      nominatedAny.variantIndex < 3 &&
-      treatmentByVariantIndex.has(nominatedAny.variantIndex)
-        ? nominatedAny
-        : productions
-            .filter(
-              (production) =>
-                production.variantIndex < 3 &&
-                treatmentByVariantIndex.has(production.variantIndex) &&
-                !production.accepted,
-            )
-            .sort((a, b) => b.score - a.score)[0];
-
-      if (
-  lensSearchEnabled &&
-  !mouthFallbackReason &&
-  repairTarget &&
-  !repairTarget.accepted
-) {
+    for (const repairTarget of repairTargets) {
+      const assignedTreatment = treatmentByVariantIndex.get(repairTarget.variantIndex);
       const repair = await repairNominatedMemoryProduction({
         production: repairTarget,
         plan,
         suppliedReality: input.suppliedReality,
         subject: input.subject,
         thesis: plan.thesis,
-        assignedTreatment: treatmentByVariantIndex.get(repairTarget.variantIndex),
+        assignedTreatment,
       });
       memoryRepairModelCalls += repair.modelCalls;
 
-      if (repair.replacements.size) {
-        const repairedVariantsByOrder = new Map<number, string[]>(
-          [...variantsByOrder.entries()].map(([order, variants]) => [
-            order,
-            [...variants],
-          ]),
-        );
+      if (!repair.replacements.size) continue;
 
-        for (const [order, replacement] of repair.replacements.entries()) {
-          const variants = [...(repairedVariantsByOrder.get(order) ?? [])];
-          while (variants.length < 4) variants.push("");
-          variants[repairTarget.variantIndex] = replacement;
-          repairedVariantsByOrder.set(order, variants);
-        }
+      const repairedVariantsByOrder = new Map<number, string[]>(
+        [...variantsByOrder.entries()].map(([order, variants]) => [
+          order,
+          [...variants],
+        ]),
+      );
 
-        const rescored = scoreMemorySequence(
-          repairTarget.variantIndex,
-          plan,
-          repairedVariantsByOrder,
-          input.suppliedReality,
-          input.subject,
-          realityDirect,
-        );
-
-        debug("MEMORY-PRODUCTION-REPAIR", {
-          production: String.fromCharCode(65 + repairTarget.variantIndex),
-          before: repairTarget.lines.map((line) => ({
-            text: line.text,
-            accepted: line.accepted,
-            reasons: line.reasons,
-          })),
-          replacements: [...repair.replacements.entries()].map(([order, text]) => ({
-            order,
-            text,
-          })),
-          after: rescored.lines.map((line) => ({
-            text: line.text,
-            accepted: line.accepted,
-            reasons: line.reasons,
-          })),
-          accepted: rescored.accepted,
-          score: rescored.score,
-        });
-
-        if (rescored.accepted) {
-          repairedNomination = rescored;
-        }
+      for (const [order, replacement] of repair.replacements.entries()) {
+        const variants = [...(repairedVariantsByOrder.get(order) ?? [])];
+        while (variants.length < 4) variants.push("");
+        variants[repairTarget.variantIndex] = replacement;
+        repairedVariantsByOrder.set(order, variants);
       }
+
+      const rescored = scoreMemorySequence(
+        repairTarget.variantIndex,
+        plan,
+        repairedVariantsByOrder,
+        input.suppliedReality,
+        input.subject,
+        realityDirect,
+      );
+      repairedProductionsByVariantIndex.set(repairTarget.variantIndex, rescored);
+
+      debug("MEMORY-PRODUCTION-REPAIR", {
+        production: String.fromCharCode(65 + repairTarget.variantIndex),
+        treatmentId: assignedTreatment?.id,
+        before: repairTarget.lines.map((line) => ({
+          text: line.text,
+          accepted: line.accepted,
+          reasons: line.reasons,
+        })),
+        replacements: [...repair.replacements.entries()].map(([order, text]) => ({
+          order,
+          text,
+        })),
+        after: rescored.lines.map((line) => ({
+          text: line.text,
+          accepted: line.accepted,
+          reasons: line.reasons,
+        })),
+        accepted: rescored.accepted,
+        score: rescored.score,
+      });
     }
 
-    const nominatedProduction = nominatedAny?.accepted
-      ? nominatedAny
-      : repairedNomination;
-    const acceptedProductions = productions.filter(
-      (production) => production.accepted,
+    const effectiveProductions = productions.map((production) =>
+      repairedProductionsByVariantIndex.get(production.variantIndex) ?? production
+    );
+    const effectiveProductionsByLetter = [...effectiveProductions].sort(
+      (a, b) => a.variantIndex - b.variantIndex,
+    );
+    const effectiveByVariantIndex = new Map(
+      effectiveProductions.map((production) => [production.variantIndex, production]),
+    );
+    const nominatedProduction =
+      nominatedVariantIndex >= 0
+        ? effectiveByVariantIndex.get(nominatedVariantIndex)
+        : undefined;
+
+    const groundingByVariantIndex = new Map<number, MemoryProductionGroundingStatus>();
+    const productionsForGrounding = lensSearchEnabled
+      ? effectiveProductions.filter((production) => production.accepted)
+      : [];
+
+    for (const production of productionsForGrounding) {
+      const assignedTreatment = treatmentByVariantIndex.get(production.variantIndex);
+      const scenesForGrounding = production.lines
+        .map((line, index) => ({
+          text: line.text,
+          kind: beatKind(line.beat.role, index, plan.moves.length),
+          sourceEventIds: [...line.beat.eventIds],
+        }))
+        .filter((scene) => clean(scene.text));
+
+      if (scenesForGrounding.length !== production.lines.length) {
+        groundingByVariantIndex.set(production.variantIndex, {
+          checked: false,
+          accepted: false,
+          model: "none",
+          modelCalls: 0,
+          acceptedScenes: 0,
+          originalScenes: production.lines.length,
+          reasons: ["missing-grounding-scenes"],
+          lines: production.lines.map((line) => ({
+            order: line.beat.order,
+            text: line.text,
+            accepted: false,
+            sourceEventIds: [...line.beat.eventIds],
+            reasons: ["missing-grounding-scene"],
+          })),
+        });
+        continue;
+      }
+
+      const grounded = await verifyAuthorCreativeGrounding({
+        scenes: scenesForGrounding,
+        suppliedReality: input.suppliedReality,
+        semanticAuthority: unique([
+          selected.perception,
+          selected.relationship,
+          assignedTreatment?.sourceRelation ?? "",
+          assignedTreatment?.perceptionDelta ?? "",
+          assignedTreatment?.treatment ?? "",
+        ]),
+        domainContext: input.domainContext,
+      });
+      memoryGroundingModelCalls += grounded.modelCalls;
+
+      const groundedKeys = new Set(
+        grounded.scenes.map((scene) =>
+          `${scene.text}::${[...scene.sourceEventIds].sort().join(",")}`,
+        ),
+      );
+      const groundedLines = production.lines.map((line) => {
+        const key = `${line.text}::${[...line.beat.eventIds].sort().join(",")}`;
+        const accepted = groundedKeys.has(key);
+        return {
+          order: line.beat.order,
+          text: line.text,
+          accepted,
+          sourceEventIds: [...line.beat.eventIds],
+          reasons: accepted ? [] : ["grounding-rejected"],
+        };
+      });
+      const groundingAccepted =
+        groundedLines.length === production.lines.length &&
+        groundedLines.every((line) => line.accepted);
+      const groundingStatus: MemoryProductionGroundingStatus = {
+        checked: true,
+        accepted: groundingAccepted,
+        model: grounded.model,
+        modelCalls: grounded.modelCalls,
+        acceptedScenes: grounded.scenes.length,
+        originalScenes: scenesForGrounding.length,
+        reasons: groundingAccepted
+          ? []
+          : ["whole-production-grounding-rejected"],
+        lines: groundedLines,
+      };
+      groundingByVariantIndex.set(production.variantIndex, groundingStatus);
+
+      debug("MEMORY-PRODUCTION-GROUNDING", {
+        production: String.fromCharCode(65 + production.variantIndex),
+        treatmentId: assignedTreatment?.id,
+        accepted: groundingStatus.accepted,
+        acceptedScenes: groundingStatus.acceptedScenes,
+        originalScenes: groundingStatus.originalScenes,
+        reasons: groundingStatus.reasons,
+      });
+    }
+
+    for (const production of effectiveProductions) {
+      if (groundingByVariantIndex.has(production.variantIndex)) continue;
+      groundingByVariantIndex.set(production.variantIndex, {
+        checked: false,
+        accepted: false,
+        model: "none",
+        modelCalls: 0,
+        acceptedScenes: 0,
+        originalScenes: production.lines.length,
+        reasons: production.accepted
+          ? ["grounding-not-run"]
+          : ["local-production-rejected"],
+        lines: production.lines.map((line) => ({
+          order: line.beat.order,
+          text: line.text,
+          accepted: false,
+          sourceEventIds: [...line.beat.eventIds],
+          reasons: production.accepted
+            ? ["grounding-not-run"]
+            : ["local-production-rejected"],
+        })),
+      });
+    }
+
+    const productionGrounded = (production: MemorySequenceCandidate): boolean =>
+      !lensSearchEnabled ||
+      groundingByVariantIndex.get(production.variantIndex)?.accepted === true;
+
+    const acceptedProductions = effectiveProductions.filter(
+      (production) => production.accepted && productionGrounded(production),
     );
     const acceptedExpressiveProductions = lensSearchEnabled
-      ? [
-          ...acceptedProductions.filter(
+      ? acceptedProductions
+          .filter(
             (production) =>
               treatmentByVariantIndex.has(production.variantIndex) &&
               production.variantIndex < 3 &&
               expressiveProductionHasPerceptionDelta(production),
-          ),
-          ...(repairedNomination &&
-          repairedNomination.variantIndex < 3 &&
-          expressiveProductionHasPerceptionDelta(repairedNomination)
-            ? [repairedNomination]
-            : []),
-        ]
-          .filter(
-            (production, index, all) =>
-              all.findIndex(
-                (candidate) => candidate.variantIndex === production.variantIndex,
-              ) === index,
           )
           .sort((a, b) => b.score - a.score)
       : acceptedProductions;
@@ -3144,15 +3306,13 @@ export async function createAuthorExperience(input: {
       : undefined;
 
     // In creative mode, Bare is not a creative competitor. A complete,
-    // accepted expressive production must own the result whenever one exists.
+    // grounded expressive production must own the result whenever one exists.
     // Bare exists only as the final truth-safe fallback.
     const nominatedExpressiveProduction =
       nominatedProduction &&
-      (!lensSearchEnabled ||
-        (
-          treatmentByVariantIndex.has(nominatedProduction.variantIndex) &&
-          nominatedProduction.variantIndex < 3
-        ))
+      acceptedExpressiveProductions.some(
+        (production) => production.variantIndex === nominatedProduction.variantIndex,
+      )
         ? nominatedProduction
         : undefined;
 
@@ -3179,18 +3339,10 @@ export async function createAuthorExperience(input: {
     selectedMemoryProduction = winner
       ? String.fromCharCode(65 + winner.variantIndex)
       : undefined;
-    const effectiveProductions = productions.map((production) =>
-      repairedNomination &&
-      production.variantIndex === repairedNomination.variantIndex
-        ? repairedNomination
-        : production,
-    );
 
-    memoryProductionDiagnostics = effectiveProductions.map((production) => ({
-      production: String.fromCharCode(65 + production.variantIndex),
-      accepted: production.accepted,
-      score: production.score,
-      reasons: [
+    const productionDiagnosticReasons = (production: MemorySequenceCandidate): string[] => {
+      const grounding = groundingByVariantIndex.get(production.variantIndex);
+      return [
         ...production.reasons,
         ...(lensSearchEnabled &&
         production.variantIndex < 3 &&
@@ -3198,37 +3350,73 @@ export async function createAuthorExperience(input: {
         !expressiveProductionHasPerceptionDelta(production)
           ? ["insufficient-perception-delta"]
           : []),
-      ],
-      lines: production.lines.map((line) => ({
-        order: line.beat.order,
-        text: line.text,
-        sourceEventIds: [...line.beat.eventIds],
-      })),
-    }));
+        ...(lensSearchEnabled &&
+        production.accepted &&
+        grounding &&
+        !grounding.accepted
+          ? grounding.reasons
+          : []),
+      ];
+    };
+
+    const productionDiagnosticAccepted = (production: MemorySequenceCandidate): boolean =>
+      production.accepted &&
+      (!lensSearchEnabled || productionGrounded(production)) &&
+      (!lensSearchEnabled ||
+        production.variantIndex === 3 ||
+        expressiveProductionHasPerceptionDelta(production));
+
+    candidateGroundingDiagnostics = effectiveProductionsByLetter.map((production) => {
+      const assignedTreatment = treatmentByVariantIndex.get(production.variantIndex);
+      const grounding = groundingByVariantIndex.get(production.variantIndex)!;
+      return {
+        production: String.fromCharCode(65 + production.variantIndex),
+        treatmentId: assignedTreatment?.id,
+        checked: grounding.checked,
+        accepted: grounding.accepted,
+        model: grounding.model,
+        modelCalls: grounding.modelCalls,
+        acceptedScenes: grounding.acceptedScenes,
+        originalScenes: grounding.originalScenes,
+        reasons: grounding.reasons,
+        lines: grounding.lines,
+      };
+    });
+
+    memoryProductionDiagnostics = effectiveProductionsByLetter.map((production) => {
+      const assignedTreatment = treatmentByVariantIndex.get(production.variantIndex);
+      const grounding = groundingByVariantIndex.get(production.variantIndex);
+      return {
+        production: String.fromCharCode(65 + production.variantIndex),
+        treatmentId: assignedTreatment?.id,
+        sourceCandidateId: assignedTreatment?.sourceCandidateId,
+        sourceRelation: assignedTreatment?.sourceRelation,
+        treatmentEvidenceEventIds: assignedTreatment
+          ? [...assignedTreatment.evidenceEventIds]
+          : undefined,
+        localAccepted: production.accepted,
+        accepted: productionDiagnosticAccepted(production),
+        score: production.score,
+        reasons: productionDiagnosticReasons(production),
+        grounding,
+        lines: production.lines.map((line) => ({
+          order: line.beat.order,
+          text: line.text,
+          sourceEventIds: [...line.beat.eventIds],
+        })),
+      };
+    });
 
     debug("MEMORY-PRODUCTIONS", {
-      modelNomination: nominatedVariantIndex >= 0
-        ? String.fromCharCode(65 + nominatedVariantIndex)
-        : "NONE",
-      modelSelectionReason: clean(parsedMouth?.selectionReason),
+      modelNomination: mouthNominatedMemoryProduction ?? "NONE",
+      modelSelectionReason: mouthProductionSelectionReason,
       winner: winner
         ? String.fromCharCode(65 + winner.variantIndex)
         : "NONE",
-      productions: effectiveProductions.map((production) => ({
-      production: String.fromCharCode(65 + production.variantIndex),
-      accepted: production.accepted,
-      score: production.score,
-      reasons: [
-        ...production.reasons,
-        ...(lensSearchEnabled &&
-        production.variantIndex < 3 &&
-        production.accepted &&
-        !expressiveProductionHasPerceptionDelta(production)
-          ? ["insufficient-perception-delta"]
-          : []),
-      ],
-      lines: production.lines.map((line) => line.text),
-      })),
+      acceptedExpressiveSet: acceptedExpressiveProductions.map((production) =>
+        String.fromCharCode(65 + production.variantIndex)
+      ),
+      productions: memoryProductionDiagnostics,
     });
 
     for (const [index, beat] of plan.moves.entries()) {
@@ -3237,7 +3425,7 @@ export async function createAuthorExperience(input: {
         .map(clean)
         .filter(Boolean);
 
-      const alternatives = effectiveProductions.map((production) => {
+      const alternatives = effectiveProductionsByLetter.map((production) => {
         const line = production.lines[index];
         return {
           text: line?.text ?? "",
@@ -3350,7 +3538,8 @@ export async function createAuthorExperience(input: {
     modelCalls:
       2 +
       lensSearch.modelCalls +
-      memoryRepairModelCalls,
+      memoryRepairModelCalls +
+      memoryGroundingModelCalls,
     diagnostics: {
       plan,
       creativeNotice: lensSearch.creativeNotice,
@@ -3373,12 +3562,15 @@ export async function createAuthorExperience(input: {
         .map(([order, variants]) => ({ order, variants })),
       choices,
       selectedProduction: selectedMemoryProduction,
+      mouthNomination: mouthNominatedMemoryProduction,
+      modelSelectionReason: mouthProductionSelectionReason,
       mouthFallback: mouthFallbackReason
         ? {
             reason: mouthFallbackReason,
             production: selectedMemoryProduction ?? "D",
           }
         : undefined,
+      candidateGrounding: candidateGroundingDiagnostics,
       memoryProductions: memoryProductionDiagnostics,
     },
   };
