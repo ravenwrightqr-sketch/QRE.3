@@ -34,9 +34,15 @@ function debug(label: string, value: unknown): void {
 
 const DIRECT_CREATIVE_AUTHOR_EXPERIMENT_FLAG =
   "QRE_AUTHOR_DIRECT_CREATIVE_EXPERIMENT";
+const AUTHOR_REALITY_EDITOR_EXPERIMENT_FLAG =
+  "QRE_AUTHOR_REALITY_EDITOR_EXPERIMENT";
 
 function directCreativeAuthorExperimentEnabled(): boolean {
   return process.env[DIRECT_CREATIVE_AUTHOR_EXPERIMENT_FLAG] === "true";
+}
+
+function authorRealityEditorExperimentEnabled(): boolean {
+  return process.env[AUTHOR_REALITY_EDITOR_EXPERIMENT_FLAG] === "true";
 }
 
 function parseJson(text: string): Record<string, unknown> | undefined {
@@ -129,6 +135,24 @@ export type AuthorDirectProvenanceAssignment = {
     order: number;
     sourceEventIds: string[];
   }>;
+};
+
+export type AuthorRealityEditorInputProduction = {
+  production: "A" | "B" | "C";
+  text: string;
+  sourceEventIds: string[];
+};
+
+export type AuthorRealityEditorPayload = {
+  SUPPLIED_REALITY: readonly AuthorCreativeEvent[];
+  AUTHORED_PRODUCTIONS: AuthorRealityEditorInputProduction[];
+  instruction: string;
+};
+
+export type AuthorRealityEditorApplyResult = {
+  productions: AuthorMemoryMouthProduction[];
+  applied: boolean;
+  reason?: string;
 };
 
 export type AuthorCreativeTreatmentMouthAssignment =
@@ -2522,6 +2546,185 @@ export function attachDirectAuthorProvenanceToProductions(input: {
     .filter((production) => production.lines.length > 0);
 }
 
+export function buildAuthorRealityEditorPayload(input: {
+  suppliedReality: readonly AuthorCreativeEvent[];
+  productions: readonly AuthorMemoryMouthProduction[];
+}): AuthorRealityEditorPayload {
+  return {
+    SUPPLIED_REALITY: input.suppliedReality,
+    AUTHORED_PRODUCTIONS: input.productions
+      .filter((production): production is AuthorMemoryMouthProduction & { production: "A" | "B" | "C" } =>
+        ["A", "B", "C"].includes(production.production),
+      )
+      .map((production) => ({
+        production: production.production,
+        text: production.lines
+          .map((line) => line.text)
+          .filter((text) => clean(text))
+          .join("\n"),
+        sourceEventIds: unique(production.lines.flatMap((line) => line.sourceEventIds)),
+      })),
+    instruction:
+      "Return edited text for productions A, B, and C. Delete unsupported concrete claims only.",
+  };
+}
+
+function normalizeAuthorRealityEditorEdits(
+  value: unknown,
+): Map<"A" | "B" | "C", string> | undefined {
+  const editsValue = value && typeof value === "object"
+    ? (value as Record<string, unknown>).edits
+    : undefined;
+  if (!Array.isArray(editsValue) || editsValue.length !== 3) return undefined;
+
+  const edits = new Map<"A" | "B" | "C", string>();
+  for (const rawEdit of editsValue) {
+    if (!rawEdit || typeof rawEdit !== "object") return undefined;
+    const editRecord = rawEdit as Record<string, unknown>;
+    const production = clean(editRecord.production).toUpperCase();
+    if (!["A", "B", "C"].includes(production) || edits.has(production as "A" | "B" | "C")) {
+      return undefined;
+    }
+    if (typeof editRecord.text !== "string") return undefined;
+    edits.set(production as "A" | "B" | "C", editRecord.text);
+  }
+
+  return edits.size === 3 ? edits : undefined;
+}
+
+export function applyAuthorRealityEditorEdits(input: {
+  productions: readonly AuthorMemoryMouthProduction[];
+  editorResponse: unknown;
+}): AuthorRealityEditorApplyResult {
+  const edits = normalizeAuthorRealityEditorEdits(input.editorResponse);
+  if (!edits) {
+    return {
+      productions: input.productions.map((production) => ({
+        ...production,
+        lines: production.lines.map((line) => ({ ...line })),
+      })),
+      applied: false,
+      reason: "malformed_reality_editor_response",
+    };
+  }
+
+  const originalLetters = new Set(
+    input.productions
+      .map((production) => production.production)
+      .filter((production) => ["A", "B", "C"].includes(production)),
+  );
+  if (!["A", "B", "C"].every((production) => originalLetters.has(production as AuthorProductionLetter))) {
+    return {
+      productions: input.productions.map((production) => ({
+        ...production,
+        lines: production.lines.map((line) => ({ ...line })),
+      })),
+      applied: false,
+      reason: "reality_editor_missing_original_production",
+    };
+  }
+
+  return {
+    productions: input.productions.map((production) => {
+      if (!["A", "B", "C"].includes(production.production)) {
+        return {
+          ...production,
+          lines: production.lines.map((line) => ({ ...line })),
+        };
+      }
+
+      const editedText = edits.get(production.production as "A" | "B" | "C") ?? "";
+      const firstLine = production.lines[0];
+      if (!clean(editedText) || !firstLine) {
+        return {
+          ...production,
+          lines: [],
+        };
+      }
+
+      return {
+        ...production,
+        lines: [
+          {
+            ...firstLine,
+            text: editedText,
+            sourceEventIds: [...firstLine.sourceEventIds],
+          },
+        ],
+      };
+    }),
+    applied: true,
+  };
+}
+
+async function editDirectAuthorReality(input: {
+  suppliedReality: readonly AuthorCreativeEvent[];
+  productions: readonly AuthorMemoryMouthProduction[];
+}): Promise<AuthorRealityEditorApplyResult & {
+  model: string;
+  modelCalls: number;
+}> {
+  const result = await localModelGenerate(
+    [
+      {
+        role: "system",
+        content: [
+          "You are the Reality Editor.",
+          "The supplied reality controls what actually happened.",
+          "The text has already been authored. Do not author it again.",
+          "Remove concrete claims that are not supported by the supplied reality.",
+          "Preserve supported authored language unchanged whenever possible.",
+          "Expressive language may remain when it does not require a new concrete occurrence to be true.",
+          "Do not replace deleted material with invented material.",
+          "Do not summarize the supplied reality.",
+          "Do not explain your edits.",
+          "Do not improve the writing.",
+          "Return only the edited text.",
+        ].join("\n"),
+      },
+      {
+        role: "user",
+        content: JSON.stringify(buildAuthorRealityEditorPayload(input)),
+      },
+    ],
+    "json",
+    {
+      numPredict: 650,
+      temperature: 0.08,
+      jsonSchema: {
+        type: "object",
+        additionalProperties: false,
+        required: ["edits"],
+        properties: {
+          edits: {
+            type: "array",
+            minItems: 3,
+            maxItems: 3,
+            items: {
+              type: "object",
+              additionalProperties: false,
+              required: ["production", "text"],
+              properties: {
+                production: { type: "string", enum: ["A", "B", "C"] },
+                text: { type: "string" },
+              },
+            },
+          },
+        },
+      },
+    },
+  );
+
+  return {
+    ...applyAuthorRealityEditorEdits({
+      productions: input.productions,
+      editorResponse: parseJson(result.text),
+    }),
+    model: result.model,
+    modelCalls: 1,
+  };
+}
+
 async function assignDirectAuthorProductionProvenance(input: {
   suppliedReality: readonly AuthorCreativeEvent[];
   authoredProductions: readonly AuthorDirectTextProduction[];
@@ -2817,6 +3020,8 @@ export async function createAuthorExperience(input: {
   const isMemoryMode = experienceMode === "MEMORY";
   const directCreativeAuthorExperiment =
     isMemoryMode && directCreativeAuthorExperimentEnabled();
+  const directAuthorRealityEditorExperiment =
+    directCreativeAuthorExperiment && authorRealityEditorExperimentEnabled();
   const useDeterministicSparsePlan =
     selectedEvidence.length > 0 && selectedEvidence.length <= 3;
   const useDeterministicRealityDirectMemoryPlan =
@@ -3051,6 +3256,7 @@ export async function createAuthorExperience(input: {
 
   let mouthFallbackReason: string | undefined;
   let directAuthorProvenanceModelCalls = 0;
+  let directAuthorRealityEditorModelCalls = 0;
   if (skipExpressiveMouth) {
     mouthFallbackReason = "no viable expressive treatments; skipped Mouth and returned deterministic Bare Reality";
   }
@@ -3317,8 +3523,36 @@ export async function createAuthorExperience(input: {
       directAuthorProvenanceModelCalls += provenanceResult?.modelCalls ?? 0;
 
       if (provenanceResult?.productions.length) {
+        let productionsAfterRealityEditor = provenanceResult.productions;
+
+        if (directAuthorRealityEditorExperiment) {
+          const editorResult = await editDirectAuthorReality({
+            suppliedReality: input.suppliedReality,
+            productions: provenanceResult.productions,
+          }).catch((error: unknown) => ({
+            productions: provenanceResult.productions,
+            applied: false,
+            reason:
+              clean((error as { message?: unknown })?.message) ||
+              "direct_author_reality_editor_failed",
+            model: "direct-author-reality-editor-fallback-original",
+            modelCalls: 0,
+          }));
+
+          directAuthorRealityEditorModelCalls += editorResult.modelCalls;
+          productionsAfterRealityEditor = editorResult.productions;
+
+          debug("REALITY-EDITOR", {
+            enabled: true,
+            applied: editorResult.applied,
+            fallbackReason: editorResult.reason,
+            before: provenanceResult.productions,
+            after: productionsAfterRealityEditor,
+          });
+        }
+
         parsedMouth = {
-          productions: provenanceResult.productions,
+          productions: productionsAfterRealityEditor,
         };
       } else {
         mouthFallbackReason =
@@ -3696,7 +3930,8 @@ export async function createAuthorExperience(input: {
       (useDeterministicPlan ? 1 : 2) +
       lensSearch.modelCalls +
       memoryRepairModelCalls +
-      directAuthorProvenanceModelCalls,
+      directAuthorProvenanceModelCalls +
+      directAuthorRealityEditorModelCalls,
     diagnostics: {
       plan,
       creativeNotice: lensSearch.creativeNotice,
