@@ -38,15 +38,36 @@ const editorSchema = editorSource.slice(editorSchemaStart);
 assert.match(editorPrompt, /You are the Reality Editor\./);
 assert.match(editorPrompt, /The supplied reality controls what actually happened\./);
 assert.match(editorPrompt, /The text has already been authored\. Do not author it again\./);
-assert.match(editorPrompt, /Remove concrete claims that are not supported by the supplied reality\./);
-assert.match(editorPrompt, /Preserve supported authored language unchanged whenever possible\./);
-assert.match(editorPrompt, /Expressive language may remain when it does not require a new concrete occurrence to be true\./);
+assert.match(editorPrompt, /Evidence licenses only what it establishes\./);
+assert.match(
+  editorPrompt,
+  /Do not complete reality from common sense, likelihood, implication, association, or what would normally happen\./,
+);
+assert.match(
+  editorPrompt,
+  /A claim is unsupported if it requires any additional fact to be true beyond the supplied reality\./,
+);
+assert.match(editorPrompt, /Remove unsupported concrete or mental claims\./);
+assert.match(editorPrompt, /Preserve authored language unchanged when it does not require an unsupported fact to be true\./);
 assert.match(editorPrompt, /Do not replace deleted material with invented material\./);
 assert.match(editorPrompt, /Do not summarize the supplied reality\./);
 assert.match(editorPrompt, /Do not explain your edits\./);
 assert.match(editorPrompt, /Do not improve the writing\./);
 assert.match(editorPrompt, /Return only the edited text\./);
 assert.doesNotMatch(editorPrompt, /Coco|bow|bath|dog|Thursday|example|metaphor|humor|wordplay|style|lens|genre/i);
+assert.doesNotMatch(editorPrompt, /Remove concrete claims that are not supported by the supplied reality\./);
+assert.doesNotMatch(editorPrompt, /Preserve supported authored language unchanged whenever possible\./);
+assert.doesNotMatch(editorPrompt, /Expressive language may remain when it does not require a new concrete occurrence to be true\./);
+
+const directAuthorStart = source.indexOf("async function generateDirectAuthorMemoryProductions");
+const directAuthorEnd = source.indexOf("function buildDeterministicMouthFallback", directAuthorStart);
+assert.ok(directAuthorStart >= 0, "direct creative Author helper not found");
+assert.ok(directAuthorEnd > directAuthorStart, "direct creative Author helper end not found");
+const directAuthorSource = source.slice(directAuthorStart, directAuthorEnd);
+assert.match(directAuthorSource, /Make something of it\./, "direct creative Author prompt must remain unchanged");
+assert.match(directAuthorSource, /Return exactly three attempts using the required schema\./);
+assert.doesNotMatch(directAuthorSource, /Evidence licenses only what it establishes\./);
+assert.doesNotMatch(directAuthorSource, /common sense, likelihood, implication, association/);
 
 assert.match(editorSource, /content: JSON\.stringify\(buildAuthorRealityEditorPayload\(input\)\)/);
 assert.match(editorSchema, /required:\s*\["edits"\]/);
