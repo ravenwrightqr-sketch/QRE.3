@@ -40,7 +40,7 @@ const schema = directSource.slice(schemaStart);
 
 assert.match(prompt, /You are the Author\./);
 assert.match(prompt, /Here is supplied reality\./);
-assert.match(prompt, /Notice something worth saying\./);
+assert.match(prompt, /Make something of it\./);
 assert.match(prompt, /Write three different attempts\./);
 assert.match(prompt, /You do not need to use everything\./);
 assert.match(prompt, /One detail may be enough\./);
@@ -50,8 +50,9 @@ assert.match(prompt, /Do not retell the facts one by one\./);
 assert.match(prompt, /Do not paraphrase each fact into creative-sounding language\./);
 assert.match(prompt, /Do not explain your reasoning\./);
 assert.match(prompt, /Do not invent something else happening\./);
-assert.match(prompt, /Say what you noticed\./);
-assert.match(prompt, /Return only the three things you noticed\./);
+assert.match(prompt, /Return only three attempts\./);
+assert.doesNotMatch(prompt, /Notice something worth saying\./);
+assert.doesNotMatch(prompt, /Say what you noticed\./);
 assert.match(
   directSource,
   /REALITY:\s*directCreativeRealityText\(input\.suppliedReality\)/,
@@ -64,9 +65,10 @@ assert.doesNotMatch(
 );
 assert.match(
   prompt,
-  /Return exactly three different things you noticed using the required schema\./,
+  /Return exactly three attempts using the required schema\./,
   "direct user instruction must only communicate the output contract",
 );
+assert.doesNotMatch(prompt, /noticed/i, "direct creative user instruction must not contain noticed");
 assert.doesNotMatch(prompt, /\bPRODUCTIONS\b/, "direct creative prompt must not expose PRODUCTIONS");
 assert.doesNotMatch(prompt, /\["A", "B", "C"\]/, "direct creative prompt must not expose A/B/C labels");
 assert.doesNotMatch(prompt, /Return only A, B, and C\./, "direct creative prompt must not expose A/B/C labels");

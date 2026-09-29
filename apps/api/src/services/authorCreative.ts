@@ -2656,7 +2656,7 @@ async function generateDirectAuthorMemoryProductions(input: {
         content: [
           "You are the Author.",
           "Here is supplied reality.",
-          "Notice something worth saying.",
+          "Make something of it.",
           "Write three different attempts.",
           "You do not need to use everything.",
           "One detail may be enough.",
@@ -2666,8 +2666,7 @@ async function generateDirectAuthorMemoryProductions(input: {
           "Do not paraphrase each fact into creative-sounding language.",
           "Do not explain your reasoning.",
           "Do not invent something else happening.",
-          "Say what you noticed.",
-          "Return only the three things you noticed.",
+          "Return only three attempts.",
         ].join("\n"),
       },
       {
@@ -2676,7 +2675,7 @@ async function generateDirectAuthorMemoryProductions(input: {
           SUBJECT: input.subject,
           REALITY: directCreativeRealityText(input.suppliedReality),
           instruction:
-            "Return exactly three different things you noticed using the required schema.",
+            "Return exactly three attempts using the required schema.",
         }),
       },
     ],
