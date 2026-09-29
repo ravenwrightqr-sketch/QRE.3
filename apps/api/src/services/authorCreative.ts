@@ -95,6 +95,24 @@ export type AuthorCreativeTreatmentAssignment = {
   intensity: "LIGHT" | "MEDIUM" | "STRONG";
 };
 
+export type AuthorProductionLetter = "A" | "B" | "C" | "D";
+
+export type AuthorMemoryMouthLine = {
+  order: number;
+  text: string;
+  sourceEventIds: string[];
+};
+
+export type AuthorMemoryMouthProduction = {
+  production: AuthorProductionLetter;
+  lines: AuthorMemoryMouthLine[];
+};
+
+export type AuthorCreativeTreatmentMouthAssignment =
+  AuthorCreativeTreatmentAssignment & {
+    production: AuthorProductionLetter;
+  };
+
 export type AuthorCreativeNotice = {
   latentRelations: Array<{
     relation: string;
@@ -636,7 +654,7 @@ function treatmentAsAssignment(
 
 function treatmentProductionLetter(
   treatment: Pick<AuthorCreativeTreatmentAssignment, "id" | "semanticMechanic">,
-): "A" | "B" | "C" | "D" {
+): AuthorProductionLetter {
   const match = clean(treatment.id).match(/(\d+)/);
   const index = match ? Number(match[1]) : 1;
   if (index === 2) return "B";
@@ -1371,9 +1389,9 @@ function expressiveProductionHasPerceptionDelta(
     return overlap < 0.8;
   }).length;
 
-  // A whole expressive production needs transformation across more than one
-  // isolated cut. This blocks "three receipt lines + one fancy line".
-  return materiallyTransformedLines >= Math.min(2, production.lines.length);
+  // Variable-length expressive productions may legitimately be one perceptual
+  // hit. Coverage is D's job; A/B/C only need one materially transformed line.
+  return materiallyTransformedLines >= 1;
 }
 
 function temporalAnchorTokens(value: string): string[] {
@@ -1630,8 +1648,11 @@ function memoryPayoffReplayPenalty(
 type MemorySequenceCandidate = {
   variantIndex: number;
   lines: Array<{
-    beat: AuthorSemanticBeat;
+    order: number;
+    sourceEventIds: string[];
+    beat?: AuthorSemanticBeat;
     beatFacts: string[];
+    semanticMove: string;
     text: string;
     accepted: boolean;
     score: number;
@@ -1684,8 +1705,11 @@ function scoreMemorySequence(
         ? inventedOperationalAnchorReason(text, suppliedReality)
         : undefined;
     const line = {
+      order: beat.order,
+      sourceEventIds: [...beat.eventIds],
       beat,
       beatFacts,
+      semanticMove: beat.change,
       text,
       ...base,
       accepted:
@@ -1768,6 +1792,122 @@ function scoreMemorySequence(
   };
 }
 
+function memoryLineKind(index: number, total: number): AuthorScene["kind"] {
+  if (total <= 1) return "line";
+  if (index === 0) return "hook";
+  if (index === total - 1) return "payoff";
+  return "line";
+}
+
+function factsForEventIds(
+  ids: readonly string[],
+  suppliedReality: readonly AuthorCreativeEvent[],
+): string[] {
+  const allowed = new Set(unique(ids));
+  return suppliedReality
+    .filter((event) => allowed.has(clean(event.id)))
+    .map((event) => clean(event.text))
+    .filter(Boolean);
+}
+
+function treatmentAuthority(
+  treatment?: AuthorCreativeTreatmentMouthAssignment,
+): string[] {
+  if (!treatment) return [];
+  return unique([
+    treatment.semanticMechanic === "NONE" ? "" : treatment.semanticMechanic,
+    treatment.sourceRelation,
+    treatment.creativePressure,
+    treatment.hiddenInference,
+    treatment.treatment,
+    treatment.perceptionDelta,
+    ...treatment.expressiveBehaviors,
+  ]);
+}
+
+function scoreExpressiveMemoryProduction(
+  variantIndex: number,
+  mouthLines: readonly AuthorMemoryMouthLine[],
+  suppliedReality: readonly AuthorCreativeEvent[],
+  subject: string,
+  treatment?: AuthorCreativeTreatmentMouthAssignment,
+  realityDirect = false,
+): MemorySequenceCandidate {
+  const prior: string[] = [];
+  const semanticAuthority = treatmentAuthority(treatment);
+  const lines = [...mouthLines]
+    .sort((a, b) => a.order - b.order)
+    .map((mouthLine, index) => {
+      const sourceEventIds = unique(mouthLine.sourceEventIds)
+        .filter((id) => suppliedReality.some((event) => clean(event.id) === id));
+      const beatFacts = factsForEventIds(sourceEventIds, suppliedReality);
+      const base = variantScore(
+        mouthLine.text,
+        beatFacts,
+        semanticAuthority,
+        subject,
+        prior,
+        !realityDirect,
+        false,
+      );
+      const operationalAnchorFailure =
+        inventedOperationalAnchorReason(mouthLine.text, suppliedReality);
+      const accepted =
+        base.accepted &&
+        sourceEventIds.length > 0 &&
+        !operationalAnchorFailure;
+      const line = {
+        order: Number.isInteger(mouthLine.order) ? mouthLine.order : index + 1,
+        sourceEventIds,
+        beatFacts,
+        semanticMove: semanticAuthority.join(" | "),
+        text: clean(mouthLine.text),
+        ...base,
+        accepted,
+        score: operationalAnchorFailure ? 0 : base.score,
+        reasons: [
+          ...base.reasons,
+          ...(sourceEventIds.length ? [] : ["missing-source-event-ids"]),
+          ...(operationalAnchorFailure ? [operationalAnchorFailure] : []),
+        ],
+      };
+      if (line.text) prior.push(line.text);
+      return line;
+    });
+
+  const usedLines = lines.filter((line) => Boolean(line.text));
+  const acceptedLines = usedLines.filter((line) => line.accepted);
+  const meanScore = acceptedLines.length
+    ? acceptedLines.reduce((sum, line) => sum + line.score, 0) / acceptedLines.length
+    : 0;
+  const normalizedLines = usedLines
+    .map((line) => clean(line.text).toLowerCase())
+    .filter(Boolean);
+  const uniqueRatio = normalizedLines.length
+    ? new Set(normalizedLines).size / normalizedLines.length
+    : 0;
+  const rejectedUsedLines = usedLines.length - acceptedLines.length;
+  const score = Math.max(
+    0,
+    meanScore * 0.82 +
+      uniqueRatio * 0.18 -
+      rejectedUsedLines * 0.2,
+  );
+
+  const reasons: string[] = [];
+  if (!usedLines.length) reasons.push("empty-production");
+  if (rejectedUsedLines > 0) reasons.push("rejected-used-line");
+  if (uniqueRatio < 1) reasons.push("repeated-line");
+
+  return {
+    variantIndex,
+    lines,
+    accepted: usedLines.length > 0 && rejectedUsedLines === 0,
+    score: Number(score.toFixed(3)),
+    reasons,
+  };
+}
+
 async function repairNominatedMemoryProduction(input: {
   production: MemorySequenceCandidate;
   plan: AuthorSemanticPlan;
@@ -1815,12 +1955,13 @@ async function repairNominatedMemoryProduction(input: {
           APPROVED_THESIS: input.thesis,
           ASSIGNED_TREATMENT: input.assignedTreatment,
           FULL_PRODUCTION: input.production.lines.map((line, index) => ({
-            order: line.beat.order,
+            order: line.order,
             text: line.text,
             accepted: line.accepted,
             reasons: line.reasons,
             suppliedEvidence: line.beatFacts,
-            semanticMove: line.beat.change,
+            sourceEventIds: line.sourceEventIds,
+            semanticMove: line.semanticMove,
             keepExactly: line.accepted,
             priorLines: input.production.lines
               .slice(0, index)
@@ -1828,11 +1969,12 @@ async function repairNominatedMemoryProduction(input: {
               .filter(Boolean),
           })),
           FAILED_BEATS: failed.map(({ line }) => ({
-            order: line.beat.order,
+            order: line.order,
             rejectedText: line.text,
             reasons: line.reasons,
             suppliedEvidence: line.beatFacts,
-            semanticMove: line.beat.change,
+            sourceEventIds: line.sourceEventIds,
+            semanticMove: line.semanticMove,
           })),
           instruction:
             "Repair only FAILED_BEATS. Preserve the assigned conception, perception delta, voice, and supplied reality boundary. A replacement may leave its originating action or change completely unsaid; preserve grounding, not paraphrase. Make the replacement a perceptual hit rather than an explanation.",
@@ -1869,7 +2011,7 @@ async function repairNominatedMemoryProduction(input: {
 
   const parsed = parseJson(result.text);
   const rawRepairs = Array.isArray(parsed?.repairs) ? parsed.repairs : [];
-  const failedOrders = new Set(failed.map(({ line }) => line.beat.order));
+  const failedOrders = new Set(failed.map(({ line }) => line.order));
   const replacements = new Map<number, string>();
 
   for (const raw of rawRepairs) {
@@ -1900,6 +2042,276 @@ function safeFallbackText(
   );
 }
 
+type AuthorMemorySelectionChoice = {
+  order: number;
+  beat: AuthorSemanticBeat;
+  beatFacts: string[];
+  candidates: Array<{ text: string; accepted: boolean; score: number; reasons: string[] }>;
+  selected: string;
+};
+
+export type AuthorMemoryProductionEvaluation = {
+  scenes: Array<AuthorScene & { sourceEventIds: string[] }>;
+  selectedProduction?: AuthorProductionLetter;
+  productions: Array<{
+    production: AuthorProductionLetter;
+    accepted: boolean;
+    score: number;
+    reasons: string[];
+    lines: Array<{
+      order: number;
+      text: string;
+      sourceEventIds: string[];
+    }>;
+  }>;
+  choices: AuthorMemorySelectionChoice[];
+};
+
+function productionLetterFromVariantIndex(index: number): AuthorProductionLetter {
+  return (["A", "B", "C", "D"][index] ?? "D") as AuthorProductionLetter;
+}
+
+function deterministicBareVariantsByOrder(
+  plan: AuthorSemanticPlan,
+  suppliedReality: readonly AuthorCreativeEvent[],
+): Map<number, string[]> {
+  const variantsByOrder = new Map<number, string[]>();
+  for (const beat of plan.beats) {
+    variantsByOrder.set(beat.order, ["", "", "", safeFallbackText(beat, suppliedReality)]);
+  }
+  return variantsByOrder;
+}
+
+function buildMemoryProductionDiagnostics(
+  productions: readonly MemorySequenceCandidate[],
+  lensSearchEnabled: boolean,
+): AuthorMemoryProductionEvaluation["productions"] {
+  return productions.map((production) => ({
+    production: productionLetterFromVariantIndex(production.variantIndex),
+    accepted: production.accepted,
+    score: production.score,
+    reasons: [
+      ...production.reasons,
+      ...(lensSearchEnabled &&
+      production.variantIndex < 3 &&
+      production.accepted &&
+      !expressiveProductionHasPerceptionDelta(production)
+        ? ["insufficient-perception-delta"]
+        : []),
+    ],
+    lines: production.lines.map((line) => ({
+      order: line.order,
+      text: line.text,
+      sourceEventIds: [...line.sourceEventIds],
+    })),
+  }));
+}
+
+function scenesFromMemoryWinner(
+  winner: MemorySequenceCandidate | undefined,
+  plan: AuthorSemanticPlan,
+  suppliedReality: readonly AuthorCreativeEvent[],
+): Array<AuthorScene & { sourceEventIds: string[] }> {
+  if (!winner) {
+    return plan.beats
+      .map((beat, index) => ({
+        text: safeFallbackText(beat, suppliedReality),
+        kind: beatKind(beat.role, index, plan.beats.length),
+        sourceEventIds: [...beat.eventIds],
+      }))
+      .filter((scene) => Boolean(scene.text));
+  }
+
+  if (winner.variantIndex < 3) {
+    return winner.lines
+      .filter((line) => clean(line.text))
+      .sort((a, b) => a.order - b.order)
+      .map((line, index, all) => ({
+        text: line.text,
+        kind: memoryLineKind(index, all.length),
+        sourceEventIds: [...line.sourceEventIds],
+      }));
+  }
+
+  return winner.lines
+    .filter((line) => clean(line.text))
+    .map((line, index) => ({
+      text: line.text,
+      kind: line.beat
+        ? beatKind(line.beat.role, index, winner.lines.length)
+        : memoryLineKind(index, winner.lines.length),
+      sourceEventIds: [...line.sourceEventIds],
+    }));
+}
+
+function selectMemoryProductionCandidate(input: {
+  plan: AuthorSemanticPlan;
+  suppliedReality: readonly AuthorCreativeEvent[];
+  subject: string;
+  expressiveProductions: readonly AuthorMemoryMouthProduction[];
+  treatmentAssignments: readonly AuthorCreativeTreatmentMouthAssignment[];
+  selectedProduction?: string;
+  lensSearchEnabled: boolean;
+  realityDirect: boolean;
+}): {
+  evaluation: AuthorMemoryProductionEvaluation;
+  internalProductions: MemorySequenceCandidate[];
+  winner?: MemorySequenceCandidate;
+  nominatedAny?: MemorySequenceCandidate;
+  nominatedExpressiveProduction?: MemorySequenceCandidate;
+} {
+  const treatmentByVariantIndex = new Map(
+    input.treatmentAssignments.map((assignment) => [
+      treatmentVariantIndex(assignment),
+      assignment,
+    ]),
+  );
+  const productionByVariantIndex = new Map(
+    input.expressiveProductions.map((production) => [
+      ["A", "B", "C", "D"].indexOf(production.production),
+      production,
+    ]),
+  );
+  const expressiveProductions = [0, 1, 2].map((variantIndex) =>
+    scoreExpressiveMemoryProduction(
+      variantIndex,
+      productionByVariantIndex.get(variantIndex)?.lines ?? [],
+      input.suppliedReality,
+      input.subject,
+      treatmentByVariantIndex.get(variantIndex),
+      input.realityDirect,
+    ),
+  );
+  const bareProduction = scoreMemorySequence(
+    3,
+    input.plan,
+    deterministicBareVariantsByOrder(input.plan, input.suppliedReality),
+    input.suppliedReality,
+    input.subject,
+    input.realityDirect,
+  );
+  const productions = [...expressiveProductions, bareProduction]
+    .sort((a, b) => {
+      if (a.accepted !== b.accepted) return a.accepted ? -1 : 1;
+      return b.score - a.score;
+    });
+
+  const selectedProductionLetter = clean(input.selectedProduction).toUpperCase();
+  const legacySelectedProductionNumber = Number(input.selectedProduction);
+  const nominatedVariantIndex = /^[ABCD]$/.test(selectedProductionLetter)
+    ? ["A", "B", "C", "D"].indexOf(selectedProductionLetter)
+    : Number.isInteger(legacySelectedProductionNumber)
+      ? legacySelectedProductionNumber - 1
+      : -1;
+  const nominatedAny = nominatedVariantIndex >= 0
+    ? productions.find((production) => production.variantIndex === nominatedVariantIndex)
+    : undefined;
+  const nominatedProduction = nominatedAny?.accepted
+    ? nominatedAny
+    : undefined;
+  const acceptedProductions = productions.filter(
+    (production) => production.accepted,
+  );
+  const acceptedExpressiveProductions = input.lensSearchEnabled
+    ? acceptedProductions
+        .filter(
+          (production) =>
+            treatmentByVariantIndex.has(production.variantIndex) &&
+            production.variantIndex < 3 &&
+            expressiveProductionHasPerceptionDelta(production),
+        )
+        .sort((a, b) => b.score - a.score)
+    : acceptedProductions;
+  const topScoringExpressiveProduction = acceptedExpressiveProductions[0];
+  const bareFallbackProduction = input.lensSearchEnabled
+    ? acceptedProductions.find((production) => production.variantIndex === 3)
+    : undefined;
+  const nominatedExpressiveProduction =
+    nominatedProduction &&
+    (!input.lensSearchEnabled ||
+      (
+        treatmentByVariantIndex.has(nominatedProduction.variantIndex) &&
+        nominatedProduction.variantIndex < 3 &&
+        expressiveProductionHasPerceptionDelta(nominatedProduction)
+      ))
+      ? nominatedProduction
+      : undefined;
+  const CREATIVE_TIE_BAND = 0.02;
+  const nominatedNearTop =
+    nominatedExpressiveProduction &&
+    topScoringExpressiveProduction &&
+    topScoringExpressiveProduction.score - nominatedExpressiveProduction.score <= CREATIVE_TIE_BAND
+      ? nominatedExpressiveProduction
+      : undefined;
+  const winner =
+    nominatedNearTop ??
+    topScoringExpressiveProduction ??
+    nominatedExpressiveProduction ??
+    bareFallbackProduction;
+  const scenes = scenesFromMemoryWinner(
+    winner,
+    input.plan,
+    input.suppliedReality,
+  );
+  const choices: AuthorMemorySelectionChoice[] = winner?.variantIndex === 3
+    ? input.plan.beats.map((beat, index) => {
+        const line = winner.lines[index];
+        const beatFacts = factsForEventIds(beat.eventIds, input.suppliedReality);
+        return {
+          order: beat.order,
+          beat,
+          beatFacts,
+          candidates: [{
+            text: line?.text ?? "",
+            accepted: line?.accepted ?? false,
+            score: line?.score ?? 0,
+            reasons: line?.reasons ?? ["missing-production-line"],
+          }],
+          selected: line?.text ?? "",
+        };
+      })
+    : [];
+
+  return {
+    evaluation: {
+      scenes,
+      selectedProduction: winner
+        ? productionLetterFromVariantIndex(winner.variantIndex)
+        : undefined,
+      productions: buildMemoryProductionDiagnostics(productions, input.lensSearchEnabled),
+      choices,
+    },
+    internalProductions: productions,
+    winner,
+    nominatedAny,
+    nominatedExpressiveProduction,
+  };
+}
+
+export function evaluateAuthorMemoryProductions(
+  input: {
+    plan: AuthorSemanticPlan;
+    suppliedReality: readonly AuthorCreativeEvent[];
+    subject: string;
+    expressiveProductions: readonly AuthorMemoryMouthProduction[];
+    treatmentAssignments: readonly AuthorCreativeTreatmentMouthAssignment[];
+    selectedProduction?: string;
+    lensSearchEnabled?: boolean;
+    realityDirect?: boolean;
+  },
+): AuthorMemoryProductionEvaluation {
+  return selectMemoryProductionCandidate({
+    plan: input.plan,
+    suppliedReality: input.suppliedReality,
+    subject: input.subject,
+    expressiveProductions: input.expressiveProductions,
+    treatmentAssignments: input.treatmentAssignments,
+    selectedProduction: input.selectedProduction,
+    lensSearchEnabled: input.lensSearchEnabled ?? true,
+    realityDirect: input.realityDirect ?? false,
+  }).evaluation;
+}
+
 function buildDeterministicMouthFallback(
   plan: AuthorSemanticPlan,
   events: readonly AuthorCreativeEvent[],
@@ -1913,6 +2325,7 @@ function buildDeterministicMouthFallback(
           lines: plan.beats.map((beat) => ({
             order: beat.order,
             text: safeFallbackText(beat, events),
+            sourceEventIds: [...beat.eventIds],
           })),
         },
       ],
@@ -2194,7 +2607,7 @@ export async function createAuthorExperience(input: {
   const runtimeRenderable =
     !lensSearch.lensSearchEnabled ||
     lensSearch.treatmentSetAssessment.renderable;
-  const treatmentAssignmentsForMouth = treatmentsForMouth
+  const treatmentAssignmentsForMouth: AuthorCreativeTreatmentMouthAssignment[] = treatmentsForMouth
     .map((assignment) => ({
       production: treatmentProductionLetter(assignment),
       ...assignment,
@@ -2296,6 +2709,10 @@ export async function createAuthorExperience(input: {
             ...(lensSearchEnabled ? [
               "CREATIVE_TREATMENTS assigns production identities. Each expressive production realizes its own sourceRelation, evidenceEventIds, hiddenInference, treatment, perceptionDelta, and expressiveBehaviors across the whole sequence.",
               "sourceRelation and evidenceEventIds authorize the creative leap. They are provenance, not content requirements; the public line may leave their wording and explicit event entirely unsaid.",
+              "APPROVED_BEATS ARE EVIDENCE INVENTORY, NOT OUTPUT SLOTS. For A/B/C, their number, roles, and order do not determine expressive line count or expressive sequence.",
+              "Every A/B/C expressive line must declare sourceEventIds: the supplied events that authorize that line's perception. Do not inherit evidence by numeric position.",
+              "A/B/C may return one line, several lines, or fewer lines than supplied events. One supplied atom may support the entire expressive production.",
+              "Concrete reality comes from the supplied evidence carried by each beat and, for A/B/C, from each expressive line's declared sourceEventIds.",
               "hiddenInference is optional private Author thinking, not viewer-facing copy. When present, use it only as a possible perceptual direction; do not build an explanatory sequence to prove it. When empty, remain free to discover a grounded perception from the supplied relationship.",
               "Realization beats explanation. The public result may imply something the user never wrote when that implication is a perceptual reading rather than a new concrete occurrence. Never explain what the viewer is supposed to understand.",
               "Treat the assigned treatment as pressure, not literal world description. Push it hard enough that the same reality becomes a different experience.",
@@ -2314,8 +2731,8 @@ export async function createAuthorExperience(input: {
             ] : [
               "Without an assigned creative treatment, realize the approved meaning directly and still search for strong sequence-level authorship rather than generic paraphrase.",
             ]),
-            "Return one production object for each listed production identity. Each may use as little of the supplied reality as its strongest perception requires; empty beat text is legal.",
-            "BEAT EVIDENCE IS ORDERED AUTHORITY. A production line at order N may use that beat's supplied evidence plus evidence already established by earlier orders. It may not move a later room, object, timestamp, action, result, or other supplied fact into an earlier line.",
+            "Return one production object for each listed production identity. A/B/C may use as little of the supplied reality as their strongest perception requires. D is the factual control.",
+            "For D only, BEAT EVIDENCE IS ORDERED AUTHORITY. For A/B/C, order is expressive order and sourceEventIds are the grounding authority.",
             "Do not reshuffle concrete facts. Expressive attention is not required to track beat-by-beat chronology.",
           ] : [
             "For each beat, produce materially different short realizations and let the strongest grounded line win.",
@@ -2394,15 +2811,21 @@ export async function createAuthorExperience(input: {
                     production: { type: "string", enum: ["A", "B", "C", "D"] },
                     lines: {
                       type: "array",
-                      minItems: plan.beats.length,
-                      maxItems: plan.beats.length,
+                      minItems: 0,
+                      maxItems: Math.max(1, input.suppliedReality.length),
                       items: {
                         type: "object",
                         additionalProperties: false,
-                        required: ["order", "text"],
+                        required: ["order", "text", "sourceEventIds"],
                         properties: {
                           order: { type: "integer", minimum: 1 },
                           text: { type: "string" },
+                          sourceEventIds: {
+                            type: "array",
+                            minItems: 1,
+                            maxItems: 32,
+                            items: { type: "string", maxLength: 64 },
+                          },
                         },
                       },
                     },
@@ -2457,6 +2880,7 @@ export async function createAuthorExperience(input: {
 
   let parsedMouth = parseJson(mouthResult.text);
   const variantsByOrder = new Map<number, string[]>();
+  const memoryMouthProductions: AuthorMemoryMouthProduction[] = [];
 
   if (isMemoryMode) {
     if (!Array.isArray(parsedMouth?.productions)) {
@@ -2485,6 +2909,7 @@ export async function createAuthorExperience(input: {
       const production = clean(productionRecord.production).toUpperCase();
       const variantIndex = ["A", "B", "C", "D"].indexOf(production);
       if (variantIndex < 0 || !Array.isArray(productionRecord.lines)) continue;
+      const variableLines: AuthorMemoryMouthLine[] = [];
 
       for (const rawLine of productionRecord.lines) {
         if (!rawLine || typeof rawLine !== "object") continue;
@@ -2492,11 +2917,33 @@ export async function createAuthorExperience(input: {
         const order = Number(lineRecord.order);
         const text = stripProductionLabel(lineRecord.text);
         if (!Number.isInteger(order) || !text) continue;
+        const sourceEventIds = validStoryEventIds(
+          lineRecord.sourceEventIds,
+          input.suppliedReality,
+          32,
+        );
+
+        if (lensSearchEnabled && variantIndex < 3) {
+          if (!sourceEventIds.length) continue;
+          variableLines.push({
+            order,
+            text,
+            sourceEventIds,
+          });
+          continue;
+        }
 
         const variants = [...(variantsByOrder.get(order) ?? ["", "", "", ""])];
         while (variants.length < 4) variants.push("");
         variants[variantIndex] = text;
         variantsByOrder.set(order, variants.slice(0, 4));
+      }
+
+      if (lensSearchEnabled && variantIndex >= 0 && variantIndex < 3) {
+        memoryMouthProductions.push({
+          production: production as AuthorProductionLetter,
+          lines: variableLines.sort((a, b) => a.order - b.order),
+        });
       }
     }
 
@@ -2560,287 +3007,164 @@ export async function createAuthorExperience(input: {
     selected: string;
   }> = [];
 
-  if (isMemoryMode && plan.beats.length > 1) {
-    const productions = [0, 1, 2, 3]
-      .map((variantIndex) =>
-        scoreMemorySequence(
-          variantIndex,
-          plan,
-          variantsByOrder,
-          input.suppliedReality,
-          input.subject,
-          realityDirect,
-        ),
-      )
-      .sort((a, b) => {
-        if (a.accepted !== b.accepted) return a.accepted ? -1 : 1;
-        return b.score - a.score;
-      });
-
-    const selectedProductionRaw = clean(parsedMouth?.selectedProduction).toUpperCase();
-    const selectedProductionLetter =
-      /^[ABCD]$/.test(selectedProductionRaw)
-        ? selectedProductionRaw
-        : "";
-    const legacySelectedProductionNumber = Number(parsedMouth?.selectedProduction);
-    const nominatedVariantIndex = selectedProductionLetter
-      ? ["A", "B", "C", "D"].indexOf(selectedProductionLetter)
-      : Number.isInteger(legacySelectedProductionNumber)
-        ? legacySelectedProductionNumber - 1
-        : -1;
-    const nominatedAny = nominatedVariantIndex >= 0
-      ? productions.find(
-          (production) => production.variantIndex === nominatedVariantIndex,
-        )
-      : undefined;
-
-    let repairedNomination: MemorySequenceCandidate | undefined;
-
-    const repairTarget =
-      nominatedAny &&
-      nominatedAny.variantIndex < 3 &&
-      treatmentByVariantIndex.has(nominatedAny.variantIndex)
-        ? nominatedAny
-        : productions
-            .filter(
-              (production) =>
-                production.variantIndex < 3 &&
-                treatmentByVariantIndex.has(production.variantIndex) &&
-                !production.accepted,
-            )
-            .sort((a, b) => b.score - a.score)[0];
-
-    if (
-      lensSearchEnabled &&
-      repairTarget &&
-      !repairTarget.accepted
-    ) {
-      const repair = await repairNominatedMemoryProduction({
-        production: repairTarget,
+  if (isMemoryMode) {
+    if (lensSearchEnabled) {
+      const selectedProductionRaw = clean(parsedMouth?.selectedProduction).toUpperCase();
+      let selection = selectMemoryProductionCandidate({
         plan,
         suppliedReality: input.suppliedReality,
         subject: input.subject,
-        thesis: plan.thesis,
-        assignedTreatment: treatmentByVariantIndex.get(repairTarget.variantIndex),
+        expressiveProductions: memoryMouthProductions,
+        treatmentAssignments: treatmentAssignmentsForMouth,
+        selectedProduction: selectedProductionRaw,
+        lensSearchEnabled,
+        realityDirect,
       });
-      memoryRepairModelCalls += repair.modelCalls;
 
-      if (repair.replacements.size) {
-        const repairedVariantsByOrder = new Map<number, string[]>(
-          [...variantsByOrder.entries()].map(([order, variants]) => [
-            order,
-            [...variants],
-          ]),
-        );
+      const repairTarget =
+        selection.nominatedAny &&
+        selection.nominatedAny.variantIndex < 3 &&
+        treatmentByVariantIndex.has(selection.nominatedAny.variantIndex)
+          ? selection.nominatedAny
+          : selection.internalProductions
+              .filter(
+                (production) =>
+                  production.variantIndex < 3 &&
+                  treatmentByVariantIndex.has(production.variantIndex) &&
+                  !production.accepted,
+              )
+              .sort((a, b) => b.score - a.score)[0];
 
-        for (const [order, replacement] of repair.replacements.entries()) {
-          const variants = [...(repairedVariantsByOrder.get(order) ?? [])];
-          while (variants.length < 4) variants.push("");
-          variants[repairTarget.variantIndex] = replacement;
-          repairedVariantsByOrder.set(order, variants);
-        }
-
-        const rescored = scoreMemorySequence(
-          repairTarget.variantIndex,
+      if (repairTarget && !repairTarget.accepted) {
+        const repair = await repairNominatedMemoryProduction({
+          production: repairTarget,
           plan,
-          repairedVariantsByOrder,
-          input.suppliedReality,
-          input.subject,
-          realityDirect,
-        );
-
-        debug("MEMORY-PRODUCTION-REPAIR", {
-          production: String.fromCharCode(65 + repairTarget.variantIndex),
-          before: repairTarget.lines.map((line) => ({
-            text: line.text,
-            accepted: line.accepted,
-            reasons: line.reasons,
-          })),
-          replacements: [...repair.replacements.entries()].map(([order, text]) => ({
-            order,
-            text,
-          })),
-          after: rescored.lines.map((line) => ({
-            text: line.text,
-            accepted: line.accepted,
-            reasons: line.reasons,
-          })),
-          accepted: rescored.accepted,
-          score: rescored.score,
+          suppliedReality: input.suppliedReality,
+          subject: input.subject,
+          thesis: plan.thesis,
+          assignedTreatment: treatmentByVariantIndex.get(repairTarget.variantIndex),
         });
+        memoryRepairModelCalls += repair.modelCalls;
 
-        if (rescored.accepted) {
-          repairedNomination = rescored;
+        if (repair.replacements.size) {
+          const repairLetter = productionLetterFromVariantIndex(repairTarget.variantIndex);
+          const repairedProductions = memoryMouthProductions.map((production) =>
+            production.production === repairLetter
+              ? {
+                  ...production,
+                  lines: production.lines.map((line) => ({
+                    ...line,
+                    text: repair.replacements.get(line.order) ?? line.text,
+                  })),
+                }
+              : production,
+          );
+          const repairedSelection = selectMemoryProductionCandidate({
+            plan,
+            suppliedReality: input.suppliedReality,
+            subject: input.subject,
+            expressiveProductions: repairedProductions,
+            treatmentAssignments: treatmentAssignmentsForMouth,
+            selectedProduction: selectedProductionRaw,
+            lensSearchEnabled,
+            realityDirect,
+          });
+          const repairedCandidate = repairedSelection.internalProductions.find(
+            (production) => production.variantIndex === repairTarget.variantIndex,
+          );
+
+          debug("MEMORY-PRODUCTION-REPAIR", {
+            production: repairLetter,
+            before: repairTarget.lines.map((line) => ({
+              text: line.text,
+              sourceEventIds: line.sourceEventIds,
+              accepted: line.accepted,
+              reasons: line.reasons,
+            })),
+            replacements: [...repair.replacements.entries()].map(([order, text]) => ({
+              order,
+              text,
+            })),
+            after: repairedCandidate?.lines.map((line) => ({
+              text: line.text,
+              sourceEventIds: line.sourceEventIds,
+              accepted: line.accepted,
+              reasons: line.reasons,
+            })) ?? [],
+            accepted: repairedCandidate?.accepted ?? false,
+            score: repairedCandidate?.score ?? 0,
+          });
+
+          if (repairedCandidate?.accepted) {
+            selection = repairedSelection;
+          }
         }
       }
-    }
 
-    const nominatedProduction = nominatedAny?.accepted
-      ? nominatedAny
-      : repairedNomination;
-    const acceptedProductions = productions.filter(
-      (production) => production.accepted,
-    );
-    const acceptedExpressiveProductions = lensSearchEnabled
-      ? [
-          ...acceptedProductions.filter(
-            (production) =>
-              treatmentByVariantIndex.has(production.variantIndex) &&
-              production.variantIndex < 3 &&
-              expressiveProductionHasPerceptionDelta(production),
+      selectedMemoryProduction = selection.evaluation.selectedProduction;
+      memoryProductionDiagnostics = selection.evaluation.productions;
+      choices.push(...selection.evaluation.choices);
+      scenes.push(...selection.evaluation.scenes);
+
+      debug("MEMORY-PRODUCTIONS", {
+        modelNomination: selectedProductionRaw || "NONE",
+        modelSelectionReason: clean(parsedMouth?.selectionReason),
+        winner: selectedMemoryProduction ?? "NONE",
+        productions: memoryProductionDiagnostics,
+      });
+    } else {
+      const productions = [0, 1, 2, 3]
+        .map((variantIndex) =>
+          scoreMemorySequence(
+            variantIndex,
+            plan,
+            variantsByOrder,
+            input.suppliedReality,
+            input.subject,
+            realityDirect,
           ),
-          ...(repairedNomination &&
-          repairedNomination.variantIndex < 3 &&
-          expressiveProductionHasPerceptionDelta(repairedNomination)
-            ? [repairedNomination]
-            : []),
-        ]
-          .filter(
-            (production, index, all) =>
-              all.findIndex(
-                (candidate) => candidate.variantIndex === production.variantIndex,
-              ) === index,
-          )
-          .sort((a, b) => b.score - a.score)
-      : acceptedProductions;
-    const topScoringExpressiveProduction = acceptedExpressiveProductions[0];
-    const bareFallbackProduction = lensSearchEnabled
-      ? acceptedProductions.find((production) => production.variantIndex === 3)
-      : undefined;
-
-    // In creative mode, Bare is not a creative competitor. A complete,
-    // accepted expressive production must own the result whenever one exists.
-    // Bare exists only as the final truth-safe fallback.
-    const nominatedExpressiveProduction =
-      nominatedProduction &&
-      (!lensSearchEnabled ||
-        (
-          treatmentByVariantIndex.has(nominatedProduction.variantIndex) &&
-          nominatedProduction.variantIndex < 3
-        ))
-        ? nominatedProduction
+        )
+        .sort((a, b) => {
+          if (a.accepted !== b.accepted) return a.accepted ? -1 : 1;
+          return b.score - a.score;
+        });
+      const winner = productions.find((production) => production.accepted);
+      selectedMemoryProduction = winner
+        ? productionLetterFromVariantIndex(winner.variantIndex)
         : undefined;
+      memoryProductionDiagnostics = buildMemoryProductionDiagnostics(productions, false);
 
-    // QRE owns admissibility. Once multiple expressive productions are fully
-    // accepted and essentially tied, the model's whole-production nomination
-    // becomes useful creative evidence. Do not let thousandths in a mechanical
-    // line score pretend to measure conception quality. The model may break a
-    // close tie only inside the accepted expressive set; it can never rescue an
-    // unsafe/incomplete production or make Bare beat a viable expressive one.
-    const CREATIVE_TIE_BAND = 0.02;
-    const nominatedNearTop =
-      nominatedExpressiveProduction &&
-      topScoringExpressiveProduction &&
-      topScoringExpressiveProduction.score - nominatedExpressiveProduction.score <= CREATIVE_TIE_BAND
-        ? nominatedExpressiveProduction
-        : undefined;
+      for (const [index, beat] of plan.beats.entries()) {
+        const beatFacts = factsForEventIds(beat.eventIds, input.suppliedReality);
+        const alternatives = productions.map((production) => {
+          const line = production.lines[index];
+          return {
+            text: line?.text ?? "",
+            accepted: line?.accepted ?? false,
+            score: line?.score ?? 0,
+            reasons: line?.reasons ?? ["missing-production-line"],
+          };
+        });
+        const winnerLine = winner?.lines[index];
+        const selectedText = winner
+          ? winnerLine?.text ?? ""
+          : safeFallbackText(beat, input.suppliedReality);
 
-    const winner =
-      nominatedNearTop ??
-      topScoringExpressiveProduction ??
-      nominatedExpressiveProduction ??
-      bareFallbackProduction;
+        choices.push({
+          order: beat.order,
+          beat,
+          beatFacts,
+          candidates: alternatives,
+          selected: selectedText,
+        });
 
-    selectedMemoryProduction = winner
-      ? String.fromCharCode(65 + winner.variantIndex)
-      : undefined;
-    const effectiveProductions = productions.map((production) =>
-      repairedNomination &&
-      production.variantIndex === repairedNomination.variantIndex
-        ? repairedNomination
-        : production,
-    );
-
-    memoryProductionDiagnostics = effectiveProductions.map((production) => ({
-      production: String.fromCharCode(65 + production.variantIndex),
-      accepted: production.accepted,
-      score: production.score,
-      reasons: [
-        ...production.reasons,
-        ...(lensSearchEnabled &&
-        production.variantIndex < 3 &&
-        production.accepted &&
-        !expressiveProductionHasPerceptionDelta(production)
-          ? ["insufficient-perception-delta"]
-          : []),
-      ],
-      lines: production.lines.map((line) => ({
-        order: line.beat.order,
-        text: line.text,
-        sourceEventIds: [...line.beat.eventIds],
-      })),
-    }));
-
-    debug("MEMORY-PRODUCTIONS", {
-      modelNomination: nominatedVariantIndex >= 0
-        ? String.fromCharCode(65 + nominatedVariantIndex)
-        : "NONE",
-      modelSelectionReason: clean(parsedMouth?.selectionReason),
-      winner: winner
-        ? String.fromCharCode(65 + winner.variantIndex)
-        : "NONE",
-      productions: effectiveProductions.map((production) => ({
-      production: String.fromCharCode(65 + production.variantIndex),
-      accepted: production.accepted,
-      score: production.score,
-      reasons: [
-        ...production.reasons,
-        ...(lensSearchEnabled &&
-        production.variantIndex < 3 &&
-        production.accepted &&
-        !expressiveProductionHasPerceptionDelta(production)
-          ? ["insufficient-perception-delta"]
-          : []),
-      ],
-      lines: production.lines.map((line) => line.text),
-      })),
-    });
-
-    for (const [index, beat] of plan.beats.entries()) {
-      const beatFacts = beat.eventIds
-        .map((id) => input.suppliedReality.find((event) => event.id === id)?.text ?? "")
-        .map(clean)
-        .filter(Boolean);
-
-      const alternatives = effectiveProductions.map((production) => {
-        const line = production.lines[index];
-        return {
-          text: line?.text ?? "",
-          accepted: line?.accepted ?? false,
-          score: line?.score ?? 0,
-          reasons: line?.reasons ?? ["missing-production-line"],
-        };
-      });
-
-      const winnerLine = winner?.lines[index];
-      const selectedText = winner
-        ? winnerLine?.text ?? ""
-        : safeFallbackText(beat, input.suppliedReality);
-
-      debug(`MOUTH-BEAT-${beat.order}-CHOICE`, {
-        beat,
-        beatFacts,
-        candidates: alternatives,
-        selectedProduction: winner
-          ? String.fromCharCode(65 + winner.variantIndex)
-          : "FACT-FALLBACK",
-        selected: selectedText || "FACT-FALLBACK",
-      });
-
-      choices.push({
-        order: beat.order,
-        beat,
-        beatFacts,
-        candidates: alternatives,
-        selected: selectedText,
-      });
-
-      if (!selectedText) continue;
-      scenes.push({
-        text: selectedText,
-        kind: beatKind(beat.role, index, plan.beats.length),
-        sourceEventIds: beat.eventIds,
-      });
+        if (!selectedText) continue;
+        scenes.push({
+          text: selectedText,
+          kind: beatKind(beat.role, index, plan.beats.length),
+          sourceEventIds: [...beat.eventIds],
+        });
+      }
     }
   } else {
     const prior: string[] = [];
