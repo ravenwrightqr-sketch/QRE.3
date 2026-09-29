@@ -870,25 +870,18 @@ export async function searchAuthorCreativeLensTreatments(input: {
         content: [
           "You are QRE Creative Search.",
           ...QRE_CREATIVE_OPERATING_DOCTRINE,
-          "Your only job is to NOTICE three independently interesting things in the supplied reality.",
-          "QRE authors perception, not story. Do not build an arc, plot, sequence, conflict, escalation, resolution, hidden psychology, motive, or explanation.",
-          "Each notice starts from whatever supplied detail actually catches your attention. One detail is enough. Several may combine when the connection is already present in the facts.",
-          "Think BECAUSE OF the supplied fact, not merely ABOUT the supplied fact. Do not ask what a fact means; ask what noticing it makes possible to notice, think, imply, judge, contrast, reframe, or find strange.",
-          "Semantic translation is not discovery. A conception fails when it merely replaces source wording with a dramatic, psychological, symbolic, or literary abstraction.",
-          "Before returning a conception, privately reject the easy paraphrase or abstraction if it could have been produced by swapping source words for conceptual synonyms.",
-          "The conception should contain a new perception that was not already present in the source wording. Give Mouth a thought to realize, not an explanation of the supplied fact.",
-          "A notice may change how a true fact feels, lands, connects, or is noticed. It may not negate, explain away, or replace any supplied proposition.",
-          "Do not infer motive from an attempt. Do not infer hidden emotion from an action. Do not turn chronology into causality.",
-          "The three notices must be genuinely different observations, not three tones, genres, metaphors, or costumes over one interpretation.",
-          "The three notices do not need to divide or collectively cover the supplied reality. Evidence selection must follow the idea; the idea must not follow a requirement to distribute evidence.",
-          "All three notices may use the same supplied event if that event licenses the three strongest genuinely different perceptions. Each notice may also use different evidence.",
+          "Reality is evidence for thought.",
+          "Return three independent private conceptions that become possible because the supplied reality was noticed.",
+          "Do not describe the evidence. Do not explain what the evidence means. Do not translate evidence into a conceptual synonym or abstraction.",
+          "Think because of the evidence, then give the thought.",
+          "The conception must add a perception that was not already contained in the supplied fact wording.",
           "One supplied atom may support an entire conception. Unused supplied facts are completely legal.",
-          "evidenceEventIds are provenance only: what supplied reality licensed this thought. They are not output slots, rewrite assignments, coverage obligations, or instructions to represent those events publicly.",
-          "Do not choose a genre. Do not write a treatment. Do not describe how to write it. Do not explain what the experience means.",
-          "Return the smallest private creative conception that would let another Author express the perception.",
-          "Attention is selective. A notice does not need to use every fact. Unused facts are legal.",
-          "Creative Search may invent perception, implication, attitude, humor, judgment, contradiction, recontextualization, status, absurdity, understatement, overstatement, metaphorical thought, or another model-discovered operation. It may not invent people, objects, places, physical actions, measurements, sensory facts, motives, outcomes, recurrence, concrete physical conditions, or any new concrete occurrence.",
-          "Protect the strange; police the facts.",
+          "The three conceptions do not need to divide or collectively cover the supplied reality. Multiple conceptions may use the same evidence.",
+          "evidenceEventIds are provenance only. Choose them because they licensed the thought, not because events need coverage. They are not output slots, rewrite assignments, coverage obligations, or public representation requirements.",
+          "Invent perception, attitude, implication, metaphorical thought, judgment, humor, or recontextualization freely. Do not invent concrete occurrence.",
+          "Do not invent people, objects, places, physical actions, sensory facts, measurements, motives, outcomes, recurrence, physical conditions, or any new concrete occurrence.",
+          "Do not return observation, meaning, interpretation, relation, rationale, explanation, theme, mechanic, lens, treatment instructions, story, arc, or public prose.",
+          "Protect strange thinking; police factual invention later.",
         ].join("\n"),
       },
       {
@@ -898,7 +891,7 @@ export async function searchAuthorCreativeLensTreatments(input: {
           SUPPLIED_REALITY: creativeEvidenceProjection(input.suppliedReality),
           REQUESTED_LENS: requestedLens || undefined,
           instruction:
-            "Return exactly three independent notices. For each: what caught your attention, the supplied event IDs that license the thought as provenance, and a compact private conception containing a new perception rather than an explanation, paraphrase, or semantic synonym ladder. The notices do not owe collective coverage and may reuse the same evidence when the perceptions are genuinely different. Do not return story structure, latent relations, treatments, hidden inference, perception deltas, expressive behavior menus, or narrative instructions.",
+            "Return exactly three independent notices. Each notice must contain only conception and evidenceEventIds. Give the thought, not a description, explanation, observation, meaning, interpretation, relation, rationale, theme, mechanic, lens, or semantic translation of the evidence. The notices do not owe collective coverage and may reuse the same evidence when the conceptions are genuinely different. Do not return story structure, latent relations, treatments, hidden inference, perception deltas, expressive behavior menus, or narrative instructions.",
         }),
       },
     ],
@@ -918,9 +911,8 @@ export async function searchAuthorCreativeLensTreatments(input: {
             items: {
               type: "object",
               additionalProperties: false,
-              required: ["attention", "evidenceEventIds", "conception"],
+              required: ["evidenceEventIds", "conception"],
               properties: {
-                attention: { type: "string" },
                 evidenceEventIds: {
                   type: "array",
                   minItems: 1,
@@ -968,7 +960,6 @@ export async function searchAuthorCreativeLensTreatments(input: {
     .map((value, index): AuthorCreativeTreatment | undefined => {
       if (!value || typeof value !== "object") return undefined;
       const record = value as Record<string, unknown>;
-      const attention = clean(record.attention);
       const conception = clean(record.conception);
       const evidenceEventIds = Array.isArray(record.evidenceEventIds)
         ? unique(
@@ -978,17 +969,18 @@ export async function searchAuthorCreativeLensTreatments(input: {
               .filter((id) => input.suppliedReality.some((event) => clean(event.id) === id)),
           )
         : [];
-      if (!attention || !conception || !evidenceEventIds.length) return undefined;
+      if (!conception || !evidenceEventIds.length) return undefined;
+      const sourceRelation = "model-selected evidence provenance";
 
       latentRelations.push({
-        relation: attention,
+        relation: sourceRelation,
         evidenceEventIds,
       });
 
       return {
         id: `treatment-${index + 1}`,
         sourceCandidateId: `notice[${index}]`,
-        sourceRelation: attention,
+        sourceRelation,
         evidenceEventIds,
         creativePressure: conception,
         hiddenInference: "",
