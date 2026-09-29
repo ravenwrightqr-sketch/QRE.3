@@ -855,7 +855,6 @@ export async function searchAuthorCreativeLensTreatments(input: {
           HARD_ENDPOINT_EVENT_ID: fallbackStoryGravity(input.suppliedReality).endpointEventId,
           MODE_HINT: clean(input.experienceMode) || undefined,
           REQUESTED_LENS: requestedLens || undefined,
-          SEMANTIC_MECHANIC: semanticMechanic.mechanic,
           instruction:
             "Return STORY_GRAVITY plus exactly three distinct latent relations and exactly three finalist moves. Finalist 1 uses relation 1, finalist 2 relation 2, finalist 3 relation 3. Keep provenance in the relations; do not repeat relation text or event IDs inside finalists. Leave hiddenInference empty when no real unstated realization is earned.",
         }),
