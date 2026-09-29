@@ -821,6 +821,13 @@ export async function searchAuthorCreativeLensTreatments(input: {
           "HARD_ENDPOINT_EVENT_ID is already locked by QRE. Earlier supplied evidence may earn it; the endpoint itself is not the creative idea.",
           "Operational anchors are provenance by default. Do not center timing, precision, logging, documentation, duration, or completion unless the supplied relationship truly depends on them.",
           "Search broadly in private. Return exactly three materially different latent relations and one finalist per relation in the same order.",
+          "QRE AUTHORS PERCEPTION, NOT STORY. Notice what is worth noticing; do not construct a narrative to explain every event.",
+          "DISCOVER, DO NOT DIAGNOSE. A creative conception may change how a supplied fact lands, connects, or is noticed, but it may not reverse, explain away, or replace that fact.",
+          "Supplied states remain true. Supplied emotion remains true. An attempted action establishes the attempt, not motive, preference, rebellion, ownership, success, or hidden psychology.",
+          "The three relations must begin from genuinely independent observations. If two candidates depend on substantially the same underlying interpretation, discard one and search again.",
+          "Difference is not a new tone, genre, vocabulary, intensity, or costume over the same thesis. What is worth noticing must actually change.",
+          "ATTENTION, NOT COVERAGE. One supplied detail may carry an entire conception. Unused facts are legal; fact count is not creative depth.",
+          "IMPLICATION, NOT EXPLANATION. COMPRESSION, NOT SUMMARY. RECONTEXTUALIZE, DO NOT CONTRADICT. Stop before explaining the connection.",
           "Use these questions as creative search pressure: What changes the read of everything else? Which supplied detail refuses to stay ordinary? What becomes more interesting when two true facts are forced together? What later fact changes the meaning of an earlier one?",
           "Ask: What can be made larger in meaning without becoming larger in fact? What is the smallest detail carrying the most story? What can be twisted rhetorically without creating a new event?",
           "Ask: Which supplied detail has creative charge, and what genuinely different perception can emerge from it without ceasing to be the same fact?",
@@ -1959,39 +1966,45 @@ function scoreMemorySequence(
     return line;
   });
 
-  const acceptedLines = lines.filter((line) => line.accepted && line.text);
-  const completeness = plan.beats.length
+  const usedLines = lines.filter((line) => Boolean(line.text));
+  const acceptedLines = usedLines.filter((line) => line.accepted);
+  const coverage = plan.beats.length
     ? acceptedLines.length / plan.beats.length
     : 0;
   const meanScore = acceptedLines.length
     ? acceptedLines.reduce((sum, line) => sum + line.score, 0) / acceptedLines.length
     : 0;
-  const normalizedLines = lines
+  const normalizedLines = usedLines
     .map((line) => clean(line.text).toLowerCase())
     .filter(Boolean);
   const uniqueRatio = normalizedLines.length
     ? new Set(normalizedLines).size / normalizedLines.length
     : 0;
-  const payoff = lines.length ? lines[lines.length - 1] : undefined;
+  const payoff = variantIndex === 3
+    ? (lines.length ? lines[lines.length - 1] : undefined)
+    : [...usedLines].reverse().find((line) => line.accepted);
   const payoffStrength = payoff?.accepted ? payoff.score : 0;
   const payoffDropsSpecificTime = Boolean(
     variantIndex === 3 &&
     payoff &&
     !preservesSpecificTemporalAnchor(payoff.text, payoff.beatFacts),
   );
-  const rejected = lines.length - acceptedLines.length;
+  const rejectedUsedLines = usedLines.length - acceptedLines.length;
+  const expressiveHasMaterial = variantIndex < 3 && usedLines.length > 0;
+  const bareComplete = variantIndex === 3 && coverage === 1;
 
   const score = Math.max(
     0,
-    meanScore * 0.5 +
-      completeness * 0.25 +
+    meanScore * 0.65 +
       payoffStrength * 0.2 +
-      uniqueRatio * 0.05 -
-      rejected * 0.2,
+      uniqueRatio * 0.15 -
+      rejectedUsedLines * 0.2,
   );
 
   const reasons: string[] = [];
-  if (completeness < 1) reasons.push("incomplete-sequence");
+  if (variantIndex === 3 && coverage < 1) reasons.push("incomplete-sequence");
+  if (variantIndex < 3 && !usedLines.length) reasons.push("empty-production");
+  if (rejectedUsedLines > 0) reasons.push("rejected-used-line");
   if (uniqueRatio < 1) reasons.push("repeated-line");
   if ((payoff?.reasons ?? []).includes("memory-payoff-replay")) {
     reasons.push("weak-payoff-replay");
@@ -2003,7 +2016,10 @@ function scoreMemorySequence(
   return {
     variantIndex,
     lines,
-    accepted: completeness === 1 && !payoffDropsSpecificTime,
+    accepted:
+      variantIndex === 3
+        ? bareComplete && !payoffDropsSpecificTime
+        : expressiveHasMaterial && rejectedUsedLines === 0,
     score: Number(score.toFixed(3)),
     reasons,
   };
@@ -2023,7 +2039,7 @@ async function repairNominatedMemoryProduction(input: {
 }> {
   const failed = input.production.lines
     .map((line, index) => ({ line, index }))
-    .filter(({ line }) => !line.accepted || !clean(line.text));
+    .filter(({ line }) => clean(line.text) && !line.accepted);
 
   if (!failed.length) {
     return {
@@ -2499,6 +2515,12 @@ export async function createAuthorExperience(input: {
           "Do not mistake list cadence, noun fragments, repeated task words, or timestamp formatting for authorship. The creative move must come from a relationship in the supplied reality.",
           "QRE makes the meaning felt and implied, not explained. A cut is a hit, not prose. Compress until removing another word would weaken the meaning, rhythm, character, or surprise. Stop there.",
           "BUILD THE WHOLE STRANGE WORLD PRIVATELY. REALIZE ONLY WHAT MAKES THAT WORLD FELT.",
+          "QRE IS NOT A STORYTELLER. Do not narrate the supplied sequence, explain each event, or turn every beat into prose.",
+          "PUBLIC OUTPUT IS PERCEPTION, NOT STORY: attention, implication, compression, recontextualization, then stop.",
+          "ATTENTION, NOT COVERAGE. An expressive production may use one beat, several beats, or all beats. Unused supplied facts are legal and remain preserved in provenance.",
+          "A single word, fragment, contrast, implication, or cut may carry the experience when that is the strongest realization.",
+          "For an intentionally unused beat, return its order with text as an empty string. Empty means deliberate omission, not failure.",
+          "Do not add explanation after the hit lands. Do not expand a conception merely to demonstrate it.",
           "The assigned creative pressure is internal creative physics, not a vocabulary pack. Let it change status, rhythm, consequence, implication, and perception before it changes surface nouns.",
           "Teach taste, not length. Let the idea determine the line. A line may be tiny, medium, or longer when its rhythm, turn, character, tension, surprise, or payoff earns the space.",
           "Prefer impact over explanation. Do not shorten merely to be short, and do not lengthen merely to explain.",
@@ -2511,7 +2533,7 @@ export async function createAuthorExperience(input: {
           "Compression may transform wording, but it may not erase what happened. When a supplied beat is an action or change, the cut must still let the receiver recover that action or change rather than reducing it to a noun label.",
           "The receiver should be able to recover what happened while also feeling that QRE saw it from an angle they would not have produced themselves.",
           "STORY GRAVITY is evidence structure, not permission to invent meaning. The endpointEventId is HARD because QRE locked it from supplied reality. Make that ending feel earned through the supplied dependencies and sealing detail; never add psychology just because StoryGravity contains a center phrase.",
-          "Think backward before wording: endpoint <- sealing detail <- escalation <- signal. Then present forward. Every cut should increase the inevitability or meaning of the locked endpoint, unless this is a sparse portrait/world-opening where the endpoint is simply the final supplied state.",
+          "STORY GRAVITY organizes evidence; it does not require an arc, full sequence coverage, or a viewer-facing ending. Use only the evidence the conception actually needs.",
           "Do not stop at competent wording. Push the assigned perception until the sequence produces recognition, surprise, tension, comedy, beauty, menace, status, weirdness, or another earned what-the-fuck turn.",
           "Mouth owns language and sequence. Presentation choices are outside Author.",
           ...(realityDirect ? [
