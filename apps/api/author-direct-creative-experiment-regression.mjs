@@ -37,14 +37,20 @@ assert.ok(schemaStart >= 0, "direct author schema not found");
 const prompt = directSource.slice(0, schemaStart);
 const schema = directSource.slice(schemaStart);
 
-assert.match(prompt, /The expressive production itself is the creative discovery\./);
-assert.match(prompt, /return only the productions/i);
-assert.match(prompt, /Do not output sourceEventIds, conception, attention, interpretation, rationale, theme, semantic mechanic, lens name, meaning, explanation, winner selection, or D\./);
-assert.match(prompt, /The number of lines has no relationship to the number of supplied facts\./);
-assert.match(prompt, /Do not construct a line for each fact\./);
-assert.match(prompt, /A production may be one line\./);
-assert.match(prompt, /One small supplied detail may carry the entire production\./);
-assert.match(prompt, /Most supplied facts may remain unused\./);
+assert.match(prompt, /You are the Author\./);
+assert.match(prompt, /Here is supplied reality\./);
+assert.match(prompt, /Notice something worth saying\./);
+assert.match(prompt, /Write three different attempts\./);
+assert.match(prompt, /You do not need to use everything\./);
+assert.match(prompt, /One detail may be enough\./);
+assert.match(prompt, /Most of the supplied reality may remain unused\./);
+assert.match(prompt, /The number of lines has nothing to do with the number of supplied facts\./);
+assert.match(prompt, /Do not retell the facts one by one\./);
+assert.match(prompt, /Do not paraphrase each fact into creative-sounding language\./);
+assert.match(prompt, /Do not explain your reasoning\./);
+assert.match(prompt, /Do not invent something else happening\./);
+assert.match(prompt, /Say what you noticed\./);
+assert.match(prompt, /Return only A, B, and C\./);
 assert.match(
   directSource,
   /REALITY:\s*directCreativeRealityText\(input\.suppliedReality\)/,
@@ -55,7 +61,29 @@ assert.doesNotMatch(
   /SUPPLIED_REALITY:\s*input\.suppliedReality/,
   "direct creative input must not expose event-object supplied reality",
 );
-assert.match(prompt, /Reality is closed/i);
+assert.match(
+  prompt,
+  /Return JSON matching the schema: three production objects A, B, and C\. Each line has order and text only\. Do not select a winner and do not write D\./,
+  "direct user instruction must only communicate the output contract",
+);
+
+for (const bannedPromptPattern of [
+  /complete expressive productions/i,
+  /expressive production itself/i,
+  /invent perception/i,
+  /Interpretation is open/i,
+  /metaphorical thought/i,
+  /recontextualization/i,
+  /rhetorical exaggeration/i,
+  /creative discovery/i,
+  /expressive lines/i,
+]) {
+  assert.doesNotMatch(
+    prompt,
+    bannedPromptPattern,
+    `direct creative prompt must not contain ${bannedPromptPattern}`,
+  );
+}
 
 assert.match(schema, /required:\s*\["productions"\]/);
 assert.match(schema, /minItems:\s*3,\s*\n\s*maxItems:\s*3,/);
