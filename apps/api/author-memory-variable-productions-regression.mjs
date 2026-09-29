@@ -1,5 +1,9 @@
 import assert from "node:assert/strict";
-import { evaluateAuthorMemoryProductions } from "./dist/services/authorCreative.js";
+import {
+  authorMouthCreativeTreatmentPayload,
+  evaluateAuthorMemoryProductions,
+  sanitizeAuthorMouthTreatmentAssignments,
+} from "./dist/services/authorCreative.js";
 
 const suppliedReality = [
   { id: "event-1", text: "The request was received" },
@@ -24,7 +28,7 @@ function treatment(production, id, conception) {
   return {
     production,
     id,
-    semanticMechanic: "disproportionate_attention",
+    semanticMechanic: "status_tension",
     sourceCandidateId: `notice-${production}`,
     sourceRelation: "one small supplied detail can reorganize attention",
     evidenceEventIds: ["event-4"],
@@ -43,6 +47,52 @@ const treatments = [
   treatment("C", "treatment-3", "attention snaps toward the quietest supplied fact"),
 ];
 
+const bareTreatment = {
+  production: "D",
+  id: "treatment-4",
+  semanticMechanic: "NONE",
+  sourceCandidateId: "bare",
+  sourceRelation: "bare supplied reality",
+  evidenceEventIds: suppliedReality.map((event) => event.id),
+  creativePressure: "BARE",
+  hiddenInference: "",
+  treatment: "NONE / Bare Reality. Present only the supplied facts in their natural sequence with minimal treatment.",
+  perceptionDelta: "No added perception; direct supplied reality remains visible as the control.",
+  expressiveBehaviors: ["bare reality"],
+  intensity: "LIGHT",
+};
+
+const mouthTreatments = sanitizeAuthorMouthTreatmentAssignments([
+  ...treatments,
+  bareTreatment,
+]);
+const mouthPayload = authorMouthCreativeTreatmentPayload(mouthTreatments);
+
+for (const production of ["A", "B", "C"]) {
+  const payload = mouthPayload.find((item) => item.production === production);
+  const source = treatments.find((item) => item.production === production);
+  assert.ok(payload, `Mouth payload missing ${production}`);
+  assert.ok(source, `source treatment missing ${production}`);
+  assert.equal(
+    Object.prototype.hasOwnProperty.call(payload, "semanticMechanic"),
+    false,
+    `${production} should not expose deterministic semanticMechanic to Mouth`,
+  );
+  assert.deepEqual(payload.evidenceEventIds, source.evidenceEventIds);
+  assert.equal(payload.sourceRelation, source.sourceRelation);
+  assert.equal(payload.creativePressure, source.creativePressure);
+  assert.equal(payload.treatment, source.treatment);
+  assert.equal(payload.perceptionDelta, source.perceptionDelta);
+}
+
+const barePayload = mouthPayload.find((item) => item.production === "D");
+assert.equal(barePayload?.semanticMechanic, "NONE", "D should retain the bare control mechanic marker");
+assert.deepEqual(
+  new Set(mouthPayload.filter((item) => item.production !== "D").map((item) => item.creativePressure)).size,
+  3,
+  "three independent Creative Search conceptions should reach Mouth",
+);
+
 const variable = evaluateAuthorMemoryProductions({
   plan,
   suppliedReality,
@@ -59,7 +109,7 @@ const variable = evaluateAuthorMemoryProductions({
     { production: "B", lines: [] },
     { production: "C", lines: [] },
   ],
-  treatmentAssignments: treatments,
+  treatmentAssignments: mouthTreatments,
   selectedProduction: "A",
 });
 
@@ -102,7 +152,7 @@ const inventedResult = evaluateAuthorMemoryProductions({
     { production: "B", lines: [] },
     { production: "C", lines: [] },
   ],
-  treatmentAssignments: treatments,
+  treatmentAssignments: mouthTreatments,
   selectedProduction: "A",
 });
 

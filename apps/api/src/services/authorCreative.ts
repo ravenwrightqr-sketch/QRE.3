@@ -109,8 +109,9 @@ export type AuthorMemoryMouthProduction = {
 };
 
 export type AuthorCreativeTreatmentMouthAssignment =
-  AuthorCreativeTreatmentAssignment & {
+  Omit<AuthorCreativeTreatmentAssignment, "semanticMechanic"> & {
     production: AuthorProductionLetter;
+    semanticMechanic?: string;
   };
 
 export type AuthorCreativeNotice = {
@@ -653,7 +654,7 @@ function treatmentAsAssignment(
 }
 
 function treatmentProductionLetter(
-  treatment: Pick<AuthorCreativeTreatmentAssignment, "id" | "semanticMechanic">,
+  treatment: Pick<AuthorCreativeTreatmentAssignment, "id">,
 ): AuthorProductionLetter {
   const match = clean(treatment.id).match(/(\d+)/);
   const index = match ? Number(match[1]) : 1;
@@ -664,9 +665,45 @@ function treatmentProductionLetter(
 }
 
 function treatmentVariantIndex(
-  treatment: Pick<AuthorCreativeTreatmentAssignment, "id" | "semanticMechanic">,
+  treatment: Pick<AuthorCreativeTreatmentAssignment, "id">,
 ): number {
   return ["A", "B", "C", "D"].indexOf(treatmentProductionLetter(treatment));
+}
+
+export function sanitizeAuthorMouthTreatmentAssignments(
+  assignments: readonly AuthorCreativeTreatmentMouthAssignment[],
+): AuthorCreativeTreatmentMouthAssignment[] {
+  return assignments.map((assignment) => {
+    const { semanticMechanic, ...rest } = assignment;
+    if (assignment.production === "D") {
+      return {
+        ...rest,
+        semanticMechanic: clean(semanticMechanic) || "NONE",
+      };
+    }
+
+    return rest;
+  });
+}
+
+export function authorMouthCreativeTreatmentPayload(
+  assignments: readonly AuthorCreativeTreatmentMouthAssignment[],
+): Array<Record<string, unknown>> {
+  return assignments.map((assignment) => ({
+    production: assignment.production,
+    ...(clean(assignment.semanticMechanic)
+      ? { semanticMechanic: assignment.semanticMechanic }
+      : {}),
+    sourceCandidateId: assignment.sourceCandidateId,
+    sourceRelation: assignment.sourceRelation,
+    evidenceEventIds: assignment.evidenceEventIds,
+    creativePressure: assignment.creativePressure,
+    hiddenInference: assignment.hiddenInference,
+    treatment: assignment.treatment,
+    perceptionDelta: assignment.perceptionDelta,
+    expressiveBehaviors: assignment.expressiveBehaviors,
+    intensity: assignment.intensity,
+  }));
 }
 
 export type AuthorCreativeTreatmentSearchResult = {
@@ -1814,8 +1851,9 @@ function treatmentAuthority(
   treatment?: AuthorCreativeTreatmentMouthAssignment,
 ): string[] {
   if (!treatment) return [];
+  const mechanic = clean(treatment.semanticMechanic);
   return unique([
-    treatment.semanticMechanic === "NONE" ? "" : treatment.semanticMechanic,
+    mechanic && mechanic !== "NONE" ? mechanic : "",
     treatment.sourceRelation,
     treatment.creativePressure,
     treatment.hiddenInference,
@@ -1914,7 +1952,7 @@ async function repairNominatedMemoryProduction(input: {
   suppliedReality: readonly AuthorCreativeEvent[];
   subject: string;
   thesis: string;
-  assignedTreatment?: AuthorCreativeTreatmentAssignment;
+  assignedTreatment?: AuthorCreativeTreatmentMouthAssignment;
 }): Promise<{
   replacements: Map<number, string>;
   model: string;
@@ -2160,8 +2198,9 @@ function selectMemoryProductionCandidate(input: {
   nominatedAny?: MemorySequenceCandidate;
   nominatedExpressiveProduction?: MemorySequenceCandidate;
 } {
+  const mouthAssignments = sanitizeAuthorMouthTreatmentAssignments(input.treatmentAssignments);
   const treatmentByVariantIndex = new Map(
-    input.treatmentAssignments.map((assignment) => [
+    mouthAssignments.map((assignment) => [
       treatmentVariantIndex(assignment),
       assignment,
     ]),
@@ -2362,7 +2401,7 @@ export async function createAuthorExperience(input: {
     creativeNotice: AuthorCreativeNotice;
     storyGravity: AuthorStoryGravity;
     failureLessons: AuthorCreativeFailureLesson[];
-    creativeTreatments: AuthorCreativeTreatmentAssignment[];
+    creativeTreatments: AuthorCreativeTreatmentMouthAssignment[];
     creativeSearchFallbackReason?: string;
     rejectedTreatments: Array<{
       treatment: AuthorCreativeTreatment;
@@ -2607,12 +2646,13 @@ export async function createAuthorExperience(input: {
   const runtimeRenderable =
     !lensSearch.lensSearchEnabled ||
     lensSearch.treatmentSetAssessment.renderable;
-  const treatmentAssignmentsForMouth: AuthorCreativeTreatmentMouthAssignment[] = treatmentsForMouth
-    .map((assignment) => ({
-      production: treatmentProductionLetter(assignment),
-      ...assignment,
-    }))
-    .sort((a, b) => a.production.localeCompare(b.production));
+  const treatmentAssignmentsForMouth: AuthorCreativeTreatmentMouthAssignment[] =
+    sanitizeAuthorMouthTreatmentAssignments(
+      treatmentsForMouth.map((assignment) => ({
+        production: treatmentProductionLetter(assignment),
+        ...assignment,
+      })),
+    ).sort((a, b) => a.production.localeCompare(b.production));
   const treatmentByVariantIndex = new Map(
     treatmentAssignmentsForMouth.map((assignment) => [
       treatmentVariantIndex(assignment),
@@ -2628,7 +2668,7 @@ export async function createAuthorExperience(input: {
     lensSearchEnabled,
     rawTreatmentResponse: lensSearch.rawTreatmentResponse,
     searchFallbackReason: lensSearch.searchFallbackReason,
-    treatments: treatmentsForMouth,
+    treatments: treatmentAssignmentsForMouth,
     rejectedTreatments: lensSearch.rejectedTreatments,
     treatmentSetAssessment: lensSearch.treatmentSetAssessment,
     creativeSetComplete,
@@ -2760,19 +2800,7 @@ export async function createAuthorExperience(input: {
           LENS_MODE: lensMode,
           REQUESTED_LENS: requestedLens || (autoBusinessLens ? "AUTO" : "NONE"),
           STORY_GRAVITY: lensSearch.storyGravity,
-          CREATIVE_TREATMENTS: treatmentAssignmentsForMouth.map((assignment) => ({
-            production: assignment.production,
-            semanticMechanic: assignment.semanticMechanic,
-            sourceCandidateId: assignment.sourceCandidateId,
-            sourceRelation: assignment.sourceRelation,
-            evidenceEventIds: assignment.evidenceEventIds,
-            creativePressure: assignment.creativePressure,
-            hiddenInference: assignment.hiddenInference,
-            treatment: assignment.treatment,
-            perceptionDelta: assignment.perceptionDelta,
-            expressiveBehaviors: assignment.expressiveBehaviors,
-            intensity: assignment.intensity,
-          })),
+          CREATIVE_TREATMENTS: authorMouthCreativeTreatmentPayload(treatmentAssignmentsForMouth),
           instruction: useIdentityClusterPlan
             ? "This is one IDENTITY character cluster, not a checklist. Return four short candidate realizations that synthesize the combination into character. Do not enumerate every supplied preference or simply restate them. The viewer should infer personality from the combination. Do not invent an event."
             : isMemoryMode
@@ -3245,7 +3273,7 @@ export async function createAuthorExperience(input: {
       creativeNotice: lensSearch.creativeNotice,
       storyGravity: lensSearch.storyGravity,
       failureLessons: lensSearch.failureLessons,
-      creativeTreatments: treatmentsForMouth,
+      creativeTreatments: treatmentAssignmentsForMouth,
       creativeSearchFallbackReason: lensSearch.searchFallbackReason,
       rejectedTreatments: lensSearch.rejectedTreatments,
       treatmentSetAssessment: lensSearch.treatmentSetAssessment,
