@@ -49,7 +49,13 @@ assert.match(prompt, /The answer length has nothing to do with the number of sup
 assert.match(prompt, /Do not retell the facts one by one\./);
 assert.match(prompt, /Do not paraphrase each fact into creative-sounding language\./);
 assert.match(prompt, /Do not explain your reasoning\./);
-assert.match(prompt, /Do not invent something else happening\./);
+assert.match(prompt, /The supplied reality controls what actually happened\./);
+assert.match(
+  prompt,
+  /Do not add any new concrete event, action, object, person, place, physical behavior, sensory fact, or outcome\./,
+);
+assert.match(prompt, /You may invent what to say about the supplied reality, but not more reality\./);
+assert.doesNotMatch(prompt, /Do not invent something else happening\./);
 assert.match(prompt, /Return only three attempts\./);
 assert.doesNotMatch(prompt, /Notice something worth saying\./);
 assert.doesNotMatch(prompt, /Say what you noticed\./);
