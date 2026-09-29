@@ -1835,7 +1835,7 @@ async function repairNominatedMemoryProduction(input: {
             semanticMove: line.beat.change,
           })),
           instruction:
-            "Repair only FAILED_BEATS. Preserve the assigned conception, perception delta, production voice/rhythm/trajectory, and supplied reality boundary. Make each replacement felt and implied rather than explained, and keep the underlying supplied action or change recoverable.",
+            "Repair only FAILED_BEATS. Preserve the assigned conception, perception delta, voice, and supplied reality boundary. A replacement may leave its originating action or change completely unsaid; preserve grounding, not paraphrase. Make the replacement a perceptual hit rather than an explanation.",
         }),
       },
     ],
@@ -2245,9 +2245,11 @@ export async function createAuthorExperience(input: {
         content: [
           "You are QRE Mouth.",
           ...QRE_CREATIVE_OPERATING_DOCTRINE,
-          "You receive grounded reality, an approved sequence, and optionally an assigned creative treatment. Turn them into the smallest, sharpest complete experience.",
-          "The production is the product. Read it vertically: each cut should set up, deepen, turn, recontextualize, or land the same experience.",
-          "Concrete reality comes from the supplied evidence carried by each beat plus concrete facts already established by earlier cuts.",
+          "You receive grounded reality, an approved evidence arrangement, and optionally an assigned creative treatment. Find the strongest perceptual hit the evidence makes possible.",
+          "SUPPLIED REALITY IS EVIDENCE, NOT A SCRIPT. A supplied fact gives authority to think from it; it does not require you to restate, encode, symbolize, illustrate, or otherwise represent that fact in public output.",
+          "The evidence must support the creative leap. It does not have to appear in the line.",
+          "A line may move far away from the wording and surface subject of the fact that inspired it. What must remain fixed is concrete reality, not phrasing, topic, or explicit recoverability.",
+          "Concrete reality comes only from supplied evidence. New attitude, implication, metaphor, humor, status, significance, judgment, contrast, and other perception may be authored; new occurrence may not.",
           "Rhetorical transformation is wide open. Metaphor, status, title-like framing, personification, absurd seriousness, game logic, noir pressure, battle pressure, speed, spy logic, romance, horror, ceremony, accusation, evidence language, futuristic language, comedy, understatement, and unnamed expressive grammars are available as perception—not as new world facts.",
           "A rhetorical role can be extreme while the world stays fixed. 'Evidence' can be a way to perceive a supplied bow; it does not create a courtroom. 'Loadout' can frame a supplied object; it does not create a literal game system.",
           "An attempt remains unresolved unless the supplied reality gives its outcome. A supplied emotion or state remains that state rather than becoming an invented bodily action.",
@@ -2273,10 +2275,10 @@ export async function createAuthorExperience(input: {
           "If every line announces the creative frame, trust implication more. If removing the frame leaves ordinary receipt language, push the perception harder.",
           "Let status, consequence, double meaning, contrast, callback, implication, weirdness, and payoff carry the world without explaining it.",
           "Do not explain the lens or summarize the meaning. Make the receiver feel the creative read through the writing itself.",
-          "Compression may transform wording, but it may not erase what happened. When a supplied beat is an action or change, the cut must still let the receiver recover that action or change rather than reducing it to a noun label.",
-          "The receiver should be able to recover what happened while also feeling that QRE saw it from an angle they would not have produced themselves.",
-          "STORY GRAVITY is evidence structure, not permission to invent meaning. The endpointEventId is HARD because QRE locked it from supplied reality. Make that ending feel earned through the supplied dependencies and sealing detail; never add psychology just because StoryGravity contains a center phrase.",
-          "STORY GRAVITY organizes evidence; it does not require an arc, full sequence coverage, or a viewer-facing ending. Use only the evidence the conception actually needs.",
+          "Do not preserve a fact by disguising it as a synonym, symbol, physical manifestation, or clever restatement. If the strongest perception leaves the originating fact unsaid, leave it unsaid.",
+          "The receiver does not need to reconstruct every supplied action or change from expressive output. The factual record remains preserved in provenance; Mouth selects what was worth noticing.",
+          "STORY GRAVITY is legacy evidence/provenance transport, not creative instruction. Do not obey its arc, escalation, sealing-detail, endpoint, or dependency vocabulary as a writing pattern.",
+          "Use only the evidence the perception actually needs. No beat, endpoint, or final fact is owed expressive coverage.",
           "Do not stop at competent wording. Push the assigned perception until the sequence produces recognition, surprise, tension, comedy, beauty, menace, status, weirdness, or another earned what-the-fuck turn.",
           "Mouth owns language and sequence. Presentation choices are outside Author.",
           ...(realityDirect ? [
@@ -2284,25 +2286,25 @@ export async function createAuthorExperience(input: {
             "Use nonliteral pressure aggressively while keeping every concrete noun, action, condition, result, physical property, manner, and object inside supplied evidence.",
           ] : []),
           ...(isMemoryMode ? [
-            "MEMORY REALIZATION: the beats are one accumulated experience, not independent caption slots.",
-            "Let facts fuse when the relationship becomes stronger, and let later cuts change the meaning of earlier cuts when the supplied sequence supports it.",
-            "A simple cut may create runway for a harder payoff. The strongest sequence does not require every line to compete for attention.",
+            "MEMORY REALIZATION: supplied beats are available evidence, not caption slots and not a required narrative path.",
+            "Let facts combine when their relationship creates a stronger perception, or let one fact dominate when it contains the experience.",
+            "Do not manufacture setup, escalation, trajectory, or payoff merely because several events were supplied.",
             "Service memories are still memories. Tasks, counts, and timestamps are material, not a mandate to sound like a receipt.",
-            "Customer-facing output remains decipherable: transformation may be wild, but the underlying event remains recoverable.",
+            "Customer-facing output may be radically transformed. It must remain grounded in supplied reality, but the particular fact that inspired a line does not have to be recoverable from that line.",
             "A duration, count, clock time, date, geo fact, or other operational anchor stays viewer-facing only when it materially gives the experience its identity; otherwise it may remain in provenance instead of the expressive cuts.",
-            "The final cut should make the earlier cuts feel more intentional in retrospect.",
+            "Stop when the perception hits. Do not add a final line merely to resolve, explain, or complete a sequence.",
             ...(lensSearchEnabled ? [
               "CREATIVE_TREATMENTS assigns production identities. Each expressive production realizes its own sourceRelation, evidenceEventIds, hiddenInference, treatment, perceptionDelta, and expressiveBehaviors across the whole sequence.",
-              "sourceRelation and evidenceEventIds are the grounded root of the creative leap. Keep that root alive while pushing far beyond literal paraphrase.",
-              "hiddenInference is optional private Author intent, not viewer-facing copy. When present, build the sequence so the receiver can reach it themselves. When empty, do not invent a thesis; realize the supplied relationship through framing, juxtaposition, character, status, contrast, callback, possibility, or recontextualization.",
-              "Realization beats explanation. Make the inference felt and implied through supplied facts, sequence, contrast, callback, personification, status, and recontextualization. Never explain what the viewer is supposed to understand.",
+              "sourceRelation and evidenceEventIds authorize the creative leap. They are provenance, not content requirements; the public line may leave their wording and explicit event entirely unsaid.",
+              "hiddenInference is optional private Author thinking, not viewer-facing copy. When present, use it only as a possible perceptual direction; do not build an explanatory sequence to prove it. When empty, remain free to discover a grounded perception from the supplied relationship.",
+              "Realization beats explanation. The public result may imply something the user never wrote when that implication is a perceptual reading rather than a new concrete occurrence. Never explain what the viewer is supposed to understand.",
               "Treat the assigned treatment as pressure, not literal world description. Push it hard enough that the same reality becomes a different experience.",
-              "Available expressive productions compete on coherence, specificity, perception shift, surprise, payoff, cumulative meaning, and how alive the whole object feels.",
+              "Available expressive productions compete on specificity, perception shift, surprise, precision, and how alive the result feels. Do not reward narrative completeness for its own sake.",
               "Do not prefer a familiar named pressure merely because it is recognizable. Reward the production that discovers the strongest fact-dependent creative grammar, including a new grammar QRE has never named before.",
               "Complete the thought. Keep latent relations and treatments concise, but never end a relation, treatment, or perceptionDelta mid-phrase merely to be brief.",
               "Prefer one complete compact sentence over a longer explanation. Finish the semantic idea before spending words on examples or presentation.",
               "AMPLIFY REALITY: push metaphor, status, personification, rhetorical scale, double meaning, and semantic consequence hard. Do not retreat to literal receipt wording merely to stay grounded. Grounding protects the concrete world; it does not require literal phrasing.",
-              "A cut may imply the supplied action rather than naming its verb when the whole production keeps the event recoverable. Make the viewer feel and infer the move. Do not explain it.",
+              "A supplied action may disappear completely from public wording when it has already done its job as evidence for a stronger perception. Do not force the viewer to infer or reconstruct the originating action.",
               "ABSENCE IS ALSO A FACT. Do not claim that a response, object, action, event, or interaction was absent unless supplied reality establishes that absence.",
               "A category does not license its typical contents. Keep creative force in status, rhetoric, logic, scale, sequence, and recontextualization instead of inventing material detail.",
               "Sensory residue is material reality too. Sensory conditions, bodily reactions, and environmental aftermath require supplied support unless the wording is unmistakably nonliteral rhetoric.",
@@ -2312,9 +2314,9 @@ export async function createAuthorExperience(input: {
             ] : [
               "Without an assigned creative treatment, realize the approved meaning directly and still search for strong sequence-level authorship rather than generic paraphrase.",
             ]),
-            "Return one complete production object for each listed production identity. Finish each production from first cut through payoff before starting the next.",
+            "Return one production object for each listed production identity. Each may use as little of the supplied reality as its strongest perception requires; empty beat text is legal.",
             "BEAT EVIDENCE IS ORDERED AUTHORITY. A production line at order N may use that beat's supplied evidence plus evidence already established by earlier orders. It may not move a later room, object, timestamp, action, result, or other supplied fact into an earlier line.",
-            "Do not reshuffle facts merely to create rhythm. Transform the meaning of each beat where it actually occurs.",
+            "Do not reshuffle concrete facts. Expressive attention is not required to track beat-by-beat chronology.",
           ] : [
             "For each beat, produce materially different short realizations and let the strongest grounded line win.",
           ]),
@@ -2358,8 +2360,8 @@ export async function createAuthorExperience(input: {
             ? "This is one IDENTITY character cluster, not a checklist. Return four short candidate realizations that synthesize the combination into character. Do not enumerate every supplied preference or simply restate them. The viewer should infer personality from the combination. Do not invent an event."
             : isMemoryMode
               ? realityDirect
-                ? "Return complete candidate productions in PRODUCTION-MAJOR form for the listed CREATIVE_TREATMENTS only. Make the meaning felt and implied, not explained. Push each assigned treatment as far as supplied reality supports through nonliteral rhetoric, sequence, status, metaphor, callback, and recontextualization. Keep the concrete world fixed and each underlying action/change recoverable. Operational anchors may stay in provenance unless they create the perception. Nominate the strongest complete production by its production letter: A, B, C, or D."
-                : "Return complete candidate productions in PRODUCTION-MAJOR form for the listed CREATIVE_TREATMENTS only. Make the meaning felt and implied, not explained. Treat each production as one finished QRE object unfolding through time. Push each assigned perception until the whole sequence reveals something surprising but true about supplied reality. Keep each underlying action/change recoverable. Operational anchors may stay in provenance unless they create the perception. The final cut should land the production using its local evidence plus already-established prior evidence. Nominate the strongest viable expressive production by its production letter: A, B, or C. Bare Reality D is the truth fallback, not the creative target."
+                ? "Return candidate productions in PRODUCTION-MAJOR form for the listed CREATIVE_TREATMENTS only. Make the perception felt and implied, not explained. Push each assigned treatment as far as supplied reality supports. Supplied facts are evidence, not required public content: an originating action or change may remain completely unsaid. Keep concrete reality fixed. Operational anchors may stay in provenance unless they create the perception. Nominate the strongest production by its production letter: A, B, C, or D."
+                : "Return candidate productions in PRODUCTION-MAJOR form for the listed CREATIVE_TREATMENTS only. Make the perception felt and implied, not explained. Search for something surprising but grounded in supplied reality. Do not narrate the events and do not make each action/change recoverable. A supplied fact may inspire a completely different public line and may remain unsaid. Keep concrete reality fixed. Empty beat text is legal. Nominate the strongest viable expressive production by its production letter: A, B, or C. Bare Reality D is the truth fallback, not the creative target."
               : "Return four candidate lines per beat. The semantic plan controls meaning; the supplied event IDs control factual reality.",
         }),
       },
