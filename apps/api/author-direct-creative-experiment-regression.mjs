@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import {
   attachDirectAuthorProvenanceToProductions,
+  directAuthorAttemptsToProductions,
   directCreativeRealityText,
   evaluateAuthorMemoryProductions,
 } from "./dist/services/authorCreative.js";
@@ -44,13 +45,13 @@ assert.match(prompt, /Write three different attempts\./);
 assert.match(prompt, /You do not need to use everything\./);
 assert.match(prompt, /One detail may be enough\./);
 assert.match(prompt, /Most of the supplied reality may remain unused\./);
-assert.match(prompt, /The number of lines has nothing to do with the number of supplied facts\./);
+assert.match(prompt, /The answer length has nothing to do with the number of supplied facts\./);
 assert.match(prompt, /Do not retell the facts one by one\./);
 assert.match(prompt, /Do not paraphrase each fact into creative-sounding language\./);
 assert.match(prompt, /Do not explain your reasoning\./);
 assert.match(prompt, /Do not invent something else happening\./);
 assert.match(prompt, /Say what you noticed\./);
-assert.match(prompt, /Return only A, B, and C\./);
+assert.match(prompt, /Return only the three things you noticed\./);
 assert.match(
   directSource,
   /REALITY:\s*directCreativeRealityText\(input\.suppliedReality\)/,
@@ -63,9 +64,15 @@ assert.doesNotMatch(
 );
 assert.match(
   prompt,
-  /Return JSON matching the schema: three production objects A, B, and C\. Each line has order and text only\. Do not select a winner and do not write D\./,
+  /Return exactly three different things you noticed using the required schema\./,
   "direct user instruction must only communicate the output contract",
 );
+assert.doesNotMatch(prompt, /\bPRODUCTIONS\b/, "direct creative prompt must not expose PRODUCTIONS");
+assert.doesNotMatch(prompt, /\["A", "B", "C"\]/, "direct creative prompt must not expose A/B/C labels");
+assert.doesNotMatch(prompt, /Return only A, B, and C\./, "direct creative prompt must not expose A/B/C labels");
+assert.doesNotMatch(prompt, /production objects/i, "direct creative prompt must not expose production objects");
+assert.doesNotMatch(prompt, /\blines?\b/i, "direct creative prompt must not expose line containers");
+assert.doesNotMatch(prompt, /\border\b/i, "direct creative prompt must not expose order containers");
 
 for (const bannedPromptPattern of [
   /complete expressive productions/i,
@@ -77,6 +84,7 @@ for (const bannedPromptPattern of [
   /rhetorical exaggeration/i,
   /creative discovery/i,
   /expressive lines/i,
+  /sourceEventIds/i,
 ]) {
   assert.doesNotMatch(
     prompt,
@@ -85,16 +93,29 @@ for (const bannedPromptPattern of [
   );
 }
 
-assert.match(schema, /required:\s*\["productions"\]/);
+assert.match(schema, /required:\s*\["attempts"\]/);
 assert.match(schema, /minItems:\s*3,\s*\n\s*maxItems:\s*3,/);
-assert.match(schema, /production:\s*\{\s*type:\s*"string",\s*enum:\s*\["A", "B", "C"\]\s*\}/);
-assert.match(schema, /required:\s*\["production", "lines"\]/);
-assert.match(schema, /lines:\s*\{\s*\n\s*type:\s*"array",\s*\n\s*minItems:\s*1,\s*\n\s*maxItems:\s*12,/);
-assert.match(schema, /required:\s*\["order", "text"\]/);
+assert.match(schema, /attempts:\s*\{/);
+assert.match(schema, /required:\s*\["text"\]/);
+assert.match(schema, /text:\s*\{\s*type:\s*"string"\s*\}/);
+assert.doesNotMatch(schema, /\bproductions?\b/i, "direct creative schema must not contain production containers");
+assert.doesNotMatch(schema, /\blines?\b/i, "direct creative schema must not contain line containers");
+assert.doesNotMatch(schema, /\border\b/i, "direct creative schema must not contain order containers");
 assert.doesNotMatch(schema, /\bsourceEventIds\b/, "direct creative schema must not contain sourceEventIds");
+assert.doesNotMatch(schema, /\["A", "B", "C"\]/, "direct creative schema must not expose A/B/C labels");
 assert.doesNotMatch(schema, /enum:\s*\["A", "B", "C", "D"\]/, "direct author schema must not ask model for D");
+assert.match(
+  source,
+  /directAuthorAttemptsToProductions\(parsedMouth\)/,
+  "direct path must deterministically convert attempts to internal productions after creative composition",
+);
 
 for (const field of [
+  "production",
+  "productions",
+  "line",
+  "lines",
+  "order",
   "sourceEventIds",
   "conception",
   "attention",
@@ -171,6 +192,41 @@ const plan = {
   })),
 };
 
+const authoredAttempts = {
+  attempts: [
+    { text: "The smallest detail mattered most." },
+    { text: "The last field changed the record." },
+    { text: "The tiny mismatch became the point." },
+  ],
+};
+
+const authoredProductions = directAuthorAttemptsToProductions(authoredAttempts);
+assert.deepEqual(
+  authoredProductions.map((production) => production.production),
+  ["A", "B", "C"],
+  "attempts should become internal A/B/C only after creative text exists",
+);
+assert.deepEqual(
+  authoredProductions.map((production) => production.lines.map((line) => line.order)),
+  [[1], [1], [1]],
+  "each direct attempt should become one internal line for provenance attachment",
+);
+assert.equal(
+  authoredProductions[0]?.lines[0]?.text,
+  authoredAttempts.attempts[0].text,
+  "attempt text must remain unchanged during internal A conversion",
+);
+assert.equal(
+  authoredProductions[1]?.lines[0]?.text,
+  authoredAttempts.attempts[1].text,
+  "attempt text must remain unchanged during internal B conversion",
+);
+assert.equal(
+  authoredProductions[2]?.lines[0]?.text,
+  authoredAttempts.attempts[2].text,
+  "attempt text must remain unchanged during internal C conversion",
+);
+
 function directTreatment(production, id) {
   return {
     production,
@@ -186,21 +242,6 @@ function directTreatment(production, id) {
     intensity: "MEDIUM",
   };
 }
-
-const authoredProductions = [
-    {
-      production: "A",
-      lines: [{ order: 1, text: "The smallest detail mattered most." }],
-    },
-    {
-      production: "B",
-      lines: [{ order: 1, text: "The last field changed the record." }],
-    },
-    {
-      production: "C",
-      lines: [{ order: 1, text: "The tiny mismatch became the point." }],
-    },
-  ];
 
 const expressiveProductions = attachDirectAuthorProvenanceToProductions({
   authoredProductions,

@@ -2457,35 +2457,27 @@ export function directCreativeRealityText(
     .join(" ");
 }
 
-function normalizeDirectAuthorTextProductions(
+export function directAuthorAttemptsToProductions(
   value: unknown,
 ): AuthorDirectTextProduction[] {
-  if (!Array.isArray(value)) return [];
+  const attemptsValue = value && typeof value === "object"
+    ? (value as Record<string, unknown>).attempts
+    : undefined;
+  const attempts: unknown[] = Array.isArray(attemptsValue) ? attemptsValue : [];
+  const productionLetters: AuthorProductionLetter[] = ["A", "B", "C"];
 
-  return value
-    .map((rawProduction): AuthorDirectTextProduction | undefined => {
-      if (!rawProduction || typeof rawProduction !== "object") return undefined;
-      const productionRecord = rawProduction as Record<string, unknown>;
-      const production = clean(productionRecord.production).toUpperCase();
-      if (!["A", "B", "C"].includes(production) || !Array.isArray(productionRecord.lines)) {
-        return undefined;
-      }
-
-      const lines = productionRecord.lines
-        .map((rawLine): AuthorDirectTextProduction["lines"][number] | undefined => {
-          if (!rawLine || typeof rawLine !== "object") return undefined;
-          const lineRecord = rawLine as Record<string, unknown>;
-          const order = Number(lineRecord.order);
-          const text = stripProductionLabel(lineRecord.text);
-          if (!Number.isInteger(order) || !text) return undefined;
-          return { order, text };
-        })
-        .filter((line): line is AuthorDirectTextProduction["lines"][number] => Boolean(line))
-        .sort((a, b) => a.order - b.order);
+  return attempts
+    .slice(0, 3)
+    .map((rawAttempt, index): AuthorDirectTextProduction | undefined => {
+      if (!rawAttempt || typeof rawAttempt !== "object") return undefined;
+      const production = productionLetters[index];
+      if (!production) return undefined;
+      const text = (rawAttempt as Record<string, unknown>).text;
+      if (typeof text !== "string" || !clean(text)) return undefined;
 
       return {
-        production: production as AuthorProductionLetter,
-        lines,
+        production,
+        lines: [{ order: 1, text }],
       };
     })
     .filter((production): production is AuthorDirectTextProduction => Boolean(production));
@@ -2669,13 +2661,13 @@ async function generateDirectAuthorMemoryProductions(input: {
           "You do not need to use everything.",
           "One detail may be enough.",
           "Most of the supplied reality may remain unused.",
-          "The number of lines has nothing to do with the number of supplied facts.",
+          "The answer length has nothing to do with the number of supplied facts.",
           "Do not retell the facts one by one.",
           "Do not paraphrase each fact into creative-sounding language.",
           "Do not explain your reasoning.",
           "Do not invent something else happening.",
           "Say what you noticed.",
-          "Return only A, B, and C.",
+          "Return only the three things you noticed.",
         ].join("\n"),
       },
       {
@@ -2683,9 +2675,8 @@ async function generateDirectAuthorMemoryProductions(input: {
         content: JSON.stringify({
           SUBJECT: input.subject,
           REALITY: directCreativeRealityText(input.suppliedReality),
-          PRODUCTIONS: ["A", "B", "C"],
           instruction:
-            "Return JSON matching the schema: three production objects A, B, and C. Each line has order and text only. Do not select a winner and do not write D.",
+            "Return exactly three different things you noticed using the required schema.",
         }),
       },
     ],
@@ -2696,32 +2687,18 @@ async function generateDirectAuthorMemoryProductions(input: {
       jsonSchema: {
         type: "object",
         additionalProperties: false,
-        required: ["productions"],
+        required: ["attempts"],
         properties: {
-          productions: {
+          attempts: {
             type: "array",
             minItems: 3,
             maxItems: 3,
             items: {
               type: "object",
               additionalProperties: false,
-              required: ["production", "lines"],
+              required: ["text"],
               properties: {
-                production: { type: "string", enum: ["A", "B", "C"] },
-                lines: {
-                  type: "array",
-                  minItems: 1,
-                  maxItems: 12,
-                  items: {
-                    type: "object",
-                    additionalProperties: false,
-                    required: ["order", "text"],
-                    properties: {
-                      order: { type: "integer", minimum: 1 },
-                      text: { type: "string" },
-                    },
-                  },
-                },
+                text: { type: "string" },
               },
             },
           },
@@ -3322,8 +3299,8 @@ export async function createAuthorExperience(input: {
 
   let parsedMouth = parseJson(mouthResult.text);
 
-  if (directCreativeAuthorExperiment && Array.isArray(parsedMouth?.productions)) {
-    const authoredProductions = normalizeDirectAuthorTextProductions(parsedMouth.productions);
+  if (directCreativeAuthorExperiment) {
+    const authoredProductions = directAuthorAttemptsToProductions(parsedMouth);
 
     if (authoredProductions.length) {
       const provenanceResult = await assignDirectAuthorProductionProvenance({
