@@ -11,6 +11,8 @@ import {
   generateDirectAuthorMemoryProductions,
   editDirectAuthorReality,
   parseJson as parseAuthorJson,
+  synthesizeAuthorizedRealizations,
+  type AuthorizedRealization,
   type AuthorCreativeEvent,
   type AuthorDirectTextProduction,
 } from "./src/services/authorCreative.js";
@@ -1321,6 +1323,35 @@ function printPropositionalScopeDry(options: CliOptions, selectedDomains: Discov
   console.log("downstream pipeline invoked: false");
 }
 
+function authorizedDiscoveryPool(
+  discovery: Awaited<ReturnType<typeof discoverAuthorCreativeDirection>>["discovery"],
+): AuthorizedRealization[] {
+  return discovery.candidates.map((candidate, index) => ({
+    id: `discovery-${candidate.id}`,
+    sourceProduction: "A",
+    text: candidate.perception,
+    classification: "KEEP_EXPRESSION",
+    sourceEventIds: [...candidate.evidenceEventIds],
+    originalOrder: index + 1,
+    spanIndex: 0,
+    materialKind: "EXPRESSIVE_PERSPECTIVE",
+  }));
+}
+
+async function synthesizeGroundedDiscoveryPool(input: {
+  subject: string;
+  events: readonly AuthorCreativeEvent[];
+  discovery: Awaited<ReturnType<typeof discoverAuthorCreativeDirection>>["discovery"];
+}) {
+  const pool = authorizedDiscoveryPool(input.discovery);
+  const synthesis = await synthesizeAuthorizedRealizations({
+    subject: input.subject,
+    suppliedReality: input.events,
+    pool,
+  });
+  return { pool, synthesis };
+}
+
 async function realizeGroundedDiscoveryAsMovingText(input: {
   subject: string;
   events: ReadonlyArray<{ id: string; text: string }>;
@@ -1409,44 +1440,60 @@ async function runDomain(
           })),
           domainContext: domain.domainContext,
         });
-        const mouthResult = await realizeGroundedDiscoveryAsMovingText({
+        const poolResult = await synthesizeGroundedDiscoveryPool({
           subject: domain.subject,
           events,
           discovery: discoveryResult.discovery,
         });
+        const synthesizedText = clean(
+          poolResult.synthesis.truthResult.candidate?.rawText ??
+          poolResult.synthesis.candidate?.rawText,
+        );
+        const realizationResult = synthesizedText
+          ? { text: synthesizedText, model: poolResult.synthesis.model }
+          : await realizeGroundedDiscoveryAsMovingText({
+              subject: domain.subject,
+              events,
+              discovery: discoveryResult.discovery,
+            });
 
-        printHeader("DISCOVERY -> MOUTH EXPERIMENT");
+        printHeader("DISCOVERY POOL -> SYNTHESIS EXPERIMENT");
         printJson({
           condition,
           discoveryModel: discoveryResult.model,
           discoveryModelCalls: discoveryResult.modelCalls,
-          selectedDiscovery: {
+          authorizedDiscoveryPool: poolResult.pool.map((realization) => ({
+            id: realization.id,
+            text: realization.text,
+            sourceEventIds: realization.sourceEventIds,
+          })),
+          legacySelectedDiscovery: {
             id: discoveryResult.discovery.selected.id,
             perception: discoveryResult.discovery.selected.perception,
-            relationship: discoveryResult.discovery.selected.relationship,
-            evidenceEventIds: discoveryResult.discovery.selected.evidenceEventIds,
           },
-          mouthModel: mouthResult.model,
-          mouthCalls: 1,
-          claimAuditorCalls: 0,
-          finalGroundingCalls: 0,
-          synthesizerCalls: 0,
+          synthesisModel: poolResult.synthesis.model,
+          synthesisModelCalls: poolResult.synthesis.modelCalls,
+          synthesisEligible: poolResult.synthesis.truthResult.eligible,
+          synthesisReasons: poolResult.synthesis.truthResult.reasons,
+          synthesisRawOutput: poolResult.synthesis.rawOutput,
+          usedSynthesizedRealization: Boolean(synthesizedText),
+          fallbackMouthCalls: synthesizedText ? 0 : 1,
         });
-        printHeader("EXPERIMENTAL MOUTH");
-        console.log(mouthResult.text);
+        printHeader(synthesizedText ? "EXPERIMENTAL SYNTHESIZED REALIZATION" : "EXPERIMENTAL MOUTH FALLBACK");
+        console.log(realizationResult.text);
 
-        const diagnostic = labelsForText(mouthResult.text, domain);
+        const diagnostic = labelsForText(realizationResult.text, domain);
         diagnostics.push({
           domain: domain.id,
           condition,
           run,
-          production: "DISCOVERY_MOUTH",
-          text: mouthResult.text,
+          production: synthesizedText ? "DISCOVERY_SYNTHESIS" : "DISCOVERY_MOUTH_FALLBACK",
+          text: realizationResult.text,
           ...diagnostic,
         });
 
         printHeader("POST-GENERATION OBSERVATIONAL ANALYSIS");
-        console.log("LEXICAL HEURISTICS ONLY. Discovery candidate was semantically grounded before Mouth; final Mouth authority NOT_CHECKED.");
+        console.log("LEXICAL HEURISTICS ONLY. Discovery survivors were grounded and semantic-move verified before synthesis; synthesized realization uses the production synthesis truth path.");
         printJson(diagnostics.filter((item) => item.domain === domain.id && item.run === run));
         continue;
       }
