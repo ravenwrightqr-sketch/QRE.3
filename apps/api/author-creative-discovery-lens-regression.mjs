@@ -63,22 +63,12 @@ assert.match(
   "Downstream canonical brief contract must still consume discovery.lens",
 );
 
-for (const retainedField of [
-  "experienceShape",
-]) {
-  assert.match(
-    schemaSource,
-    new RegExp(`"${retainedField}"`),
-    `Discovery schema must not change ${retainedField}`,
-  );
-}
-
 assert.doesNotMatch(
   promptSource,
   /CREATIVE_INTENT|requestedLens:/,
   "Requested treatment must not be supplied to meaning discovery",
 );
-for (const deterministicField of ["playableEventIds", "backgroundEventIds"]) {
+for (const deterministicField of ["playableEventIds", "backgroundEventIds", "experienceShape"]) {
   assert.doesNotMatch(
     promptSource,
     new RegExp(deterministicField),
@@ -87,7 +77,7 @@ for (const deterministicField of ["playableEventIds", "backgroundEventIds"]) {
   assert.doesNotMatch(
     schemaSource,
     new RegExp(deterministicField),
-    `${deterministicField} must be deterministic, not model-authored`,
+    `${deterministicField} must not be model-authored in Discovery`,
   );
   assert.match(
     source,

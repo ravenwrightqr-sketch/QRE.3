@@ -93,6 +93,9 @@ export type AuthorSemanticBeat = {
 export type AuthorSemanticPlan = {
   thesis: string;
   beats: AuthorSemanticBeat[];
+  // Structure may intentionally revisit these IDs as presentation. This does
+  // not assert that the underlying occurrence happened more than once.
+  revisitEventIds?: string[];
 };
 
 export type AuthorCreativeTreatmentAssignment = {
@@ -403,7 +406,6 @@ export function deriveAuthorSemanticMechanicCandidates(input: {
   const discoveryText = materialText([
     discovery?.selected.perception,
     discovery?.selected.relationship,
-    ...(discovery?.experienceShape ?? []),
   ].filter((value): value is string => typeof value === "string"));
   const memoryText = materialText(input.memory ?? []);
   const context = (input.domainContext ?? {}) as Record<string, unknown>;
@@ -1378,6 +1380,22 @@ function normalizeRole(value: unknown, index: number, total: number): AuthorBeat
   return "BUILD";
 }
 
+function normalizePlanRevisitEventIds(
+  value: unknown,
+  beats: readonly AuthorSemanticBeat[],
+  allowedEventIds: Set<string>,
+): string[] {
+  const beatCounts = new Map<string, number>();
+  for (const beat of beats) {
+    for (const id of unique(beat.eventIds)) {
+      beatCounts.set(id, (beatCounts.get(id) ?? 0) + 1);
+    }
+  }
+  return stringArray(value, 32).filter((id) =>
+    allowedEventIds.has(id) && (beatCounts.get(id) ?? 0) > 1,
+  );
+}
+
 function normalizePlan(
   value: Record<string, unknown> | undefined,
   allowedEventIds: Set<string>,
@@ -1412,6 +1430,7 @@ function normalizePlan(
   return {
     thesis: clean(value?.thesis),
     beats,
+    revisitEventIds: normalizePlanRevisitEventIds(value?.revisitEventIds, beats, allowedEventIds),
   };
 }
 
@@ -1807,16 +1826,28 @@ function lockPlanToApprovedMeaning(
   discovery: AuthorCreativeDiscovery,
 ): AuthorSemanticPlan {
   const selected = discovery.selected;
-  const allowEvidenceCallback = discovery.experienceShape.some((hint) =>
-    /callback|recurrence|repetition|echo/i.test(clean(hint)),
+  const suppliedEventIds = new Set(events.map((event) => clean(event.id)));
+  const authorizedEventIds = new Set(
+    (
+      discovery.playableEventIds.length
+        ? discovery.playableEventIds
+        : selected.evidenceEventIds
+    ).map(clean).filter((id) => suppliedEventIds.has(id)),
   );
+  const revisitEventIds = normalizePlanRevisitEventIds(
+    plan.revisitEventIds,
+    plan.beats,
+    authorizedEventIds,
+  );
+  const revisitSet = new Set(revisitEventIds);
   const seenEventIds = new Set<string>();
   const uniquePlanBeats = plan.beats
     .map((beat) => ({
       ...beat,
       eventIds: beat.eventIds.filter((id) => {
         const key = clean(id);
-        if (allowEvidenceCallback) return true;
+        if (!authorizedEventIds.has(key)) return false;
+        if (revisitSet.has(key)) return true;
         if (seenEventIds.has(key)) return false;
         seenEventIds.add(key);
         return true;
@@ -1826,6 +1857,7 @@ function lockPlanToApprovedMeaning(
   const planWithUniqueEvidence = {
     ...plan,
     beats: uniquePlanBeats,
+    revisitEventIds,
   };
   const approvedMeaning = clean(selected.perception || selected.relationship);
   const approvedRelation = clean(selected.relationship);
@@ -1834,6 +1866,7 @@ function lockPlanToApprovedMeaning(
   if (realityDirect) {
     return {
       thesis: "Use supplied reality directly.",
+      revisitEventIds,
       beats: planWithUniqueEvidence.beats.map((beat) => ({
         ...beat,
         attention: beat.eventIds
@@ -1845,14 +1878,6 @@ function lockPlanToApprovedMeaning(
       })),
     };
   }
-
-  const authorizedEventIds = new Set(
-    (
-      discovery.playableEventIds.length
-        ? discovery.playableEventIds
-        : selected.evidenceEventIds
-    ).map(clean).filter(Boolean),
-  );
 
   const scopedBeats = planWithUniqueEvidence.beats
     .map((beat) => ({
@@ -1870,6 +1895,7 @@ function lockPlanToApprovedMeaning(
 
   return {
     thesis: approvedMeaning || approvedRelation || "Approved grounded perception.",
+    revisitEventIds: normalizePlanRevisitEventIds(revisitEventIds, beats, authorizedEventIds),
     beats: beats.map((beat, index) => {
       const isFirst = index === 0;
       const isLast = index === beats.length - 1;
@@ -4548,14 +4574,16 @@ export async function createAuthorExperience(input: {
         role: "system",
         content: [
           "You are QRE Author Structure Planner.",
-          "Discovery owns the approved meaning and identifies the playable reality. Your responsibility is evidence grouping and sequence shape.",
+          "Discovery owns the approved meaning. Runtime identifies the authorized reality. Your responsibility is evidence grouping and sequence shape.",
+          "Organize APPROVED_MEANING using AUTHORIZED_EVIDENCE. Preserve that meaning rather than rediscovering or replacing it.",
           "AUTHORIZED_EVIDENCE is the factual material available to this experience.",
           "Build the strongest sequence from authorized event IDs and preserve the supplied relationships that make the experience meaningful.",
           "Let the material determine the number of beats. A beat may contain one event or several tightly related events when grouping creates a stronger unit of experience.",
           "Compression is structural, not destructive. Grouping changes organization while keeping the selected reality available to realization.",
-          "Use sequence to create room for progression, contrast, accumulation, interruption, return, reveal, callback, or payoff when those relationships are supported by the supplied material and approved experience shape.",
+          "Use sequence to create room for progression, contrast, accumulation, interruption, return, reveal, callback, or payoff when supported by supplied material and approved meaning.",
           "The plan is structural rather than viewer-facing. Represent what each beat carries through its authorized event IDs.",
-          "Every authorized evidence item remains represented in the plan. Supplied recurrence may return when the approved experience shape calls for recurrence, echo, callback, or return.",
+          "Every authorized evidence item remains represented in the plan. You may intentionally revisit an authorized event ID in later beats when that strengthens the arrangement. List those IDs in revisitEventIds; otherwise return an empty list.",
+          "Revisiting evidence is a presentation choice. It does not establish another occurrence or prove that an event happened again.",
           ...(isMemoryMode ? [
             "MEMORY STRUCTURE: shape the supplied lived material so the memory has enough space to be experienced rather than merely summarized.",
             "Preserve meaningful temporal progression, state contrast, duration, recurrence, return, and distinctive moments when they contribute to the approved memory.",
@@ -4570,7 +4598,11 @@ export async function createAuthorExperience(input: {
         content: JSON.stringify({
           SUBJECT: input.subject,
           AUTHORIZED_EVIDENCE: selectedEvidence,
-          EXPERIENCE_SHAPE: input.creativeDiscovery.experienceShape,
+          APPROVED_MEANING: {
+            perception: selected.perception,
+            relationship: selected.relationship,
+            evidenceEventIds: selected.evidenceEventIds,
+          },
           instruction:
             "Return the strongest structural beat sequence using the authorized evidence IDs. Preserve every authorized evidence item somewhere in the sequence; group related evidence when that strengthens the experience.",
         }),
@@ -4583,8 +4615,13 @@ export async function createAuthorExperience(input: {
       jsonSchema: {
         type: "object",
         additionalProperties: false,
-        required: ["beats"],
+        required: ["beats", "revisitEventIds"],
         properties: {
+          revisitEventIds: {
+            type: "array",
+            maxItems: 32,
+            items: { type: "string", maxLength: 64 },
+          },
           beats: {
             type: "array",
             minItems: 1,

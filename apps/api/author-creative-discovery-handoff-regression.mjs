@@ -45,7 +45,6 @@ const makeCandidate = (id = "notice", evidenceEventIds = ["e4"]) => ({
 const answer = (candidates = [makeCandidate()], overrides = {}) => ({
   candidates,
   selectedCandidateId: candidates[0]?.id ?? "",
-  experienceShape: [],
   confidence: 0.8,
   selectionReason: "The supplied attempt changes the significance.",
   risk: "",
@@ -87,12 +86,13 @@ async function discover({
   const { jsonSchema } = requests[0].options;
   assert.equal(jsonSchema.properties.candidates.minItems, 0);
   assert.equal(jsonSchema.properties.candidates.maxItems, 4);
-  for (const field of ["playableEventIds", "backgroundEventIds"]) {
+  for (const field of ["playableEventIds", "backgroundEventIds", "experienceShape"]) {
     assert.equal(field in jsonSchema.properties, false);
     assert.equal(jsonSchema.required.includes(field), false);
     assert.equal(requests[0].messages.some(({ content }) => content.includes(field)), false);
   }
   assert.equal("CREATIVE_INTENT" in requests[0].payload, false);
+  assert.deepEqual(result.discovery.experienceShape, [], "Legacy shape hints must never survive Discovery");
   assert.equal(result.discovery.lens, requestedLens || "NONE");
   return { ...result, requests };
 }
@@ -120,6 +120,11 @@ const continued = await discover({ memory: [
 assert.deepEqual(continued.requests[0].payload.CURRENT_REALITY, events);
 assert.deepEqual(continued.discovery.playableEventIds, eventIds,
   "Remembered visits must not become new occurrences in the current corridor");
+await discover({ response: answer([makeCandidate()], { experienceShape: ["callback", "status tension"] }) });
+await discover({
+  response: answer([makeCandidate()], { experienceShape: ["again"] }),
+  rejectedIds: ["notice"],
+});
 
 // A two-fact read and a zero-read fallback both keep the full corridor.
 for (const candidates of [[makeCandidate("pair", ["e3", "e4"])], []]) {
@@ -189,10 +194,12 @@ assert.deepEqual(identityFallback.discovery.playableEventIds, eventIds);
 // Exercise downstream production helpers without changing their public API.
 const stopAtStructure = new Error("Captured Structure request");
 let structurePayload;
-const creative = loadService("authorCreative", async (messages) => {
+let structureSchema;
+const creative = loadService("authorCreative", async (messages, format, options) => {
   structurePayload = JSON.parse(messages[1].content);
+  structureSchema = options.jsonSchema;
   throw stopAtStructure;
-}, "export { fallbackPlan, enforceMemoryStructure, lockPlanToApprovedMeaning, ensurePostLockMemoryCanvas };");
+}, "export { fallbackPlan, normalizePlan, enforceMemoryStructure, lockPlanToApprovedMeaning, ensurePostLockMemoryCanvas };");
 await assert.rejects(creative.createAuthorExperience({
   subject: "Coco",
   suppliedReality: events,
@@ -201,6 +208,13 @@ await assert.rejects(creative.createAuthorExperience({
   requestedLens: "HORROR",
 }), (error) => error === stopAtStructure);
 assert.deepEqual(structurePayload.AUTHORIZED_EVIDENCE, events, "All MEMORY facts must reach Structure");
+assert.deepEqual(structurePayload.APPROVED_MEANING, {
+  perception: approvedDiscovery.selected.perception,
+  relationship: approvedDiscovery.selected.relationship,
+  evidenceEventIds: approvedDiscovery.selected.evidenceEventIds,
+});
+assert.equal("EXPERIENCE_SHAPE" in structurePayload, false);
+assert.ok(structureSchema.required.includes("revisitEventIds"));
 
 const sparse = creative.fallbackPlan(events, approvedDiscovery);
 assert.deepEqual(plain(sparse.beats.flatMap(({ eventIds }) => eventIds)), ["e4"]);
@@ -210,11 +224,66 @@ const restored = creative.ensurePostLockMemoryCanvas(locked, events);
 assert.deepEqual(plain(restored.beats.flatMap(({ eventIds }) => eventIds)), eventIds);
 assert.equal(restored.thesis, approvedDiscovery.selected.perception);
 
-// Keep experienceShape's existing recurrence behavior intact in this change.
+// Structure explicitly permits specific revisits. Discovery hint wording has
+// no authority over either repetition or semantic mechanic inference.
 const repeated = { thesis: "", beats: [sparse.beats[0], sparse.beats[0]] };
 assert.equal(creative.lockPlanToApprovedMeaning(repeated, events, approvedDiscovery).beats.length, 1);
-assert.equal(creative.lockPlanToApprovedMeaning(repeated, events, {
-  ...approvedDiscovery, experienceShape: ["callback"],
-}).beats.length, 2);
+for (const experienceShape of [["callback"], ["no callback"], ["again"]]) {
+  assert.equal(creative.lockPlanToApprovedMeaning(repeated, events, {
+    ...approvedDiscovery, experienceShape,
+  }).beats.length, 1);
+}
+const revisitedPlan = { ...repeated, revisitEventIds: ["e4"] };
+const revisited = creative.lockPlanToApprovedMeaning(revisitedPlan, events, approvedDiscovery);
+assert.equal(revisited.beats.length, 2);
+assert.deepEqual(plain(revisited.revisitEventIds), ["e4"]);
+const normalized = creative.normalizePlan({
+  ...revisitedPlan, revisitEventIds: ["e4", "e4", "e3", "invented"],
+}, new Set(eventIds));
+assert.deepEqual(plain(normalized.revisitEventIds), ["e4"], "Only supplied IDs actually revisited across beats may be listed");
+const undesignated = creative.normalizePlan(repeated, new Set(eventIds));
+assert.deepEqual(plain(undesignated.revisitEventIds), []);
+assert.equal(creative.lockPlanToApprovedMeaning(undesignated, events, approvedDiscovery).beats.length, 1);
+
+const selectiveRevisit = creative.normalizePlan({
+  thesis: "",
+  revisitEventIds: ["e4"],
+  beats: [
+    { order: 1, eventIds: ["e3", "e4"] },
+    { order: 2, eventIds: ["e3", "e4"] },
+  ],
+}, new Set(eventIds));
+assert.deepEqual(plain(creative.lockPlanToApprovedMeaning(selectiveRevisit, events, approvedDiscovery)
+  .beats.map(({ eventIds }) => eventIds)), [["e3", "e4"], ["e4"]]);
+const restoredRevisit = creative.lockPlanToApprovedMeaning(
+  creative.ensurePostLockMemoryCanvas(
+    creative.lockPlanToApprovedMeaning(
+      creative.enforceMemoryStructure({ ...complete, beats: [...complete.beats, sparse.beats[0]], revisitEventIds: ["e4"] }, events),
+      events, approvedDiscovery,
+    ), events,
+  ), events, approvedDiscovery,
+);
+assert.deepEqual([...new Set(plain(restoredRevisit.beats.flatMap(({ eventIds }) => eventIds)))], eventIds);
+assert.equal(restoredRevisit.beats.flatMap(({ eventIds }) => eventIds).filter((id) => id === "e4").length, 2);
+
+const scopedIdentity = { ...approvedDiscovery, playableEventIds: ["e3"] };
+const unapprovedRevisit = creative.lockPlanToApprovedMeaning(revisitedPlan, events, scopedIdentity);
+assert.deepEqual(plain(unapprovedRevisit.revisitEventIds), []);
+assert.equal(unapprovedRevisit.beats.some(({ eventIds }) => eventIds.includes("e4")), false);
+
+const neutralEvents = [{ id: "n1", text: "The sample was blue." }];
+const neutralDiscovery = { ...approvedDiscovery, selected: {
+  ...approvedDiscovery.selected, perception: "The supplied hue earns attention.",
+  relationship: "", evidenceEventIds: ["n1"],
+} };
+const neutralMechanics = (experienceShape, extra = {}) => plain(creative.deriveAuthorSemanticMechanicCandidates({
+  suppliedReality: neutralEvents, creativeDiscovery: { ...neutralDiscovery, experienceShape }, ...extra,
+}));
+assert.deepEqual(neutralMechanics(["again", "status tension"]), neutralMechanics([]),
+  "Legacy shape hints must not manufacture semantic mechanics");
+assert.ok(neutralMechanics([], { memory: ["The same detail returned on a prior visit."] })
+  .some(({ mechanic }) => mechanic === "recurrence"), "Stored history still contributes to grounded mechanic inference");
+
+console.log("AUTHOR STRUCTURE OWNERSHIP GREEN - APPROVED MEANING - EXPLICIT REVISITS - SHAPE HINTS INERT - OFFLINE");
 
 console.log("AUTHOR DISCOVERY HANDOFF GREEN - DISCOVERY ACTIVE - FULL MEMORY CORRIDOR - DETERMINISTIC PLAYABLE/BACKGROUND - OFFLINE");

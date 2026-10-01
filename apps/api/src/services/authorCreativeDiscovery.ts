@@ -527,9 +527,6 @@ export async function discoverAuthorCreativeDirection(input: {
     "Choose the read whose necessary evidence creates the clearest supported change in understanding. Prefer a read that depends on supplied specifics, remains valid without hidden premises, preserves ambiguity where the facts leave it, and gives later creative work one grounded idea to carry forward.",
     "A read does not become stronger by covering more facts. It becomes stronger when its cited evidence supports a sharper change in perception.",
     "",
-    "HANDOFF:",
-    "experienceShape = optional concise hints for how the selected read functions.",
-    "",
     "Return only the requested structured object.",
   ].join("\n");
 
@@ -558,7 +555,6 @@ export async function discoverAuthorCreativeDirection(input: {
         required: [
           "candidates",
           "selectedCandidateId",
-          "experienceShape",
           "confidence",
           "selectionReason",
           "risk",
@@ -590,11 +586,6 @@ export async function discoverAuthorCreativeDirection(input: {
             },
           },
           selectedCandidateId: { type: "string", maxLength: 48 },
-          experienceShape: {
-            type: "array",
-            maxItems: 5,
-            items: { type: "string", maxLength: 40 },
-          },
           confidence: { type: "number" },
           selectionReason: { type: "string", maxLength: 220 },
           risk: { type: "string", maxLength: 180 },
@@ -749,7 +740,8 @@ export async function discoverAuthorCreativeDirection(input: {
       selected,
       playableEventIds,
       backgroundEventIds,
-      experienceShape: stringArray(parsed?.experienceShape, 5),
+      // Compatibility only. Structure owns arrangement and evidence revisits.
+      experienceShape: [],
       lens: requestedLens || "NONE",
       confidence: clamp(parsed?.confidence, 0.65),
       selectionReason: selectedMatchesModelChoice
