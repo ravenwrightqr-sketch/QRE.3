@@ -2585,8 +2585,16 @@ function selectMemoryProductionCandidate(input: {
     topScoringExpressiveProduction.score - nominatedExpressiveProduction.score <= CREATIVE_TIE_BAND
       ? nominatedExpressiveProduction
       : undefined;
+  // With Lens enabled, Mouth nominates on creative strength after seeing the
+  // complete productions. Cut scores measure mechanical readability and replay;
+  // they are not an alternative semantic creativity judge. Keep all eligibility
+  // gates and final grounding, but use scoring only if that nomination is absent
+  // or ineligible. The Lens-disabled control retains its existing score policy.
+  const preferredNomination = input.lensSearchEnabled
+    ? nominatedExpressiveProduction
+    : nominatedNearTop;
   const winner =
-    nominatedNearTop ??
+    preferredNomination ??
     topScoringExpressiveProduction ??
     nominatedExpressiveProduction ??
     bareFallbackProduction;

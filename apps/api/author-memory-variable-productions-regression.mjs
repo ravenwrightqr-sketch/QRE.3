@@ -166,6 +166,55 @@ assert.ok(
 assert.equal(inventedResult.selectedProduction, "D", "D should be truth-safe fallback");
 assert.equal(inventedResult.scenes.length, plan.beats.length, "D fallback should remain complete");
 
+// Saved live failure: the readability score displaced Mouth's nomination with
+// a shorter factual recap. Creative selection belongs to the nominating stage;
+// acceptance and provenance still gate the entire nominated production.
+const liveFacts = [
+  "Coco was nervous", "Coco got a bath", "a bow was added",
+  "Coco tried to remove the bow", "Coco left happy",
+].map((text, index) => ({ id: `event-${index + 1}`, text }));
+const livePlan = { ...plan, beats: plan.beats.map((beat, index) => ({
+  ...beat, attention: liveFacts[index].text, change: liveFacts[index].text,
+})) };
+const liveProductions = [
+  { production: "A", lines: [
+    { order: 1, text: "The bath was one thing.", sourceEventIds: ["event-2"] },
+    { order: 2, text: "The bow was another—and Coco tried to remove it.", sourceEventIds: ["event-3", "event-4"] },
+  ] },
+  { production: "B", lines: [
+    { order: 1, text: "Coco started nervous.", sourceEventIds: ["event-1"] },
+    { order: 2, text: "Then came the bow, and Coco negotiated with it the only way Coco could.", sourceEventIds: ["event-3", "event-4"] },
+    { order: 3, text: "Coco left happy anyway.", sourceEventIds: ["event-5"] },
+  ] },
+  { production: "C", lines: [
+    { order: 1, text: "Bath.", sourceEventIds: ["event-2"] },
+    { order: 2, text: "Bow.", sourceEventIds: ["event-3"] },
+    { order: 3, text: "Exit, happy.", sourceEventIds: ["event-5"] },
+  ] },
+];
+const liveInput = {
+  plan: livePlan, suppliedReality: liveFacts, subject: "Coco",
+  expressiveProductions: liveProductions, treatmentAssignments: mouthTreatments,
+  selectedProduction: "B", lensSearchEnabled: true, realityDirect: true,
+};
+const liveSelection = evaluateAuthorMemoryProductions(liveInput);
+const nominatedB = liveSelection.productions.find(({ production }) => production === "B");
+const recapC = liveSelection.productions.find(({ production }) => production === "C");
+assert.equal(nominatedB.accepted, true);
+assert.equal(recapC.accepted, true);
+assert.ok(recapC.score - nominatedB.score > 0.02, "Fixture must reproduce the live score override");
+assert.equal(liveSelection.selectedProduction, "B", "Readability must not override viable creative nomination");
+assert.deepEqual(liveSelection.scenes.map(({ text }) => text), liveProductions[1].lines.map(({ text }) => text),
+  "Selection must retain the complete nominated production without splicing other cuts");
+const invalidNomination = evaluateAuthorMemoryProductions({ ...liveInput,
+  expressiveProductions: liveProductions.map((production) => production.production === "B"
+    ? { ...production, lines: production.lines.map((line) => ({ ...line, sourceEventIds: ["missing"] })) }
+    : production),
+});
+assert.notEqual(invalidNomination.selectedProduction, "B", "A nomination cannot override failed provenance");
+assert.equal(evaluateAuthorMemoryProductions({ ...liveInput, selectedProduction: undefined }).selectedProduction, "C",
+  "Existing score fallback remains available when Mouth supplies no eligible nomination");
+
 console.log(
   "AUTHOR MEMORY VARIABLE PRODUCTIONS GREEN - A/B/C VARIABLE LENGTH - D COMPLETE - LATE SELECTION",
 );

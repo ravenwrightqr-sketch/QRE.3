@@ -170,8 +170,13 @@ if (!failures.length) {
   );
   assertContains(
     creative,
-    /const winner =\s*nominatedNearTop \?\?\s*topScoringExpressiveProduction \?\?\s*nominatedExpressiveProduction \?\?\s*bareFallbackProduction/s,
+    /const winner =\s*preferredNomination \?\?\s*topScoringExpressiveProduction \?\?\s*nominatedExpressiveProduction \?\?\s*bareFallbackProduction/s,
     "Final commitment must prefer complete expressive productions before Bare D",
+  );
+  assertContains(
+    creative,
+    /const preferredNomination = input\.lensSearchEnabled\s*\? nominatedExpressiveProduction\s*: nominatedNearTop/s,
+    "An eligible creative nomination must outrank mechanical cut scores when Lens is enabled",
   );
 
   assertContains(
