@@ -20,8 +20,16 @@ import { localModelConfig } from "./src/services/localModelRuntime.js";
 const PRE_HOOK_SOURCE_REGION_HASH =
   "4f119b85a757354846dbf48d1176caf957cc6f732bcd6665a4ca3e88deb6956a";
 
-const SEMANTIC_SCOPE_SEARCH_INSTRUCTION =
-  "Before writing, privately consider the semantic scope of the strongest grounded meaning: whether it remains particular to this supplied occurrence or naturally extends beyond the particular into a broader proposition. Choose naturally. Do not invent concrete reality.";
+const SEMANTIC_SCOPE_SEARCH_INSTRUCTION = [
+  "Before writing public cuts, perform a private thought-distance search.",
+  "Treat supplied reality as evidence for thought, not as material that must be retold. First notice what is literally supplied. Then privately generate several different things a distinctive speaker could notice, infer, judge, joke about, complain about, question, generalize from, or find absurd because those facts are true.",
+  "At least some private candidates must move beyond event-description: they should not be obtainable merely by shortening, synonym-swapping, dramatizing, personifying, or metaphorically renaming the supplied timeline.",
+  "The public realization does not owe the viewer a recap. It may omit the originating fact entirely when the resulting thought is still licensed by that fact.",
+  "Prefer a supported thought that changes what the facts mean or what becomes noticeable over a clever restatement of what happened.",
+  "A broader proposition, ordinary social observation, attitude, rhetorical point of view, implication, joke, complaint, judgment, or question is available when supported. None of these creates a new participant or event merely by being said.",
+  "Do not manufacture a leap just to be different. If a farther thought is not genuinely supported, remain particular. Concrete reality remains closed: do not invent who acted, what happened, what was observed, motives, causes, duration, persistence, outcomes, or history.",
+  "Only after this private search, write the moving-text cuts. Return public words only; never expose the private search.",
+].join("\\n");
 
 const PROPOSITIONAL_SCOPE_SEARCH_INSTRUCTION =
   "Before writing, privately test whether supplied particulars support a grounded proposition whose semantic subject can be broader than the particular subject or occurrence itself. A broader category, pattern, convention, tendency, or audience may become the subject of that proposition without implying that any additional concrete participant entered the supplied occurrence. This is a change in propositional scope, not permission to invent events. Choose it only when genuinely supported.";
