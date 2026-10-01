@@ -59,7 +59,7 @@ const COMPLETED_OUTCOME =
 const ATTITUDE_ONLY =
   /^(?:no|yes|mine|ours|absolutely not|not happening|really|seriously|apparently|okay|fine|fight)[.!?]*$/i;
 const TEMPORAL_COMPARISON =
-  /\b(?:long|short|brief|briefly|quick|quickly|slow|slowly|fast|faster|slower)\b/i;
+  /\b(?:longer|longest|shorter|shortest|briefer|briefest|quicker|quickest|faster|fastest|slower|slowest)\b|\b(?:more|less)\s+(?:long|short|brief|briefly|quick|quickly|slow|slowly|fast)\b|\bas\s+(?:long|short|brief|quick|slow|fast)\s+as\b/i;
 
 const RECURRENCE_CLAIM =
   /\b(?:again|returned|returns|returning|back|recurred|recurs|recurring|repeated|repeats|next\s+(?:day|week|month|year))\b/i;

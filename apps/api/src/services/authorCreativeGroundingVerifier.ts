@@ -45,6 +45,30 @@ type AtomicVerification = {
   unsupportedClaims?: unknown;
 };
 
+export type AuthorGroundingAuditClassification =
+  | "SUPPORTED_REALITY"
+  | "KEEP_EXPRESSION"
+  | "UNSUPPORTED_REALITY";
+
+export type AuthorGroundingAuditSpan = {
+  exactText: string;
+  classification: AuthorGroundingAuditClassification;
+  sourceEventIds: string[];
+};
+
+export type AuthorGroundingScene = AuthorScene & {
+  sourceEventIds: string[];
+  auditSpans?: readonly AuthorGroundingAuditSpan[];
+};
+
+export type AuthorGroundingAtomicClause = {
+  sceneIndex: number;
+  clauseIndex: number;
+  text: string;
+  groundingHint: string[];
+  priorAudit?: AuthorGroundingAuditSpan;
+};
+
 function beatClauseFragments(text: string): string[] {
   const fragments = clean(text)
     .split(/(?<=[.!?])\s+|\s*[;|]\s*/g)
@@ -58,6 +82,154 @@ function beatClauses(text: string): string[] {
   return beatClauseFragments(text)
     .map((part) => clean(part.replace(/[.!?]+$/g, "")))
     .filter(Boolean);
+}
+
+function auditSpanForFragment(
+  fragment: string,
+  auditSpans: readonly AuthorGroundingAuditSpan[] | undefined,
+): AuthorGroundingAuditSpan | undefined {
+  const matches = (auditSpans ?? []).filter(
+    (span) => clean(span.exactText) === clean(fragment),
+  );
+  if (matches.length !== 1) return undefined;
+  const match = matches[0]!;
+  return {
+    exactText: match.exactText,
+    classification: match.classification,
+    sourceEventIds: unique(match.sourceEventIds),
+  };
+}
+
+export function buildAuthorGroundingAtomicClauses(
+  scenes: readonly AuthorGroundingScene[],
+): AuthorGroundingAtomicClause[] {
+  return scenes.flatMap((scene, sceneIndex) => {
+    const fragments = beatClauseFragments(scene.text);
+    const clauses = beatClauses(scene.text);
+    return clauses.map((text, clauseIndex) => {
+      const fragment = fragments[clauseIndex] ?? "";
+      const priorAudit = auditSpanForFragment(fragment, scene.auditSpans);
+      return {
+        sceneIndex,
+        clauseIndex,
+        text,
+        groundingHint: scene.sourceEventIds,
+        ...(priorAudit ? { priorAudit } : {}),
+      };
+    });
+  });
+}
+
+export function applyAuthorGroundingVerifications(input: {
+  scenes: readonly AuthorGroundingScene[];
+  suppliedReality: readonly { id: string; text: string }[];
+  verifications: readonly unknown[];
+}): AuthorGroundingScene[] {
+  const allowedIds = new Set(input.suppliedReality.map((event) => event.id));
+  const suppliedRealityText = input.suppliedReality
+    .map((event) => event.text)
+    .join(" ");
+
+  const verificationByClause = new Map<string, AtomicVerification>();
+
+  for (const value of input.verifications) {
+    if (!value || typeof value !== "object") continue;
+    const item = value as AtomicVerification;
+    const sceneIndex = Number(item.sceneIndex);
+    const clauseIndex = Number(item.clauseIndex);
+    if (!Number.isInteger(sceneIndex) || !Number.isInteger(clauseIndex)) continue;
+    verificationByClause.set(`${sceneIndex}:${clauseIndex}`, item);
+  }
+
+  // Timing words are interpreted semantically by the verifier model and unsupported-claim reconciliation.
+  // There is no second vocabulary-level veto here.
+  return input.scenes.flatMap((scene, sceneIndex) => {
+    const fragments = beatClauseFragments(scene.text);
+    const clauses = beatClauses(scene.text);
+    const supportedIds = new Set<string>();
+    const supportedFragments: string[] = [];
+
+    for (let clauseIndex = 0; clauseIndex < clauses.length; clauseIndex += 1) {
+      const item = verificationByClause.get(`${sceneIndex}:${clauseIndex}`);
+      if (!item) continue;
+
+      const rawUnsupportedClaims = Array.isArray(item.unsupportedClaims)
+        ? item.unsupportedClaims
+            .filter((claim): claim is string => typeof claim === "string")
+            .map(clean)
+            .filter(Boolean)
+        : [];
+
+      const concreteClaims = Array.isArray(item.concreteClaims)
+        ? item.concreteClaims
+            .filter((claim): claim is string => typeof claim === "string")
+            .map(clean)
+            .filter(Boolean)
+        : [];
+
+      const supportKind = clean(item.supportKind).toUpperCase();
+      const allowedSupportKind =
+        supportKind === "DIRECT" ||
+        supportKind === "PARAPHRASE" ||
+        supportKind === "FIGURATIVE" ||
+        supportKind === "CONTEXTUAL_TEXTURE";
+
+      const unsupportedClaims = reconciledUnsupportedClaims({
+        clauseText: clauses[clauseIndex] ?? "",
+        supported: item.supported,
+        supportKind,
+        concreteClaims,
+        unsupportedClaims: rawUnsupportedClaims,
+      });
+
+      const contradictoryConcreteFraming =
+        (supportKind === "FIGURATIVE" || supportKind === "CONTEXTUAL_TEXTURE") &&
+        concreteClaims.length > 0;
+
+      if (
+        item.supported !== true ||
+        !allowedSupportKind ||
+        unsupportedClaims.length ||
+        contradictoryConcreteFraming
+      ) {
+        continue;
+      }
+
+      const sourceEventIds = Array.isArray(item.sourceEventIds)
+        ? unique(
+            item.sourceEventIds
+              .filter((id): id is string => typeof id === "string")
+              .filter((id) => allowedIds.has(id)),
+          )
+        : [];
+
+      if (!sourceEventIds.length) continue;
+
+      const fragment = fragments[clauseIndex];
+      if (!fragment) continue;
+      // No lexical temporal veto. Reject only when semantic verification identifies a real unsupported timing claim.
+      if (
+        hasUnsupportedSensoryClaim(fragment, suppliedRealityText) &&
+        supportKind !== "FIGURATIVE" &&
+        supportKind !== "CONTEXTUAL_TEXTURE"
+      ) {
+        continue;
+      }
+
+      supportedFragments.push(fragment);
+      sourceEventIds.forEach((id) => supportedIds.add(id));
+    }
+
+    if (!supportedFragments.length || !supportedIds.size) return [];
+
+    const text = clean(supportedFragments.join(" "));
+
+    return [{
+      ...scene,
+      text,
+      sourceEventIds: [...supportedIds],
+    }];
+  });
 }
 
 const SENSORY_CLAIM_LANGUAGE =
@@ -108,12 +280,12 @@ function reconciledUnsupportedClaims(input: {
 }
 
 export async function verifyAuthorCreativeGrounding(input: {
-  scenes: Array<AuthorScene & { sourceEventIds: string[] }>;
+  scenes: AuthorGroundingScene[];
   suppliedReality: readonly { id: string; text: string }[];
   semanticAuthority?: readonly string[];
   domainContext?: AuthorDomainContext;
 }): Promise<{
-  scenes: Array<AuthorScene & { sourceEventIds: string[] }>;
+  scenes: AuthorGroundingScene[];
   model: string;
   modelCalls: number;
 }> {
@@ -125,14 +297,7 @@ export async function verifyAuthorCreativeGrounding(input: {
     };
   }
 
-  const atomicClauses = input.scenes.flatMap((scene, sceneIndex) =>
-    beatClauses(scene.text).map((text, clauseIndex) => ({
-      sceneIndex,
-      clauseIndex,
-      text,
-      groundingHint: scene.sourceEventIds,
-    })),
-  );
+  const atomicClauses = buildAuthorGroundingAtomicClauses(input.scenes);
 
   const system = [
     "You are QRE Atomic Semantic Grounding.",
@@ -140,46 +305,50 @@ export async function verifyAuthorCreativeGrounding(input: {
     "",
     "You receive ATOMIC_CLAUSES plus the full SEQUENCE. Audit every clause independently, but interpret each clause pragmatically in the context of the full sequence.",
     "Distinguish MATERIAL REALITY from STORY TEXTURE.",
-    "MATERIAL REALITY includes actors, deliberate actions, body actions, objects materially introduced into the event, ownership, motive, causality, chronology, success/failure, completed outcomes, relational status, and physical state changes. Material reality must be directly established by SUPPLIED_REALITY or be an unavoidable semantic paraphrase.",
-    "STORY TEXTURE may be allowed only when a clause is a nonliteral or hyperbolic rendering of the physical envelope already inherent in an explicitly supplied event. WORLD_CONTEXT may help interpret that texture but cannot supply missing scenery or physical details.",
-    "Story texture must not change what happened. It cannot add a new actor, deliberate action, body action, ownership, motive, causal relation, successful outcome, chronology, or consequential state.",
-    "Typicality alone is not enough for material reality, but ordinary event texture can support non-material creative language. Example: in a supplied bath inside grooming context, 'Water. Everywhere.' can function as hyperbolic texture around the bath; it does not mean QRE knows a literal flood occurred.",
-    "By contrast, a supplied bath does not establish that the subject shook, wagged, escaped, resisted, liked it, hated it, or became free.",
-    "Do not convert emotion into body behavior. Happy does not establish wagging, smiling, jumping, posture, movement, or excitement.",
-    "A neutral encounter does not establish reception by the other party. Meeting or seeing another person or animal does not by itself establish welcome, greeting, approval, affection, friendliness, invitation, or rejection.",
-    "Explicit praise establishes the praise itself, not the recipient's reaction to it. Being called cute does not establish blushing, pride, embarrassment, warmth, delight, feeling noticed, feeling appreciated, or any other bodily or emotional response unless supplied.",
-    "A supplied duration establishes how long the event lasted. It does not establish that the duration felt too short, too long, insufficient, excessive, regretted, cherished, or that anyone wanted more or less time unless supplied.",
-    "PARAPHRASE must preserve predicate type. An emotion/state may paraphrase to another emotion/state word, but never to a physical action. A physical action may paraphrase to another description of that same action, but not to a merely associated action.",
-    "Do not decide by vocabulary alone. A bodily phrase can function as expressive embodiment rather than historical reporting. If a reasonable viewer reads a phrase such as 'Pulse quickens.' as stylized felt language for supplied nervousness, it may be FIGURATIVE and need not assert a measured physical event. But a concrete bodily action that reads as something the subject literally did—such as 'Tail wags', 'she jumped', or 'he paced the room'—is MATERIAL REALITY and requires support.",
-    "Near-completion language still makes a material claim. Words such as almost, nearly, about to, close to, or on the verge of an outcome require reality to establish that trajectory toward the outcome. An attempted action does not by itself establish that success was nearly achieved.",
-    "Comparative or compressed timing is also a claim when it changes how long something lasted or how abruptly it happened. Words such as brief, briefly, long, quickly, suddenly, promptly, instantly, finally, or still require supplied reality or sequence context that genuinely supports that timing relation. Do not excuse them as texture when they label duration or abruptness not established by the facts.",
-    "A supplied duration establishes elapsed duration, not a timer, deadline, countdown, schedule limit, or forced stopping condition. 'Time’s up', 'clock ran out', or equivalent deadline language is UNSUPPORTED unless such a timer/deadline is supplied.",
-    "A supplied walk establishes walking, not manner of gait. Words such as ambled, trotted, bounded, hurried, dragged, wandered, or strolled add physical manner unless supplied and must be rejected when used literally.",
-    "Do not convert an attempted action into motive, ownership, success, completion, release, freedom, rebellion, resistance, or preference unless reality explicitly establishes that claim.",
-    "Do not convert chronology or an ending into causality, resolution, finally, freedom, relief, acceptance, or a reason for the later state unless reality explicitly establishes it.",
-    "A supplied before-state and after-state establish contrast, not the mechanism of transition. Even when phrased figuratively, do not accept language that says something was shed, dissolved, released, lifted off, broken through, unlocked, escaped, or otherwise removed/overcome unless SUPPLIED_REALITY establishes that mechanism.",
-    "A state-change metaphor is not automatically harmless texture. Ask whether it merely renders the supplied state itself, or whether it smuggles in an unseen transition mechanism between states. Reject the latter.",
-    "Do not carry a state forward across time merely because it was established earlier in the sequence. If a person was lighter afterward and then met someone again the next week, the later meeting does not establish that the person was still lighter, relieved, unburdened, calm, happy, nervous, or in any other prior state unless continuity is explicitly supplied.",
-    "A later beat may CALLBACK to an earlier state as earlier context, but it may not re-assert that state as contemporaneous with the later event. Distinguish 'Echo of lightness. Return.' from 'Returned unburdened.' The first can be figurative callback; the second claims state continuity.",
-    "Do not strengthen a supplied state into a different unsupported condition. 'Felt lighter afterward' does not by itself establish comfort, ease, trust, safety, confidence, reassurance, effortlessness, or settledness.",
-    "A single supplied recurrence establishes only that the event happened again. It does not establish predictability, routine, habit, inevitability, regular cadence, or that an earlier event prompted/caused the recurrence.",
+    "MATERIAL REALITY includes entities, actions, states, relationships, ownership, motive, causality, chronology, success or failure, completed outcomes, measurements, quantities, colors, temperatures, materials, sensory properties, physical attributes, physical manifestations, methods, components, environmental details, and concrete state changes. Material reality must be directly established by SUPPLIED_REALITY or be an unavoidable semantic paraphrase.",
+    "Reality is closed; discourse is open. New language, generalized reference, rhetorical POV, personification, implication, metaphor, and derived significance may be grounded when they create no additional world commitment.",
+    "Mention is not participation. A category, role, group, narrator, institution, object voice, place voice, or social class may appear in expressive language without becoming a factual participant in the occurrence.",
+    "POV licenses voice, not events. A rhetorical speaker is not automatically a literal actor, observer, thinker, or source of additional history.",
+    "Universal authority test: strip away rhetoric, metaphor, POV, personification, generalized reference, abstraction, comparison, implication, interpretation, attitude, and discovered significance; then ask what additional thing the viewer must believe actually happened.",
+    "A supplied object, entity, event, action, state, or relationship licenses that supplied reality only.",
+    "Existence does not establish properties. A supplied event or object does not establish an unreported measurement, quantity, color, temperature, material, sensory property, physical attribute, physical manifestation, method, component, environmental detail, cause, outcome, mental state, preference, motive, or other concrete specificity.",
+    "A supplied specificity becomes usable reality, but it does not unlock neighboring properties.",
+    "Do not infer details from common sense, world knowledge, domain familiarity, likelihood, typical consequences, implication, association, narrative convention, or what usually happens.",
+    "An action does not establish its method, manner, tool, component, motive, preference, success, failure, ownership, or outcome unless supplied.",
+    "A state or emotion does not establish bodily behavior, visible manifestation, private thought, preference, cause, or later continuity unless supplied.",
+    "Chronology does not establish causality, resolution, transition mechanism, urgency, or duration beyond what is supplied.",
+    "A recurrence establishes only the supplied recurrence, not predictability, routine, habit, inevitability, cadence, or cause unless supplied.",
+    "PARAPHRASE must preserve predicate type. A state may paraphrase to the same supplied state type, an action to the same supplied action type, and a property to the same supplied property type. It may not cross into a neighboring concrete or mental fact.",
+    "Do not decide by vocabulary alone. Decide whether the clause is nonliteral framing of supplied reality or whether it asserts an additional concrete or mental fact.",
+    "Near-completion, comparative timing, compressed timing, and continuity language make material claims when they change trajectory, duration, abruptness, persistence, or sequence. Those claims require supplied evidence.",
+    "STORY TEXTURE may be allowed only when it is nonliteral framing of the supplied reality itself. WORLD_CONTEXT may help interpret vocabulary, but it cannot supply missing specifics.",
+    "A supplied duration establishes elapsed duration, not a timer, deadline, countdown, schedule limit, felt duration, or forced stopping condition unless those specifics are supplied.",
+    "Do not convert a supplied action into unsupplied manner, method, motive, ownership, success, completion, release, resistance, preference, or outcome.",
+    "Do not convert chronology or an ending into causality, resolution, transition, relief, acceptance, or a reason for the later state unless reality explicitly establishes it.",
+    "A supplied before-state and after-state establish contrast, not the mechanism of transition. Even when phrased figuratively, reject language that adds an unseen transition mechanism unless supplied.",
+    "A state-change metaphor is not automatically harmless texture. Ask whether it merely renders the supplied state itself, or whether it smuggles in an unseen transition mechanism between states.",
+    "Do not carry a state forward across time merely because it was established earlier in the sequence. Continuity must be explicitly supplied.",
+    "A later beat may callback to an earlier state as earlier context, but it may not re-assert that state as contemporaneous with the later event unless supplied.",
+    "Do not strengthen a supplied state into a different unsupported condition.",
     "An associated place, object, body part, sensory property, actor, physical consequence, scenery element, weather condition, or lighting element is a new concrete claim unless supplied.",
-    "Do not use CONTEXTUAL_TEXTURE as a generic mood generator for emotions or states. A supplied state such as happy, nervous, sad, calm, or relieved does not authorize invented sun, breeze, warmth, darkness, rain, tail, paws, eyes, heartbeat, room, street, or other environmental/body imagery. Texture must attach to an event whose supplied physical envelope actually supports it.",
-    "Preserve object identity. Figurative language may react to or characterize a supplied object, but it must not silently replace that object with a different concrete object. A supplied bow may be ridiculous, dramatic, ceremonial, or treated like a crown in attitude, but stating that it was literally a crown, hat, flower, costume, or other object changes material reality unless that object is supplied.",
-    "Distinguish performed attitude from asserted motive. A line can sound defiant, annoyed, proud, dramatic, or possessive as voice without establishing that the subject actually held that motive. But abstract labels such as rebellion, revenge, surrender, liberation, defiance, acceptance, or victory should be rejected when they function as factual explanations of why an action happened rather than obvious performed framing.",
+    "Do not use CONTEXTUAL_TEXTURE as a generic mood generator for emotions or states. Texture must attach to supplied reality without adding hidden world material.",
+    "Preserve object identity. Figurative language may react to or characterize a supplied object, but it must not silently replace that object or turn one supplied property into another unsupplied property.",
+    "Distinguish performed attitude from asserted motive. A line can sound evaluative or dramatic without establishing that the subject actually held a motive, preference, decision, or private state.",
     "",
     "Creative figurative language may survive when a reasonable viewer reads it as nonliteral framing of supplied reality and it carries no unsupported concrete premise.",
-    "Figurative language is grounded only when its meaning can be derived from SUPPLIED_REALITY without requiring an unsupplied hidden world.",
-    "A rhetorical role may be applied to a supplied fact without creating a world fact. Example: 'The evidence is red' can be FIGURATIVE when it frames a supplied red bow; it must not imply a real case, court, investigator, filing, lawyer, or institution.",
-    "Reject rhetorical pressure when it crosses into a material event. 'Lawyer notified', 'case filed', 'verdict returned', 'room went silent', or equivalent claims require supplied reality.",
-    "A clause is UNSUPPORTED when understanding it requires the viewer to believe that something exists, happened, persisted, caused something, felt something, observed something, or was present outside SUPPLIED_REALITY.",
+    "Figurative language and derived meaning are grounded when their meaning can be derived from SUPPLIED_REALITY without requiring an unsupplied hidden concrete occurrence.",
+    "Derived meaning may say a supplied event mattered, changed how another supplied event reads, became setup, became payoff, felt less accidental, or gained significance, provided it does not add an unsupplied event, action, participant, object, place, physical state, mental state, cause, chronology, outcome, property, measurement, sensory detail, or state change.",
+    "A rhetorical role may be applied to a supplied fact without creating a world fact. Reject rhetorical pressure when it crosses into a material entity, event, property, state, cause, method, measurement, or outcome.",
+    "Generalized category commentary may survive when it does not require a specific unsupplied member to have existed, acted, interacted, observed, felt, caused, received, occupied a concrete relation, or changed the world.",
+    "A clause is UNSUPPORTED when understanding it requires the viewer to believe that an unsupplied concrete occurrence exists, happened, persisted, caused something, felt something, observed something, or was present outside SUPPLIED_REALITY.",
     "Nonliteral wording does not make hidden entities, hidden states, hidden causes, hidden observers, hidden routines, hidden traces, or hidden outcomes safe.",
-    "APPROVED_SEMANTIC_AUTHORITY is upstream non-factual meaning already accepted by QRE Discovery. It may authorize abstract framing, implication, status language, metaphor, performed attitude, or relation words that express that approved meaning. It NEVER authorizes a new actor, object, body action, physical action, location, cause, chronology, motive, ownership fact, completed outcome, or other concrete occurrence.",
-    "Voice and personification may use words that would be material if read literally, but only when the full sequence makes the nonliteral performance clear. Example: a character-like 'Mine.' can be FIGURATIVE voice anchored to interaction with a supplied object without asserting legal or factual ownership. Do not call that PARAPHRASE. If the sequence instead reads as a factual ownership claim, reject it.",
+    "APPROVED_SEMANTIC_AUTHORITY is upstream non-factual meaning already accepted by QRE Discovery. It may authorize abstract framing, implication, status language, metaphor, performed attitude, or relation words that express that approved meaning. It NEVER authorizes a new entity, object, action, location, cause, chronology, motive, ownership fact, physical property, measurement, sensory detail, completed outcome, or other concrete occurrence.",
+    "Voice and personification may use words that would be material if read literally, but only when the full sequence makes the nonliteral performance clear. Do not call that PARAPHRASE. If the sequence instead reads as a factual claim, reject it.",
     "Questions, reactions, fragments, attitude, metaphor, understatement, and exaggeration are allowed only when they do not assert hidden reality.",
-    "A hidden mental proposition is hidden reality too. Do not accept an unspoken question, expectation, test, evaluation, decision, near-miss, almost-outcome, or latent relationship state unless SUPPLIED_REALITY establishes that premise.",
+    "A hidden mental proposition is hidden reality too. Do not accept an unspoken question, expectation, test, evaluation, decision, near-miss, almost-outcome, or latent relationship state unless SUPPLIED_REALITY establishes that premise. Do not treat derived significance or relation words by themselves as hidden mental propositions when they introduce no new concrete occurrence.",
     "Figurative language may transform supplied events, but it may not invent what someone was privately asking, expecting, testing, deciding, hoping, almost doing, or nearly becoming.",
-    "Words such as always, never, still, already, yet, first, or last are not violations by vocabulary alone. Decide whether the clause actually asserts unsupported chronology or an absolute material history. Performed preference, emphasis, or compressed voice may use them nonliterally.",
+    "FIGURATIVE, PARAPHRASE, and CONTEXTUAL_TEXTURE cannot sanitize an embedded unsupported concrete or mental proposition.",
+    "Words are not violations by vocabulary alone. Decide whether the clause actually asserts unsupported material reality or only amplifies supplied reality.",
     "",
     "For each atomic clause:",
     "1. extract concreteClaims: every material real-world claim or relational premise carried by the clause;",
@@ -193,6 +362,10 @@ export async function verifyAuthorCreativeGrounding(input: {
     "CONTEXTUAL_TEXTURE is allowed only for non-material scene texture. Never use it to excuse a new action, body behavior, outcome, motive, ownership, cause, chronology, or state change.",
     "",
     "groundingHint is only a clue from the writer. Never treat it as evidence by itself.",
+    "priorAudit is upstream Claim Auditor context attached to an exact surviving authored span when available. It is not evidence, proof, support, or a bypass.",
+    "Never set supported=true because priorAudit.classification is KEEP_EXPRESSION or SUPPORTED_REALITY.",
+    "Never treat priorAudit.sourceEventIds as proof. Supplied reality remains the truth authority.",
+    "Unsupported concrete or mental reality must still be rejected even if priorAudit classified the span as KEEP_EXPRESSION.",
     "Return exactly one verification for every atomic clause, preserving sceneIndex and clauseIndex.",
   ].join("\n");
 
@@ -211,13 +384,14 @@ export async function verifyAuthorCreativeGrounding(input: {
           })),
           ATOMIC_CLAUSES: atomicClauses,
           instruction:
-            "Audit every atomic clause independently, but read the whole SEQUENCE before deciding what each clause pragmatically means. Protect material truth while preserving imaginative story texture and performed voice. FIGURATIVE is grounded only when the figurative meaning comes from SUPPLIED_REALITY; if understanding the clause requires a hidden entity, observer, state, cause, outcome, persistence, routine, trace, or presence, mark it UNSUPPORTED. Treat APPROVED_SEMANTIC_AUTHORITY as permission for nonliteral framing only; do not require its abstract relation words to be literally present in SUPPLIED_REALITY, and never let it authorize a concrete event. Keep fields logically consistent: supported=true requires unsupportedClaims=[]. Preserve object identity, predicate type, sequence, duration, recurrence, and source evidence. WORLD_CONTEXT helps interpret texture and vocabulary but never becomes historical evidence.",
+            "Audit every atomic clause independently, but read the whole SEQUENCE before deciding what each clause pragmatically means. Protect material truth while preserving imaginative story texture and performed voice. FIGURATIVE, generalized reference, rhetorical POV, personification, implication, and derived meaning are grounded when their meaning comes from SUPPLIED_REALITY and requires no additional participation; if understanding the clause requires a hidden entity, observer, concrete or mental state, material cause, outcome, persistence, routine, trace, presence, or other new concrete occurrence, mark it UNSUPPORTED. Treat APPROVED_SEMANTIC_AUTHORITY as permission for nonliteral framing only; do not require its abstract relation words to be literally present in SUPPLIED_REALITY, and never let it authorize a concrete event. Keep fields logically consistent: supported=true requires unsupportedClaims=[]. Preserve object identity, predicate type, sequence, duration, recurrence, and source evidence. WORLD_CONTEXT helps interpret texture and vocabulary but never becomes historical evidence.",
         }),
       },
     ],
     "json",
     {
       numPredict: Math.max(420, atomicClauses.length * 90),
+      openRouterMaxTokens: 1200,
       temperature: 0.06,
       jsonSchema: {
         type: "object",
@@ -284,109 +458,10 @@ export async function verifyAuthorCreativeGrounding(input: {
     ? parsed.verifications
     : [];
 
-  const allowedIds = new Set(input.suppliedReality.map((event) => event.id));
-  const suppliedRealityText = input.suppliedReality
-    .map((event) => event.text)
-    .join(" ");
-
-  const verificationByClause = new Map<string, AtomicVerification>();
-
-  for (const value of raw) {
-    if (!value || typeof value !== "object") continue;
-    const item = value as AtomicVerification;
-    const sceneIndex = Number(item.sceneIndex);
-    const clauseIndex = Number(item.clauseIndex);
-    if (!Number.isInteger(sceneIndex) || !Number.isInteger(clauseIndex)) continue;
-    verificationByClause.set(`${sceneIndex}:${clauseIndex}`, item);
-  }
-  // Timing words are interpreted semantically by the verifier model and unsupported-claim reconciliation.
-  // There is no second vocabulary-level veto here.
-const scenes = input.scenes.flatMap((scene, sceneIndex) => {
-    const fragments = beatClauseFragments(scene.text);
-    const clauses = beatClauses(scene.text);
-    const supportedIds = new Set<string>();
-    const supportedFragments: string[] = [];
-
-    for (let clauseIndex = 0; clauseIndex < clauses.length; clauseIndex += 1) {
-      const item = verificationByClause.get(`${sceneIndex}:${clauseIndex}`);
-      if (!item) continue;
-
-      const rawUnsupportedClaims = Array.isArray(item.unsupportedClaims)
-        ? item.unsupportedClaims
-            .filter((claim): claim is string => typeof claim === "string")
-            .map(clean)
-            .filter(Boolean)
-        : [];
-
-      const concreteClaims = Array.isArray(item.concreteClaims)
-        ? item.concreteClaims
-            .filter((claim): claim is string => typeof claim === "string")
-            .map(clean)
-            .filter(Boolean)
-        : [];
-
-      const supportKind = clean(item.supportKind).toUpperCase();
-      const allowedSupportKind =
-        supportKind === "DIRECT" ||
-        supportKind === "PARAPHRASE" ||
-        supportKind === "FIGURATIVE" ||
-        supportKind === "CONTEXTUAL_TEXTURE";
-
-      const unsupportedClaims = reconciledUnsupportedClaims({
-        clauseText: clauses[clauseIndex] ?? "",
-        supported: item.supported,
-        supportKind,
-        concreteClaims,
-        unsupportedClaims: rawUnsupportedClaims,
-      });
-
-      const contradictoryConcreteFraming =
-        (supportKind === "FIGURATIVE" || supportKind === "CONTEXTUAL_TEXTURE") &&
-        concreteClaims.length > 0;
-
-      if (
-        item.supported !== true ||
-        !allowedSupportKind ||
-        unsupportedClaims.length ||
-        contradictoryConcreteFraming
-      ) {
-        continue;
-      }
-
-      const sourceEventIds = Array.isArray(item.sourceEventIds)
-        ? unique(
-            item.sourceEventIds
-              .filter((id): id is string => typeof id === "string")
-              .filter((id) => allowedIds.has(id)),
-          )
-        : [];
-
-      if (!sourceEventIds.length) continue;
-
-      const fragment = fragments[clauseIndex];
-      if (!fragment) continue;
-      // No lexical temporal veto. Reject only when semantic verification identifies a real unsupported timing claim.
-if (
-        hasUnsupportedSensoryClaim(fragment, suppliedRealityText) &&
-        supportKind !== "FIGURATIVE" &&
-        supportKind !== "CONTEXTUAL_TEXTURE"
-      ) {
-        continue;
-      }
-
-      supportedFragments.push(fragment);
-      sourceEventIds.forEach((id) => supportedIds.add(id));
-    }
-
-    if (!supportedFragments.length || !supportedIds.size) return [];
-
-    const text = clean(supportedFragments.join(" "));
-
-    return [{
-      ...scene,
-      text,
-      sourceEventIds: [...supportedIds],
-    }];
+  const scenes = applyAuthorGroundingVerifications({
+    scenes: input.scenes,
+    suppliedReality: input.suppliedReality,
+    verifications: raw,
   });
 
   return {

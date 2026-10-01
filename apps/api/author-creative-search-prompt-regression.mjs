@@ -87,7 +87,7 @@ mustContain(
 );
 mustContain(
   prompt,
-  /not invent people, objects, places, physical actions, sensory facts, measurements, motives, outcomes, recurrence, physical conditions, or any new concrete occurrence/i,
+  /not invent participation or concrete world commitments: participants, objects, places, physical actions, interactions, observations, sensory facts, measurements, motives, outcomes, recurrence, physical conditions, causality, or any new concrete occurrence/i,
   "Creative Search must preserve closed-world concrete reality protection",
 );
 mustContain(

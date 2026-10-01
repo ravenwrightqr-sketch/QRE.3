@@ -1,5 +1,6 @@
 import type { AuthorDomainContext, AuthorScene } from "@qre/contracts";
 import { localModelGenerate } from "./localModelRuntime.js";
+import type { LocalModelJsonSchema } from "./localModelRuntime.js";
 import type { AuthorCreativeDiscovery } from "./authorCreativeDiscovery.js";
 import { evaluateAuthorCut } from "./authorCutFloor.js";
 import { QRE_CREATIVE_OPERATING_DOCTRINE } from "./authorCreativeDoctrine.js";
@@ -45,7 +46,7 @@ function authorRealityEditorExperimentEnabled(): boolean {
   return process.env[AUTHOR_REALITY_EDITOR_EXPERIMENT_FLAG] === "true";
 }
 
-function parseJson(text: string): Record<string, unknown> | undefined {
+export function parseJson(text: string): Record<string, unknown> | undefined {
   const source = clean(text)
     .replace(/^\`\`\`(?:json)?/i, "")
     .replace(/\`\`\`$/i, "")
@@ -108,12 +109,14 @@ export type AuthorCreativeTreatmentAssignment = {
   intensity: "LIGHT" | "MEDIUM" | "STRONG";
 };
 
-export type AuthorProductionLetter = "A" | "B" | "C" | "D";
+export type AuthorProductionLetter = "A" | "B" | "C" | "D" | "ASSEMBLED";
 
 export type AuthorMemoryMouthLine = {
   order: number;
   text: string;
   sourceEventIds: string[];
+  synthesizedFrom?: string[];
+  auditSpans?: AuthorRealityClaimAuditSpan[];
 };
 
 export type AuthorMemoryMouthProduction = {
@@ -149,10 +152,131 @@ export type AuthorRealityEditorPayload = {
   instruction: string;
 };
 
+export type AuthorRealityClaimClassification =
+  | "SUPPORTED_REALITY"
+  | "KEEP_EXPRESSION"
+  | "UNSUPPORTED_REALITY";
+
+const AUTHOR_REALITY_CLAIM_CLASSIFICATIONS: AuthorRealityClaimClassification[] = [
+  "SUPPORTED_REALITY",
+  "KEEP_EXPRESSION",
+  "UNSUPPORTED_REALITY",
+];
+
+export type AuthorRealityClaimAuditSpan = {
+  exactText: string;
+  classification: AuthorRealityClaimClassification;
+  sourceEventIds: string[];
+};
+
+export type AuthorRealizationMaterialKind =
+  | "EXPRESSIVE_PERSPECTIVE"
+  | "SUPPLIED_REALITY_MATERIAL";
+
+export type AuthorizedRealization = {
+  id: string;
+  sourceProduction: "A" | "B" | "C";
+  text: string;
+  classification: Exclude<AuthorRealityClaimClassification, "UNSUPPORTED_REALITY">;
+  sourceEventIds: string[];
+  originalOrder: number;
+  sourceLineOrder?: number;
+  spanIndex: number;
+  materialKind: AuthorRealizationMaterialKind;
+};
+
+export type AuthorAssembledCandidate = {
+  production: "ASSEMBLED";
+  rawText: string;
+  lines: AuthorMemoryMouthLine[];
+  sourceRealizationIds: string[];
+  omittedSourceEventIds: string[];
+};
+
+export type AuthorRealizationSynthesizerInput = {
+  subject: string;
+  suppliedReality: Array<{
+    id: string;
+    text: string;
+  }>;
+  authorizedRealizationPool: Array<{
+    id: string;
+    sourceProduction: "A" | "B" | "C";
+    text: string;
+    classification: Exclude<AuthorRealityClaimClassification, "UNSUPPORTED_REALITY">;
+    sourceEventIds: string[];
+    materialKind: AuthorRealizationMaterialKind;
+  }>;
+  forbiddenTexts: string[];
+};
+
+export type AuthorSynthesizedAssemblyLine = {
+  order: number;
+  text: string;
+  synthesizedFrom: string[];
+  sourceEventIds: string[];
+};
+
+export type AuthorSynthesizedAssemblyOutput = {
+  production: "ASSEMBLED";
+  lines: AuthorSynthesizedAssemblyLine[];
+};
+
+export type AuthorSynthesisAttemptResult = {
+  input: AuthorRealizationSynthesizerInput;
+  rawOutput: string;
+  candidate?: AuthorAssembledCandidate;
+  claimAuditor?: AuthorRealityClaimAuditDiagnostic;
+  realityEditor?: AuthorRealityEditorApplyResult;
+  truthResult: AuthorAssemblyTruthResult;
+  model: string;
+  modelCalls: number;
+};
+
+export type AuthorAssemblyTruthResult = {
+  eligible: boolean;
+  reasons: string[];
+  candidate?: AuthorAssembledCandidate;
+  scoring?: {
+    accepted: boolean;
+    score: number;
+    reasons: string[];
+    lines: Array<{
+      order: number;
+      text: string;
+      sourceEventIds: string[];
+      accepted: boolean;
+      score: number;
+      reasons: string[];
+    }>;
+  };
+};
+
+export type AuthorCreativeGroundedScene = AuthorScene & {
+  sourceEventIds: string[];
+  auditSpans?: AuthorRealityClaimAuditSpan[];
+};
+
+export type AuthorRealityClaimAuditDiagnostic = {
+  production: "A" | "B" | "C";
+  originalText: string;
+  spans: AuthorRealityClaimAuditSpan[];
+  removedSpans: string[];
+  reconstructedText: string;
+  semanticClassificationValid: boolean;
+  auditProtocolValid: boolean;
+  exactSpanMappingValid: boolean;
+  unsupportedDeletionRequired: boolean;
+  survivorIntegrity: "INTACT" | "FRACTURED" | "NOT_REQUIRED";
+  rejectionReason?: string;
+  unusableReason?: string;
+};
+
 export type AuthorRealityEditorApplyResult = {
   productions: AuthorMemoryMouthProduction[];
   applied: boolean;
   reason?: string;
+  diagnostics: AuthorRealityClaimAuditDiagnostic[];
 };
 
 export type AuthorCreativeTreatmentMouthAssignment =
@@ -584,6 +708,39 @@ export function unsupportedTreatmentMaterialReason(input: {
   }
 
   if (
+    /\b(?:introduce|add|create|invent|include|assume)\b[^.!?]{0,64}\b(?:smell|odor|scent|sound|noise|texture|taste|temperature|lighting|light|shadow|silence|residue)\b/i.test(text)
+  ) {
+    return "requires unsupplied concrete sensory reality";
+  }
+
+  if (
+    /\b(?:used?|uses|using|with|via)\b[^.!?]{0,48}\b(?:checklist|contract|form|document|tool|equipment|script|procedure)\b/i.test(text)
+  ) {
+    return "requires unsupplied method, tool, or document";
+  }
+
+  if (
+    !sourceHasRecurrence &&
+    /\b(?:service|subject|customer|worker|cleaner|they|he|she|it)\s+(?:returns?|returned|comes?|came|visits?|visited)\s+(?:weekly|daily|monthly|again|every\b)/i.test(text)
+  ) {
+    return "adds unsupplied recurrence";
+  }
+
+  if (
+    /\b(?:signed|filed|notified)\b[^.!?]{0,48}\b(?:contract|case|lawyer|agent|customer|owner)\b|\b(?:contract|case|lawyer|agent|customer|owner)\b[^.!?]{0,48}\b(?:signed|filed|notified)\b/i.test(text)
+  ) {
+    return "requires unsupplied concrete interaction or document event";
+  }
+
+  if (/\broom\s+went\s+silent\b/i.test(text)) {
+    return "requires unsupplied environmental sensory outcome";
+  }
+
+  if (/\b(?:visuals?|camera|lighting|sound|audio|render(?:ing)?|shots?|edits?)\b/i.test(text)) {
+    return "rendering direction";
+  }
+
+  if (
     /\b(?:actual|literal|real|physical|concrete)\s+(?:spy|courtroom|lawyer|weapon|handler|enemy|boss|kingdom|quest|mission|battle|crime|investigation)\b/i.test(text)
   ) {
     return "literalizes rhetorical framing into unsupplied reality";
@@ -790,6 +947,40 @@ function validStoryEventIds(
     : [];
 }
 
+function authorRealityClaimAuditSpans(
+  value: unknown,
+  suppliedReality: readonly AuthorCreativeEvent[],
+): AuthorRealityClaimAuditSpan[] {
+  if (!Array.isArray(value)) return [];
+
+  return value
+    .map((item): AuthorRealityClaimAuditSpan | undefined => {
+      if (!item || typeof item !== "object") return undefined;
+      const record = item as Record<string, unknown>;
+      const exactText = record.exactText;
+      const classification = clean(record.classification).toUpperCase();
+      if (
+        typeof exactText !== "string" ||
+        !clean(exactText) ||
+        !AUTHOR_REALITY_CLAIM_CLASSIFICATIONS.includes(
+          classification as AuthorRealityClaimClassification,
+        )
+      ) {
+        return undefined;
+      }
+      return {
+        exactText,
+        classification: classification as AuthorRealityClaimClassification,
+        sourceEventIds: validStoryEventIds(
+          record.sourceEventIds,
+          suppliedReality,
+          32,
+        ),
+      };
+    })
+    .filter((item): item is AuthorRealityClaimAuditSpan => Boolean(item));
+}
+
 function isOperationalOnlyStoryEvent(event: AuthorCreativeEvent | undefined): boolean {
   if (!event) return false;
   const text = clean(event.text).toLowerCase();
@@ -926,7 +1117,7 @@ export async function searchAuthorCreativeLensTreatments(input: {
           "The three conceptions do not need to divide or collectively cover the supplied reality. Multiple conceptions may use the same evidence.",
           "evidenceEventIds are provenance only. Choose them because they licensed the thought, not because events need coverage. They are not output slots, rewrite assignments, coverage obligations, or public representation requirements.",
           "Invent perception, attitude, implication, metaphorical thought, judgment, humor, or recontextualization freely. Do not invent concrete occurrence.",
-          "Do not invent people, objects, places, physical actions, sensory facts, measurements, motives, outcomes, recurrence, physical conditions, or any new concrete occurrence.",
+          "Do not invent participation or concrete world commitments: participants, objects, places, physical actions, interactions, observations, sensory facts, measurements, motives, outcomes, recurrence, physical conditions, causality, or any new concrete occurrence.",
           "Do not return observation, meaning, interpretation, relation, rationale, explanation, theme, mechanic, lens, treatment instructions, story, arc, or public prose.",
           "Protect strange thinking; police factual invention later.",
         ].join("\n"),
@@ -1739,6 +1930,7 @@ type MemorySequenceCandidate = {
     beatFacts: string[];
     semanticMove: string;
     text: string;
+    auditSpans?: AuthorRealityClaimAuditSpan[];
     accepted: boolean;
     score: number;
     reasons: string[];
@@ -1948,6 +2140,9 @@ function scoreExpressiveMemoryProduction(
         beatFacts,
         semanticMove: semanticAuthority.join(" | "),
         text: clean(mouthLine.text),
+        ...(mouthLine.auditSpans?.length
+          ? { auditSpans: mouthLine.auditSpans.map((span) => ({ ...span })) }
+          : {}),
         ...base,
         accepted,
         score: operationalAnchorFailure ? 0 : base.score,
@@ -2137,7 +2332,7 @@ type AuthorMemorySelectionChoice = {
 };
 
 export type AuthorMemoryProductionEvaluation = {
-  scenes: Array<AuthorScene & { sourceEventIds: string[] }>;
+  scenes: AuthorCreativeGroundedScene[];
   selectedProduction?: AuthorProductionLetter;
   productions: Array<{
     production: AuthorProductionLetter;
@@ -2148,13 +2343,17 @@ export type AuthorMemoryProductionEvaluation = {
       order: number;
       text: string;
       sourceEventIds: string[];
+      auditSpans?: AuthorRealityClaimAuditSpan[];
+      accepted: boolean;
+      score: number;
+      reasons: string[];
     }>;
   }>;
   choices: AuthorMemorySelectionChoice[];
 };
 
 function productionLetterFromVariantIndex(index: number): AuthorProductionLetter {
-  return (["A", "B", "C", "D"][index] ?? "D") as AuthorProductionLetter;
+  return (["A", "B", "C", "D", "ASSEMBLED"][index] ?? "D") as AuthorProductionLetter;
 }
 
 function deterministicBareVariantsByOrder(
@@ -2189,6 +2388,12 @@ function buildMemoryProductionDiagnostics(
       order: line.order,
       text: line.text,
       sourceEventIds: [...line.sourceEventIds],
+      ...(line.auditSpans?.length
+        ? { auditSpans: line.auditSpans.map((span) => ({ ...span })) }
+        : {}),
+      accepted: line.accepted,
+      score: line.score,
+      reasons: [...line.reasons],
     })),
   }));
 }
@@ -2197,7 +2402,7 @@ function scenesFromMemoryWinner(
   winner: MemorySequenceCandidate | undefined,
   plan: AuthorSemanticPlan,
   suppliedReality: readonly AuthorCreativeEvent[],
-): Array<AuthorScene & { sourceEventIds: string[] }> {
+): AuthorCreativeGroundedScene[] {
   if (!winner) {
     return plan.beats
       .map((beat, index) => ({
@@ -2216,6 +2421,9 @@ function scenesFromMemoryWinner(
         text: line.text,
         kind: memoryLineKind(index, all.length),
         sourceEventIds: [...line.sourceEventIds],
+        ...(line.auditSpans?.length
+          ? { auditSpans: line.auditSpans.map((span) => ({ ...span })) }
+          : {}),
       }));
   }
 
@@ -2227,6 +2435,9 @@ function scenesFromMemoryWinner(
         ? beatKind(line.beat.role, index, winner.lines.length)
         : memoryLineKind(index, winner.lines.length),
       sourceEventIds: [...line.sourceEventIds],
+      ...(line.auditSpans?.length
+        ? { auditSpans: line.auditSpans.map((span) => ({ ...span })) }
+        : {}),
     }));
 }
 
@@ -2235,6 +2446,7 @@ function selectMemoryProductionCandidate(input: {
   suppliedReality: readonly AuthorCreativeEvent[];
   subject: string;
   expressiveProductions: readonly AuthorMemoryMouthProduction[];
+  assembledProduction?: AuthorMemoryMouthProduction;
   treatmentAssignments: readonly AuthorCreativeTreatmentMouthAssignment[];
   selectedProduction?: string;
   lensSearchEnabled: boolean;
@@ -2269,6 +2481,16 @@ function selectMemoryProductionCandidate(input: {
       input.realityDirect,
     ),
   );
+  const assembledProduction = input.assembledProduction
+    ? scoreExpressiveMemoryProduction(
+        4,
+        input.assembledProduction.lines,
+        input.suppliedReality,
+        input.subject,
+        undefined,
+        input.realityDirect,
+      )
+    : undefined;
   const bareProduction = scoreMemorySequence(
     3,
     input.plan,
@@ -2277,7 +2499,7 @@ function selectMemoryProductionCandidate(input: {
     input.subject,
     input.realityDirect,
   );
-  const productions = [...expressiveProductions, bareProduction]
+  const productions = [...expressiveProductions, ...(assembledProduction ? [assembledProduction] : []), bareProduction]
     .sort((a, b) => {
       if (a.accepted !== b.accepted) return a.accepted ? -1 : 1;
       return b.score - a.score;
@@ -2287,6 +2509,8 @@ function selectMemoryProductionCandidate(input: {
   const legacySelectedProductionNumber = Number(input.selectedProduction);
   const nominatedVariantIndex = /^[ABCD]$/.test(selectedProductionLetter)
     ? ["A", "B", "C", "D"].indexOf(selectedProductionLetter)
+    : selectedProductionLetter === "ASSEMBLED"
+      ? 4
     : Number.isInteger(legacySelectedProductionNumber)
       ? legacySelectedProductionNumber - 1
       : -1;
@@ -2303,9 +2527,12 @@ function selectMemoryProductionCandidate(input: {
     ? acceptedProductions
         .filter(
           (production) =>
-            treatmentByVariantIndex.has(production.variantIndex) &&
-            production.variantIndex < 3 &&
-            expressiveProductionHasPerceptionDelta(production),
+            production.variantIndex === 4 ||
+            (
+              treatmentByVariantIndex.has(production.variantIndex) &&
+              production.variantIndex < 3 &&
+              expressiveProductionHasPerceptionDelta(production)
+            ),
         )
         .sort((a, b) => b.score - a.score)
     : acceptedProductions;
@@ -2317,9 +2544,12 @@ function selectMemoryProductionCandidate(input: {
     nominatedProduction &&
     (!input.lensSearchEnabled ||
       (
-        treatmentByVariantIndex.has(nominatedProduction.variantIndex) &&
-        nominatedProduction.variantIndex < 3 &&
-        expressiveProductionHasPerceptionDelta(nominatedProduction)
+        nominatedProduction.variantIndex === 4 ||
+        (
+          treatmentByVariantIndex.has(nominatedProduction.variantIndex) &&
+          nominatedProduction.variantIndex < 3 &&
+          expressiveProductionHasPerceptionDelta(nominatedProduction)
+        )
       ))
       ? nominatedProduction
       : undefined;
@@ -2381,6 +2611,7 @@ export function evaluateAuthorMemoryProductions(
     suppliedReality: readonly AuthorCreativeEvent[];
     subject: string;
     expressiveProductions: readonly AuthorMemoryMouthProduction[];
+    assembledProduction?: AuthorMemoryMouthProduction;
     treatmentAssignments: readonly AuthorCreativeTreatmentMouthAssignment[];
     selectedProduction?: string;
     lensSearchEnabled?: boolean;
@@ -2392,6 +2623,7 @@ export function evaluateAuthorMemoryProductions(
     suppliedReality: input.suppliedReality,
     subject: input.subject,
     expressiveProductions: input.expressiveProductions,
+    assembledProduction: input.assembledProduction,
     treatmentAssignments: input.treatmentAssignments,
     selectedProduction: input.selectedProduction,
     lensSearchEnabled: input.lensSearchEnabled ?? true,
@@ -2546,6 +2778,81 @@ export function attachDirectAuthorProvenanceToProductions(input: {
     .filter((production) => production.lines.length > 0);
 }
 
+export function normalizeDirectAuthorProvenanceAssignments(
+  value: unknown,
+): AuthorDirectProvenanceAssignment[] {
+  const assignmentsValue = value && typeof value === "object"
+    ? (value as Record<string, unknown>).assignments
+    : undefined;
+
+  if (!Array.isArray(assignmentsValue) || assignmentsValue.length !== 3) {
+    throw new Error("malformed_direct_author_provenance_assignments_cardinality");
+  }
+
+  const assignments: AuthorDirectProvenanceAssignment[] = [];
+  const seen = new Set<"A" | "B" | "C">();
+
+  for (const rawAssignment of assignmentsValue) {
+    if (!rawAssignment || typeof rawAssignment !== "object") {
+      throw new Error("malformed_direct_author_provenance_assignment");
+    }
+
+    const assignmentRecord = rawAssignment as Record<string, unknown>;
+    const production = clean(assignmentRecord.production).toUpperCase();
+    if (
+      !["A", "B", "C"].includes(production) ||
+      seen.has(production as "A" | "B" | "C") ||
+      !Array.isArray(assignmentRecord.lines) ||
+      assignmentRecord.lines.length > 12
+    ) {
+      throw new Error("malformed_direct_author_provenance_productions");
+    }
+
+    seen.add(production as "A" | "B" | "C");
+
+    const lines = assignmentRecord.lines.map((rawLine) => {
+      if (!rawLine || typeof rawLine !== "object") {
+        throw new Error("malformed_direct_author_provenance_line");
+      }
+
+      const lineRecord = rawLine as Record<string, unknown>;
+      const order = Number(lineRecord.order);
+      if (!Number.isInteger(order) || order < 1) {
+        throw new Error("malformed_direct_author_provenance_line_order");
+      }
+
+      const rawSourceEventIds = lineRecord.sourceEventIds;
+      if (
+        !Array.isArray(rawSourceEventIds) ||
+        rawSourceEventIds.length < 1 ||
+        rawSourceEventIds.length > 32 ||
+        rawSourceEventIds.some((id) => typeof id !== "string" || !clean(id) || clean(id).length > 64)
+      ) {
+        throw new Error("malformed_direct_author_provenance_source_event_ids");
+      }
+
+      const sourceEventIds = stringArray(rawSourceEventIds, 32);
+
+      return {
+        order,
+        sourceEventIds,
+      };
+    });
+
+    assignments.push({
+      production: production as AuthorProductionLetter,
+      lines,
+    });
+  }
+
+  const expectedProductions: Array<"A" | "B" | "C"> = ["A", "B", "C"];
+  if (!expectedProductions.every((production) => seen.has(production))) {
+    throw new Error("malformed_direct_author_provenance_missing_production");
+  }
+
+  return assignments;
+}
+
 export function buildAuthorRealityEditorPayload(input: {
   suppliedReality: readonly AuthorCreativeEvent[];
   productions: readonly AuthorMemoryMouthProduction[];
@@ -2565,47 +2872,298 @@ export function buildAuthorRealityEditorPayload(input: {
         sourceEventIds: unique(production.lines.flatMap((line) => line.sourceEventIds)),
       })),
     instruction:
-      "Return edited text for productions A, B, and C. Delete unsupported concrete claims only.",
+      "Partition each production into atomicClaimSpans, then classify those exact authored spans. Do not rewrite.",
   };
 }
 
-function normalizeAuthorRealityEditorEdits(
+function normalizeAuthorRealityClaimAudits(
   value: unknown,
-): Map<"A" | "B" | "C", string> | undefined {
-  const editsValue = value && typeof value === "object"
-    ? (value as Record<string, unknown>).edits
+): Map<"A" | "B" | "C", AuthorRealityClaimAuditSpan[]> | undefined {
+  const auditsValue = value && typeof value === "object"
+    ? (value as Record<string, unknown>).audits
     : undefined;
-  if (!Array.isArray(editsValue) || editsValue.length !== 3) return undefined;
+  if (!Array.isArray(auditsValue) || auditsValue.length !== 3) return undefined;
 
-  const edits = new Map<"A" | "B" | "C", string>();
-  for (const rawEdit of editsValue) {
-    if (!rawEdit || typeof rawEdit !== "object") return undefined;
-    const editRecord = rawEdit as Record<string, unknown>;
-    const production = clean(editRecord.production).toUpperCase();
-    if (!["A", "B", "C"].includes(production) || edits.has(production as "A" | "B" | "C")) {
+  const audits = new Map<"A" | "B" | "C", AuthorRealityClaimAuditSpan[]>();
+
+  for (const rawAudit of auditsValue) {
+    if (!rawAudit || typeof rawAudit !== "object") return undefined;
+    const auditRecord = rawAudit as Record<string, unknown>;
+    const production = clean(auditRecord.production).toUpperCase();
+    if (!["A", "B", "C"].includes(production) || audits.has(production as "A" | "B" | "C")) {
       return undefined;
     }
-    if (typeof editRecord.text !== "string") return undefined;
-    edits.set(production as "A" | "B" | "C", editRecord.text);
+
+    const spansValue = Array.isArray(auditRecord.atomicClaimSpans)
+      ? auditRecord.atomicClaimSpans
+      : auditRecord.spans;
+    const requiresAtomicityMarker = Array.isArray(auditRecord.atomicClaimSpans);
+    if (!Array.isArray(spansValue) || spansValue.length > 64) return undefined;
+    const spans: AuthorRealityClaimAuditSpan[] = [];
+    for (const rawSpan of spansValue) {
+      if (!rawSpan || typeof rawSpan !== "object") return undefined;
+      const spanRecord = rawSpan as Record<string, unknown>;
+      const exactText = spanRecord.exactText;
+      const classification = clean(spanRecord.classification).toUpperCase();
+      const atomicity = clean(spanRecord.atomicity).toUpperCase();
+      if (
+        typeof exactText !== "string" ||
+        !exactText ||
+        !AUTHOR_REALITY_CLAIM_CLASSIFICATIONS.includes(
+          classification as AuthorRealityClaimClassification,
+        ) ||
+        (requiresAtomicityMarker && atomicity !== "SMALLEST_INDEPENDENT_CLASSIFIABLE_UNIT")
+      ) {
+        return undefined;
+      }
+      spans.push({
+        exactText,
+        classification: classification as AuthorRealityClaimClassification,
+        sourceEventIds: stringArray(spanRecord.sourceEventIds, 32),
+      });
+    }
+
+    audits.set(production as "A" | "B" | "C", spans);
   }
 
-  return edits.size === 3 ? edits : undefined;
+  return audits.size === 3 ? audits : undefined;
+}
+
+function emptyAuditedProductions(input: {
+  productions: readonly AuthorMemoryMouthProduction[];
+  reason: string;
+  auditProtocolValid?: boolean;
+}): AuthorRealityEditorApplyResult {
+  return {
+    productions: input.productions.map((production) => (
+      ["A", "B", "C"].includes(production.production)
+        ? { ...production, lines: [] }
+        : {
+            ...production,
+            lines: production.lines.map((line) => ({ ...line })),
+          }
+    )),
+    applied: false,
+    reason: input.reason,
+    diagnostics: input.productions
+      .filter((production): production is AuthorMemoryMouthProduction & { production: "A" | "B" | "C" } =>
+        ["A", "B", "C"].includes(production.production),
+      )
+      .map((production) => ({
+        production: production.production,
+        originalText: production.lines.map((line) => line.text).join("\n"),
+        spans: [],
+        removedSpans: [],
+        reconstructedText: "",
+        semanticClassificationValid: false,
+        auditProtocolValid: input.auditProtocolValid ?? false,
+        exactSpanMappingValid: false,
+        unsupportedDeletionRequired: false,
+        survivorIntegrity: "NOT_REQUIRED" as const,
+        rejectionReason: input.reason,
+        unusableReason: input.reason,
+      })),
+  };
+}
+
+type AuthorRealityClaimAuditRange = {
+  start: number;
+  end: number;
+  span: AuthorRealityClaimAuditSpan;
+};
+
+function hasSubstantiveText(text: string): boolean {
+  return /[A-Za-z0-9]/.test(text);
+}
+
+function isStrongBoundary(char: string | undefined): boolean {
+  return Boolean(char && /[.!?;\n]/.test(char));
+}
+
+function previousNonWhitespace(text: string, index: number): string | undefined {
+  for (let i = index - 1; i >= 0; i -= 1) {
+    const char = text[i];
+    if (char && !/\s/.test(char)) return char;
+  }
+  return undefined;
+}
+
+function nextNonWhitespace(text: string, index: number): string | undefined {
+  for (let i = index; i < text.length; i += 1) {
+    const char = text[i];
+    if (char && !/\s/.test(char)) return char;
+  }
+  return undefined;
+}
+
+function mapAuthorRealityClaimAuditRanges(input: {
+  originalText: string;
+  spans: readonly AuthorRealityClaimAuditSpan[];
+}): {
+  ranges: AuthorRealityClaimAuditRange[];
+  unusableReason?: string;
+} | undefined {
+  const ranges: AuthorRealityClaimAuditRange[] = [];
+  let cursor = 0;
+
+  for (const span of input.spans) {
+    const start = input.originalText.indexOf(span.exactText, cursor);
+    if (start < 0) return undefined;
+    const nextStart = input.originalText.indexOf(span.exactText, start + 1);
+    if (nextStart >= 0) {
+      return {
+        ranges: [],
+        unusableReason: "reality_auditor_span_ambiguous",
+      };
+    }
+    const end = start + span.exactText.length;
+    ranges.push({ start, end, span });
+    cursor = end;
+  }
+
+  return { ranges };
+}
+
+function unauditedSubstantiveGapReason(input: {
+  originalText: string;
+  ranges: readonly AuthorRealityClaimAuditRange[];
+}): string | undefined {
+  let cursor = 0;
+  for (const range of input.ranges) {
+    if (hasSubstantiveText(input.originalText.slice(cursor, range.start))) {
+      return "reality_auditor_unaudited_substantive_material";
+    }
+    cursor = range.end;
+  }
+
+  if (hasSubstantiveText(input.originalText.slice(cursor))) {
+    return "reality_auditor_unaudited_substantive_material";
+  }
+
+  return undefined;
+}
+
+function unsupportedDeletionFractureReason(input: {
+  originalText: string;
+  ranges: readonly AuthorRealityClaimAuditRange[];
+}): string | undefined {
+  for (const range of input.ranges) {
+    if (range.span.classification !== "UNSUPPORTED_REALITY") continue;
+
+    const left = input.originalText.slice(0, range.start);
+    const right = input.originalText.slice(range.end);
+    const leftHasText = hasSubstantiveText(left);
+    const rightHasText = hasSubstantiveText(right);
+    const spanTrimmed = range.span.exactText.trim();
+    const leftBoundary = previousNonWhitespace(input.originalText, range.start);
+    const rightBoundary = nextNonWhitespace(input.originalText, range.end);
+    const spanClosesSegment = isStrongBoundary(spanTrimmed[spanTrimmed.length - 1]);
+    const startsAtSegmentBoundary = !leftHasText || isStrongBoundary(leftBoundary);
+
+    if (rightBoundary && /[,.:!?;)\]}]/.test(rightBoundary)) {
+      return "reality_auditor_survivor_fractured";
+    }
+
+    if (leftHasText && !rightHasText && !startsAtSegmentBoundary) {
+      return "reality_auditor_survivor_fractured";
+    }
+
+    if (!leftHasText && rightHasText && !spanClosesSegment) {
+      return "reality_auditor_survivor_fractured";
+    }
+
+    if (leftHasText && rightHasText && !(startsAtSegmentBoundary && spanClosesSegment)) {
+      return "reality_auditor_survivor_fractured";
+    }
+  }
+
+  return undefined;
+}
+
+function removeUnsupportedClaimSpans(input: {
+  originalText: string;
+  ranges: readonly AuthorRealityClaimAuditRange[];
+}): {
+  text: string;
+  removedSpans: string[];
+  survivingSpans: AuthorRealityClaimAuditSpan[];
+  unsupportedDeletionRequired: boolean;
+  survivorIntegrity: "INTACT" | "FRACTURED" | "NOT_REQUIRED";
+  unusableReason?: string;
+} {
+  const ranges = [...input.ranges].sort((a, b) => a.start - b.start);
+  const unsupportedRanges = ranges.filter(
+    (range) => range.span.classification === "UNSUPPORTED_REALITY",
+  );
+  const survivingSpans = ranges
+    .filter((range) => range.span.classification !== "UNSUPPORTED_REALITY")
+    .map((range) => ({ ...range.span }));
+  const unsupportedDeletionRequired = unsupportedRanges.length > 0;
+
+  if (!unsupportedDeletionRequired) {
+    return {
+      text: input.originalText,
+      removedSpans: [],
+      survivingSpans,
+      unsupportedDeletionRequired,
+      survivorIntegrity: "NOT_REQUIRED",
+    };
+  }
+
+  const fracturedReason = unsupportedDeletionFractureReason({
+    originalText: input.originalText,
+    ranges,
+  });
+  if (fracturedReason) {
+    return {
+      text: "",
+      removedSpans: unsupportedRanges.map((range) => range.span.exactText),
+      survivingSpans: [],
+      unsupportedDeletionRequired,
+      survivorIntegrity: "FRACTURED",
+      unusableReason: fracturedReason,
+    };
+  }
+
+  let text = "";
+  let cursor = 0;
+  for (const range of unsupportedRanges) {
+    text += input.originalText.slice(cursor, range.start);
+    cursor = range.end;
+  }
+  text += input.originalText.slice(cursor);
+
+  if (/[,;:]\s*$/.test(text) || /^\s*[,;:.!?]/.test(text)) {
+    return {
+      text: "",
+      removedSpans: unsupportedRanges.map((range) => range.span.exactText),
+      survivingSpans: [],
+      unsupportedDeletionRequired,
+      survivorIntegrity: "FRACTURED",
+      unusableReason: "reality_auditor_survivor_fractured",
+    };
+  }
+
+  return {
+    text,
+    removedSpans: unsupportedRanges.map((range) => range.span.exactText),
+    survivingSpans,
+    unsupportedDeletionRequired,
+    survivorIntegrity: "INTACT",
+  };
 }
 
 export function applyAuthorRealityEditorEdits(input: {
   productions: readonly AuthorMemoryMouthProduction[];
-  editorResponse: unknown;
+  auditorResponse: unknown;
 }): AuthorRealityEditorApplyResult {
-  const edits = normalizeAuthorRealityEditorEdits(input.editorResponse);
-  if (!edits) {
-    return {
-      productions: input.productions.map((production) => ({
-        ...production,
-        lines: production.lines.map((line) => ({ ...line })),
-      })),
-      applied: false,
-      reason: "malformed_reality_editor_response",
-    };
+  const audits = normalizeAuthorRealityClaimAudits(input.auditorResponse);
+  if (!audits) {
+    return emptyAuditedProductions({
+      productions: input.productions,
+      reason: "malformed_reality_auditor_response",
+      auditProtocolValid: false,
+    });
   }
 
   const originalLetters = new Set(
@@ -2614,16 +3172,14 @@ export function applyAuthorRealityEditorEdits(input: {
       .filter((production) => ["A", "B", "C"].includes(production)),
   );
   if (!["A", "B", "C"].every((production) => originalLetters.has(production as AuthorProductionLetter))) {
-    return {
-      productions: input.productions.map((production) => ({
-        ...production,
-        lines: production.lines.map((line) => ({ ...line })),
-      })),
-      applied: false,
-      reason: "reality_editor_missing_original_production",
-    };
+    return emptyAuditedProductions({
+      productions: input.productions,
+      reason: "reality_auditor_missing_original_production",
+      auditProtocolValid: false,
+    });
   }
 
+  const diagnostics: AuthorRealityClaimAuditDiagnostic[] = [];
   return {
     productions: input.productions.map((production) => {
       if (!["A", "B", "C"].includes(production.production)) {
@@ -2633,9 +3189,104 @@ export function applyAuthorRealityEditorEdits(input: {
         };
       }
 
-      const editedText = edits.get(production.production as "A" | "B" | "C") ?? "";
+      const productionLetter = production.production as "A" | "B" | "C";
+      const spans = audits.get(productionLetter) ?? [];
+      const originalText = production.lines.map((line) => line.text).join("\n");
       const firstLine = production.lines[0];
-      if (!clean(editedText) || !firstLine) {
+      const mapped = mapAuthorRealityClaimAuditRanges({
+        originalText,
+        spans,
+      });
+
+      if (!mapped || mapped.unusableReason || !firstLine) {
+        const reason = !mapped
+          ? "reality_auditor_span_not_exact"
+          : mapped.unusableReason ?? "reality_auditor_missing_line";
+        diagnostics.push({
+          production: productionLetter,
+          originalText,
+          spans,
+          removedSpans: [],
+          reconstructedText: "",
+          semanticClassificationValid: true,
+          auditProtocolValid: !mapped?.unusableReason,
+          exactSpanMappingValid: Boolean(mapped && !mapped.unusableReason),
+          unsupportedDeletionRequired: spans.some((span) => span.classification === "UNSUPPORTED_REALITY"),
+          survivorIntegrity: "NOT_REQUIRED",
+          rejectionReason: reason,
+          unusableReason: reason,
+        });
+        return {
+          ...production,
+          lines: [],
+        };
+      }
+
+      const coverageReason = unauditedSubstantiveGapReason({
+        originalText,
+        ranges: mapped.ranges,
+      });
+      if (coverageReason) {
+        diagnostics.push({
+          production: productionLetter,
+          originalText,
+          spans,
+          removedSpans: [],
+          reconstructedText: "",
+          semanticClassificationValid: true,
+          auditProtocolValid: true,
+          exactSpanMappingValid: true,
+          unsupportedDeletionRequired: spans.some((span) => span.classification === "UNSUPPORTED_REALITY"),
+          survivorIntegrity: "NOT_REQUIRED",
+          rejectionReason: coverageReason,
+          unusableReason: coverageReason,
+        });
+        return {
+          ...production,
+          lines: [],
+        };
+      }
+
+      const removal = removeUnsupportedClaimSpans({
+        originalText,
+        ranges: mapped.ranges,
+      });
+
+      if (removal.unusableReason) {
+        diagnostics.push({
+          production: productionLetter,
+          originalText,
+          spans,
+          removedSpans: removal.removedSpans,
+          reconstructedText: removal.text,
+          semanticClassificationValid: true,
+          auditProtocolValid: true,
+          exactSpanMappingValid: true,
+          unsupportedDeletionRequired: removal.unsupportedDeletionRequired,
+          survivorIntegrity: removal.survivorIntegrity,
+          rejectionReason: removal.unusableReason,
+          unusableReason: removal.unusableReason,
+        });
+        return {
+          ...production,
+          lines: [],
+        };
+      }
+
+      diagnostics.push({
+        production: productionLetter,
+        originalText,
+        spans,
+        removedSpans: removal.removedSpans,
+        reconstructedText: removal.text,
+        semanticClassificationValid: true,
+        auditProtocolValid: true,
+        exactSpanMappingValid: true,
+        unsupportedDeletionRequired: removal.unsupportedDeletionRequired,
+        survivorIntegrity: removal.survivorIntegrity,
+      });
+
+      if (!clean(removal.text)) {
         return {
           ...production,
           lines: [],
@@ -2647,13 +3298,771 @@ export function applyAuthorRealityEditorEdits(input: {
         lines: [
           {
             ...firstLine,
-            text: editedText,
+            text: removal.text,
             sourceEventIds: [...firstLine.sourceEventIds],
+            auditSpans: removal.survivingSpans.map((span) => ({ ...span })),
           },
         ],
       };
     }),
     applied: true,
+    diagnostics,
+  };
+}
+
+function productionEventIds(input: {
+  production: AuthorProductionLetter;
+  productions: readonly AuthorMemoryMouthProduction[];
+  suppliedReality: readonly AuthorCreativeEvent[];
+}): string[] {
+  const production = input.productions.find((item) => item.production === input.production);
+  return validStoryEventIds(
+    production?.lines.flatMap((line) => line.sourceEventIds) ?? [],
+    input.suppliedReality,
+    32,
+  );
+}
+
+export function harvestAuthorizedRealizationPool(input: {
+  diagnostics: readonly AuthorRealityClaimAuditDiagnostic[];
+  productions?: readonly AuthorMemoryMouthProduction[];
+  suppliedReality: readonly AuthorCreativeEvent[];
+}): AuthorizedRealization[] {
+  const pool: AuthorizedRealization[] = [];
+  let originalOrder = 0;
+
+  for (const diagnostic of input.diagnostics) {
+    if (!["A", "B", "C"].includes(diagnostic.production)) continue;
+    const sourceProduction = diagnostic.production;
+    const fallbackEventIds = productionEventIds({
+      production: sourceProduction,
+      productions: input.productions ?? [],
+      suppliedReality: input.suppliedReality,
+    });
+
+    diagnostic.spans.forEach((span, spanIndex) => {
+      if (span.classification === "UNSUPPORTED_REALITY") return;
+      const text = clean(span.exactText);
+      if (!text) return;
+      const sourceEventIds = validStoryEventIds(
+        span.sourceEventIds,
+        input.suppliedReality,
+        32,
+      );
+      const evidenceEventIds = sourceEventIds.length
+        ? sourceEventIds
+        : fallbackEventIds;
+
+      pool.push({
+        id: `${sourceProduction}:${spanIndex + 1}`,
+        sourceProduction,
+        text,
+        classification: span.classification,
+        sourceEventIds: evidenceEventIds,
+        originalOrder: originalOrder += 1,
+        sourceLineOrder: 1,
+        spanIndex: spanIndex + 1,
+        materialKind:
+          span.classification === "KEEP_EXPRESSION"
+            ? "EXPRESSIVE_PERSPECTIVE"
+            : "SUPPLIED_REALITY_MATERIAL",
+      });
+    });
+  }
+
+  return pool;
+}
+
+function realizationEventPosition(
+  realization: AuthorizedRealization,
+  suppliedReality: readonly AuthorCreativeEvent[],
+): number {
+  const eventOrder = new Map(
+    suppliedReality.map((event, index) => [clean(event.id), index]),
+  );
+  const positions = realization.sourceEventIds
+    .map((id) => eventOrder.get(clean(id)))
+    .filter((index): index is number => typeof index === "number");
+  return positions.length ? Math.min(...positions) : Number.MAX_SAFE_INTEGER;
+}
+
+function realizationScore(realization: AuthorizedRealization): number {
+  const text = clean(realization.text);
+  const wordCount = text.split(/\s+/).filter(Boolean).length;
+  const expressiveBonus = realization.materialKind === "EXPRESSIVE_PERSPECTIVE" ? 3 : 0;
+  const economyBonus = wordCount > 2 && wordCount <= 18 ? 2 : 0;
+  const evidenceBonus = Math.min(2, realization.sourceEventIds.length);
+  return expressiveBonus + economyBonus + evidenceBonus;
+}
+
+function selectAuthorizedRealizations(input: {
+  pool: readonly AuthorizedRealization[];
+  suppliedReality: readonly AuthorCreativeEvent[];
+}): AuthorizedRealization[] {
+  const candidates = input.pool
+    .filter((realization) => realization.sourceEventIds.length > 0)
+    .filter((realization) => clean(realization.text));
+  const expressive = candidates.filter(
+    (realization) => realization.materialKind === "EXPRESSIVE_PERSPECTIVE",
+  );
+  const source = expressive.length ? expressive : candidates;
+
+  const selected: AuthorizedRealization[] = [];
+  const seenText = new Set<string>();
+  const seenProductions = new Set<string>();
+
+  for (const realization of [...source].sort((a, b) => {
+    const productionDiversity =
+      Number(seenProductions.has(a.sourceProduction)) -
+      Number(seenProductions.has(b.sourceProduction));
+    if (productionDiversity !== 0) return productionDiversity;
+    return realizationScore(b) - realizationScore(a);
+  })) {
+    const key = clean(realization.text).toLowerCase();
+    if (!key || seenText.has(key)) continue;
+    selected.push(realization);
+    seenText.add(key);
+    seenProductions.add(realization.sourceProduction);
+    const hasCrossProduction = new Set(selected.map((item) => item.sourceProduction)).size > 1;
+    if (hasCrossProduction || selected.length >= 3) break;
+  }
+
+  return selected
+    .sort((a, b) => {
+      const byEvidence =
+        realizationEventPosition(a, input.suppliedReality) -
+        realizationEventPosition(b, input.suppliedReality);
+      return byEvidence || a.originalOrder - b.originalOrder;
+    });
+}
+
+function composeAuthorizedRealizationText(
+  selected: readonly AuthorizedRealization[],
+): string {
+  const sentences = selected
+    .map((realization) => sentenceForDirectReality(realization.text))
+    .filter(Boolean);
+  if (sentences.length <= 1) return sentences[0] ?? "";
+
+  return sentences
+    .map((sentence, index) => {
+      if (index === 0) return sentence;
+      if (/^(?:still|but|and|then|so|yet)\b/i.test(sentence)) return sentence;
+      const decapitalized = sentence[0]
+        ? sentence[0].toLowerCase() + sentence.slice(1)
+        : sentence;
+      return `Still, ${decapitalized}`;
+    })
+    .join(" ");
+}
+
+export function assembleAuthorizedRealizations(input: {
+  pool: readonly AuthorizedRealization[];
+  suppliedReality: readonly AuthorCreativeEvent[];
+}): AuthorAssembledCandidate | undefined {
+  const selected = selectAuthorizedRealizations(input);
+  if (!selected.length) return undefined;
+
+  const rawText = composeAuthorizedRealizationText(selected);
+  const sourceEventIds = validStoryEventIds(
+    selected.flatMap((realization) => realization.sourceEventIds),
+    input.suppliedReality,
+    32,
+  );
+  if (!clean(rawText) || !sourceEventIds.length) return undefined;
+
+  const selectedEventIds = new Set(sourceEventIds);
+  const omittedSourceEventIds = input.suppliedReality
+    .map((event) => event.id)
+    .filter((id) => !selectedEventIds.has(id));
+
+  return {
+    production: "ASSEMBLED",
+    rawText,
+    sourceRealizationIds: selected.map((realization) => realization.id),
+    omittedSourceEventIds,
+    lines: [{
+      order: 1,
+      text: rawText,
+      sourceEventIds,
+      synthesizedFrom: selected.map((realization) => realization.id),
+      auditSpans: selected.map((realization) => ({
+        exactText: realization.text,
+        classification: realization.classification,
+        sourceEventIds: [...realization.sourceEventIds],
+      })),
+    }],
+  };
+}
+
+export function buildAuthorizedRealizationSynthesisInput(input: {
+  subject: string;
+  suppliedReality: readonly AuthorCreativeEvent[];
+  pool: readonly AuthorizedRealization[];
+  forbiddenTexts?: readonly string[];
+}): AuthorRealizationSynthesizerInput {
+  return {
+    subject: clean(input.subject),
+    suppliedReality: input.suppliedReality
+      .map((event) => ({
+        id: clean(event.id),
+        text: clean(event.text),
+      }))
+      .filter((event) => event.id && event.text),
+    authorizedRealizationPool: input.pool
+      .map((realization) => ({
+        id: clean(realization.id),
+        sourceProduction: realization.sourceProduction,
+        text: clean(realization.text),
+        classification: realization.classification,
+        sourceEventIds: [...realization.sourceEventIds],
+        materialKind: realization.materialKind,
+      }))
+      .filter((realization) => realization.id && realization.text),
+    forbiddenTexts: unique([...(input.forbiddenTexts ?? [])]),
+  };
+}
+
+export const AUTHORIZED_REALIZATION_SYNTHESIZER_PROMPT = [
+  "You are QRE Authorized Realization Synthesizer.",
+  "The first Author explored. Auditors established which discoveries have authority.",
+  "Your job is to discover what the authorized discoveries mean together.",
+  "Do not summarize the pool. Do not concatenate good lines. Do not preserve one realization per fact.",
+  "Find the strongest realization available across the authorized material.",
+  "You may combine meanings from multiple authorized realizations, notice setup/payoff relationships, recontextualize an earlier idea with a later idea, omit weaker material, compress several ideas into one thought, give disproportionate attention to the most interesting thing, write completely new wording, use implication, and change what the viewer notices.",
+  "FACT COUNT is not MOVE COUNT. AUTHORIZED REALIZATION COUNT is not OUTPUT LINE COUNT.",
+  "Rich brain. Selective mouth. Use no more language than the realization earns.",
+  "World boundary: transform interpretation, not occurrence. New language is not automatically new reality. A metaphor, implication, rhetorical frame, comparison, attitude, or perspective may be newly expressed without requiring another physical event. Do not require an additional concrete occurrence that is absent from supplied reality.",
+  "Return only structured JSON.",
+].join("\n");
+
+const AUTHORIZED_REALIZATION_SYNTHESIZER_SCHEMA = {
+  type: "object",
+  additionalProperties: false,
+  required: ["production", "lines"],
+  properties: {
+    production: { type: "string", enum: ["ASSEMBLED"] },
+    lines: {
+      type: "array",
+      minItems: 1,
+      maxItems: 4,
+      items: {
+        type: "object",
+        additionalProperties: false,
+        required: ["order", "text", "synthesizedFrom", "sourceEventIds"],
+        properties: {
+          order: { type: "integer", minimum: 1 },
+          text: { type: "string" },
+          synthesizedFrom: {
+            type: "array",
+            minItems: 1,
+            maxItems: 12,
+            items: { type: "string", maxLength: 64 },
+          },
+          sourceEventIds: {
+            type: "array",
+            minItems: 1,
+            maxItems: 32,
+            items: { type: "string", maxLength: 64 },
+          },
+        },
+      },
+    },
+  },
+} satisfies LocalModelJsonSchema;
+
+function normalizedAuthorizedRealizationPoolById(
+  pool: readonly AuthorizedRealization[],
+): Map<string, AuthorizedRealization> {
+  return new Map(pool.map((realization) => [clean(realization.id), realization]));
+}
+
+export function normalizeSynthesizedAssemblyCandidate(input: {
+  value: unknown;
+  pool: readonly AuthorizedRealization[];
+  suppliedReality: readonly AuthorCreativeEvent[];
+}): {
+  candidate?: AuthorAssembledCandidate;
+  reasons: string[];
+} {
+  if (!input.value || typeof input.value !== "object") {
+    return { reasons: ["synthesizer-output-malformed"] };
+  }
+
+  const record = input.value as Record<string, unknown>;
+  if (clean(record.production).toUpperCase() !== "ASSEMBLED") {
+    return { reasons: ["synthesizer-output-production-invalid"] };
+  }
+
+  if (!Array.isArray(record.lines) || record.lines.length < 1 || record.lines.length > 4) {
+    return { reasons: ["synthesizer-output-lines-invalid"] };
+  }
+
+  const poolById = normalizedAuthorizedRealizationPoolById(input.pool);
+  const reasons: string[] = [];
+  const lines: AuthorMemoryMouthLine[] = [];
+  const sourceRealizationIds: string[] = [];
+
+  for (const [index, rawLine] of record.lines.entries()) {
+    if (!rawLine || typeof rawLine !== "object") {
+      reasons.push("synthesizer-output-line-malformed");
+      continue;
+    }
+
+    const lineRecord = rawLine as Record<string, unknown>;
+    const order = Number(lineRecord.order);
+    const text = clean(lineRecord.text);
+    const synthesizedFrom = stringArray(lineRecord.synthesizedFrom, 12)
+      .filter((id) => poolById.has(id));
+    const unknownSynthesizedFrom = stringArray(lineRecord.synthesizedFrom, 12)
+      .some((id) => !poolById.has(id));
+    const selectedEventIds = new Set(
+      synthesizedFrom.flatMap((id) => poolById.get(id)?.sourceEventIds ?? []),
+    );
+    const sourceEventIds = validStoryEventIds(
+      lineRecord.sourceEventIds,
+      input.suppliedReality,
+      32,
+    );
+    const untraceableSourceEventId = sourceEventIds.some((id) => !selectedEventIds.has(id));
+
+    if (!Number.isInteger(order) || order < 1) reasons.push("synthesizer-output-line-order-invalid");
+    if (!text) reasons.push("synthesizer-output-line-empty");
+    if (!synthesizedFrom.length || unknownSynthesizedFrom) {
+      reasons.push("synthesizer-output-synthesizedFrom-invalid");
+    }
+    if (!sourceEventIds.length || untraceableSourceEventId) {
+      reasons.push("synthesizer-output-sourceEventIds-invalid");
+    }
+
+    if (
+      Number.isInteger(order) &&
+      order >= 1 &&
+      text &&
+      synthesizedFrom.length &&
+      !unknownSynthesizedFrom &&
+      sourceEventIds.length &&
+      !untraceableSourceEventId
+    ) {
+      lines.push({
+        order,
+        text,
+        sourceEventIds,
+        synthesizedFrom,
+      });
+      sourceRealizationIds.push(...synthesizedFrom);
+    }
+  }
+
+  if (reasons.length) return { reasons: unique(reasons) };
+
+  const orderedLines = lines.sort((a, b) => a.order - b.order);
+  const rawText = orderedLines.map((line) => line.text).join("\n");
+  const selectedEventIds = new Set(orderedLines.flatMap((line) => line.sourceEventIds));
+
+  return {
+    reasons: [],
+    candidate: {
+      production: "ASSEMBLED",
+      rawText,
+      lines: orderedLines,
+      sourceRealizationIds: unique(sourceRealizationIds),
+      omittedSourceEventIds: input.suppliedReality
+        .map((event) => event.id)
+        .filter((id) => !selectedEventIds.has(id)),
+    },
+  };
+}
+
+function exactAuditCoverage(input: {
+  text: string;
+  spans: readonly AuthorRealityClaimAuditSpan[];
+}): boolean {
+  const mapped = mapAuthorRealityClaimAuditRanges({
+    originalText: input.text,
+    spans: input.spans,
+  });
+  if (!mapped || mapped.unusableReason) return false;
+  return !unauditedSubstantiveGapReason({
+    originalText: input.text,
+    ranges: mapped.ranges,
+  });
+}
+
+function candidateHasCompletePositiveRealityAudit(
+  candidate: AuthorAssembledCandidate,
+  suppliedReality: readonly AuthorCreativeEvent[],
+): boolean {
+  const spans = candidate.lines.flatMap((line) => line.auditSpans ?? []);
+  if (!spans.length) return false;
+  if (spans.some((span) => span.classification === "UNSUPPORTED_REALITY")) return false;
+  if (!spans.every((span) =>
+    validStoryEventIds(span.sourceEventIds, suppliedReality, 32).length === span.sourceEventIds.length
+  )) {
+    return false;
+  }
+
+  return exactAuditCoverage({
+    text: candidate.rawText,
+    spans,
+  });
+}
+
+function attachSynthesisAuditSpans(input: {
+  candidate: AuthorAssembledCandidate;
+  diagnostic: AuthorRealityClaimAuditDiagnostic;
+}): AuthorAssembledCandidate {
+  const spans = input.diagnostic.spans.map((span) => ({ ...span }));
+  return {
+    ...input.candidate,
+    lines: input.candidate.lines.map((line, index) => ({
+      ...line,
+      auditSpans: index === 0 ? spans : [],
+    })),
+  };
+}
+
+function synthesisAuditProductions(
+  candidate: AuthorAssembledCandidate,
+): AuthorMemoryMouthProduction[] {
+  const sourceEventIds = unique(candidate.lines.flatMap((line) => line.sourceEventIds));
+  return [
+    {
+      production: "A",
+      lines: [{
+        order: 1,
+        text: candidate.rawText,
+        sourceEventIds,
+      }],
+    },
+    {
+      production: "B",
+      lines: [{ order: 1, text: ".", sourceEventIds }],
+    },
+    {
+      production: "C",
+      lines: [{ order: 1, text: ".", sourceEventIds }],
+    },
+  ];
+}
+
+async function auditSynthesizedAssemblyReality(input: {
+  candidate: AuthorAssembledCandidate;
+  suppliedReality: readonly AuthorCreativeEvent[];
+}): Promise<AuthorRealityEditorApplyResult & {
+  model: string;
+  modelCalls: number;
+}> {
+  const result = await editDirectAuthorReality({
+    suppliedReality: input.suppliedReality,
+    productions: synthesisAuditProductions(input.candidate),
+  });
+
+  return {
+    ...result,
+    model: result.model,
+    modelCalls: result.modelCalls,
+  };
+}
+
+function synthesisFailureResult(input: {
+  synthesisInput: AuthorRealizationSynthesizerInput;
+  rawOutput?: string;
+  reasons: readonly string[];
+  model?: string;
+  modelCalls?: number;
+}): AuthorSynthesisAttemptResult {
+  return {
+    input: input.synthesisInput,
+    rawOutput: input.rawOutput ?? "",
+    truthResult: {
+      eligible: false,
+      reasons: [...input.reasons],
+    },
+    model: input.model ?? "authorized-realization-synthesizer-fail-closed",
+    modelCalls: input.modelCalls ?? 0,
+  };
+}
+
+type AuthorModelGenerate = typeof localModelGenerate;
+
+function configuredPositiveInteger(
+  value: unknown,
+): number | undefined {
+  const parsed = Number(value);
+  return Number.isFinite(parsed) && parsed > 0
+    ? Math.floor(parsed)
+    : undefined;
+}
+
+function authorizedRealizationSynthesizerOpenRouterMaxTokens(): number | undefined {
+  const raw = process.env.QRE_AUTHOR_SYNTHESIZER_OPENROUTER_MAX_TOKENS;
+  const value = configuredPositiveInteger(raw);
+  if (value) return value;
+
+  if (clean(process.env.QRE_AI_PROVIDER).toLowerCase() === "openrouter") {
+    throw new Error("author_realization_synthesizer_openrouter_token_ceiling_unset");
+  }
+
+  return undefined;
+}
+
+export async function synthesizeAuthorizedRealizations(input: {
+  subject: string;
+  suppliedReality: readonly AuthorCreativeEvent[];
+  pool: readonly AuthorizedRealization[];
+  forbiddenTexts?: readonly string[];
+  realityDirect?: boolean;
+  generate?: AuthorModelGenerate;
+  auditReality?: typeof auditSynthesizedAssemblyReality;
+}): Promise<AuthorSynthesisAttemptResult> {
+  const synthesisInput = buildAuthorizedRealizationSynthesisInput({
+    subject: input.subject,
+    suppliedReality: input.suppliedReality,
+    pool: input.pool,
+    forbiddenTexts: input.forbiddenTexts,
+  });
+
+  if (!synthesisInput.authorizedRealizationPool.length) {
+    return synthesisFailureResult({
+      synthesisInput,
+      reasons: ["synthesis-pool-empty"],
+    });
+  }
+
+  const generate = input.generate ?? localModelGenerate;
+  const auditReality = input.auditReality ?? auditSynthesizedAssemblyReality;
+  const synthesizerNumPredict =
+    configuredPositiveInteger(process.env.QRE_AUTHOR_SYNTHESIZER_NUM_PREDICT) ?? 720;
+  let synthesizerOpenRouterMaxTokens: number | undefined;
+  try {
+    synthesizerOpenRouterMaxTokens = authorizedRealizationSynthesizerOpenRouterMaxTokens();
+  } catch (error) {
+    return synthesisFailureResult({
+      synthesisInput,
+      reasons: [
+        clean((error as { message?: unknown })?.message) ||
+          "author_realization_synthesizer_openrouter_token_ceiling_unset",
+      ],
+    });
+  }
+  const result = await generate(
+    [
+      {
+        role: "system",
+        content: AUTHORIZED_REALIZATION_SYNTHESIZER_PROMPT,
+      },
+      {
+        role: "user",
+        content: JSON.stringify({
+          ...synthesisInput,
+          instruction:
+            "Write the strongest ASSEMBLED realization available from the authorized pool. Use synthesizedFrom IDs from authorizedRealizationPool. Use only sourceEventIds traceable through those IDs.",
+        }),
+      },
+    ],
+    "json",
+    {
+      numPredict: synthesizerNumPredict,
+      openRouterMaxTokens: synthesizerOpenRouterMaxTokens,
+      temperature: 0.82,
+      jsonSchema: AUTHORIZED_REALIZATION_SYNTHESIZER_SCHEMA,
+    },
+  ).catch(() => undefined);
+
+  if (!result) {
+    return synthesisFailureResult({
+      synthesisInput,
+      reasons: ["authorized_realization_synthesizer_failed"],
+    });
+  }
+
+  const parsed = parseJson(result.text);
+  const normalized = normalizeSynthesizedAssemblyCandidate({
+    value: parsed,
+    pool: input.pool,
+    suppliedReality: input.suppliedReality,
+  });
+
+  if (!normalized.candidate) {
+    return synthesisFailureResult({
+      synthesisInput,
+      rawOutput: result.text,
+      reasons: normalized.reasons.length ? normalized.reasons : ["synthesizer-output-malformed"],
+      model: result.model,
+      modelCalls: 1,
+    });
+  }
+
+  const realityEditor = await auditReality({
+    candidate: normalized.candidate,
+    suppliedReality: input.suppliedReality,
+  }).catch(() => undefined);
+  if (!realityEditor) {
+    return synthesisFailureResult({
+      synthesisInput,
+      rawOutput: result.text,
+      reasons: ["synthesis_reality_auditor_failed"],
+      model: result.model,
+      modelCalls: 1,
+    });
+  }
+  const claimAuditor = realityEditor.diagnostics.find((diagnostic) => diagnostic.production === "A");
+  const rejectedByRealityEditor =
+    !claimAuditor ||
+    Boolean(claimAuditor.unusableReason) ||
+    claimAuditor.unsupportedDeletionRequired ||
+    clean(claimAuditor.reconstructedText) !== clean(normalized.candidate.rawText);
+
+  const auditedCandidate = claimAuditor && !rejectedByRealityEditor
+    ? attachSynthesisAuditSpans({
+        candidate: normalized.candidate,
+        diagnostic: claimAuditor,
+      })
+    : normalized.candidate;
+
+  const truthResult = verifyAuthorizedAssemblyCandidate({
+    candidate: auditedCandidate,
+    pool: input.pool,
+    forbiddenTexts: input.forbiddenTexts,
+    suppliedReality: input.suppliedReality,
+    subject: input.subject,
+    realityDirect: input.realityDirect,
+  });
+
+  const finalTruthResult = rejectedByRealityEditor
+    ? {
+        ...truthResult,
+        eligible: false,
+        reasons: unique([
+          ...truthResult.reasons,
+          claimAuditor?.unusableReason ?? "synthesis-reality-editor-rejected",
+        ]),
+      }
+    : truthResult;
+
+  return {
+    input: synthesisInput,
+    rawOutput: result.text,
+    candidate: auditedCandidate,
+    claimAuditor,
+    realityEditor,
+    truthResult: finalTruthResult,
+    model: result.model,
+    modelCalls: 1 + realityEditor.modelCalls,
+  };
+}
+
+function escapeRegExp(value: string): string {
+  return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+}
+
+function assemblyUnauthorizedResidual(input: {
+  rawOutput: string;
+  selected: readonly AuthorizedRealization[];
+}): string {
+  let residual = clean(input.rawOutput).toLowerCase();
+  for (const realization of input.selected) {
+    const exact = clean(realization.text)
+      .toLowerCase()
+      .replace(/[.!?]+$/g, "");
+    if (!exact) continue;
+    residual = residual.replace(new RegExp(escapeRegExp(exact), "g"), " ");
+  }
+  return clean(
+    residual
+      .replace(/\b(?:still|and|but|yet|so|then)\b/gi, " ")
+      .replace(/[.,;:!?()\-[\]"']/g, " "),
+  );
+}
+
+export function verifyAuthorizedAssemblyCandidate(input: {
+  candidate: AuthorAssembledCandidate | undefined;
+  pool: readonly AuthorizedRealization[];
+  forbiddenTexts?: readonly string[];
+  suppliedReality: readonly AuthorCreativeEvent[];
+  subject: string;
+  realityDirect?: boolean;
+}): AuthorAssemblyTruthResult {
+  if (!input.candidate) {
+    return {
+      eligible: false,
+      reasons: ["assembler-produced-no-candidate"],
+    };
+  }
+
+  const poolById = new Map(input.pool.map((realization) => [realization.id, realization]));
+  const selected = input.candidate.sourceRealizationIds
+    .map((id) => poolById.get(id))
+    .filter((realization): realization is AuthorizedRealization => Boolean(realization));
+  const missingAuthorizedRealization =
+    selected.length !== input.candidate.sourceRealizationIds.length;
+  const rawOutput = clean(input.candidate.rawText);
+  const resurrectedUnsupported = (input.forbiddenTexts ?? []).some(
+    (text) =>
+      clean(text) &&
+      rawOutput.toLowerCase().includes(clean(text).toLowerCase()),
+  );
+  const evidenceEventIds = validStoryEventIds(
+    input.candidate.lines.flatMap((line) => line.sourceEventIds),
+    input.suppliedReality,
+    32,
+  );
+  const missingSelectedRealizationText = selected.some((realization) =>
+    !rawOutput.toLowerCase().includes(clean(realization.text).toLowerCase().replace(/[.!?]+$/g, "")),
+  );
+  const unauthorizedResidual = assemblyUnauthorizedResidual({
+    rawOutput,
+    selected,
+  });
+  const completePositiveRealityAudit = candidateHasCompletePositiveRealityAudit(
+    input.candidate,
+    input.suppliedReality,
+  );
+  const addedUnauthorizedMaterial =
+    !completePositiveRealityAudit &&
+    (missingSelectedRealizationText || Boolean(unauthorizedResidual));
+
+  const scoring = scoreExpressiveMemoryProduction(
+    4,
+    input.candidate.lines,
+    input.suppliedReality,
+    input.subject,
+    undefined,
+    input.realityDirect ?? false,
+  );
+  const reasons = [
+    ...(missingAuthorizedRealization ? ["missing-authorized-realization"] : []),
+    ...(resurrectedUnsupported ? ["resurrected-unsupported-realization"] : []),
+    ...(evidenceEventIds.length ? [] : ["missing-source-event-ids"]),
+    ...(addedUnauthorizedMaterial
+      ? ["assembly-added-unauthorized-material"]
+      : []),
+    ...scoring.reasons,
+  ];
+
+  return {
+    eligible:
+      scoring.accepted &&
+      !missingAuthorizedRealization &&
+      !resurrectedUnsupported &&
+      evidenceEventIds.length > 0 &&
+      !addedUnauthorizedMaterial,
+    reasons,
+    candidate: input.candidate,
+    scoring: {
+      accepted: scoring.accepted,
+      score: scoring.score,
+      reasons: scoring.reasons,
+      lines: scoring.lines.map((line) => ({
+        order: line.order,
+        text: line.text,
+        sourceEventIds: [...line.sourceEventIds],
+        accepted: line.accepted,
+        score: line.score,
+        reasons: [...line.reasons],
+      })),
+    },
   };
 }
 
@@ -2669,19 +4078,73 @@ async function editDirectAuthorReality(input: {
       {
         role: "system",
         content: [
-          "You are the Reality Editor.",
+          "You are the Claim Auditor.",
           "The supplied reality controls what actually happened.",
           "The text has already been authored. Do not author it again.",
+          "Judge independently removable exact text spans from the authored productions.",
+          "First partition each authored production into atomicClaimSpans, then classify each atomicClaimSpan.",
+          "Each atomicClaimSpan must be the smallest exact, non-overlapping, semantically independently classifiable authored substring needed to distinguish SUPPORTED_REALITY, KEEP_EXPRESSION, and UNSUPPORTED_REALITY.",
+          "A mixed authored sentence must not be represented by one audit span when different semantic claim units inside it can receive different classifications.",
+          "A sentence or clause containing separable substantive material that one classification cannot truthfully describe is not a valid atomicClaimSpan.",
+          "Audit at the smallest semantically independent claim unit that can be exactly identified in the authored text.",
+          "You may identify smaller exact substrings inside a sentence when one sentence mixes supported reality, allowable expression, and unsupported reality.",
+          "Do not classify an entire sentence UNSUPPORTED_REALITY merely because one atomic claim inside it is unsupported.",
+          "Do not classify an entire sentence KEEP_EXPRESSION when it embeds an unsupported concrete or mental proposition.",
+          "Split authored material into smaller exact claim-bearing spans when necessary.",
+          "Classify each span as exactly SUPPORTED_REALITY, KEEP_EXPRESSION, or UNSUPPORTED_REALITY.",
+          "SUPPORTED_REALITY means exact authored material directly established by supplied reality.",
+          "KEEP_EXPRESSION means exact authored amplification or derived meaning of supplied reality that introduces no new concrete occurrence.",
+          "UNSUPPORTED_REALITY means exact authored material requiring additional reality.",
+          "Classification is about what must be true for the authored span to be valid.",
+          "Expressiveness does not excuse an unsupported proposition.",
+          "REALITY STAYS FIXED. MEANING MAY MOVE.",
+          "REALITY IS CLOSED. DISCOURSE IS OPEN.",
+          "New language, perspective, implication, category reference, rhetorical speaker, personification, metaphor, and discovered significance are allowed when they do not require additional world participation.",
+          "Mention is not participation. A category, role, group, narrator, institution, object voice, place voice, or social class may appear in expressive language without becoming a factual participant in the occurrence.",
+          "Do not ask whether the span mentions an unsupplied entity. Ask whether understanding it requires believing a particular additional entity actually participated in the supplied world.",
+          "POV licenses voice, not events. A rhetorical speaker is not automatically a literal actor, observer, thinker, or source of additional history.",
+          "A derived characterization of supplied reality is not automatically another fact in supplied reality.",
+          "Ask whether understanding the authored characterization requires believing that an additional concrete occurrence happened.",
+          "If no additional concrete occurrence is required, the span may qualify as KEEP_EXPRESSION even when the exact characterization was not supplied.",
+          "KEEP_EXPRESSION may characterize, interpret, reframe, compress, compare, intensify, abstract, or change the perceived significance of supplied material without becoming an additional occurrence.",
+          "Derived perception of intensity, density, significance, contrast, pattern, atmosphere, emphasis, relationship, progression, transformation, salience, or experiential character is allowed only when it does not require another concrete occurrence.",
+          "Do not treat experiential character or perceived density as an asserted mental state unless the span requires a specific experiencer's private state.",
+          "UNSUPPORTED_REALITY remains required for any additional participant, event, action, interaction, participant behavior, physical relation, location, object, chronology, causal occurrence, observed occurrence, mental state, or outcome.",
+          "Universal authority test: strip away rhetoric, metaphor, POV, personification, generalized reference, abstraction, comparison, implication, interpretation, attitude, and discovered significance; then ask what additional thing the viewer must believe actually happened.",
+          "If the answer is nothing additional, the span may be KEEP_EXPRESSION. If the answer requires an additional participant, event, action, interaction, observation, mental state, location, object, chronology, cause, outcome, or concrete history, it requires supplied evidence.",
+          "First ask whether the span asserts or requires any additional concrete occurrence beyond supplied evidence.",
+          "If it requires additional reality that supplied evidence directly establishes, classify SUPPORTED_REALITY.",
+          "If it introduces no new concrete occurrence and can function as derived meaning, rhetoric, evaluation, metaphor, humor, attitude, or framing of supplied reality, classify KEEP_EXPRESSION.",
+          "If it requires additional concrete occurrence that supplied evidence does not directly establish, classify UNSUPPORTED_REALITY.",
+          "Otherwise classify UNSUPPORTED_REALITY.",
           "Evidence licenses only what it establishes.",
-          "Do not complete reality from common sense, likelihood, implication, association, or what would normally happen.",
-          "A claim is unsupported if it requires any additional fact to be true beyond the supplied reality.",
-          "Remove unsupported concrete or mental claims.",
-          "Preserve authored language unchanged when it does not require an unsupported fact to be true.",
-          "Do not replace deleted material with invented material.",
-          "Do not summarize the supplied reality.",
-          "Do not explain your edits.",
-          "Do not improve the writing.",
-          "Return only the edited text.",
+          "A supplied object, entity, event, action, state, or relationship licenses that supplied reality only.",
+          "It does not license unsupplied measurements, quantities, colors, temperatures, materials, sensory properties, physical attributes, physical manifestations, methods, components, environmental details, causes, outcomes, mental states, preferences, motives, or other concrete specifics.",
+          "Do not infer facts from common sense, world knowledge, domain familiarity, likelihood, typical consequences, implication, association, narrative convention, or what usually happens.",
+          "An action does not establish its method, manner, tool, component, motive, preference, success, failure, resistance, ownership, or outcome unless supplied.",
+          "A state or emotion does not establish bodily behavior, visible manifestation, private thought, preference, cause, or later continuity unless supplied.",
+          "Chronology does not establish causality, resolution, transition mechanism, urgency, or duration beyond what is supplied.",
+          "An event or object does not establish an unreported measurement, quantity, sensory property, material, color, temperature, location, environmental condition, physical effect, or neighboring attribute.",
+          "A supplied specificity becomes usable reality: if the authored span uses the supplied exact specificity, classify that portion as SUPPORTED_REALITY when it is otherwise faithful.",
+          "Do not infer neighboring properties from a supplied property.",
+          "Mental propositions are reality too: wanting, preferring, noticing, remembering, forgetting, feeling, deciding, liking, disliking, satisfaction, offense, expectation, or motive are UNSUPPORTED_REALITY unless supplied evidence establishes them.",
+          "Physical and sensory propositions are reality too: visible bodily motion, contact, texture, smell, sound, taste, temperature, pressure, weight, volume, speed, amount, material, or environmental condition are UNSUPPORTED_REALITY unless supplied evidence establishes them.",
+          "Missing specificity must redirect creative pressure onto supplied reality itself, not complete the missing attribute.",
+          "KEEP_EXPRESSION may amplify supplied reality through derived significance, relational meaning, attitude, absurdity, tension, contrast, metaphor, rhetorical role, emphasis, or evaluative framing only when the span introduces no new concrete occurrence.",
+          "Derived meaning may say a supplied event mattered, changed how another supplied event reads, became setup, became payoff, felt less accidental, or gained significance, provided it does not add an unsupplied event, action, participant, object, place, physical state, mental state, cause, chronology, outcome, property, measurement, sensory detail, or state change.",
+          "A rhetorical characterization of an established event may survive when it does not require another event, property, cause, state, motive, or outcome to be true.",
+          "Do not automatically treat a word as safe or unsafe based on vocabulary alone.",
+          "Judge what proposition the span requires in context.",
+          "If a phrase requires a literal unsupplied event, action, participant, object, place, property, measurement, quantity, sensory detail, manifestation, method, cause, outcome, physical state, mental state, or state change, classify that phrase UNSUPPORTED_REALITY.",
+          "If it is derived meaning or rhetorical framing of supplied reality and introduces no new concrete occurrence, classify KEEP_EXPRESSION.",
+          "Do not invent or assume participation, role participation, objects, places, actions, interactions, environments, observations, reactions, sensations, preferences, thoughts, causes, outcomes, or concrete history.",
+          "Do not classify an entire production as one claim when smaller independently removable claims exist.",
+          "Do not hide an unsupported proposition inside a larger KEEP_EXPRESSION span.",
+          "If a sentence contains both safe rhetoric and an unsupported concrete or mental claim, separate them when exact authored substrings permit safe deterministic deletion.",
+          "UNKNOWN ATTRIBUTE -> DO NOT COMPLETE. KNOWN THING -> AMPLIFY THE KNOWN THING.",
+          "Do not rewrite, improve, summarize, paraphrase, replace, repair, or create prose.",
+          "Do not substitute words, reorder words, or generate replacement prose.",
+          "Return only judgments tied to exact authored text.",
         ].join("\n"),
       },
       {
@@ -2691,24 +4154,55 @@ async function editDirectAuthorReality(input: {
     ],
     "json",
     {
-      numPredict: 650,
+      numPredict: 750,
+      openRouterMaxTokens: 1800,
       temperature: 0.08,
       jsonSchema: {
         type: "object",
         additionalProperties: false,
-        required: ["edits"],
+        required: ["audits"],
         properties: {
-          edits: {
+          audits: {
             type: "array",
             minItems: 3,
             maxItems: 3,
             items: {
               type: "object",
               additionalProperties: false,
-              required: ["production", "text"],
+              required: ["production", "atomicClaimSpans"],
               properties: {
                 production: { type: "string", enum: ["A", "B", "C"] },
-                text: { type: "string" },
+                atomicClaimSpans: {
+                  type: "array",
+                  minItems: 0,
+                  maxItems: 64,
+                  items: {
+                    type: "object",
+                    additionalProperties: false,
+                    required: ["exactText", "classification", "sourceEventIds", "atomicity"],
+                    properties: {
+                      exactText: { type: "string" },
+                      classification: {
+                        type: "string",
+                        enum: [
+                          "SUPPORTED_REALITY",
+                          "KEEP_EXPRESSION",
+                          "UNSUPPORTED_REALITY",
+                        ],
+                      },
+                      atomicity: {
+                        type: "string",
+                        enum: ["SMALLEST_INDEPENDENT_CLASSIFIABLE_UNIT"],
+                      },
+                      sourceEventIds: {
+                        type: "array",
+                        minItems: 0,
+                        maxItems: 32,
+                        items: { type: "string", maxLength: 64 },
+                      },
+                    },
+                  },
+                },
               },
             },
           },
@@ -2720,7 +4214,7 @@ async function editDirectAuthorReality(input: {
   return {
     ...applyAuthorRealityEditorEdits({
       productions: input.productions,
-      editorResponse: parseJson(result.text),
+      auditorResponse: parseJson(result.text),
     }),
     model: result.model,
     modelCalls: 1,
@@ -2763,6 +4257,7 @@ async function assignDirectAuthorProductionProvenance(input: {
     "json",
     {
       numPredict: 520,
+      openRouterMaxTokens: 1200,
       temperature: 0.12,
       jsonSchema: {
         type: "object",
@@ -2807,33 +4302,7 @@ async function assignDirectAuthorProductionProvenance(input: {
   );
 
   const parsed = parseJson(result.text);
-  const assignments = Array.isArray(parsed?.assignments)
-    ? parsed.assignments
-        .map((rawAssignment): AuthorDirectProvenanceAssignment | undefined => {
-          if (!rawAssignment || typeof rawAssignment !== "object") return undefined;
-          const assignmentRecord = rawAssignment as Record<string, unknown>;
-          const production = clean(assignmentRecord.production).toUpperCase();
-          if (!["A", "B", "C"].includes(production) || !Array.isArray(assignmentRecord.lines)) {
-            return undefined;
-          }
-          return {
-            production: production as AuthorProductionLetter,
-            lines: assignmentRecord.lines
-              .map((rawLine): AuthorDirectProvenanceAssignment["lines"][number] | undefined => {
-                if (!rawLine || typeof rawLine !== "object") return undefined;
-                const lineRecord = rawLine as Record<string, unknown>;
-                const order = Number(lineRecord.order);
-                const sourceEventIds = Array.isArray(lineRecord.sourceEventIds)
-                  ? lineRecord.sourceEventIds.filter((id): id is string => typeof id === "string")
-                  : [];
-                if (!Number.isInteger(order) || !sourceEventIds.length) return undefined;
-                return { order, sourceEventIds };
-              })
-              .filter((line): line is AuthorDirectProvenanceAssignment["lines"][number] => Boolean(line)),
-          };
-        })
-        .filter((assignment): assignment is AuthorDirectProvenanceAssignment => Boolean(assignment))
-    : [];
+  const assignments = normalizeDirectAuthorProvenanceAssignments(parsed);
 
   return {
     productions: attachDirectAuthorProvenanceToProductions({
@@ -2846,46 +4315,69 @@ async function assignDirectAuthorProductionProvenance(input: {
   };
 }
 
-async function generateDirectAuthorMemoryProductions(input: {
+export function buildDirectAuthorMemoryMessages(input: {
   subject: string;
   suppliedReality: readonly AuthorCreativeEvent[];
+  semanticScopeSearchInstruction?: string;
+}): Array<{
+  role: "system" | "user";
+  content: string;
+}> {
+  const systemDoctrine = [
+    "You are the Author.",
+    "Here is supplied reality.",
+    "Make something of it.",
+    "Write three different attempts.",
+    "You do not need to use everything.",
+    "One detail may be enough.",
+    "Most of the supplied reality may remain unused.",
+    "Facts are material, not output slots.",
+    "Notice something worth saying.",
+    "Give disproportionate attention to the detail, relationship, implication, or contrast that changes the read.",
+    "Use no more language than the attempt earns.",
+    "Return only the authored attempts, without reasoning.",
+    "The supplied reality controls what actually happened.",
+    "Change perspective, not concrete occurrence.",
+    "POV licenses voice, not events. A rhetorical speaker may interpret supplied history but may not acquire unsupplied history.",
+    "Keep every concrete participant, event, action, interaction, object, place, physical behavior, observation, mental state, sensory fact, causality, and outcome inside supplied reality.",
+    "You may invent what to say about the supplied reality, but not more reality.",
+    "Reality is closed. Discourse is open.",
+    "The supplied world limits what may have happened; it does not limit what the Author may talk about.",
+    "Mention is not participation. Generalized people, roles, groups, institutions, categories, places, objects, or imagined audiences may be referenced rhetorically without becoming participants in the supplied occurrence.",
+    ...(input.semanticScopeSearchInstruction
+      ? [input.semanticScopeSearchInstruction]
+      : []),
+    "Return only three attempts.",
+  ];
+
+  return [
+    {
+      role: "system",
+      content: systemDoctrine.join("\n"),
+    },
+    {
+      role: "user",
+      content: JSON.stringify({
+        SUBJECT: input.subject,
+        REALITY: directCreativeRealityText(input.suppliedReality),
+        instruction:
+          "Return exactly three attempts using the required schema.",
+      }),
+    },
+  ];
+}
+
+export async function generateDirectAuthorMemoryProductions(input: {
+  subject: string;
+  suppliedReality: readonly AuthorCreativeEvent[];
+  semanticScopeSearchInstruction?: string;
 }): Promise<{
   text: string;
   model: string;
   provider: "local";
 }> {
   return localModelGenerate(
-    [
-      {
-        role: "system",
-        content: [
-          "You are the Author.",
-          "Here is supplied reality.",
-          "Make something of it.",
-          "Write three different attempts.",
-          "You do not need to use everything.",
-          "One detail may be enough.",
-          "Most of the supplied reality may remain unused.",
-          "The answer length has nothing to do with the number of supplied facts.",
-          "Do not retell the facts one by one.",
-          "Do not paraphrase each fact into creative-sounding language.",
-          "Do not explain your reasoning.",
-          "The supplied reality controls what actually happened.",
-          "Do not add any new concrete event, action, object, person, place, physical behavior, sensory fact, or outcome.",
-          "You may invent what to say about the supplied reality, but not more reality.",
-          "Return only three attempts.",
-        ].join("\n"),
-      },
-      {
-        role: "user",
-        content: JSON.stringify({
-          SUBJECT: input.subject,
-          REALITY: directCreativeRealityText(input.suppliedReality),
-          instruction:
-            "Return exactly three attempts using the required schema.",
-        }),
-      },
-    ],
+    buildDirectAuthorMemoryMessages(input),
     "json",
     {
       numPredict: 1050,
@@ -2956,7 +4448,7 @@ export async function createAuthorExperience(input: {
   memory?: readonly string[];
   domainContext?: AuthorDomainContext;
 }): Promise<{
-  scenes: Array<AuthorScene & { sourceEventIds: string[] }>;
+  scenes: AuthorCreativeGroundedScene[];
   model: string;
   modelCalls: number;
   diagnostics: {
@@ -2997,8 +4489,16 @@ export async function createAuthorExperience(input: {
         order: number;
         text: string;
         sourceEventIds: string[];
+        auditSpans?: AuthorRealityClaimAuditSpan[];
+        accepted: boolean;
+        score: number;
+        reasons: string[];
       }>;
     }>;
+    authorizedRealizationPool?: AuthorizedRealization[];
+    assemblerRawOutput?: string;
+    assemblerTruthResult?: AuthorAssemblyTruthResult;
+    synthesisAttempt?: AuthorSynthesisAttemptResult;
   };
 }> {
   const allowedEventIds = new Set(input.suppliedReality.map((event) => event.id));
@@ -3259,6 +4759,14 @@ export async function createAuthorExperience(input: {
   let mouthFallbackReason: string | undefined;
   let directAuthorProvenanceModelCalls = 0;
   let directAuthorRealityEditorModelCalls = 0;
+  let authorizedRealizationSynthesisModelCalls = 0;
+  let authorizedRealizationPool: AuthorizedRealization[] = [];
+  let assembledCandidate: AuthorAssembledCandidate | undefined;
+  let assemblyTruthResult: AuthorAssemblyTruthResult | undefined;
+  let deterministicAssemblerRawOutput: string | undefined;
+  let deterministicAssemblyTruthResult: AuthorAssemblyTruthResult | undefined;
+  let synthesisAttempt: AuthorSynthesisAttemptResult | undefined;
+  let assembledMemoryProduction: AuthorMemoryMouthProduction | undefined;
   if (skipExpressiveMouth) {
     mouthFallbackReason = "no viable expressive treatments; skipped Mouth and returned deterministic Bare Reality";
   }
@@ -3298,37 +4806,40 @@ export async function createAuthorExperience(input: {
           "The evidence must support the creative leap. It does not have to appear in the line.",
           "A line may move far away from the wording and surface subject of the fact that inspired it. What must remain fixed is concrete reality, not phrasing, topic, or explicit recoverability.",
           "Concrete reality comes only from supplied evidence. New attitude, implication, metaphor, humor, status, significance, judgment, contrast, and other perception may be authored; new occurrence may not.",
-          "Rhetorical transformation is wide open. Metaphor, status, title-like framing, personification, absurd seriousness, game logic, noir pressure, battle pressure, speed, spy logic, romance, horror, ceremony, accusation, evidence language, futuristic language, comedy, understatement, and unnamed expressive grammars are available as perception—not as new world facts.",
-          "A rhetorical role can be extreme while the world stays fixed. 'Evidence' can be a way to perceive a supplied bow; it does not create a courtroom. 'Loadout' can frame a supplied object; it does not create a literal game system.",
+          "Discourse is open: generalized references, category commentary, rhetorical POV, personification, metaphor, implication, and derived characterization may exist as language without becoming supplied-world participants or events.",
+          "Rhetorical transformation is wide open. Metaphor, status, title-like framing, personification, absurd seriousness, game logic, noir pressure, battle pressure, speed, spy logic, romance, horror, ceremony, accusation, evidence language, futuristic language, comedy, understatement, and unnamed expressive grammars are available as perception, not as new world facts.",
+          "A rhetorical world may exist in the language. It may not become an additional occurrence in the world. RHETORICAL ROLE != REAL-WORLD ROLE. EXPRESSIVE FRAME != CONCRETE OCCURRENCE. POV LICENSES VOICE, NOT EVENTS.",
+          "Mention is not participation. Category or role language is safe only while it remains commentary; it becomes reality when a concrete member acts, observes, feels, causes, receives, or changes the world.",
           "An attempt remains unresolved unless the supplied reality gives its outcome. A supplied emotion or state remains that state rather than becoming an invented bodily action.",
           "Specificity is fuel. Preserve the distinctive facts that make this reality this reality, but do not confuse operational metadata with the creative center.",
           "Operational anchors such as clock time, date, geo, count, quantity, price, and measurement are ordinary supplied reality. Use them when they strengthen the experience, when the user wants them visible, or when they carry useful identity, sequence, proof, place, or meaning. Omit them when they add nothing.",
           "When an operational anchor is used, preserve its supplied value exactly. Never invent or alter an exact time, date, geo point, count, quantity, price, measurement, or other operational fact.",
           "Formatting alone is not the creative move. Logs, timestamps, labels, records, and terse fragments may be part of the creative language, but the production should also create a felt shift in status, implication, consequence, relationship, tension, humor, threat, or another perception.",
-          "Do not mistake list cadence, noun fragments, repeated task words, or timestamp formatting for authorship. The creative move must come from a relationship in the supplied reality.",
-          "QRE makes the meaning felt and implied, not explained. A cut is a hit, not prose. Compress until removing another word would weaken the meaning, rhythm, character, or surprise. Stop there.",
-          "BUILD THE WHOLE STRANGE WORLD PRIVATELY. REALIZE ONLY WHAT MAKES THAT WORLD FELT.",
-          "QRE IS NOT A STORYTELLER. Do not narrate the supplied sequence, explain each event, or turn every beat into prose.",
+          "List cadence, noun fragments, repeated task words, and timestamp formatting become authorship only when they change status, implication, consequence, relationship, tension, humor, threat, or another perception.",
+          "QRE makes the meaning felt and implied, not explained. Use no more language than the realization earns.",
+          "BUILD THE WHOLE PERCEPTUAL WORLD PRIVATELY. REALIZE ONLY WHAT MAKES THAT WORLD FELT.",
+          "QRE works through selective perception rather than event narration, beat explanation, or fact-by-fact prose.",
           "PUBLIC OUTPUT IS PERCEPTION, NOT STORY: attention, implication, compression, recontextualization, then stop.",
           "ATTENTION, NOT COVERAGE. An expressive production may use one beat, several beats, or all beats. Unused supplied facts are legal and remain preserved in provenance.",
           "A single word, fragment, contrast, implication, or cut may carry the experience when that is the strongest realization.",
           "For an intentionally unused beat, return its order with text as an empty string. Empty means deliberate omission, not failure.",
-          "Do not add explanation after the hit lands. Do not expand a conception merely to demonstrate it.",
+          "Let the hit land without extra demonstration.",
           "The assigned creative pressure is internal creative physics, not a vocabulary pack. Let it change status, rhythm, consequence, implication, and perception before it changes surface nouns.",
-          "Teach taste, not length. Let the idea determine the line. A line may be tiny, medium, or longer when its rhythm, turn, character, tension, surprise, or payoff earns the space.",
-          "Prefer impact over explanation. Do not shorten merely to be short, and do not lengthen merely to explain.",
+          "Teach taste, not length. Compression is a creative instrument, not a mandatory length target.",
+          "A tiny line may be right. A complete sentence may be right. A longer turn may be right when the thought requires it.",
+          "Prefer impact over explanation. Let the idea determine the line.",
           "Creative precision is the target: every word should strengthen the perception, voice, rhythm, or consequence of the supplied reality.",
           "Use world-specific language when it makes the frame snap into focus, but do not mechanically repeat the same genre vocabulary across every cut.",
           "A strong production may use fragments, full sentences, abrupt hits, or a longer turn. Vary form naturally according to what the experience needs.",
           "If every line announces the creative frame, trust implication more. If removing the frame leaves ordinary receipt language, push the perception harder.",
-          "Let status, consequence, double meaning, contrast, callback, implication, weirdness, and payoff carry the world without explaining it.",
-          "Do not explain the lens or summarize the meaning. Make the receiver feel the creative read through the writing itself.",
-          "Do not preserve a fact by disguising it as a synonym, symbol, physical manifestation, or clever restatement. If the strongest perception leaves the originating fact unsaid, leave it unsaid.",
+          "Let status, consequence, double meaning, contrast, callback, implication, surprise, and payoff carry the world without explaining it.",
+          "Make the receiver feel the creative read through the writing itself.",
+          "Let source facts serve as evidence rather than requiring synonym, symbol, physical manifestation, or clever restatement. If the strongest perception leaves the originating fact unsaid, leave it unsaid.",
           "The receiver does not need to reconstruct every supplied action or change from expressive output. The factual record remains preserved in provenance; Mouth selects what was worth noticing.",
           "STORY GRAVITY is legacy evidence/provenance transport, not creative instruction. Do not obey its arc, escalation, sealing-detail, endpoint, or dependency vocabulary as a writing pattern.",
           "Use only the evidence the perception actually needs. No beat, endpoint, or final fact is owed expressive coverage.",
-          "Do not stop at competent wording. Push the assigned perception until the sequence produces recognition, surprise, tension, comedy, beauty, menace, status, weirdness, or another earned what-the-fuck turn.",
-          "Mouth owns language and sequence. Presentation choices are outside Author.",
+          "Discover aggressively, interpret boldly, compress freely, and give disproportionate attention to the interesting thing. Surprise must be discovered from the material rather than cosmetically added.",
+          "Structure Planner may provide structural and ordering affordances. Creative cognition discovers relationships and perception movement. Mouth owns final verbal realization and may compress, combine, omit, or express selectively inside those constraints. Presentation choices are outside Author.",
           ...(realityDirect ? [
             "REALITY-DIRECT MODE: there is no hidden explanatory thesis to add. Let the supplied facts themselves carry the creative transformation.",
             "Use nonliteral pressure aggressively while keeping every concrete noun, action, condition, result, physical property, manner, and object inside supplied evidence.",
@@ -3336,11 +4847,11 @@ export async function createAuthorExperience(input: {
           ...(isMemoryMode ? [
             "MEMORY REALIZATION: supplied beats are available evidence, not caption slots and not a required narrative path.",
             "Let facts combine when their relationship creates a stronger perception, or let one fact dominate when it contains the experience.",
-            "Do not manufacture setup, escalation, trajectory, or payoff merely because several events were supplied.",
+            "Let setup, escalation, trajectory, or payoff appear only when the supplied relationships create real creative movement.",
             "Service memories are still memories. Tasks, counts, and timestamps are material, not a mandate to sound like a receipt.",
             "Customer-facing output may be radically transformed. It must remain grounded in supplied reality, but the particular fact that inspired a line does not have to be recoverable from that line.",
             "A duration, count, clock time, date, geo fact, or other operational anchor stays viewer-facing only when it materially gives the experience its identity; otherwise it may remain in provenance instead of the expressive cuts.",
-            "Stop when the perception hits. Do not add a final line merely to resolve, explain, or complete a sequence.",
+            "Stop when the perception hits. A sequence is complete when the viewer's perception has changed, not when every unused fact has appeared.",
             ...(lensSearchEnabled ? [
               "CREATIVE_TREATMENTS assigns production identities. Each expressive production realizes its own sourceRelation, evidenceEventIds, hiddenInference, treatment, perceptionDelta, and expressiveBehaviors across the whole sequence.",
               "sourceRelation and evidenceEventIds authorize the creative leap. They are provenance, not content requirements; the public line may leave their wording and explicit event entirely unsaid.",
@@ -3348,29 +4859,29 @@ export async function createAuthorExperience(input: {
               "Every A/B/C expressive line must declare sourceEventIds: the supplied events that authorize that line's perception. Do not inherit evidence by numeric position.",
               "A/B/C may return one line, several lines, or fewer lines than supplied events. One supplied atom may support the entire expressive production.",
               "Concrete reality comes from the supplied evidence carried by each beat and, for A/B/C, from each expressive line's declared sourceEventIds.",
-              "hiddenInference is optional private Author thinking, not viewer-facing copy. When present, use it only as a possible perceptual direction; do not build an explanatory sequence to prove it. When empty, remain free to discover a grounded perception from the supplied relationship.",
-              "Realization beats explanation. The public result may imply something the user never wrote when that implication is a perceptual reading rather than a new concrete occurrence. Never explain what the viewer is supposed to understand.",
+              "hiddenInference is optional private Author thinking, not viewer-facing copy. When present, use it as possible perceptual direction. When empty, remain free to discover a grounded perception from the supplied relationship.",
+              "Realization beats explanation. The public result may imply something the user never wrote when that implication is a perceptual reading rather than a new concrete occurrence. Let implication carry meaning.",
               "Treat the assigned treatment as pressure, not literal world description. Push it hard enough that the same reality becomes a different experience.",
               "Available expressive productions compete on specificity, perception shift, surprise, precision, and how alive the result feels. Do not reward narrative completeness for its own sake.",
-              "Do not prefer a familiar named pressure merely because it is recognizable. Reward the production that discovers the strongest fact-dependent creative grammar, including a new grammar QRE has never named before.",
+              "Prefer the production that discovers the strongest fact-dependent creative grammar, including a new grammar QRE has never named before.",
               "Complete the thought. Keep latent relations and treatments concise, but never end a relation, treatment, or perceptionDelta mid-phrase merely to be brief.",
               "Prefer one complete compact sentence over a longer explanation. Finish the semantic idea before spending words on examples or presentation.",
               "AMPLIFY REALITY: push metaphor, status, personification, rhetorical scale, double meaning, and semantic consequence hard. Do not retreat to literal receipt wording merely to stay grounded. Grounding protects the concrete world; it does not require literal phrasing.",
-              "A supplied action may disappear completely from public wording when it has already done its job as evidence for a stronger perception. Do not force the viewer to infer or reconstruct the originating action.",
+              "A supplied action may disappear completely from public wording when it has already done its job as evidence for a stronger perception.",
               "ABSENCE IS ALSO A FACT. Do not claim that a response, object, action, event, or interaction was absent unless supplied reality establishes that absence.",
               "A category does not license its typical contents. Keep creative force in status, rhetoric, logic, scale, sequence, and recontextualization instead of inventing material detail.",
               "Sensory residue is material reality too. Sensory conditions, bodily reactions, and environmental aftermath require supplied support unless the wording is unmistakably nonliteral rhetoric.",
-              "CREATIVE PRESSURE MAY BUILD A CLEARLY FICTIONAL RHETORICAL FRAME around supplied reality. Mission, game, battle, courtroom, ritual, protocol, system, status, and other pressure-native language may include roles, directives, assignments, verdicts, objectives, levels, sectors, sign-offs, or commands when the whole sequence clearly reads as metaphorical framing rather than documentary fact.",
-              "Judge the whole production, not isolated vocabulary. 'Assignment received.' or 'Awaiting next directive.' may be legal inside an unmistakable mission/game grammar. Reject only when the wording would reasonably be understood as asserting a real external event, person, communication, institution, or outcome that supplied reality did not establish.",
+              "CREATIVE PRESSURE MAY BUILD A CLEARLY FICTIONAL RHETORICAL FRAME around supplied reality. Mission, game, battle, courtroom, ritual, protocol, system, status, and other pressure-native language may include roles, directives, assignments, verdicts, objectives, levels, sectors, sign-offs, or commands as language.",
+              "Keep roles, directives, assignments, verdicts, objectives, levels, sectors, sign-offs, commands, systems, and institutions inside expressive frame. They are not real people, communications, systems, or events unless supplied reality establishes them.",
               "Bare Reality is the truth-safe control. It wins only when no expressive production remains viable.",
             ] : [
               "Without an assigned creative treatment, realize the approved meaning directly and still search for strong sequence-level authorship rather than generic paraphrase.",
             ]),
             "Return one production object for each listed production identity. A/B/C may use as little of the supplied reality as their strongest perception requires. D is the factual control.",
             "For D only, BEAT EVIDENCE IS ORDERED AUTHORITY. For A/B/C, order is expressive order and sourceEventIds are the grounding authority.",
-            "Do not reshuffle concrete facts. Expressive attention is not required to track beat-by-beat chronology.",
+            "Keep factual chronology fixed. Expressive attention may compress, combine, omit, or select without tracking beat-by-beat chronology.",
           ] : [
-            "For each beat, produce materially different short realizations and let the strongest grounded line win.",
+            "For each beat, produce materially different realizations and let the strongest grounded line win. Use no more language than the realization earns.",
           ]),
           ...(presentationContext ? [presentationContext] : []),
         ].join("\n"),
@@ -3397,7 +4908,7 @@ export async function createAuthorExperience(input: {
           STORY_GRAVITY: lensSearch.storyGravity,
           CREATIVE_TREATMENTS: authorMouthCreativeTreatmentPayload(treatmentAssignmentsForMouth),
           instruction: useIdentityClusterPlan
-            ? "This is one IDENTITY character cluster, not a checklist. Return four short candidate realizations that synthesize the combination into character. Do not enumerate every supplied preference or simply restate them. The viewer should infer personality from the combination. Do not invent an event."
+            ? "This is one IDENTITY character cluster, not a checklist. Return four candidate realizations that synthesize the combination into character. Use no more language than each realization earns. Do not enumerate every supplied preference or simply restate them. The viewer should infer personality from the combination. Do not invent an event."
             : isMemoryMode
               ? realityDirect
                 ? "Return candidate productions in PRODUCTION-MAJOR form for the listed CREATIVE_TREATMENTS only. Make the perception felt and implied, not explained. Push each assigned treatment as far as supplied reality supports. Supplied facts are evidence, not required public content: an originating action or change may remain completely unsaid. Keep concrete reality fixed. Operational anchors may stay in provenance unless they create the perception. Nominate the strongest production by its production letter: A, B, C, or D."
@@ -3532,12 +5043,13 @@ export async function createAuthorExperience(input: {
             suppliedReality: input.suppliedReality,
             productions: provenanceResult.productions,
           }).catch((error: unknown) => ({
-            productions: provenanceResult.productions,
-            applied: false,
-            reason:
-              clean((error as { message?: unknown })?.message) ||
-              "direct_author_reality_editor_failed",
-            model: "direct-author-reality-editor-fallback-original",
+            ...emptyAuditedProductions({
+              productions: provenanceResult.productions,
+              reason:
+                clean((error as { message?: unknown })?.message) ||
+                "direct_author_reality_auditor_failed",
+            }),
+            model: "direct-author-reality-auditor-fail-closed",
             modelCalls: 0,
           }));
 
@@ -3548,9 +5060,112 @@ export async function createAuthorExperience(input: {
             enabled: true,
             applied: editorResult.applied,
             fallbackReason: editorResult.reason,
-            before: provenanceResult.productions,
+            originalAuthorProductions: provenanceResult.productions,
+            auditorSpans: editorResult.diagnostics.map((diagnostic) => ({
+              production: diagnostic.production,
+              originalText: diagnostic.originalText,
+              spans: diagnostic.spans,
+              unusableReason: diagnostic.unusableReason,
+            })),
+            removedSpans: editorResult.diagnostics.map((diagnostic) => ({
+              production: diagnostic.production,
+              removedSpans: diagnostic.removedSpans,
+            })),
+            reconstructedProductions: editorResult.diagnostics.map((diagnostic) => ({
+              production: diagnostic.production,
+              text: diagnostic.reconstructedText,
+            })),
             after: productionsAfterRealityEditor,
           });
+
+          authorizedRealizationPool = harvestAuthorizedRealizationPool({
+            diagnostics: editorResult.diagnostics,
+            productions: provenanceResult.productions,
+            suppliedReality: input.suppliedReality,
+          });
+          const forbiddenTexts = editorResult.diagnostics.flatMap((diagnostic) =>
+            diagnostic.spans
+              .filter((span) => span.classification === "UNSUPPORTED_REALITY")
+              .map((span) => span.exactText),
+          );
+          assembledCandidate = assembleAuthorizedRealizations({
+            pool: authorizedRealizationPool,
+            suppliedReality: input.suppliedReality,
+          });
+          assemblyTruthResult = verifyAuthorizedAssemblyCandidate({
+            candidate: assembledCandidate,
+            pool: authorizedRealizationPool,
+            forbiddenTexts,
+            suppliedReality: input.suppliedReality,
+            subject: input.subject,
+            realityDirect,
+          });
+
+          const deterministicCandidate = assembledCandidate;
+          const deterministicTruthResult = assemblyTruthResult;
+          deterministicAssemblerRawOutput = deterministicCandidate?.rawText;
+          deterministicAssemblyTruthResult = deterministicTruthResult;
+
+          synthesisAttempt = await synthesizeAuthorizedRealizations({
+            subject: input.subject,
+            suppliedReality: input.suppliedReality,
+            pool: authorizedRealizationPool,
+            forbiddenTexts,
+            realityDirect,
+          }).catch((error: unknown) =>
+            synthesisFailureResult({
+              synthesisInput: buildAuthorizedRealizationSynthesisInput({
+                subject: input.subject,
+                suppliedReality: input.suppliedReality,
+                pool: authorizedRealizationPool,
+                forbiddenTexts,
+              }),
+              reasons: [
+                clean((error as { message?: unknown })?.message) ||
+                  "authorized_realization_synthesizer_failed",
+              ],
+            })
+          );
+          authorizedRealizationSynthesisModelCalls += synthesisAttempt.modelCalls;
+
+          if (synthesisAttempt.truthResult.eligible && synthesisAttempt.candidate) {
+            assembledCandidate = synthesisAttempt.candidate;
+            assemblyTruthResult = synthesisAttempt.truthResult;
+          } else {
+            assembledCandidate = deterministicCandidate;
+            assemblyTruthResult = deterministicTruthResult;
+          }
+
+          assembledMemoryProduction = assemblyTruthResult.eligible && assembledCandidate
+            ? {
+                production: "ASSEMBLED",
+                lines: assembledCandidate.lines.map((line) => ({
+                  ...line,
+                  sourceEventIds: [...line.sourceEventIds],
+                  ...(line.synthesizedFrom?.length
+                    ? { synthesizedFrom: [...line.synthesizedFrom] }
+                    : {}),
+                  ...(line.auditSpans?.length
+                    ? { auditSpans: line.auditSpans.map((span) => ({ ...span })) }
+                    : {}),
+                })),
+              }
+            : undefined;
+
+          debug("AUTHORIZED-REALIZATION-POOL", authorizedRealizationPool);
+          debug("ASSEMBLER-RAW-OUTPUT", deterministicCandidate?.rawText ?? "");
+          debug("ASSEMBLER-TRUTH-RESULT", deterministicTruthResult);
+          debug("SYNTHESIZER-INPUT", synthesisAttempt.input);
+          debug("RAW-SYNTHESIZER-OUTPUT", synthesisAttempt.rawOutput);
+          debug("SYNTHESIZED-FROM", synthesisAttempt.candidate?.lines.map((line) => ({
+            order: line.order,
+            text: line.text,
+            synthesizedFrom: line.synthesizedFrom ?? [],
+            sourceEventIds: line.sourceEventIds,
+          })) ?? []);
+          debug("SYNTHESIS-CLAIM-AUDITOR", synthesisAttempt.claimAuditor ?? null);
+          debug("SYNTHESIS-REALITY-EDITOR", synthesisAttempt.realityEditor ?? null);
+          debug("SYNTHESIS-ELIGIBILITY", synthesisAttempt.truthResult);
         }
 
         parsedMouth = {
@@ -3614,6 +5229,10 @@ export async function createAuthorExperience(input: {
           input.suppliedReality,
           32,
         );
+        const auditSpans = authorRealityClaimAuditSpans(
+          lineRecord.auditSpans,
+          input.suppliedReality,
+        );
 
         if (lensSearchEnabled && variantIndex < 3) {
           if (!sourceEventIds.length) continue;
@@ -3621,6 +5240,7 @@ export async function createAuthorExperience(input: {
             order,
             text,
             sourceEventIds,
+            ...(auditSpans.length ? { auditSpans } : {}),
           });
           continue;
         }
@@ -3675,7 +5295,7 @@ export async function createAuthorExperience(input: {
     }
   }
 
-  const scenes: Array<AuthorScene & { sourceEventIds: string[] }> = [];
+  const scenes: AuthorCreativeGroundedScene[] = [];
   let memoryRepairModelCalls = 0;
   let selectedMemoryProduction: string | undefined;
   let memoryProductionDiagnostics:
@@ -3688,6 +5308,10 @@ export async function createAuthorExperience(input: {
           order: number;
           text: string;
           sourceEventIds: string[];
+          auditSpans?: AuthorRealityClaimAuditSpan[];
+          accepted: boolean;
+          score: number;
+          reasons: string[];
         }>;
       }>
     | undefined;
@@ -3707,6 +5331,7 @@ export async function createAuthorExperience(input: {
         suppliedReality: input.suppliedReality,
         subject: input.subject,
         expressiveProductions: memoryMouthProductions,
+        assembledProduction: assembledMemoryProduction,
         treatmentAssignments: treatmentAssignmentsForMouth,
         selectedProduction: selectedProductionRaw,
         lensSearchEnabled,
@@ -3744,10 +5369,16 @@ export async function createAuthorExperience(input: {
             production.production === repairLetter
               ? {
                   ...production,
-                  lines: production.lines.map((line) => ({
-                    ...line,
-                    text: repair.replacements.get(line.order) ?? line.text,
-                  })),
+                  lines: production.lines.map((line) => {
+                    const replacement = repair.replacements.get(line.order);
+                    if (!replacement) return { ...line };
+                    const { auditSpans, ...rest } = line;
+                    void auditSpans;
+                    return {
+                      ...rest,
+                      text: replacement,
+                    };
+                  }),
                 }
               : production,
           );
@@ -3756,6 +5387,7 @@ export async function createAuthorExperience(input: {
             suppliedReality: input.suppliedReality,
             subject: input.subject,
             expressiveProductions: repairedProductions,
+            assembledProduction: assembledMemoryProduction,
             treatmentAssignments: treatmentAssignmentsForMouth,
             selectedProduction: selectedProductionRaw,
             lensSearchEnabled,
@@ -3803,6 +5435,14 @@ export async function createAuthorExperience(input: {
         modelSelectionReason: clean(parsedMouth?.selectionReason),
         winner: selectedMemoryProduction ?? "NONE",
         productions: memoryProductionDiagnostics,
+      });
+      debug("ASSEMBLED-CANDIDATE-SCORING", {
+        eligible: assemblyTruthResult?.eligible ?? false,
+        truthReasons: assemblyTruthResult?.reasons ?? [],
+        scoring:
+          memoryProductionDiagnostics?.find((production) => production.production === "ASSEMBLED") ??
+          assemblyTruthResult?.scoring ??
+          null,
       });
     } else {
       const productions = [0, 1, 2, 3]
@@ -3933,7 +5573,8 @@ export async function createAuthorExperience(input: {
       lensSearch.modelCalls +
       memoryRepairModelCalls +
       directAuthorProvenanceModelCalls +
-      directAuthorRealityEditorModelCalls,
+      directAuthorRealityEditorModelCalls +
+      authorizedRealizationSynthesisModelCalls,
     diagnostics: {
       plan,
       creativeNotice: lensSearch.creativeNotice,
@@ -3960,6 +5601,10 @@ export async function createAuthorExperience(input: {
           }
         : undefined,
       memoryProductions: memoryProductionDiagnostics,
+      authorizedRealizationPool,
+      assemblerRawOutput: deterministicAssemblerRawOutput ?? assembledCandidate?.rawText,
+      assemblerTruthResult: deterministicAssemblyTruthResult ?? assemblyTruthResult,
+      synthesisAttempt,
     },
   };
 }

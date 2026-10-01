@@ -42,9 +42,15 @@ if (!failures.length) {
   if (!/buildAuthorRealityGraph\s*\(/.test(brain)) failures.push("brain does not build RealityGraph");
   if (!/discoverAuthorCreativeDirection\s*\(/.test(brain)) failures.push("brain does not execute Creative Discovery");
   if (!/createAuthorExperience\s*\(/.test(brain)) failures.push("brain does not execute QRE Creative");
+  const hasAuthorStructurePrompt =
+    /You are QRE Bare Author Structure Planner\./.test(creative) ||
+    /You are QRE Author Structure Planner\./.test(creative);
+  const hasDiscoveryOwnership =
+    /Discovery already owns meaning\./.test(creative) ||
+    /Discovery owns the approved meaning/.test(creative);
   if (
-    !/You are QRE Bare Author Structure Planner\./.test(creative) ||
-    !/Discovery already owns meaning\./.test(creative) ||
+    !hasAuthorStructurePrompt ||
+    !hasDiscoveryOwnership ||
     !/You are QRE Mouth\./.test(creative)
   ) failures.push("creative does not separate Discovery meaning, Author structure, and Mouth");
   if (!/evaluateAuthorCut\s*\(/.test(creative)) failures.push("creative does not execute deterministic cut floor");

@@ -5,6 +5,7 @@ import {
   directAuthorAttemptsToProductions,
   directCreativeRealityText,
   evaluateAuthorMemoryProductions,
+  normalizeDirectAuthorProvenanceAssignments,
 } from "./dist/services/authorCreative.js";
 
 const source = readFileSync(new URL("./src/services/authorCreative.ts", import.meta.url), "utf8");
@@ -45,19 +46,20 @@ assert.match(prompt, /Write three different attempts\./);
 assert.match(prompt, /You do not need to use everything\./);
 assert.match(prompt, /One detail may be enough\./);
 assert.match(prompt, /Most of the supplied reality may remain unused\./);
-assert.match(prompt, /The answer length has nothing to do with the number of supplied facts\./);
-assert.match(prompt, /Do not retell the facts one by one\./);
-assert.match(prompt, /Do not paraphrase each fact into creative-sounding language\./);
-assert.match(prompt, /Do not explain your reasoning\./);
+assert.match(prompt, /Facts are material, not output slots\./);
+assert.match(prompt, /Notice something worth saying\./);
+assert.match(prompt, /Give disproportionate attention to the detail, relationship, implication, or contrast that changes the read\./);
+assert.match(prompt, /Use no more language than the attempt earns\./);
+assert.match(prompt, /Return only the authored attempts, without reasoning\./);
 assert.match(prompt, /The supplied reality controls what actually happened\./);
 assert.match(
   prompt,
-  /Do not add any new concrete event, action, object, person, place, physical behavior, sensory fact, or outcome\./,
+  /Change perspective, not concrete occurrence\./,
 );
+assert.match(prompt, /Keep every concrete participant, event, action, interaction, object, place, physical behavior, observation, mental state, sensory fact, causality, and outcome inside supplied reality\./);
 assert.match(prompt, /You may invent what to say about the supplied reality, but not more reality\./);
 assert.doesNotMatch(prompt, /Do not invent something else happening\./);
 assert.match(prompt, /Return only three attempts\./);
-assert.doesNotMatch(prompt, /Notice something worth saying\./);
 assert.doesNotMatch(prompt, /Say what you noticed\./);
 assert.match(
   directSource,
@@ -272,6 +274,60 @@ assert.notEqual(
   expressiveProductions[0]?.lines[0]?.sourceEventIds[0],
   "event-1",
   "provenance helper must not infer evidence from line position",
+);
+
+const validProvenanceAssignments = {
+  assignments: [
+    { production: "A", lines: [{ order: 1, sourceEventIds: ["event-4"] }] },
+    { production: "B", lines: [{ order: 1, sourceEventIds: ["event-4"] }] },
+    { production: "C", lines: [{ order: 1, sourceEventIds: ["event-4"] }] },
+  ],
+};
+
+assert.deepEqual(
+  normalizeDirectAuthorProvenanceAssignments(validProvenanceAssignments).map((assignment) => assignment.production),
+  ["A", "B", "C"],
+  "internal provenance validation must accept exactly one A/B/C set",
+);
+
+assert.throws(
+  () => normalizeDirectAuthorProvenanceAssignments({
+    assignments: validProvenanceAssignments.assignments.slice(0, 2),
+  }),
+  /malformed_direct_author_provenance_assignments_cardinality/,
+  "internal provenance validation must reject fewer than three assignments",
+);
+assert.throws(
+  () => normalizeDirectAuthorProvenanceAssignments({
+    assignments: [
+      ...validProvenanceAssignments.assignments,
+      { production: "A", lines: [{ order: 1, sourceEventIds: ["event-4"] }] },
+    ],
+  }),
+  /malformed_direct_author_provenance_assignments_cardinality/,
+  "internal provenance validation must reject more than three assignments",
+);
+assert.throws(
+  () => normalizeDirectAuthorProvenanceAssignments({
+    assignments: [
+      { production: "A", lines: [{ order: 1, sourceEventIds: ["event-4"] }] },
+      { production: "B", lines: [{ order: 1, sourceEventIds: ["event-4"] }] },
+      { production: "D", lines: [{ order: 1, sourceEventIds: ["event-4"] }] },
+    ],
+  }),
+  /malformed_direct_author_provenance_productions/,
+  "internal provenance validation must reject missing A/B/C coverage",
+);
+assert.throws(
+  () => normalizeDirectAuthorProvenanceAssignments({
+    assignments: [
+      { production: "A", lines: [{ order: 1, sourceEventIds: ["event-4"] }] },
+      { production: "B", lines: [{ order: 1, sourceEventIds: ["event-4"] }] },
+      { production: "B", lines: [{ order: 1, sourceEventIds: ["event-4"] }] },
+    ],
+  }),
+  /malformed_direct_author_provenance_productions/,
+  "internal provenance validation must reject duplicate A/B/C assignments",
 );
 
 const evaluation = evaluateAuthorMemoryProductions({

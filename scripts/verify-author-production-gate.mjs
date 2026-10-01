@@ -51,9 +51,15 @@ if (required.every((p) => existsSync(join(root, p)))) {
 
   if (!/temperature:\s*0\.18/.test(extractor)) failures.push("Reality Extractor must remain low-temperature factual extraction");
   if (!/candidates/.test(discovery) || !/selectedCandidateId/.test(discovery) || !/evidenceEventIds/.test(discovery)) failures.push("Creative Discovery must search competing grounded perceptions and select one with evidence");
+  const hasAuthorStructurePrompt =
+    /You are QRE Bare Author Structure Planner\./.test(creative) ||
+    /You are QRE Author Structure Planner\./.test(creative);
+  const hasDiscoveryOwnership =
+    /Discovery already owns meaning\./.test(creative) ||
+    /Discovery owns the approved meaning/.test(creative);
   if (
-    !/You are QRE Bare Author Structure Planner\./.test(creative) ||
-    !/Discovery already owns meaning\./.test(creative) ||
+    !hasAuthorStructurePrompt ||
+    !hasDiscoveryOwnership ||
     !/You are QRE Mouth\./.test(creative) ||
     !/APPROVED_BEATS/.test(creative) ||
     !/SUPPLIED_REALITY/.test(creative) ||
@@ -61,9 +67,15 @@ if (required.every((p) => existsSync(join(root, p)))) {
   ) {
     failures.push("QRE Creative must separate Discovery meaning, Author structure, sparse deterministic planning, and Mouth realization");
   }
+  const hasConcreteRealityBoundary =
+    /Concrete reality comes ONLY from the beat's supplied event labels\./.test(creative) ||
+    /Concrete reality comes from the supplied evidence carried by each beat/.test(creative);
+  const hasBeatScopedAuthority =
+    /SEMANTIC AUTHORITY IS BEAT-SCOPED/.test(creative) ||
+    /BEAT EVIDENCE IS ORDERED AUTHORITY/.test(creative);
   if (
-    !/Concrete reality comes ONLY from the beat's supplied event labels\./.test(creative) ||
-    !/SEMANTIC AUTHORITY IS BEAT-SCOPED/.test(creative)
+    !hasConcreteRealityBoundary ||
+    !hasBeatScopedAuthority
   ) {
     failures.push("QRE Creative missing factual-reality and beat-scoped semantic authority boundary");
   }

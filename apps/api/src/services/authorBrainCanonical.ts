@@ -404,6 +404,9 @@ export async function authorBrainCanonical(
             [...line.sourceEventIds].sort().join(","),
           ) ?? "line",
         sourceEventIds: [...line.sourceEventIds],
+        ...(line.auditSpans?.length
+          ? { auditSpans: line.auditSpans.map((span) => ({ ...span })) }
+          : {}),
       })),
     );
 
@@ -443,6 +446,9 @@ export async function authorBrainCanonical(
                 [...line.sourceEventIds].sort().join(","),
               ) ?? "line",
             sourceEventIds: [...line.sourceEventIds],
+            ...(line.auditSpans?.length
+              ? { auditSpans: line.auditSpans.map((span) => ({ ...span })) }
+              : {}),
           })),
         };
       } else {

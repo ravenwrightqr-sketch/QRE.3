@@ -95,9 +95,15 @@ if (/localModelGenerate\s*\(/.test(brain)) failures.push("canonical-brain must o
 if (!/authorCutFloor\.js/.test(creative) || !/evaluateAuthorCut\s*\(/.test(creative)) {
   failures.push("QRE Creative must pass Mouth candidates through deterministic cut policy");
 }
+const hasAuthorStructurePrompt =
+  /You are QRE Bare Author Structure Planner\./.test(creative) ||
+  /You are QRE Author Structure Planner\./.test(creative);
+const hasDiscoveryOwnership =
+  /Discovery already owns meaning\./.test(creative) ||
+  /Discovery owns the approved meaning/.test(creative);
 if (
-  !/You are QRE Bare Author Structure Planner\./.test(creative) ||
-  !/Discovery already owns meaning\./.test(creative) ||
+  !hasAuthorStructurePrompt ||
+  !hasDiscoveryOwnership ||
   !/You are QRE Mouth\./.test(creative) ||
   !/DETERMINISTIC_SPARSE/.test(creative)
 ) {
