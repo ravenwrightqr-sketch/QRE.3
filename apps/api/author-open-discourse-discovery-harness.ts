@@ -15,7 +15,7 @@ import {
   type AuthorDirectTextProduction,
 } from "./src/services/authorCreative.js";
 import { verifyAuthorCreativeGrounding } from "./src/services/authorCreativeGroundingVerifier.js";
-import { localModelConfig } from "./src/services/localModelRuntime.js";
+import { localModelConfig, localModelGenerate } from "./src/services/localModelRuntime.js";
 
 const PRE_HOOK_SOURCE_REGION_HASH =
   "4f119b85a757354846dbf48d1176caf957cc6f732bcd6665a4ca3e88deb6956a";
@@ -1321,6 +1321,68 @@ function printPropositionalScopeDry(options: CliOptions, selectedDomains: Discov
   console.log("downstream pipeline invoked: false");
 }
 
+async function realizeGroundedDiscoveryAsMovingText(input: {
+  subject: string;
+  events: ReadonlyArray<{ id: string; text: string }>;
+  discovery: Awaited<ReturnType<typeof discoverAuthorCreativeDirection>>["discovery"];
+}): Promise<{ text: string; model: string }> {
+  const selected = input.discovery.selected;
+  const result = await localModelGenerate(
+    [
+      {
+        role: "system",
+        content: [
+          "You are QRE Experimental Mouth.",
+          "A separate Discovery stage already decided what is worth saying. Do not rediscover the experience and do not fall back to retelling the supplied timeline.",
+          "Your job is realization only: turn the authorized grounded thought into viewer-facing moving text.",
+          "The DISCOVERY PERCEPTION is the thought to preserve. The DISCOVERY RELATIONSHIP explains why supplied evidence licenses it; it is not copy that must appear.",
+          "Public wording may be completely new. It may sound conversational, opinionated, funny, irritated, affectionate, observant, questioning, blunt, strange, or understated when that realizes the authorized thought.",
+          "Do not equate creativity with poetry, dramatic fragments, metaphor, ceremonial language, or event recap.",
+          "The public cuts do not owe the viewer the originating facts. Mention a supplied fact only when it makes the authorized thought stronger.",
+          "Write for moving text. Each line is one arriving beat. Aim for 3-6 nonempty cuts. Favor 1-7 words per cut, but preserve a complete sharp thought rather than making it cryptic.",
+          "Reality remains closed. Do not add a concrete participant, event, action, object, place, physical state, observation, motive, cause, duration, persistence, outcome, chronology, or history beyond SUPPLIED_REALITY.",
+          "Expression remains open. Attitude, implication, rhetorical perspective, judgment, humor, comparison, generalized observation, and questions are allowed when they realize the authorized discovery without asserting a new concrete occurrence.",
+          "Return only structured JSON.",
+        ].join("\\n"),
+      },
+      {
+        role: "user",
+        content: JSON.stringify({
+          SUBJECT: input.subject,
+          SUPPLIED_REALITY: input.events,
+          AUTHORIZED_DISCOVERY: {
+            perception: selected.perception,
+            relationship: selected.relationship,
+            evidenceEventIds: selected.evidenceEventIds,
+          },
+          instruction:
+            "Realize the authorized discovery as moving text. Preserve its thought; do not replace it with a timeline recap.",
+        }),
+      },
+    ],
+    "json",
+    {
+      numPredict: 500,
+      openRouterMaxTokens: 1000,
+      temperature: 0.92,
+      jsonSchema: {
+        type: "object",
+        additionalProperties: false,
+        required: ["text"],
+        properties: {
+          text: { type: "string" },
+        },
+      },
+    },
+  );
+
+  const parsed = parseAuthorJson(result.text);
+  return {
+    text: clean(parsed?.text),
+    model: result.model,
+  };
+}
+
 async function runDomain(
   domain: DiscoveryDomain,
   runs: number,
@@ -1335,6 +1397,60 @@ async function runDomain(
     if (rawOnly) {
       const world = buildDomainRealityGraph(domain);
       const events = suppliedRealityEventsFromWorld(world);
+
+      if (condition === "SEMANTIC_SCOPE") {
+        const discoveryResult = await discoverAuthorCreativeDirection({
+          events,
+          relations: world.relations.map((relation) => ({
+            from: relation.from,
+            to: relation.to,
+            kind: relation.kind,
+            strength: relation.strength,
+          })),
+          domainContext: domain.domainContext,
+        });
+        const mouthResult = await realizeGroundedDiscoveryAsMovingText({
+          subject: domain.subject,
+          events,
+          discovery: discoveryResult.discovery,
+        });
+
+        printHeader("DISCOVERY -> MOUTH EXPERIMENT");
+        printJson({
+          condition,
+          discoveryModel: discoveryResult.model,
+          discoveryModelCalls: discoveryResult.modelCalls,
+          selectedDiscovery: {
+            id: discoveryResult.discovery.selected.id,
+            perception: discoveryResult.discovery.selected.perception,
+            relationship: discoveryResult.discovery.selected.relationship,
+            evidenceEventIds: discoveryResult.discovery.selected.evidenceEventIds,
+          },
+          mouthModel: mouthResult.model,
+          mouthCalls: 1,
+          claimAuditorCalls: 0,
+          finalGroundingCalls: 0,
+          synthesizerCalls: 0,
+        });
+        printHeader("EXPERIMENTAL MOUTH");
+        console.log(mouthResult.text);
+
+        const diagnostic = labelsForText(mouthResult.text, domain);
+        diagnostics.push({
+          domain: domain.id,
+          condition,
+          run,
+          production: "DISCOVERY_MOUTH",
+          text: mouthResult.text,
+          ...diagnostic,
+        });
+
+        printHeader("POST-GENERATION OBSERVATIONAL ANALYSIS");
+        console.log("LEXICAL HEURISTICS ONLY. Discovery candidate was semantically grounded before Mouth; final Mouth authority NOT_CHECKED.");
+        printJson(diagnostics.filter((item) => item.domain === domain.id && item.run === run));
+        continue;
+      }
+
       const directAuthorResult = await generateDirectAuthorMemoryProductions({
         subject: domain.subject,
         suppliedReality: events,
