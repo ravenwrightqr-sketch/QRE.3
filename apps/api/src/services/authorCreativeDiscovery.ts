@@ -675,8 +675,12 @@ export async function discoverAuthorCreativeDirection(input: {
     "",
     "SEARCH BEFORE SELECTION.",
     "Do not choose a winner while generating reads. Build a genuinely divergent set first.",
-    "When the evidence supports it, make candidates differ in semantic operation, not merely wording or emphasis. Search across possibilities such as: a particular characterization of one friction; a broader human or social observation licensed by the detail; a rhetorical perspective or attitude available from a supplied entity or relevant category; an implication or recontextualization created when two facts collide; an inversion of which detail seems important.",
-    "These are search directions, not quotas or labels. Do not force a category the evidence does not earn. Do not make several candidates that all reduce to the same before/after summary.",
+    "When the evidence supports it, make candidates differ in semantic operation, not merely wording or emphasis.",
+    "For every candidate, declare the semanticMove used to reach it. Available search moves are PARTICULAR, GENERALIZATION, RHETORICAL_POV, IMPLICATION, RECONTEXTUALIZATION, and INVERSION.",
+    "PARTICULAR stays close to the specific friction while changing what it means. GENERALIZATION asks what broader human, social, category-level, or ordinary-life observation this supplied detail can license without claiming another event. RHETORICAL_POV asks what attitude or judgment becomes available from a supplied entity or relevant generalized speaker without inventing participation. IMPLICATION identifies a supported thought the facts make available without restating them. RECONTEXTUALIZATION lets one supplied fact change how another registers. INVERSION asks whether the apparently minor or secondary detail is actually the revealing one.",
+    "semanticMove is a search provenance tag, not viewer-facing language and not a claim that the candidate is good.",
+    "When returning multiple candidates, use different semanticMove values unless the evidence genuinely supports only one move. Do not return several candidates that all reduce to the same before/after summary.",
+    "Do not force unsupported breadth. One grounded candidate is better than invented diversity.",
     "A broader observation need not claim that it literally occurred inside the event. A rhetorical speaker need not become a factual participant. Keep those as interpretation while concrete reality stays closed.",
     "Give disproportionate search attention to the odd, resistant, specific, awkward, or revealing detail. Do not automatically make the final positive state the meaning of the experience.",
     "Return only the requested structured object.",
@@ -693,7 +697,7 @@ export async function discoverAuthorCreativeDirection(input: {
           MEMORY: (input.memory ?? []).slice(0, 12),
           BUSINESS_CONTEXT: input.domainContext,
           instruction:
-            "Search for a divergent set of grounded reads worth considering. Fewer than the schema allows is valid; zero is valid. Do not select a winner. Make supported candidates conceptually different from one another rather than paraphrases of the same summary. Return no final prose or unsupported explanation.",
+            "Search for a divergent set of grounded reads worth considering. Fewer than the schema allows is valid; zero is valid. Do not select a winner. For multiple candidates, deliberately attempt different semanticMove values and keep only moves the supplied evidence supports. A GENERALIZATION or RHETORICAL_POV is interpretation, not a new occurrence. Return no final prose or unsupported explanation.",
         }),
       },
     ],
@@ -722,11 +726,13 @@ export async function discoverAuthorCreativeDirection(input: {
                 "perception",
                 "relationship",
                 "evidenceEventIds",
+                "semanticMove",
               ],
               properties: {
                 id: { type: "string", maxLength: 48 },
                 perception: { type: "string", maxLength: 180 },
                 relationship: { type: "string", maxLength: 140 },
+                semanticMove: { type: "string", enum: ["PARTICULAR", "GENERALIZATION", "RHETORICAL_POV", "IMPLICATION", "RECONTEXTUALIZATION", "INVERSION"] },
                 evidenceEventIds: {
                   type: "array",
                   maxItems: 32,
@@ -744,6 +750,11 @@ export async function discoverAuthorCreativeDirection(input: {
 
   const parsed = parseJson(result.text);
   const rawCandidates = Array.isArray(parsed?.candidates) ? parsed.candidates : [];
+  const semanticMoveById = new Map(
+    rawCandidates
+      .filter((value: any) => value && typeof value.id === "string")
+      .map((value: any) => [clean(value.id), clean(value.semanticMove)]),
+  );
   const suppliedRealityText = clean(input.events.map((event) => event.text).join(" "));
   const deterministicCandidates = rawCandidates
     .map((value, index) => normalizeCandidate(value, index, allowedEventIds))
@@ -860,6 +871,7 @@ export async function discoverAuthorCreativeDirection(input: {
               perception: candidate.perception,
               relationship: candidate.relationship,
               evidenceEventIds: candidate.evidenceEventIds,
+              semanticMove: semanticMoveById.get(candidate.id) || "UNKNOWN",
             })),
           }),
         },
