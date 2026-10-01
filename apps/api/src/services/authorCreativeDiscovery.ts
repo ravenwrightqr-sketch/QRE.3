@@ -794,11 +794,84 @@ export async function discoverAuthorCreativeDirection(input: {
     semanticVerification.groundedIds.has(candidate.id),
   );
 
-  let requestedSelectedId = "";
-
   let repairModel = result.model;
   let repairModelCalls = 0;
   let usedRepair = false;
+
+  if (candidates.length) {
+    const moveVerificationResult = await localModelGenerate(
+      [
+        {
+          role: "system",
+          content: [
+            "You are QRE Discovery Semantic-Move Verification.",
+            "Factual grounding has already been checked. Do not re-audit factual support and do not judge writing quality.",
+            "Your only job is to verify whether each candidate actually performs the semanticMove it claims.",
+            "PARTICULAR stays primarily about this specific episode or friction.",
+            "GENERALIZATION must escape the episode. Mentally remove the subject's name, this visit, chronology, service completion, pickup outcome, and episode recap. A broader proposition about people, behavior, taste, social convention, a relevant category, or ordinary life must remain.",
+            "A genericized episode description is NOT a GENERALIZATION. Saying 'a grooming visit can...' or 'a service can...' while still describing the same visit-pattern does not escape merely because the subject name disappeared.",
+            "RHETORICAL_POV must genuinely introduce an interpretive viewpoint or attitude rather than merely redescribe the event.",
+            "IMPLICATION must state a thought made available by the facts rather than restating them.",
+            "RECONTEXTUALIZATION must make one supplied fact materially change how another supplied fact registers.",
+            "INVERSION must make a seemingly secondary detail become the revealing or organizing detail.",
+            "Do not require every move to be broad. Verify the claimed move as written.",
+            "Return valid=false when the candidate is mislabeled, even if its perception is otherwise grounded and useful.",
+            "Do not rewrite, repair, improve, or relabel candidates.",
+          ].join("\n"),
+        },
+        {
+          role: "user",
+          content: JSON.stringify({
+            CANDIDATES: candidates.map((candidate) => ({
+              id: candidate.id,
+              semanticMove: semanticMoveById.get(candidate.id) || "UNKNOWN",
+              perception: candidate.perception,
+              relationship: candidate.relationship,
+            })),
+          }),
+        },
+      ],
+      "json",
+      {
+        numPredict: 420,
+        temperature: 0,
+        jsonSchema: {
+          type: "object",
+          additionalProperties: false,
+          required: ["verifications"],
+          properties: {
+            verifications: {
+              type: "array",
+              items: {
+                type: "object",
+                additionalProperties: false,
+                required: ["candidateId", "valid", "reason"],
+                properties: {
+                  candidateId: { type: "string", maxLength: 48 },
+                  valid: { type: "boolean" },
+                  reason: { type: "string", maxLength: 220 },
+                },
+              },
+            },
+          },
+        },
+      },
+    );
+    const moveParsed = parseJson(moveVerificationResult.text);
+    const moveVerifications = Array.isArray(moveParsed?.verifications)
+      ? moveParsed.verifications
+      : [];
+    const validMoveIds = new Set(
+      moveVerifications
+        .filter((value: any) => value?.valid === true)
+        .map((value: any) => clean(value?.candidateId))
+        .filter(Boolean),
+    );
+    candidates = candidates.filter((candidate) => validMoveIds.has(candidate.id));
+    repairModelCalls += 1;
+  }
+
+  let requestedSelectedId = "";
 
   const modelSelectedCandidate = deterministicCandidates.find(
     (candidate) => candidate.id === requestedSelectedId,
