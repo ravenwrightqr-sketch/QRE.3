@@ -171,27 +171,6 @@ function isMemoryContext(domainContext?: AuthorDomainContext): boolean {
   return clean(context.experienceMode).toUpperCase() === "MEMORY";
 }
 
-function candidateIsBusinessLensMaterialHandoff(
-  candidate: AuthorCreativeCandidate,
-  eventCount: number,
-): boolean {
-  if (eventCount <= 2) return true;
-
-  const text = clean([
-    candidate.perception,
-    candidate.relationship,
-    candidate.observerInference,
-  ].join(" "));
-
-  const preStyledUniverse =
-    /\b(?:ritual(?:istic)?|ceremony|ceremonial|performance|surgical|surgery|experiment|mission|game|noir|heist|courtroom|clinical|intimate|detached|crucial phase|robotic|ballet|protocol)\b/i.test(text);
-
-  const tooNarrowForServiceMemory =
-    candidate.evidenceEventIds.length < Math.min(3, eventCount);
-
-  return !preStyledUniverse && !tooNarrowForServiceMemory;
-}
-
 function candidateCrossesOperationalServiceTruthFloor(
   candidate: AuthorCreativeCandidate,
   suppliedRealityText: string,
@@ -516,48 +495,6 @@ export async function discoverAuthorCreativeDirection(input: {
     normalizedRequestedLens !== "NONE";
   const allowedEventIds = new Set(input.events.map((event) => event.id));
 
-  // In business/service MEMORY with downstream Creative Lens active,
-  // Discovery must not spend a model call inventing an interpretation the
-  // Lens will replace. Hand the full supplied memory corridor forward
-  // deterministically. This keeps truth ownership here and creative search
-  // downstream where it belongs.
-  if (
-    lensStageOwnsFraming &&
-    isMemoryContext(input.domainContext) &&
-    input.events.length > 0
-  ) {
-    const evidenceEventIds = input.events.map((event) => event.id);
-    const selected: AuthorCreativeCandidate = {
-      id: "reality-direct",
-      mode: "RELATIONAL",
-      perception:
-        "Use the supplied memory corridor directly as creative material; no hidden relationship is asserted upstream.",
-      relationship: "",
-      observerInference: "",
-      evidenceEventIds,
-      whyItHits: "",
-      risk: "downstream_lens_owns_creative_interpretation",
-    };
-
-    return {
-      discovery: {
-        candidates: [],
-        selectedCandidateId: selected.id,
-        selected,
-        playableEventIds: evidenceEventIds,
-        backgroundEventIds: [],
-        experienceShape: [],
-        lens: requestedLens || "NONE",
-        confidence: 1,
-        selectionReason:
-          "Deterministic business-memory handoff to downstream Creative Lens.",
-        risk: selected.risk,
-      },
-      model: "deterministic-business-memory-handoff",
-      modelCalls: 0,
-    };
-  }
-
   const system = [
     "You are QRE Creative Discovery.",
     "Reality is fixed. Meaning may move.",
@@ -583,7 +520,7 @@ export async function discoverAuthorCreativeDirection(input: {
       "",
       "HANDOFF BOUNDARY:",
       "A downstream Creative Lens stage owns final treatment. Discovery owns the grounded perception and the evidence that carries it.",
-      "Preserve the supplied material that makes this reality recognizable. Do not choose final treatment, write final prose, plan scenes, or score authored output.",
+      "Find the grounded meaning. Supplied material remains available downstream independently of the evidence needed for that meaning. Do not choose final treatment, write final prose, plan scenes, or score authored output.",
     ] : []),
     "",
     "SELECT BY COGNITIVE RETURN.",
@@ -591,8 +528,6 @@ export async function discoverAuthorCreativeDirection(input: {
     "A read does not become stronger by covering more facts. It becomes stronger when its cited evidence supports a sharper change in perception.",
     "",
     "HANDOFF:",
-    "playableEventIds = cited evidence that should remain directly available to later realization.",
-    "backgroundEventIds = cited evidence that supports the selected read without needing direct attention.",
     "experienceShape = optional concise hints for how the selected read functions.",
     "",
     "Return only the requested structured object.",
@@ -608,13 +543,8 @@ export async function discoverAuthorCreativeDirection(input: {
           SUPPLIED_RELATIONS: input.relations ?? [],
           MEMORY: (input.memory ?? []).slice(0, 12),
           BUSINESS_CONTEXT: input.domainContext,
-          CREATIVE_INTENT: {
-            requestedLens: requestedLens || undefined,
-          },
           instruction:
-            lensStageOwnsFraming
-              ? "Find any grounded reads worth returning. Preserve the supplied evidence that makes the reality recognizable for later treatment. Return no final prose, treatment, scene plan, or unsupported explanation."
-              : "Find any grounded reads worth returning. Fewer than the schema allows is valid; zero is valid. Use only supplied evidence, select the read with the clearest supported change in understanding, and return no final prose or unsupported explanation.",
+            "Find any grounded reads worth returning. Fewer than the schema allows is valid; zero is valid. Use only supplied evidence, select the read with the clearest supported change in understanding, and return no final prose or unsupported explanation.",
         }),
       },
     ],
@@ -628,8 +558,6 @@ export async function discoverAuthorCreativeDirection(input: {
         required: [
           "candidates",
           "selectedCandidateId",
-          "playableEventIds",
-          "backgroundEventIds",
           "experienceShape",
           "confidence",
           "selectionReason",
@@ -662,16 +590,6 @@ export async function discoverAuthorCreativeDirection(input: {
             },
           },
           selectedCandidateId: { type: "string", maxLength: 48 },
-          playableEventIds: {
-            type: "array",
-            maxItems: 32,
-            items: { type: "string", maxLength: 64 },
-          },
-          backgroundEventIds: {
-            type: "array",
-            maxItems: 64,
-            items: { type: "string", maxLength: 64 },
-          },
           experienceShape: {
             type: "array",
             maxItems: 5,
@@ -711,32 +629,18 @@ export async function discoverAuthorCreativeDirection(input: {
       !candidateReferencesUncitedEvidence(candidate, input.events),
     );
 
-  const handoffCandidates =
-    businessCreativeContext && isMemoryContext(input.domainContext)
-      ? deterministicCandidates.filter((candidate) =>
-          candidateIsBusinessLensMaterialHandoff(candidate, input.events.length),
-        )
-      : deterministicCandidates;
-
   const semanticVerification = await verifyDiscoveryCandidates({
-    candidates: handoffCandidates,
+    candidates: deterministicCandidates,
     events: input.events,
     relations: input.relations,
     domainContext: input.domainContext,
   });
 
-  let candidates = handoffCandidates.filter((candidate) =>
+  let candidates = deterministicCandidates.filter((candidate) =>
     semanticVerification.groundedIds.has(candidate.id),
   );
 
   const requestedSelectedId = clean(parsed?.selectedCandidateId);
-  const modelPlayableEventIds = stringArray(parsed?.playableEventIds, 32)
-    .filter((id) => allowedEventIds.has(id));
-  const modelBackgroundEventIds = stringArray(parsed?.backgroundEventIds, 64)
-    .filter((id) => allowedEventIds.has(id));
-  const experienceMode = clean(
-    (input.domainContext as Record<string, unknown> | undefined)?.experienceMode,
-  ).toUpperCase();
 
   let repairModel = result.model;
   let repairModelCalls = 0;
@@ -753,7 +657,7 @@ export async function discoverAuthorCreativeDirection(input: {
     modelSelectedCandidate && !modelSelectedSurvived
       ? [modelSelectedCandidate]
       : !candidates.length
-        ? handoffCandidates
+        ? deterministicCandidates
         : [];
 
   if (repairTargets.length) {
@@ -825,49 +729,18 @@ export async function discoverAuthorCreativeDirection(input: {
     Boolean(requestedSelected) &&
     selected.id === requestedSelectedId;
 
-  const selectedRepairsModelChoice = Boolean(repairedSelected) &&
-    selected.id === repairedSelected?.id;
-
-  const selectedEvidenceSet = new Set(selected.evidenceEventIds);
-
-  const preserveChosenMemoryCorridor =
-    experienceMode === "MEMORY" &&
-    (selectedMatchesModelChoice || selectedRepairsModelChoice);
-
-  const chosenMemoryCorridor = preserveChosenMemoryCorridor
-    ? unique([
-        ...selected.evidenceEventIds,
-        ...modelPlayableEventIds,
-        ...modelBackgroundEventIds,
-      ]).filter((id) => allowedEventIds.has(id))
-    : [];
-
-  const selectedChangedAfterModelChoice =
-    !selectedMatchesModelChoice && !selectedRepairsModelChoice;
-
-  const playableEventIds = preserveChosenMemoryCorridor
-    ? chosenMemoryCorridor
-    : selectedChangedAfterModelChoice
-      ? selected.evidenceEventIds.filter((id) => allowedEventIds.has(id))
-      : modelPlayableEventIds
-          .filter((id) => selectedEvidenceSet.has(id));
+  // Evidence proves the selected meaning. MEMORY's available material is the
+  // full supplied event corridor, regardless of selection, repair, or fallback.
+  // Preserve input order and never let model-authored partitions narrow it.
+  const playableEventIds = isMemoryContext(input.domainContext)
+    ? unique(input.events.map((event) => event.id))
+    : unique(selected.evidenceEventIds).filter((id) => allowedEventIds.has(id));
 
   const playableSet = new Set(playableEventIds);
 
-  const requestedBackground = selectedChangedAfterModelChoice ||
-    preserveChosenMemoryCorridor
-    ? []
-    : modelBackgroundEventIds
-        .filter((id) => selectedEvidenceSet.has(id))
-        .filter((id) => !playableSet.has(id));
-
-  const backgroundEventIds = preserveChosenMemoryCorridor
-    ? []
-    : selectedChangedAfterModelChoice
-      ? selected.evidenceEventIds.filter((id) => !playableSet.has(id))
-      : requestedBackground.length
-        ? requestedBackground
-        : selected.evidenceEventIds.filter((id) => !playableSet.has(id));
+  // Compatibility output only: background is derived, never model-authored.
+  const backgroundEventIds = selected.evidenceEventIds
+    .filter((id) => allowedEventIds.has(id) && !playableSet.has(id));
 
   return {
     discovery: {

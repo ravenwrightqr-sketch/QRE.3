@@ -64,14 +64,35 @@ assert.match(
 );
 
 for (const retainedField of [
-  "playableEventIds",
-  "backgroundEventIds",
   "experienceShape",
 ]) {
   assert.match(
     schemaSource,
     new RegExp(`"${retainedField}"`),
     `Discovery schema must not change ${retainedField}`,
+  );
+}
+
+assert.doesNotMatch(
+  promptSource,
+  /CREATIVE_INTENT|requestedLens:/,
+  "Requested treatment must not be supplied to meaning discovery",
+);
+for (const deterministicField of ["playableEventIds", "backgroundEventIds"]) {
+  assert.doesNotMatch(
+    promptSource,
+    new RegExp(deterministicField),
+    `Discovery prompt must not assign ${deterministicField} to the model`,
+  );
+  assert.doesNotMatch(
+    schemaSource,
+    new RegExp(deterministicField),
+    `${deterministicField} must be deterministic, not model-authored`,
+  );
+  assert.match(
+    source,
+    new RegExp(`${deterministicField}:\\s*string\\[\\]`),
+    `Discovery must retain its ${deterministicField} compatibility output`,
   );
 }
 
