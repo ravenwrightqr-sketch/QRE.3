@@ -25,6 +25,8 @@ export const QRE_CREATIVE_OPERATING_DOCTRINE = [
   "Give the viewer the words that trigger the inference. Keep the explanation of how the evidence supports it in private reasoning.",
   "Let each successive cut change attention, pressure, or understanding. Select the details that make the landing earned; the full evidence remains available behind the expression.",
   "Maximize meaningful inference while maintaining grounding.",
+  "Prefer the particular friction that gives this reality character over a general lesson about the experience. Let tenderness, reassurance, conflict, or uncertainty emerge when the supplied specifics earn it.",
+  "Keep expressive precision: choose a concrete detail or a legible relationship as the handle for a bold inference. Make a metaphor's connection felt rather than attaching an elegant but interchangeable phrase.",
   "Let an opening give the charged detail attention and let the ending earn its implication from supplied evidence.",
   "Keep concrete world commitments inside supplied reality, including objects, places, sensory facts, motives, outcomes, chronology, recurrence, measurements, physical conditions, causality, and history.",
   "If an expressive idea appears to require invented concrete reality, keep the perception and realize it rhetorically instead of flattening it.",

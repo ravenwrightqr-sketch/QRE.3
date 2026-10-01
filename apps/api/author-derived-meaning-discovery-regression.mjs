@@ -81,6 +81,9 @@ assert.deepEqual((await derive({ output: single, rejected: [] })).derivedMeaning
   "One earned interpretation is valid; multiple alternatives must never be forced");
 assert.deepEqual(grounded.requests[1].payload.DERIVED_MEANING_CLAIMS[0].evidence, events.slice(0, 2),
   "Authority receives only cited facts for each claim");
+assert.match(grounded.requests[0].messages[0].content, /an ending state can coexist with a local conflict/i);
+assert.match(grounded.requests[1].messages[0].content, /Check each causal and temporal commitment independently/);
+assert.match(grounded.requests[1].messages[0].content, /do not establish what caused either state/);
 assert.equal(grounded.requests[1].payload.DERIVED_MEANING_CLAIMS[3].derivation, "The removal attempt was planned revenge.",
   "Derivations must be audited, not merely interpretations");
 
@@ -191,6 +194,7 @@ assert.match(mouthSystems[0], /Maximize meaningful inference while maintaining g
 assert.match(mouthSystems[0], /Each public line is a moving-text cut/);
 assert.match(mouthSystems[0], /One word may establish the charged detail/);
 assert.match(mouthSystems[0], /Keep the explanation of how the evidence supports it in private reasoning/);
+assert.match(mouthSystems[0], /A supplied ending state may be used, omitted, or placed earlier/);
 assert.doesNotMatch(mouthSystems[0], /Do not|Never/i, "Mouth should direct creation positively");
 assert.doesNotMatch(mouthSystems[0], /Coco|War of the Bows|Peace is temporary/i,
   "Taste references must remain outside production instructions");
