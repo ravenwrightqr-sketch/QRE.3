@@ -3582,6 +3582,12 @@ export const AUTHORIZED_REALIZATION_SYNTHESIZER_PROMPT = [
   "Make the meaning felt through implication, rhythm, contrast, attitude, or perspective. Let the viewer complete the connection.",
   "Let the ending earn its implication from supplied evidence. Stop when that perception lands.",
   "World boundary: transform interpretation while keeping concrete occurrence inside supplied reality. New metaphor, implication, rhetorical framing, comparison, attitude, and perspective are available as expression.",
+  "PROVENANCE IS LINE-LOCAL. For every output line, synthesizedFrom declares exactly which authorized realizations license that line.",
+  "For that line, sourceEventIds MUST be a subset of the union of sourceEventIds attached to the realizations named in synthesizedFrom.",
+  "Do not cite or reintroduce a supplied event merely because it exists in SUPPLIED_REALITY. SUPPLIED_REALITY is the closed-world boundary, not an additional authorization pool.",
+  "If a fact is not authorized by the realizations named in synthesizedFrom, omit that fact from the line. To use another authorized realization, name its id in synthesizedFrom and remain inside its sourceEventIds.",
+  "Fresh wording, metaphor, implication, attitude, perspective, and synthesis are allowed; fresh factual provenance is not.",
+  "Before returning, privately verify each line: union the sourceEventIds of its synthesizedFrom realizations, then remove any output sourceEventId not present in that union.",
   "Return only structured JSON.",
 ].join("\n");
 
