@@ -195,6 +195,9 @@ assert.match(mouthSystems[0], /Each public line is a moving-text cut/);
 assert.match(mouthSystems[0], /One word may establish the charged detail/);
 assert.match(mouthSystems[0], /Keep the explanation of how the evidence supports it in private reasoning/);
 assert.match(mouthSystems[0], /A supplied ending state may be used, omitted, or placed earlier/);
+assert.match(mouthSystems[0], /Expand what a truth can mean without expanding what happened/);
+assert.match(mouthSystems[0], /a supplied entity, a rhetorical speaker, or a category already made relevant by the facts/);
+assert.match(mouthSystems[0], /stop cutting when the inference, character, rhythm, or tension gets weaker/);
 assert.doesNotMatch(mouthSystems[0], /Do not|Never/i, "Mouth should direct creation positively");
 assert.doesNotMatch(mouthSystems[0], /Coco|War of the Bows|Peace is temporary/i,
   "Taste references must remain outside production instructions");

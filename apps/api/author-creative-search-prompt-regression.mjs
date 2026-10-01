@@ -32,17 +32,17 @@ mustContain(
 );
 mustContain(
   prompt,
-  /Do not describe the evidence\./,
+  /Keep evidence description, semantic translation, and explanatory reasoning private\./,
   "Creative Search must not ask for evidence description",
 );
 mustContain(
   prompt,
-  /Do not explain what the evidence means\./,
+  /Give the thought made possible by the evidence\./,
   "Creative Search must not ask for evidence explanation",
 );
 mustContain(
   prompt,
-  /Do not translate evidence into a conceptual synonym or abstraction\./,
+  /semantic translation, and explanatory reasoning private/,
   "Creative Search must reject semantic translation",
 );
 mustContain(
@@ -87,12 +87,12 @@ mustContain(
 );
 mustContain(
   prompt,
-  /not invent participation or concrete world commitments: participants, objects, places, physical actions, interactions, observations, sensory facts, measurements, motives, outcomes, recurrence, physical conditions, causality, or any new concrete occurrence/i,
+  /Keep concrete participation and world commitments inside supplied evidence: participants, objects, places, physical actions, interactions, observations, sensory facts, measurements, motives, outcomes, recurrence, physical conditions, causality, and chronology/i,
   "Creative Search must preserve closed-world concrete reality protection",
 );
 mustContain(
   prompt,
-  /Do not return observation, meaning, interpretation, relation, rationale, explanation, theme, mechanic, lens/i,
+  /Return only conception and evidenceEventIds for each notice/i,
   "Creative Search must forbid replacement intermediate fields",
 );
 mustContain(
@@ -107,9 +107,12 @@ mustContain(
 );
 mustContain(
   userInstruction,
-  /not a description, explanation, observation, meaning, interpretation, relation, rationale, theme, mechanic, lens, or semantic translation/i,
+  /keep explanation and semantic translation private/i,
   "Creative Search user instruction must reject explanatory replacement fields",
 );
+mustContain(prompt, /Let the discovered relationship supply the pressure and the treatment accelerate it/,
+  "Treatment must amplify discovered meaning");
+mustNotContain(prompt, /"Do not|"Never/i, "Creative Search should direct creation positively");
 mustContain(
   schema,
   /required:\s*\["notices"\]/,
