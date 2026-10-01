@@ -235,6 +235,9 @@ for (const treatment of expressiveRequest.payload.CREATIVE_TREATMENTS) {
   assert.deepEqual(Object.keys(treatment).sort(), ["conception", "evidenceEventIds", "production"]);
 }
 assert.equal(expressiveRequest.options.jsonSchema.properties.productions.minItems, 3);
+assert.equal(expressiveRequest.options.jsonSchema.properties.productions.items.properties.lines.minItems, 3,
+  "Normal expressive production must request at least three moving-text cuts independently of fact count");
+assert.equal(expressiveRequest.options.numPredict, 1600, "Three developed productions need room in the generation budget");
 assert.ok(expressiveRequest.options.jsonSchema.properties.productions.items.properties.lines.maxItems > timedEvents.length,
   "A supplied detail may support more than one expressive cut; event count is not cut count");
 assert.deepEqual(plain(expressiveRequest.options.jsonSchema.properties.productions.items.properties.production.enum), ["A", "B", "C"]);

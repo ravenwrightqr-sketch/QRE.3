@@ -2476,6 +2476,7 @@ function selectMemoryProductionCandidate(input: {
   selectedProduction?: string;
   lensSearchEnabled: boolean;
   realityDirect: boolean;
+  minimumExpressiveCuts?: number;
 }): {
   evaluation: AuthorMemoryProductionEvaluation;
   internalProductions: MemorySequenceCandidate[];
@@ -2524,7 +2525,15 @@ function selectMemoryProductionCandidate(input: {
     input.subject,
     input.realityDirect,
   );
-  const productions = [...expressiveProductions, ...(assembledProduction ? [assembledProduction] : []), bareProduction]
+  const minimumExpressiveCuts = input.minimumExpressiveCuts ?? 1;
+  const developedExpressiveProductions = [...expressiveProductions, ...(assembledProduction ? [assembledProduction] : [])]
+    .map((production) => {
+      const underdeveloped = production.lines.filter((line) => Boolean(clean(line.text))).length < minimumExpressiveCuts;
+      return underdeveloped
+        ? { ...production, accepted: false, reasons: [...production.reasons, "underdeveloped-moving-text-sequence"] }
+        : production;
+    });
+  const productions = [...developedExpressiveProductions, bareProduction]
     .sort((a, b) => {
       if (a.accepted !== b.accepted) return a.accepted ? -1 : 1;
       return b.score - a.score;
@@ -2649,6 +2658,7 @@ export function evaluateAuthorMemoryProductions(
     selectedProduction?: string;
     lensSearchEnabled?: boolean;
     realityDirect?: boolean;
+    minimumExpressiveCuts?: number;
   },
 ): AuthorMemoryProductionEvaluation {
   return selectMemoryProductionCandidate({
@@ -2661,6 +2671,7 @@ export function evaluateAuthorMemoryProductions(
     selectedProduction: input.selectedProduction,
     lensSearchEnabled: input.lensSearchEnabled ?? true,
     realityDirect: input.realityDirect ?? false,
+    minimumExpressiveCuts: input.minimumExpressiveCuts,
   }).evaluation;
 }
 
@@ -4828,6 +4839,7 @@ export async function createAuthorExperience(input: {
   const writingTreatmentAssignments = isMemoryMode && lensSearchEnabled
     ? treatmentAssignmentsForMouth.filter((assignment) => assignment.production !== "D")
     : treatmentAssignmentsForMouth;
+  const minimumExpressiveCuts = isMemoryMode && lensSearchEnabled && !directCreativeAuthorExperiment ? 3 : 1;
   const mouthResult = directCreativeAuthorExperiment
     ? await generateDirectAuthorMemoryProductions({
         subject: input.subject,
@@ -4891,6 +4903,10 @@ export async function createAuthorExperience(input: {
             "Let facts combine when their relationship creates a stronger perception, or let one fact dominate when it contains the experience.",
             "A sequence is complete when its supported perception lands. All unused supplied facts remain preserved in provenance.",
             ...(lensSearchEnabled ? [
+              "PRODUCTION PACING: aim for 4–6 short moving-text cuts per expressive production, with at least 3 nonempty cuts. Compress the wording inside each cut while giving the whole sequence room to develop.",
+              "Favor 1–7 words per cut. Give a single charged word its own arrival when it earns one; keep a longer line only when its added words strengthen the experience.",
+              "Make each arrival matter: open an unresolved tension, let later attention build or redirect it, and earn a turn or surprise. Choose the shape this material wants; a role list is not a fixed sequence template.",
+              "Separate distinct attention-bearing thoughts so the viewer encounters them in successive cuts. Develop new perception rather than splitting a recap into fragments or repeating a thought to meet the count.",
               "CREATIVE_TREATMENTS assigns production identities. Give each expressive production its own treatment, perception, and voice across the whole realization.",
               "Treat approved alternatives as possible readings. Choose the relationship each production can make felt.",
               "For A/B/C, arrange expressive lines around the strongest thought. Their count and sequence follow the realization.",
@@ -4963,7 +4979,7 @@ export async function createAuthorExperience(input: {
     ]),
     "json",
     {
-      numPredict: 1050,
+      numPredict: isMemoryMode && lensSearchEnabled ? 1600 : 1050,
       temperature: isMemoryMode ? 0.96 : 0.86,
       jsonSchema: {
         type: "object",
@@ -4989,7 +5005,7 @@ export async function createAuthorExperience(input: {
                     production: { type: "string", enum: lensSearchEnabled ? ["A", "B", "C"] : ["A", "B", "C", "D"] },
                     lines: {
                       type: "array",
-                      minItems: 0,
+                      minItems: lensSearchEnabled ? minimumExpressiveCuts : 0,
                       // Expressive cuts are not one slot per supplied event.
                       maxItems: Math.max(16, input.suppliedReality.length),
                       items: {
@@ -5381,6 +5397,7 @@ export async function createAuthorExperience(input: {
         selectedProduction: selectedProductionRaw,
         lensSearchEnabled,
         realityDirect,
+        minimumExpressiveCuts,
       });
 
       const repairTarget =
@@ -5437,6 +5454,7 @@ export async function createAuthorExperience(input: {
             selectedProduction: selectedProductionRaw,
             lensSearchEnabled,
             realityDirect,
+            minimumExpressiveCuts,
           });
           const repairedCandidate = repairedSelection.internalProductions.find(
             (production) => production.variantIndex === repairTarget.variantIndex,

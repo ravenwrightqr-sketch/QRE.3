@@ -215,6 +215,21 @@ assert.notEqual(invalidNomination.selectedProduction, "B", "A nomination cannot 
 assert.equal(evaluateAuthorMemoryProductions({ ...liveInput, selectedProduction: undefined }).selectedProduction, "C",
   "Existing score fallback remains available when Mouth supplies no eligible nomination");
 
+const pacingSelection = evaluateAuthorMemoryProductions({ ...liveInput,
+  selectedProduction: "A", minimumExpressiveCuts: 3,
+});
+assert.equal(pacingSelection.productions.find(({ production }) => production === "A").accepted, false,
+  "A nominated two-cut production must not meet the moving-text production contract");
+assert.ok(pacingSelection.productions.find(({ production }) => production === "A").reasons.includes("underdeveloped-moving-text-sequence"));
+assert.equal(pacingSelection.selectedProduction, "C", "An eligible complete alternative should replace an underdeveloped nomination");
+const pacingFallback = evaluateAuthorMemoryProductions({ ...liveInput,
+  minimumExpressiveCuts: 3,
+  expressiveProductions: liveProductions.map((production) => ({ ...production, lines: production.lines.slice(0, 2) })),
+});
+assert.equal(pacingFallback.selectedProduction, "D", "Pacing failure must preserve factual fallback instead of fabricating extra cuts");
+assert.equal(pacingFallback.scenes.length, livePlan.beats.length);
+assert.deepEqual(pacingFallback.scenes.flatMap(({ sourceEventIds }) => sourceEventIds), liveFacts.map(({ id }) => id));
+
 console.log(
   "AUTHOR MEMORY VARIABLE PRODUCTIONS GREEN - A/B/C VARIABLE LENGTH - D COMPLETE - LATE SELECTION",
 );
