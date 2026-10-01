@@ -282,7 +282,7 @@ function currentDirectAuthorPromptHash(): string {
   const cwdSource = new URL("./src/services/authorCreative.ts", cwdUrl);
   const sourcePath = existsSync(localSource) ? localSource : cwdSource;
   const source = readFileSync(sourcePath, "utf8");
-  const start = source.indexOf("async function generateDirectAuthorMemoryProductions");
+  const start = source.indexOf("export function buildDirectAuthorMemoryMessages");
   const end = source.indexOf("function buildDeterministicMouthFallback", start);
   if (start < 0 || end <= start) {
     throw new Error("Direct Creative Author prompt region not found");

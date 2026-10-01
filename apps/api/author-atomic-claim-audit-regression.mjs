@@ -9,13 +9,13 @@ import {
 } from "./dist/services/authorCreativeGroundingVerifier.js";
 
 const source = readFileSync(new URL("./src/services/authorCreative.ts", import.meta.url), "utf8");
-const directAuthorStart = source.indexOf("async function generateDirectAuthorMemoryProductions");
+const directAuthorStart = source.indexOf("export function buildDirectAuthorMemoryMessages");
 const directAuthorEnd = source.indexOf("function buildDeterministicMouthFallback", directAuthorStart);
 assert.ok(directAuthorStart >= 0 && directAuthorEnd > directAuthorStart, "direct Author prompt region not found");
 const directAuthorSource = source.slice(directAuthorStart, directAuthorEnd);
 assert.equal(
   createHash("sha256").update(directAuthorSource).digest("hex"),
-  "49a18a5ca7c73e6a48e0016bf5bfe17b2d8b5965e1463f13cf9da0436dbac21d",
+  "b96580a5720514b3c3755ced9a5a75d69abe153f16d45f84c428e04ecccfe441",
   "Direct Creative Author prompt region must match the perception/amplification doctrine revision",
 );
 

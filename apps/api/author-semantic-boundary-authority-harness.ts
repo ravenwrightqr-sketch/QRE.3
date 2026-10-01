@@ -16,7 +16,7 @@ import {
 } from "./src/services/localModelRuntime.js";
 
 const DIRECT_AUTHOR_PROMPT_HASH =
-  "49a18a5ca7c73e6a48e0016bf5bfe17b2d8b5965e1463f13cf9da0436dbac21d";
+  "b96580a5720514b3c3755ced9a5a75d69abe153f16d45f84c428e04ecccfe441";
 
 const OUTPUT_DIR = ".qre-debug/semantic-boundary";
 const OUTPUT_FILE = "semantic-boundary-results.json";
@@ -728,7 +728,7 @@ function domainById(domainId: string): Domain {
 
 function currentDirectAuthorPromptHash(): string {
   const source = readFileSync(new URL("./src/services/authorCreative.ts", import.meta.url), "utf8");
-  const start = source.indexOf("async function generateDirectAuthorMemoryProductions");
+  const start = source.indexOf("export function buildDirectAuthorMemoryMessages");
   const end = source.indexOf("function buildDeterministicMouthFallback", start);
   if (start < 0 || end <= start) {
     throw new Error("Direct Creative Author prompt region not found");

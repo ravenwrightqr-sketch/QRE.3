@@ -173,9 +173,11 @@ assert.deepEqual(search.APPROVED_MEANING.perception, discovery.selected.percepti
 assert.ok(search.SUPPLIED_REALITY.every((event) => !("interpretations" in event)));
 
 const mouthRequests = [];
+const mouthSystems = [];
 await load("authorCreative", async (messages) => {
   const payload = JSON.parse(messages[1].content);
   mouthRequests.push(payload);
+  if (payload.APPROVED_BEATS) mouthSystems.push(messages[0].content);
   throw new Error("Offline Mouth fallback");
 }).createAuthorExperience({ subject: "Coco", suppliedReality: events.slice(0, 2),
   creativeDiscovery: { ...discovery, playableEventIds: ["a", "b"] },
@@ -184,6 +186,19 @@ const mouth = mouthRequests.find((payload) => payload.APPROVED_BEATS);
 assert.ok(mouth, "Normal Mouth must receive derived meaning");
 assert.deepEqual(mouth.DERIVED_MEANING, approved);
 assert.deepEqual(mouth.SUPPLIED_REALITY, events.slice(0, 2));
+assert.match(mouthSystems[0], /Make the meaning felt through the writing itself/);
+assert.match(mouthSystems[0], /Maximize meaningful inference while maintaining grounding/);
+assert.doesNotMatch(mouthSystems[0], /Do not|Never/i, "Mouth should direct creation positively");
+assert.doesNotMatch(mouthSystems[0], /Coco|War of the Bows|Peace is temporary/i,
+  "Taste references must remain outside production instructions");
+
+const directMessages = load("authorCreative", () => { throw new Error("No live calls"); })
+  .buildDirectAuthorMemoryMessages({ subject: "Coco", suppliedReality: events });
+assert.match(directMessages[0].content, /Make the meaning felt through the writing itself/);
+assert.match(directMessages[0].content, /keeping concrete occurrence inside supplied reality/);
+assert.doesNotMatch(directMessages[0].content, /Coco|War of the Bows|Peace is temporary/i);
+assert.equal(JSON.parse(directMessages[1].content).SUBJECT, "Coco",
+  "Direct writing keeps its own reality payload and output contract");
 
 let groundingPayload;
 await load("authorCreativeGroundingVerifier", async (messages) => {

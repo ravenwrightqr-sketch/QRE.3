@@ -29,13 +29,13 @@ assert.match(
   "claim auditor must require direct creative experiment plus its own flag",
 );
 
-const directAuthorStart = source.indexOf("async function generateDirectAuthorMemoryProductions");
+const directAuthorStart = source.indexOf("export function buildDirectAuthorMemoryMessages");
 const directAuthorEnd = source.indexOf("function buildDeterministicMouthFallback", directAuthorStart);
 assert.ok(directAuthorStart >= 0, "direct creative Author helper not found");
 assert.ok(directAuthorEnd > directAuthorStart, "direct creative Author helper end not found");
 const directAuthorSource = source.slice(directAuthorStart, directAuthorEnd);
 assert.match(directAuthorSource, /You are the Author\./);
-assert.match(directAuthorSource, /Make something of it\./, "direct creative Author prompt must remain unchanged");
+assert.match(directAuthorSource, /Make something of it\./, "direct creative Author must retain open authorship");
 assert.match(directAuthorSource, /Return exactly three attempts using the required schema\./);
 assert.doesNotMatch(directAuthorSource, /Claim Auditor|Evidence licenses only what it establishes|SUPPORTED_REALITY|UNSUPPORTED_REALITY/);
 

@@ -28,7 +28,7 @@ assert.match(
   "direct path must bypass Mouth with direct expressive production generation",
 );
 
-const directStart = source.indexOf("async function generateDirectAuthorMemoryProductions");
+const directStart = source.indexOf("export function buildDirectAuthorMemoryMessages");
 const directEnd = source.indexOf("function buildDeterministicMouthFallback", directStart);
 assert.ok(directStart >= 0, "direct author generator not found");
 assert.ok(directEnd > directStart, "direct author generator end not found");
@@ -43,21 +43,21 @@ assert.match(prompt, /You are the Author\./);
 assert.match(prompt, /Here is supplied reality\./);
 assert.match(prompt, /Make something of it\./);
 assert.match(prompt, /Write three different attempts\./);
-assert.match(prompt, /You do not need to use everything\./);
+assert.match(prompt, /Use the material that earns attention\./);
 assert.match(prompt, /One detail may be enough\./);
 assert.match(prompt, /Most of the supplied reality may remain unused\./);
 assert.match(prompt, /Facts are material, not output slots\./);
 assert.match(prompt, /Notice something worth saying\./);
 assert.match(prompt, /Give disproportionate attention to the detail, relationship, implication, or contrast that changes the read\./);
 assert.match(prompt, /Use no more language than the attempt earns\./);
-assert.match(prompt, /Return only the authored attempts, without reasoning\./);
+assert.match(prompt, /Return only the authored attempts\./);
 assert.match(prompt, /The supplied reality controls what actually happened\./);
 assert.match(
   prompt,
-  /Change perspective, not concrete occurrence\./,
+  /Change perspective while keeping concrete occurrence inside supplied reality\./,
 );
 assert.match(prompt, /Keep every concrete participant, event, action, interaction, object, place, physical behavior, observation, mental state, sensory fact, causality, and outcome inside supplied reality\./);
-assert.match(prompt, /You may invent what to say about the supplied reality, but not more reality\./);
+assert.match(prompt, /Invent what to say about the supplied reality\. Give its supported detail, relationship, or contrast expressive force\./);
 assert.doesNotMatch(prompt, /Do not invent something else happening\./);
 assert.match(prompt, /Return only three attempts\./);
 assert.doesNotMatch(prompt, /Say what you noticed\./);
@@ -76,7 +76,7 @@ assert.match(
   /Return exactly three attempts using the required schema\./,
   "direct user instruction must only communicate the output contract",
 );
-assert.doesNotMatch(prompt, /noticed/i, "direct creative user instruction must not contain noticed");
+assert.doesNotMatch(prompt.slice(prompt.indexOf("instruction:")), /noticed/i, "direct creative user instruction must only specify the output contract");
 assert.doesNotMatch(prompt, /\bPRODUCTIONS\b/, "direct creative prompt must not expose PRODUCTIONS");
 assert.doesNotMatch(prompt, /\["A", "B", "C"\]/, "direct creative prompt must not expose A/B/C labels");
 assert.doesNotMatch(prompt, /Return only A, B, and C\./, "direct creative prompt must not expose A/B/C labels");

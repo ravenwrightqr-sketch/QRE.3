@@ -18,7 +18,7 @@ const mouthPrompt = sliceBetween(
   "Mouth prompt",
 );
 const directAuthorPromptRegion = sliceBetween(
-  "async function generateDirectAuthorMemoryProductions",
+  "export function buildDirectAuthorMemoryMessages",
   "function buildDeterministicMouthFallback",
   "Direct Creative Author prompt",
 );
@@ -48,12 +48,12 @@ assert.match(
 );
 assert.match(
   mouthPrompt,
-  /A rhetorical world may exist in the language\. It may not become an additional occurrence in the world\./,
+  /Keep the rhetorical world in expression and every concrete world commitment inside supplied evidence\./,
   "Mouth must distinguish expressive language from concrete occurrence",
 );
 assert.match(
   mouthPrompt,
-  /RHETORICAL ROLE != REAL-WORLD ROLE\. EXPRESSIVE FRAME != CONCRETE OCCURRENCE\./,
+  /Keep concrete participants, actions, states, chronology, and outcomes inside the cited facts\./,
   "Mouth must preserve the general rhetorical-frame invariant",
 );
 assert.match(
@@ -93,7 +93,7 @@ assert.match(
 );
 assert.match(
   mouthPrompt,
-  /A sequence is complete when the viewer's perception has changed, not when every unused fact has appeared\./,
+  /A sequence is complete when its supported perception lands\. All unused supplied facts remain preserved in provenance\./,
   "Mouth continuation must seek information gain rather than unused-fact coverage",
 );
 assert.match(
@@ -103,7 +103,7 @@ assert.match(
 );
 assert.match(
   mouthPrompt,
-  /Keep roles, directives, assignments, verdicts, objectives, levels, sectors, sign-offs, commands, systems, and institutions inside expressive frame\./,
+  /Amplify the supported meaning through rhetorical scale, perspective, status, double meaning, or personification\./,
   "Mouth must keep rhetorical-frame vocabulary in language",
 );
 
@@ -119,7 +119,7 @@ assert.match(
 );
 assert.match(
   directAuthorPromptRegion,
-  /Change perspective, not concrete occurrence\./,
+  /Change perspective while keeping concrete occurrence inside supplied reality\./,
   "Direct Author must carry the perspective/reality distinction",
 );
 assert.match(
@@ -129,7 +129,7 @@ assert.match(
 );
 assert.equal(
   createHash("sha256").update(directAuthorPromptRegion).digest("hex"),
-  "49a18a5ca7c73e6a48e0016bf5bfe17b2d8b5965e1463f13cf9da0436dbac21d",
+  "b96580a5720514b3c3755ced9a5a75d69abe153f16d45f84c428e04ecccfe441",
   "Direct Author prompt hash must match the perception/amplification doctrine revision",
 );
 

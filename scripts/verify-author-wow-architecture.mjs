@@ -163,7 +163,7 @@ if (!failures.length) {
   );
   assertContains(
     creative,
-    "Bare Reality is the truth-safe control. It wins only when no expressive production remains viable.",
+    "Bare Reality D preserves supplied facts as the control. Use D as the fallback when the accepted expressive set is empty.",
     "Bare D must remain fallback only",
   );
   assertContains(

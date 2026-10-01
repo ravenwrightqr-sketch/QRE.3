@@ -7,7 +7,7 @@ import { createAuthorExperience } from "./src/services/authorCreative.js";
 import { verifyAuthorCreativeGrounding } from "./src/services/authorCreativeGroundingVerifier.js";
 
 const DIRECT_AUTHOR_PROMPT_HASH =
-  "49a18a5ca7c73e6a48e0016bf5bfe17b2d8b5965e1463f13cf9da0436dbac21d";
+  "b96580a5720514b3c3755ced9a5a75d69abe153f16d45f84c428e04ecccfe441";
 
 const SUBJECT = "Coco";
 const PROMPT = "Create the customer-facing memory from this grooming visit.";
@@ -87,7 +87,7 @@ function debugBlock(blocks: readonly DebugBlock[], label: string): DebugBlock | 
 
 function currentDirectAuthorPromptHash(): string {
   const source = readFileSync(new URL("./src/services/authorCreative.ts", import.meta.url), "utf8");
-  const start = source.indexOf("async function generateDirectAuthorMemoryProductions");
+  const start = source.indexOf("export function buildDirectAuthorMemoryMessages");
   const end = source.indexOf("function buildDeterministicMouthFallback", start);
   if (start < 0 || end <= start) {
     throw new Error("Direct Creative Author prompt region not found");
