@@ -35,7 +35,7 @@ assert.ok(directAuthorStart >= 0, "direct creative Author helper not found");
 assert.ok(directAuthorEnd > directAuthorStart, "direct creative Author helper end not found");
 const directAuthorSource = source.slice(directAuthorStart, directAuthorEnd);
 assert.match(directAuthorSource, /You are the Author\./);
-assert.match(directAuthorSource, /Make something of it\./, "direct creative Author must retain open authorship");
+assert.match(directAuthorSource, /QRE_CREATIVE_OPERATING_DOCTRINE/, "direct creative Author must retain open authorship");
 assert.match(directAuthorSource, /Return exactly three attempts using the required schema\./);
 assert.doesNotMatch(directAuthorSource, /Claim Auditor|Evidence licenses only what it establishes|SUPPORTED_REALITY|UNSUPPORTED_REALITY/);
 
@@ -99,9 +99,9 @@ assert.doesNotMatch(auditorPrompt, /Coco|dog|Thursday|example|style|lens|genre/i
 
 assert.match(auditorSource, /content: JSON\.stringify\(buildAuthorRealityEditorPayload\(input\)\)/);
 assert.match(auditorSchema, /required:\s*\["audits"\]/);
-assert.match(auditorSchema, /minItems:\s*3,\s*\n\s*maxItems:\s*3,/);
+assert.match(auditorSchema, /minItems:\s*input\.productions\.length,\s*\n\s*maxItems:\s*input\.productions\.length,/);
 assert.match(auditorSchema, /required:\s*\["production", "atomicClaimSpans"\]/);
-assert.match(auditorSchema, /production:\s*\{\s*type:\s*"string",\s*enum:\s*\["A", "B", "C"\]\s*\}/);
+assert.match(auditorSchema, /production:\s*\{\s*type:\s*"string",\s*enum:\s*input\.productions\.map\(\(production\) => production\.production\)/);
 assert.match(auditorSchema, /atomicClaimSpans:\s*\{/);
 assert.match(auditorSchema, /required:\s*\["exactText", "classification", "sourceEventIds", "atomicity"\]/);
 assert.match(auditorSchema, /exactText:\s*\{\s*type:\s*"string"\s*\}/);

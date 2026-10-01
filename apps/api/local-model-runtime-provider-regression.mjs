@@ -13,7 +13,7 @@ const directAuthorEnd = authorSource.indexOf("function buildDeterministicMouthFa
 assert.ok(directAuthorStart >= 0 && directAuthorEnd > directAuthorStart, "direct Author prompt region not found");
 assert.equal(
   createHash("sha256").update(authorSource.slice(directAuthorStart, directAuthorEnd)).digest("hex"),
-  "b96580a5720514b3c3755ced9a5a75d69abe153f16d45f84c428e04ecccfe441",
+  "0d81899c9379fc1268f956d9d60a5a128a40c6ec6b67295c6f1bd42253c1349a",
   "Direct Creative Author prompt region must match the perception/amplification doctrine revision",
 );
 

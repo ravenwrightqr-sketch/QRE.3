@@ -17,7 +17,7 @@ function loadService(name, generate, extraExports = "") {
     process: { env: {} },
     require(specifier) {
       if (specifier === "./localModelRuntime.js") return { localModelGenerate: generate };
-      if (["./authorCutFloor.js", "./authorCreativeDoctrine.js", "./authorDerivedMeaning.js"].includes(specifier)) {
+      if (["./authorCutFloor.js", "./authorCreativeDoctrine.js", "./authorBehaviorProfile.js", "./authorDerivedMeaning.js"].includes(specifier)) {
         return loadService(specifier.slice(2, -3), generate);
       }
       throw new Error(`Unexpected regression dependency: ${specifier}`);

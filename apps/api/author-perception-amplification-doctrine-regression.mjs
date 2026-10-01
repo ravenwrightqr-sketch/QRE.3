@@ -107,21 +107,8 @@ assert.match(
   "Mouth must keep rhetorical-frame vocabulary in language",
 );
 
-assert.match(
-  directAuthorPromptRegion,
-  /Facts are material, not output slots\./,
-  "Direct Author must preserve fact count != move count",
-);
-assert.match(
-  directAuthorPromptRegion,
-  /Notice something worth saying\./,
-  "Direct Author must target noticing over fact enumeration",
-);
-assert.match(
-  directAuthorPromptRegion,
-  /Change perspective while keeping concrete occurrence inside supplied reality\./,
-  "Direct Author must carry the perspective/reality distinction",
-);
+assert.match(directAuthorPromptRegion, /QRE_AUTHOR_WRITING_BRIEF/, "Direct Author must share the public writing brief");
+assert.match(directAuthorPromptRegion, /QRE_CREATIVE_OPERATING_DOCTRINE/, "Direct Author must retain creative and factual authority doctrine");
 assert.match(
   directAuthorPromptRegion,
   /Keep every concrete participant, event, action, interaction, object, place, physical behavior, observation, mental state, sensory fact, causality, and outcome inside supplied reality\./,
@@ -129,7 +116,7 @@ assert.match(
 );
 assert.equal(
   createHash("sha256").update(directAuthorPromptRegion).digest("hex"),
-  "b96580a5720514b3c3755ced9a5a75d69abe153f16d45f84c428e04ecccfe441",
+  "0d81899c9379fc1268f956d9d60a5a128a40c6ec6b67295c6f1bd42253c1349a",
   "Direct Author prompt hash must match the perception/amplification doctrine revision",
 );
 

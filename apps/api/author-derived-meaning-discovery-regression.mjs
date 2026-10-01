@@ -14,7 +14,7 @@ function load(name, generate) {
     exports, process: { env: {} },
     require(specifier) {
       if (specifier === "./localModelRuntime.js") return { localModelGenerate: generate };
-      if (["./authorDerivedMeaning.js", "./authorCutFloor.js", "./authorCreativeDoctrine.js"].includes(specifier)) {
+      if (["./authorDerivedMeaning.js", "./authorCutFloor.js", "./authorCreativeDoctrine.js", "./authorBehaviorProfile.js"].includes(specifier)) {
         return load(specifier.slice(2, -3), generate);
       }
       throw new Error(`Unexpected dependency: ${specifier}`);
@@ -175,6 +175,11 @@ assert.deepEqual(search.DERIVED_MEANING, approved, "Lens must consume approved r
 assert.deepEqual(search.APPROVED_MEANING.perception, discovery.selected.perception);
 assert.ok(search.SUPPLIED_REALITY.every((event) => !("interpretations" in event)));
 
+const writingProfile = load("authorBehaviorProfile").buildAuthorBehaviorProfile([
+  "LEARNED_PREFERENCE: short punchy twist", "LEARNED_AVOIDANCE: wordy explanation",
+]);
+assert.ok(writingProfile.confidence > 0);
+assert.ok(writingProfile.explanationAversion > 0);
 const mouthRequests = [];
 const mouthSystems = [];
 await load("authorCreative", async (messages) => {
@@ -184,11 +189,14 @@ await load("authorCreative", async (messages) => {
   throw new Error("Offline Mouth fallback");
 }).createAuthorExperience({ subject: "Coco", suppliedReality: events.slice(0, 2),
   creativeDiscovery: { ...discovery, playableEventIds: ["a", "b"] },
+  writingProfile,
   domainContext: { experienceMode: "MEMORY" }, requestedLens: "NONE" });
 const mouth = mouthRequests.find((payload) => payload.CREATIVE_TREATMENTS);
 assert.ok(mouth, "Normal Mouth must receive derived meaning");
 assert.deepEqual(mouth.DERIVED_MEANING, approved);
 assert.deepEqual(mouth.SUPPLIED_REALITY, events.slice(0, 2));
+assert.ok(mouth.WRITING_PREFERENCES.some((line) => line.startsWith("EXPLANATION AVERSION=")));
+assert.ok(mouth.WRITING_PREFERENCES.every((line) => !line.includes("wordy explanation")), "Raw feedback must not enter the supplied world");
 assert.equal("APPROVED_BEATS" in mouth, false, "MEMORY writing must not be assigned beat-by-beat public coverage");
 assert.equal("STORY_GRAVITY" in mouth, false, "A HARD metadata endpoint must not dictate the expressive landing");
 assert.match(mouthSystems[0], /Use a name when identity, contrast, or emphasis earns it/);
@@ -224,6 +232,7 @@ const expressiveFallback = await load("authorCreative", async (messages, format,
   ] }) };
 }).createAuthorExperience({ subject: "Coco", suppliedReality: timedEvents,
   creativeDiscovery: { ...discovery, playableEventIds: ["a", "b"] },
+  writingProfile,
   domainContext: { experienceMode: "MEMORY" }, requestedLens: "HORROR" });
 assert.deepEqual(lensEvidence, timedEvents, "Lens must receive supplied specificity, including exact clock times");
 assert.ok(expressiveRequest, "Expressive Mouth request must be captured");
@@ -249,7 +258,7 @@ assert.deepEqual(plain(expressiveFallback.scenes.flatMap(({ sourceEventIds }) =>
 const directMessages = load("authorCreative", () => { throw new Error("No live calls"); })
   .buildDirectAuthorMemoryMessages({ subject: "Coco", suppliedReality: events });
 assert.match(directMessages[0].content, /Make the meaning felt through the writing itself/);
-assert.match(directMessages[0].content, /keeping concrete occurrence inside supplied reality/);
+assert.match(directMessages[0].content, /Keep every concrete participant/);
 assert.doesNotMatch(directMessages[0].content, /Coco|War of the Bows|Peace is temporary/i);
 assert.equal(JSON.parse(directMessages[1].content).SUBJECT, "Coco",
   "Direct writing keeps its own reality payload and output contract");

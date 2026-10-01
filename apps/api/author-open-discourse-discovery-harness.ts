@@ -1,5 +1,5 @@
 import { createHash } from "node:crypto";
-import { existsSync, readFileSync } from "node:fs";
+import { existsSync, readFileSync, mkdirSync, writeFileSync } from "node:fs";
 import type { AuthorDomainContext } from "@qre/contracts";
 import { buildAuthorRealityGraph } from "./src/services/authorRealityGraph.js";
 import { discoverAuthorCreativeDirection } from "./src/services/authorCreativeDiscovery.js";
@@ -9,6 +9,7 @@ import {
   createAuthorExperience,
   directAuthorAttemptsToProductions,
   generateDirectAuthorMemoryProductions,
+  editDirectAuthorReality,
   parseJson as parseAuthorJson,
   type AuthorCreativeEvent,
   type AuthorDirectTextProduction,
@@ -67,6 +68,7 @@ type CliOptions = {
   classifierRegression: boolean;
   classifyText?: string;
   reclassifyFile?: string;
+  authorityReplay?: string;
 };
 
 type DebugBlock = {
@@ -106,6 +108,14 @@ type RawProductionDiagnostic = {
   semanticClass: SemanticOperationClass;
   labels: DiagnosticLabel[];
   possibleNewConcreteReasons: string[];
+  thoughtDiagnostics: Array<{
+    exactText: string;
+    semanticClass: SemanticOperationClass;
+    labels: DiagnosticLabel[];
+    possibleNewConcreteReasons: string[];
+    explanatoryWrapping: boolean;
+    authorityStatus: "NOT_CHECKED";
+  }>;
   authority?: AuthorityObservation;
 };
 
@@ -401,7 +411,7 @@ function rawProductionEntries(
 ): Array<{ production: string; text: string }> {
   return productions.map((production) => ({
     production: production.production,
-    text: production.lines.map((line) => clean(line.text)).filter(Boolean).join(" "),
+    text: production.lines.map((line) => line.text).filter((text) => clean(text)).join("\n"),
   })).filter((entry) => entry.text);
 }
 
@@ -427,6 +437,9 @@ function oldKeywordGeneralizedReference(text: string): boolean {
 }
 
 function hasTrueGeneralizedProposition(sentence: string): boolean {
+  // Open-class quantified subjects can express a proposition without naming a
+  // category in our historical keyword list. This remains a surface heuristic.
+  if (/^(?:all|every|any|most|many|some|no)\s+(?:[a-z-]+\s+){1,4}(?:are|is|can|tend|usually|often|outlast|matter|remain|become)\b/i.test(sentence.trim())) return true;
   const classSubject =
     "humans?|people|everyone|everybody|nobody|no one|anyone|anybody|owners?|customers?|clients?|buyers?|sellers?|agents?|real estate agents?|workers?|groomers?|pet owners?|service clients?|dogs?|pets?|houses?|homes?|cars?|vehicles?|objects?|audiences?|viewers?|visitors?|neighbors?|families|society|the world";
   const habitualPredicate =
@@ -504,7 +517,7 @@ function hasParticularCharacterization(text: string): boolean {
     .test(text);
 }
 
-function labelsForText(text: string, domain: DiscoveryDomain): Pick<RawProductionDiagnostic, "semanticClass" | "labels" | "possibleNewConcreteReasons"> {
+function classifySpan(text: string, domain: DiscoveryDomain): Pick<RawProductionDiagnostic, "semanticClass" | "labels" | "possibleNewConcreteReasons"> {
   const lower = text.toLowerCase();
   const factsLower = domain.facts.join(" ").toLowerCase();
   const labels = new Set<DiagnosticLabel>();
@@ -559,6 +572,12 @@ function labelsForText(text: string, domain: DiscoveryDomain): Pick<RawProductio
     labels.add("POSSIBLE_NEW_CONCRETE_REALITY");
     possibleNewConcreteReasons.push("appears to assert unsupplied causality or chronology");
   }
+  for (const cue of text.match(/\b(?:immediately|instantly|already|survived|stayed|outlast(?:s|ed)?|continued|still)\b/gi) ?? []) {
+    if (!new RegExp(`\\b${cue}\\b`, "i").test(factsLower)) {
+      labels.add("POSSIBLE_NEW_CONCRETE_REALITY");
+      possibleNewConcreteReasons.push(`review timing or persistence cue: ${cue}; lexical flag only, not a factual verdict`);
+    }
+  }
 
   const factTokens = domain.facts
     .flatMap((fact) => fact.toLowerCase().replace(/[^a-z0-9\s:]/g, " ").split(/\s+/))
@@ -594,6 +613,21 @@ function labelsForText(text: string, domain: DiscoveryDomain): Pick<RawProductio
     labels: [...labels],
     possibleNewConcreteReasons,
   };
+}
+
+function labelsForText(text: string, domain: DiscoveryDomain): Pick<RawProductionDiagnostic,
+  "semanticClass" | "labels" | "possibleNewConcreteReasons" | "thoughtDiagnostics"> {
+  const production = classifySpan(text, domain);
+  // Retain the actual words. These sentence/cut boundaries are observational,
+  // not the Claim Auditor's independently removable atomic claim boundaries.
+  const thoughtDiagnostics = text.split(/(?<=[.!?])\s+|\n+/g).map((part) => part.trim())
+    .filter(Boolean).map((exactText) => ({
+      exactText,
+      ...classifySpan(exactText, domain),
+      explanatoryWrapping: /\b(?:the (?:notable|important) thing|the detail that|that (?:is|was) the (?:whole|kind)|which is (?:how|its)|the (?:whole )?(?:story|day) had a clear sequence)\b/i.test(exactText),
+      authorityStatus: "NOT_CHECKED" as const,
+    }));
+  return { ...production, thoughtDiagnostics };
 }
 
 function unsupportedForProduction(realityEditorDebug: unknown, production: string): boolean {
@@ -679,10 +713,16 @@ function parseArgs(argv: string[]): CliOptions {
   let classifierRegression = false;
   let classifyText: string | undefined;
   let reclassifyFile: string | undefined;
+  let authorityReplay: string | undefined;
   const domains: DomainId[] = [];
 
   for (let index = 0; index < argv.length; index += 1) {
     const arg = argv[index]!;
+    if (arg === "--authority-replay") {
+      authorityReplay = argv[++index];
+      if (!authorityReplay) throw new Error("--authority-replay requires a saved discovery JSON path");
+      continue;
+    }
     if (arg === "--live") {
       live = true;
       continue;
@@ -757,6 +797,7 @@ function parseArgs(argv: string[]): CliOptions {
     classifierRegression,
     classifyText,
     reclassifyFile,
+    authorityReplay,
   };
 }
 
@@ -868,6 +909,81 @@ function readReplayText(path: string): string {
   return buffer.toString("utf8").replace(/^\uFEFF/, "");
 }
 
+async function replaySavedAuthority(path: string, live: boolean): Promise<void> {
+  const saved = record(JSON.parse(readReplayText(path)));
+  if (saved.schemaVersion !== 1) throw new Error("Expected saved discoveries schemaVersion 1");
+  const entries = array(saved.discoveries).map(record);
+  if (!entries.length) throw new Error("Saved discoveries must not be empty");
+  const worlds = new Map<string, { subject: string; suppliedReality: AuthorCreativeEvent[]; entries: Record<string, unknown>[] }>();
+  // Validate every candidate before making any calls. No first-world filtering
+  // or first-three truncation: a good losing candidate must remain reviewable.
+  for (const entry of entries) {
+    if (typeof entry.subject !== "string" || !clean(entry.subject) ||
+        typeof entry.text !== "string" || !clean(entry.text)) {
+      throw new Error("Every saved discovery requires a subject and nonempty text");
+    }
+    const reality = array(entry.suppliedReality).map((item) => {
+      const event = record(item);
+      if (typeof event.id !== "string" || !clean(event.id) ||
+          typeof event.text !== "string" || !clean(event.text)) throw new Error("Invalid supplied reality event");
+      return { id: event.id, text: event.text };
+    });
+    if (!reality.length || new Set(reality.map((item) => item.id)).size !== reality.length) {
+      throw new Error("Supplied reality must have unique event IDs");
+    }
+    const key = JSON.stringify([entry.subject, reality]);
+    let world = worlds.get(key);
+    if (!world) {
+      world = { subject: entry.subject, suppliedReality: reality, entries: [] };
+      worlds.set(key, world);
+    }
+    world.entries.push(entry);
+  }
+  const batches = [...worlds.values()].flatMap((world) => {
+    const result = [];
+    for (let index = 0; index < world.entries.length; index += 3) {
+      const selected = world.entries.slice(index, index + 3);
+      const productions = directAuthorAttemptsToProductions({
+        attempts: selected.map((entry) => ({ text: entry.text })),
+      }).map((production) => ({ ...production, lines: production.lines.map((line) => ({
+        ...line, sourceEventIds: world.suppliedReality.map((event) => event.id),
+      })) }));
+      result.push({ subject: world.subject, suppliedReality: world.suppliedReality, selected, productions });
+    }
+    return result;
+  });
+  console.log("AUTHORITY REPLAY: saved words only; no Author generation or synthesis.");
+  console.log(`Replaying all ${entries.length} discoveries across ${worlds.size} worlds in ${batches.length} batches; none omitted.`);
+  console.log(`Claim Auditor/Reality Editor, then final grounding on surviving sequences. At most ${batches.length + entries.length} model calls.`);
+  console.log("Initial source IDs expose the full world for auditing; they are not evidence of support.");
+  if (!live) {
+    printJson({ batches });
+    console.log("DRY: authority NOT_CHECKED; no model calls.");
+    return;
+  }
+  const directory = new URL("../../.qre-debug/open-discourse/", import.meta.url);
+  mkdirSync(directory, { recursive: true });
+  const destination = new URL(`authority-${Date.now()}-${process.pid}.json`, directory);
+  const results = [];
+  for (const batch of batches) {
+    const edited = await editDirectAuthorReality({ suppliedReality: batch.suppliedReality, productions: batch.productions });
+    const final = [];
+    for (const production of edited.productions) {
+      const grounded = await verifyAuthorCreativeGrounding({ scenes: production.lines, suppliedReality: batch.suppliedReality });
+      final.push({ production: production.production, ...grounded });
+    }
+    results.push({ ...batch, edited, final });
+    // Keep completed observations if a later batch fails.
+    const report = { schemaVersion: 1, source: path, totalCandidates: entries.length,
+      completedBatches: results.length, totalBatches: batches.length, batches: results,
+      authorityStatus: "MODEL_JUDGMENT_OBSERVED",
+      note: "Observed audit judgments need human review; survival does not prove correctness." };
+    writeFileSync(destination, `${JSON.stringify(report, null, 2)}\n`);
+    printJson(results[results.length - 1]);
+  }
+  console.log(`SAVED AUTHORITY JSON: ${decodeURIComponent(destination.pathname).replace(/^\/(?=[a-z]:)/i, "")}`);
+}
+
 function replayEntriesFromFile(path: string): ReplayEntry[] {
   const source = readReplayText(path);
   const capturedHarnessEntries = replayEntriesFromCapturedHarnessLog(source);
@@ -891,7 +1007,7 @@ function diagnosticForReplayEntry(
   domain: DiscoveryDomain,
   index: number,
 ): RawProductionDiagnostic {
-  const text = clean(entry.text);
+  const text = entry.text.trim();
   const diagnostic = labelsForText(text, domain);
   return {
     domain: domain.id,
@@ -919,6 +1035,10 @@ function printClassificationOnly(entries: readonly ReplayEntry[], domain: Discov
   console.log(`PARTICULAR_CHARACTERIZATION count: ${particular.length}`);
   console.log(`SPECIFIC_UNSUPPLIED_PARTICIPATION count: ${specificUnsupplied.length}`);
   console.log(`OTHER count: ${other.length}`);
+  const thoughts = diagnostics.flatMap((item) => item.thoughtDiagnostics);
+  console.log(`GENERALIZED_PROPOSITION thought spans: ${thoughts.filter((item) => item.labels.includes("GENERALIZED_PROPOSITION")).length}`);
+  console.log(`EXPLANATORY_WRAPPING thought spans: ${thoughts.filter((item) => item.explanatoryWrapping).length}`);
+  console.log("Thought flags are observational. Authority NOT_CHECKED; mixed productions can contain both discovery and invention.");
   printHeader("GENERALIZED_PROPOSITION TEXTS");
   if (!generalized.length) {
     console.log("ZERO");
@@ -939,6 +1059,7 @@ function printClassificationOnly(entries: readonly ReplayEntry[], domain: Discov
       labels: item.labels,
       oldKeywordGeneralizedReference: oldKeywordGeneralizedReference(item.text),
       text: item.text,
+      thoughtDiagnostics: item.thoughtDiagnostics,
     })));
   }
 }
@@ -959,6 +1080,26 @@ function runDeterministicClassifierRegressionTests(): void {
   const coco = DOMAINS.find((domain) => domain.id === "coco")!;
   const house = DOMAINS.find((domain) => domain.id === "house")!;
 
+  assertClassifierCase(
+    "open-class generalized proposition from saved live discovery",
+    coco,
+    "Some complaints are brief. Some accessories outlast them.",
+    "GENERALIZED_PROPOSITION",
+  );
+  for (const text of ["Coco objected immediately.", "The bows survived.", "The bows were already there."]) {
+    if (!labelsForText(text, coco).possibleNewConcreteReasons.length) throw new Error(`Missing review flag: ${text}`);
+  }
+  const mixed = labelsForText("The notable thing is that Coco objected. Some complaints are brief. A neighbor praised Coco's bows.", coco);
+  if (!mixed.thoughtDiagnostics.some((item) => item.semanticClass === "GENERALIZED_PROPOSITION") ||
+      !mixed.thoughtDiagnostics.some((item) => item.semanticClass === "SPECIFIC_UNSUPPLIED_PARTICIPATION") ||
+      !mixed.thoughtDiagnostics.some((item) => item.explanatoryWrapping)) {
+    throw new Error("Mixed production must expose discovery, invention, and wrapping independently");
+  }
+  const nomination = labelsForText("The bows survived the objection.", coco);
+  if (nomination.thoughtDiagnostics[0]?.exactText !== "The bows survived the objection." ||
+      nomination.thoughtDiagnostics[0]?.authorityStatus !== "NOT_CHECKED") {
+    throw new Error("User-nominated expression must remain exact and unaudited, not automatically rejected");
+  }
   assertClassifierCase(
     "particular characterization",
     coco,
@@ -1125,7 +1266,7 @@ function printSemanticScopeAbDry(options: CliOptions, selectedDomains: Discovery
   for (const domain of experimentDomains) {
     console.log(domain.label);
     console.log(`CONTROL: ${messageHash(directAuthorMessagesFor(domain, "CONTROL"))}`);
-    console.log(`TREATMENT: ${messageHash(directAuthorMessagesFor(domain, "TREATMENT"))}`);
+    console.log(`SEMANTIC_SCOPE: ${messageHash(directAuthorMessagesFor(domain, "SEMANTIC_SCOPE"))}`);
   }
 
   printHeader("A/B CALL PLAN");
@@ -1224,6 +1365,7 @@ async function runDomain(
       }
 
       printHeader("POST-GENERATION OBSERVATIONAL ANALYSIS");
+      console.log("LEXICAL HEURISTICS ONLY. Authority NOT_CHECKED. No flags does not establish grounding; no category match does not establish absence of discovery.");
       printJson(diagnostics.filter((item) => item.domain === domain.id && item.run === run));
       continue;
     }
@@ -1362,12 +1504,16 @@ function printMetrics(allDiagnostics: readonly RawProductionDiagnostic[], select
     }
     const generalizedItems = items.filter((item) => item.semanticClass === "GENERALIZED_PROPOSITION");
     const generalizedRuns = new Set(generalizedItems.map((item) => item.run));
-    console.log(`NUMBER OF RUNS containing >=1 true GENERALIZED_PROPOSITION: ${generalizedRuns.size}`);
-    console.log(`NUMBER OF RAW PRODUCTIONS containing true GENERALIZED_PROPOSITION: ${generalizedItems.length}`);
+    console.log(`NUMBER OF RUNS containing a heuristically detected GENERALIZED_PROPOSITION: ${generalizedRuns.size}`);
+    console.log(`NUMBER OF RAW PRODUCTIONS containing a heuristically detected GENERALIZED_PROPOSITION: ${generalizedItems.length}`);
 
     const discovered = items.filter((item) =>
       item.labels.some((label) => label !== "DIRECT_REPLAY_ONLY"),
     );
+    if (!items.some((item) => item.authority)) {
+      console.log("AUTHORITY: NOT_CHECKED. Survival/rejection counts are unavailable in raw-only mode.");
+      continue;
+    }
     console.log(`DISCOVERED AND SURVIVED AUTHORITY: ${discovered.filter((item) => item.authority?.discoveredAndSurvived).length}`);
     console.log(`DISCOVERED BUT KILLED BY CLAIM AUDITOR: ${discovered.filter((item) => item.authority?.failureLayer === "CLAIM_AUDITOR").length}`);
     console.log(`DISCOVERED BUT KILLED BY REALITY EDITOR: ${discovered.filter((item) => item.authority?.failureLayer === "REALITY_EDITOR").length}`);
@@ -1450,6 +1596,10 @@ function printCocoSpecialReport(allDiagnostics: readonly RawProductionDiagnostic
 async function main(): Promise<void> {
   const options = parseArgs(process.argv.slice(2));
   const selectedDomains = DOMAINS.filter((domain) => options.domains.includes(domain.id));
+  if (options.authorityReplay) {
+    await replaySavedAuthority(options.authorityReplay, options.live);
+    return;
+  }
 
   if (options.classifierRegression) {
     runDeterministicClassifierRegressionTests();
@@ -1461,7 +1611,7 @@ async function main(): Promise<void> {
     const entries = [
       ...(options.classifyText !== undefined ? [{ text: options.classifyText }] : []),
       ...(options.reclassifyFile ? replayEntriesFromFile(options.reclassifyFile) : []),
-    ].map((entry) => ({ ...entry, text: clean(entry.text) })).filter((entry) => entry.text);
+    ].map((entry) => ({ ...entry, text: entry.text.trim() })).filter((entry) => entry.text);
     if (!entries.length) {
       throw new Error("No text supplied for diagnostic reclassification");
     }
@@ -1529,6 +1679,15 @@ async function main(): Promise<void> {
     printMetrics(allDiagnostics, experimentDomains, experimentRuns);
   }
   printCocoSpecialReport(allDiagnostics);
+  const directory = new URL("../../.qre-debug/open-discourse/", import.meta.url);
+  mkdirSync(directory, { recursive: true });
+  const path = new URL(`discoveries-${Date.now()}-${process.pid}.json`, directory);
+  writeFileSync(path, `${JSON.stringify({ schemaVersion: 1, promptHash, model: localModelConfig(), discoveries: allDiagnostics.map((item) => {
+    const domain = DOMAINS.find((domain) => domain.id === item.domain)!;
+    return { ...item, subject: domain.subject, suppliedReality: suppliedRealityEventsFromWorld(buildDomainRealityGraph(domain)),
+      classificationMethod: "LEXICAL_HEURISTIC", authorityStatus: item.authority ? "OBSERVED" : "NOT_CHECKED" };
+  }) }, null, 2)}\n`);
+  console.log(`SAVED DISCOVERIES JSON: ${decodeURIComponent(path.pathname).replace(/^\/(?=[a-z]:)/i, "")}`);
 }
 
 await main();

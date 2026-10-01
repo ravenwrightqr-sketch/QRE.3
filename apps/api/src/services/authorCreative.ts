@@ -4,7 +4,8 @@ import type { LocalModelJsonSchema } from "./localModelRuntime.js";
 import type { AuthorCreativeDiscovery } from "./authorCreativeDiscovery.js";
 import type { AuthorDerivedMeaning } from "./authorDerivedMeaning.js";
 import { evaluateAuthorCut } from "./authorCutFloor.js";
-import { QRE_CREATIVE_OPERATING_DOCTRINE } from "./authorCreativeDoctrine.js";
+import { summarizeAuthorBehaviorProfile, type AuthorBehaviorProfile } from "./authorBehaviorProfile.js";
+import { QRE_CREATIVE_OPERATING_DOCTRINE, QRE_AUTHOR_WRITING_BRIEF } from "./authorCreativeDoctrine.js";
 
 const clean = (value: unknown): string =>
   String(value ?? "").replace(/\s+/g, " ").trim();
@@ -2777,7 +2778,7 @@ export function directAuthorAttemptsToProductions(
 
       return {
         production,
-        lines: [{ order: 1, text }],
+        lines: text.split(/\r?\n/).filter((cut) => clean(cut)).map((cut, cutIndex) => ({ order: cutIndex + 1, text: cut })),
       };
     })
     .filter((production): production is AuthorDirectTextProduction => Boolean(production));
@@ -3569,6 +3570,8 @@ export function buildAuthorizedRealizationSynthesisInput(input: {
 
 export const AUTHORIZED_REALIZATION_SYNTHESIZER_PROMPT = [
   "You are QRE Authorized Realization Synthesizer.",
+  ...QRE_AUTHOR_WRITING_BRIEF,
+  "WRITING_PREFERENCES guide expression only. They authorize no participants, events, states, or history.",
   "The first Author explored. Auditors established which discoveries have authority.",
   "Your job is to discover what the authorized discoveries mean together.",
   "Discover the supported relationship among the authorized ideas and give it a fresh realization. Select the material that makes that relationship felt.",
@@ -3857,6 +3860,7 @@ export async function synthesizeAuthorizedRealizations(input: {
   subject: string;
   suppliedReality: readonly AuthorCreativeEvent[];
   pool: readonly AuthorizedRealization[];
+  writingProfile?: AuthorBehaviorProfile;
   forbiddenTexts?: readonly string[];
   realityDirect?: boolean;
   generate?: AuthorModelGenerate;
@@ -3902,6 +3906,7 @@ export async function synthesizeAuthorizedRealizations(input: {
         role: "user",
         content: JSON.stringify({
           ...synthesisInput,
+          ...(input.writingProfile?.confidence ? { WRITING_PREFERENCES: summarizeAuthorBehaviorProfile(input.writingProfile) } : {}),
           instruction:
             "Write the strongest ASSEMBLED realization available from the authorized pool. Use synthesizedFrom IDs from authorizedRealizationPool. Use only sourceEventIds traceable through those IDs.",
         }),
@@ -4112,13 +4117,17 @@ export function verifyAuthorizedAssemblyCandidate(input: {
   };
 }
 
-async function editDirectAuthorReality(input: {
+export async function editDirectAuthorReality(input: {
   suppliedReality: readonly AuthorCreativeEvent[];
   productions: readonly AuthorMemoryMouthProduction[];
 }): Promise<AuthorRealityEditorApplyResult & {
   model: string;
   modelCalls: number;
 }> {
+  if (!input.productions.length || input.productions.length > 3 ||
+      new Set(input.productions.map((production) => production.production)).size !== input.productions.length) {
+    throw new Error("Claim Auditor requires one to three distinct productions");
+  }
   const result = await localModelGenerate(
     [
       {
@@ -4210,14 +4219,14 @@ async function editDirectAuthorReality(input: {
         properties: {
           audits: {
             type: "array",
-            minItems: 3,
-            maxItems: 3,
+            minItems: input.productions.length,
+            maxItems: input.productions.length,
             items: {
               type: "object",
               additionalProperties: false,
               required: ["production", "atomicClaimSpans"],
               properties: {
-                production: { type: "string", enum: ["A", "B", "C"] },
+                production: { type: "string", enum: input.productions.map((production) => production.production) },
                 atomicClaimSpans: {
                   type: "array",
                   minItems: 0,
@@ -4371,30 +4380,11 @@ export function buildDirectAuthorMemoryMessages(input: {
 }> {
   const systemDoctrine = [
     "You are the Author.",
-    "Here is supplied reality.",
-    "Make something of it.",
-    "Write three different attempts.",
-    "Use the material that earns attention.",
-    "One detail may be enough.",
-    "Most of the supplied reality may remain unused.",
-    "Facts are material, not output slots.",
-    "Notice something worth saying.",
-    "Give disproportionate attention to the detail, relationship, implication, or contrast that changes the read.",
-    "Use no more language than the attempt earns.",
-    "Make the meaning felt through the writing itself. Let the viewer connect the dots.",
+    ...QRE_CREATIVE_OPERATING_DOCTRINE,
+    ...QRE_AUTHOR_WRITING_BRIEF,
     "Maximize meaningful inference while maintaining grounding.",
-    "Find the charged detail or relationship and give it disproportionate significance.",
-    "Let a perceptual treatment change how the existing reality is noticed and felt.",
-    "Let the opening give that detail attention. Earn the ending from supplied evidence and leave its implication alive.",
-    "Return only the authored attempts.",
-    "The supplied reality controls what actually happened.",
-    "Change perspective while keeping concrete occurrence inside supplied reality.",
-    "Rhetorical POV supplies voice and perspective. Ground every factual participant and history in supplied reality.",
     "Keep every concrete participant, event, action, interaction, object, place, physical behavior, observation, mental state, sensory fact, causality, and outcome inside supplied reality.",
-    "Invent what to say about the supplied reality. Give its supported detail, relationship, or contrast expressive force.",
-    "Reality is closed. Discourse is open.",
-    "The supplied world establishes what happened. The Author can talk widely from that evidence.",
-    "Generalized people, roles, groups, institutions, categories, places, objects, or imagined audiences are available as rhetorical references. Ground their concrete participation in supplied reality.",
+    "Write three independent attempts. In each text field, separate moving-text cuts with newline characters. Return public words only; private thought and explanation stay private.",
     ...(input.semanticScopeSearchInstruction
       ? [input.semanticScopeSearchInstruction]
       : []),
@@ -4431,7 +4421,7 @@ export async function generateDirectAuthorMemoryProductions(input: {
     buildDirectAuthorMemoryMessages(input),
     "json",
     {
-      numPredict: 1050,
+      numPredict: 1600,
       temperature: 0.98,
       jsonSchema: {
         type: "object",
@@ -4495,6 +4485,7 @@ export async function createAuthorExperience(input: {
   subject: string;
   suppliedReality: readonly AuthorCreativeEvent[];
   creativeDiscovery: AuthorCreativeDiscovery;
+  writingProfile?: AuthorBehaviorProfile;
   requestedLens?: string;
   memory?: readonly string[];
   domainContext?: AuthorDomainContext;
@@ -4868,7 +4859,17 @@ export async function createAuthorExperience(input: {
     captureMouthRequest([
       {
         role: "system",
-        content: [
+        content: isMemoryMode ? [
+          "You are QRE Mouth.",
+          ...QRE_CREATIVE_OPERATING_DOCTRINE,
+          ...QRE_AUTHOR_WRITING_BRIEF,
+          "WRITING_PREFERENCES guide wording, rhythm, and nomination only. They authorize no participants, events, states, or history.",
+          "Take expressive direction from APPROVED_MEANING and the assigned conception. The conception supplies pressure, not finished copy; Mouth discovers its wording and progression.",
+          "Use SUPPLIED_REALITY as the full available factual evidence. Unused facts remain preserved; sourceEventIds authorize each expressive cut independently of cut position.",
+          "For each listed CREATIVE_TREATMENTS identity, realize a different perception and voice across its whole sequence. Keep every concrete commitment inside the cited facts.",
+          "Nominate the viable expressive production whose whole sequence creates the strongest fact-dependent inference, attention movement, character, and earned surprise. Choose that strength over brevity or event coverage alone.",
+          "Runtime preserves deterministic Bare Reality D independently. Return the listed expressive productions only.",
+        ].join("\n") : [
           "You are QRE Mouth.",
           ...QRE_CREATIVE_OPERATING_DOCTRINE,
           "You receive supplied reality, approved meaning, an evidence arrangement, and optionally an assigned perceptual treatment. Realize the strongest perception this material earns.",
@@ -4937,6 +4938,7 @@ export async function createAuthorExperience(input: {
         content: JSON.stringify({
           SUBJECT: input.subject,
           SUPPLIED_REALITY: input.suppliedReality,
+          ...(input.writingProfile?.confidence ? { WRITING_PREFERENCES: summarizeAuthorBehaviorProfile(input.writingProfile) } : {}),
           ...(isMemoryMode ? {
             APPROVED_MEANING: { perception: selected.perception, relationship: selected.relationship },
             ...(!lensSearchEnabled ? {
@@ -5171,6 +5173,7 @@ export async function createAuthorExperience(input: {
             subject: input.subject,
             suppliedReality: input.suppliedReality,
             pool: authorizedRealizationPool,
+            writingProfile: input.writingProfile,
             forbiddenTexts,
             realityDirect,
           }).catch((error: unknown) =>

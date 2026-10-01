@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { buildAuthorBehaviorProfile } from "./dist/services/authorBehaviorProfile.js";
 import {
   assembleAuthorizedRealizations,
   evaluateAuthorMemoryProductions,
@@ -245,6 +246,7 @@ assert.equal(assembledDiagnostic?.accepted, true, "verified assembly should beco
 
 const synthesizedText = "The bows became the day's tiny argument; pickup made the argument temporary.";
 const synthesis = await synthesizeAuthorizedRealizations({
+  writingProfile: buildAuthorBehaviorProfile(["LEARNED_PREFERENCE: short punchy twist", "LEARNED_AVOIDANCE: verbose explanation"]),
   subject: "Coco",
   suppliedReality,
   pool,
@@ -264,9 +266,11 @@ const synthesis = await synthesizeAuthorizedRealizations({
     const payload = JSON.parse(messages.at(-1).content);
     assert.deepEqual(
       Object.keys(payload).sort(),
-      ["authorizedRealizationPool", "forbiddenTexts", "instruction", "subject", "suppliedReality"].sort(),
+      ["WRITING_PREFERENCES", "authorizedRealizationPool", "forbiddenTexts", "instruction", "subject", "suppliedReality"].sort(),
       "synthesizer input should stay narrow",
     );
+    assert.deepEqual(payload.suppliedReality, suppliedReality, "Writing preferences must not add factual authority");
+    assert.ok(payload.WRITING_PREFERENCES.some((line) => line.startsWith("EXPLANATION AVERSION=")));
     assert.equal(
       payload.authorizedRealizationPool.some((realization) => /groomer laughed|won a trophy/i.test(realization.text)),
       false,

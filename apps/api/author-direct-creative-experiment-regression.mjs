@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import {
   attachDirectAuthorProvenanceToProductions,
+  buildDirectAuthorMemoryMessages,
   directAuthorAttemptsToProductions,
   directCreativeRealityText,
   evaluateAuthorMemoryProductions,
@@ -40,25 +41,16 @@ const prompt = directSource.slice(0, schemaStart);
 const schema = directSource.slice(schemaStart);
 
 assert.match(prompt, /You are the Author\./);
-assert.match(prompt, /Here is supplied reality\./);
-assert.match(prompt, /Make something of it\./);
-assert.match(prompt, /Write three different attempts\./);
-assert.match(prompt, /Use the material that earns attention\./);
-assert.match(prompt, /One detail may be enough\./);
-assert.match(prompt, /Most of the supplied reality may remain unused\./);
-assert.match(prompt, /Facts are material, not output slots\./);
-assert.match(prompt, /Notice something worth saying\./);
-assert.match(prompt, /Give disproportionate attention to the detail, relationship, implication, or contrast that changes the read\./);
-assert.match(prompt, /Use no more language than the attempt earns\./);
-assert.match(prompt, /Return only the authored attempts\./);
-assert.match(prompt, /The supplied reality controls what actually happened\./);
-assert.match(
-  prompt,
-  /Change perspective while keeping concrete occurrence inside supplied reality\./,
-);
-assert.match(prompt, /Keep every concrete participant, event, action, interaction, object, place, physical behavior, observation, mental state, sensory fact, causality, and outcome inside supplied reality\./);
-assert.match(prompt, /Invent what to say about the supplied reality\. Give its supported detail, relationship, or contrast expressive force\./);
-assert.doesNotMatch(prompt, /Do not invent something else happening\./);
+assert.match(prompt, /QRE_AUTHOR_WRITING_BRIEF/);
+assert.match(prompt, /QRE_CREATIVE_OPERATING_DOCTRINE/);
+assert.match(prompt, /separate moving-text cuts with newline characters/);
+assert.match(prompt, /Keep every concrete participant, event, action, interaction, object, place, physical behavior, observation, mental state, sensory fact, causality, and outcome inside supplied reality/);
+const actualMessages = buildDirectAuthorMemoryMessages({ subject: "test", suppliedReality: [{ id: "e1", text: "A supplied occurrence." }] });
+assert.match(actualMessages[0].content, /Aim for 4–6 cuts/);
+assert.match(actualMessages[0].content, /Keep explanation of the thought and its evidence in private reasoning/);
+assert.equal(JSON.parse(actualMessages[1].content).REALITY, "A supplied occurrence.");
+const scrolling = directAuthorAttemptsToProductions({ attempts: [{ text: " First.\n\nSecond.\r\nThird." }] });
+assert.deepEqual(scrolling[0].lines, [{ order: 1, text: " First." }, { order: 2, text: "Second." }, { order: 3, text: "Third." }]);
 assert.match(prompt, /Return only three attempts\./);
 assert.doesNotMatch(prompt, /Say what you noticed\./);
 assert.match(

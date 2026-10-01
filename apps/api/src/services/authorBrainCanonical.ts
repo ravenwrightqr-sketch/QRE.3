@@ -29,6 +29,7 @@ import type {
   ViewerState,
 } from "@qre/contracts";
 import { buildAuthorRealityGraph } from "./authorRealityGraph.js";
+import { buildAuthorBehaviorProfile, type AuthorBehaviorProfile } from "./authorBehaviorProfile.js";
 import type { AuthorReadout } from "./authorReadout.js";
 import { extractAuthorReality } from "./authorRealityExtractor.js";
 import {
@@ -190,6 +191,7 @@ function makeReadout(input: {
   subject: string;
   events: Array<{ id: string; text: string }>;
   scenes: AuthorScene[];
+  learnedProfile: AuthorBehaviorProfile;
 }): AuthorReadout {
   return {
     version: 1,
@@ -205,16 +207,7 @@ function makeReadout(input: {
       unresolvedTensions: [],
       eventLabels: input.events.map((event) => event.text),
     },
-    learnedProfile: {
-      confidence: 0,
-      compressionPreference: 0,
-      explanationAversion: 0,
-      callbackAffinity: 0,
-      surprisePreference: 0,
-      accelerationPreference: 0,
-      revisitAffinity: 0,
-      learnedSignals: [],
-    },
+    learnedProfile: input.learnedProfile,
     movieSearch: {
       candidateCount: 1,
       candidates: [],
@@ -305,6 +298,7 @@ export async function authorBrainCanonical(
       });
 
   const subject = receipt.subject;
+  const learnedProfile = buildAuthorBehaviorProfile(input.creativeLearningContext ?? []);
 
   const world =
     input.realityGraph ??
@@ -351,6 +345,7 @@ export async function authorBrainCanonical(
         subject,
         suppliedReality: events,
         creativeDiscovery: discoveryResult.discovery,
+        writingProfile: learnedProfile,
         requestedLens: input.lens,
         memory: activeMemory,
         domainContext: input.domainContext,
@@ -589,6 +584,7 @@ export async function authorBrainCanonical(
 
   return {
     readout: makeReadout({
+      learnedProfile,
       subject,
       events,
       scenes,

@@ -40,3 +40,18 @@ export const QRE_CREATIVE_OPERATING_DOCTRINE = [
   "If an expressive idea appears to require invented concrete reality, keep the perception and realize it rhetorically instead of flattening it.",
   "Protect the strange; police the facts.",
 ] as const;
+
+/** Public writing brief. Shared by direct discovery and the normal MEMORY Mouth. */
+export const QRE_AUTHOR_WRITING_BRIEF = [
+  "Discover the thought before choosing the words. Privately explore distinct meanings made possible by the supplied detail, contrast, or relationship; choose the one that changes how this reality registers.",
+  "Write condensed, twisted, felt language. Give the viewer the trigger for an inference and room to complete it. Keep explanation of the thought and its evidence in private reasoning.",
+  "Use direct, spoken language with attitude. Let a charged word or sharp sideways thought carry the feeling; favor a pointed observation over a lyrical description or a lesson about life.",
+  "Make the meaning felt through the writing itself. Let attitude, implication, rhetorical perspective, status, or contrast do the work.",
+  "Each public line is a moving-text cut. Aim for 4–6 cuts, with at least 3 nonempty cuts. Favor 1–7 words per cut; retain extra words only when they add energy or necessary clarity.",
+  "One word may establish the charged detail. Give each cut a separate arrival and a new attention-bearing thought. Build tension, redirect expectation, delay recognition, or let a later detail change an earlier reading.",
+  "Develop the perception across cuts. A factual statement followed by its explanation repeats the same move; find the next change in pressure instead. Choose the shape this material earns rather than filling a fixed role sequence.",
+  "A supplied ending state may be used, omitted, or placed earlier when it gives the strongest grounded realization. Let the landing leave a particular implication alive rather than summarize the whole experience.",
+  "Names earn identity, contrast, or emphasis. Once the subject is understood, let the detail or rhetorical perspective carry the following cuts.",
+  "Keep concrete occurrence exact. A removal attempt stays an attempt; an unspecified outcome stays open. Supplied order establishes order, while immediacy, duration, continued states, motives, and causes require their own evidence.",
+  "Before returning, privately read the whole sequence: preserve its strongest strange thought, remove explanatory scaffolding, and check every concrete commitment against supplied reality.",
+] as const;

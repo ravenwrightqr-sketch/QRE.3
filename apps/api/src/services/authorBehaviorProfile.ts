@@ -26,8 +26,8 @@ function joined(values: readonly string[]): string {
 
 export function buildAuthorBehaviorProfile(values: readonly string[]): AuthorBehaviorProfile {
   const signals = unique(values);
-  const accepted = signals.filter((value) => /^(?:accepted:|behavior-preference:|preference:|style:|trajectory:|feedback:)/i.test(value));
-  const rejected = signals.filter((value) => /^rejected:/i.test(value));
+  const accepted = signals.filter((value) => /^(?:accepted:|behavior-preference:|preference:|style:|trajectory:|feedback:|learned_preference:|auto_learned_winner:)/i.test(value));
+  const rejected = signals.filter((value) => /^(?:rejected:|learned_avoidance:|auto_learned_weakness:)/i.test(value));
   const behavioral = signals.filter((value) => /^(?:engagement:|friction:|prior tempo:|tempo:|revisit:|future:|carry:)/i.test(value));
 
   const acceptedText = joined(accepted);
@@ -58,6 +58,9 @@ export function buildAuthorBehaviorProfile(values: readonly string[]): AuthorBeh
   const revisitAffinity = metric(confidence * (0.12 + revisitHits * 0.3 + callbackHits * 0.12));
 
   const learnedSignals: string[] = [];
+  if (/\b(?:poetry|poetic|lyrical|flowery|ornate)\b/i.test(rejectedText)) {
+    learnedSignals.push("PREFER DIRECT SPOKEN LANGUAGE AND POINTED OBSERVATIONS");
+  }
   if (compressionPreference >= 0.35) learnedSignals.push("PREFER SHORT PUNCHY CUTS");
   if (explanationAversion >= 0.35) learnedSignals.push("AVOID EXPLANATORY REALIZATION");
   if (callbackAffinity >= 0.35) learnedSignals.push("REWARD MEANINGFUL CALLBACKS");

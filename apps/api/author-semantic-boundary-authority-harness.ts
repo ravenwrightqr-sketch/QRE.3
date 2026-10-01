@@ -16,7 +16,7 @@ import {
 } from "./src/services/localModelRuntime.js";
 
 const DIRECT_AUTHOR_PROMPT_HASH =
-  "b96580a5720514b3c3755ced9a5a75d69abe153f16d45f84c428e04ecccfe441";
+  "0d81899c9379fc1268f956d9d60a5a128a40c6ec6b67295c6f1bd42253c1349a";
 
 const OUTPUT_DIR = ".qre-debug/semantic-boundary";
 const OUTPUT_FILE = "semantic-boundary-results.json";

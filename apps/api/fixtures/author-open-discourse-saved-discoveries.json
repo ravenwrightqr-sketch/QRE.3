@@ -1,0 +1,125 @@
+{
+  "schemaVersion": 1,
+  "note": "Actual saved model productions, not taste examples or generator input. Capture encoding preserved. No expected authority verdict is asserted.",
+  "discoveries": [
+    {
+      "subject": "Coco",
+      "text": "At 9:00 AM, Coco was dropped off looking like someone else's plan: bath, blue bows, the full arrangement. By pickup, the important fact was simplerΓÇöhappy. The bows had already tried to become optional.",
+      "suppliedReality": [
+        {
+          "id": "event-1",
+          "text": "Dropped off at 9:00 AM."
+        },
+        {
+          "id": "event-2",
+          "text": "Bath."
+        },
+        {
+          "id": "event-3",
+          "text": "Blue bows."
+        },
+        {
+          "id": "event-4",
+          "text": "Tried to remove the bows."
+        },
+        {
+          "id": "event-5",
+          "text": "Happy at pickup."
+        }
+      ],
+      "source": "Pasted text(20261001-104334).txt",
+      "run": 1,
+      "production": "A",
+      "authorityStatus": "NOT_CHECKED"
+    },
+    {
+      "subject": "Coco",
+      "text": "At 9:00, Coco arrived clean enough to be given blue bows, and immediately treated the bows as a problem to solve. The bath passed. The bows survived. By pickup, Coco was happy, as if the day had been a negotiation and the negotiations had ended in everyone's favor.",
+      "suppliedReality": [
+        {
+          "id": "event-1",
+          "text": "Dropped off at 9:00 AM."
+        },
+        {
+          "id": "event-2",
+          "text": "Bath."
+        },
+        {
+          "id": "event-3",
+          "text": "Blue bows."
+        },
+        {
+          "id": "event-4",
+          "text": "Tried to remove the bows."
+        },
+        {
+          "id": "event-5",
+          "text": "Happy at pickup."
+        }
+      ],
+      "source": "Pasted text(20261001-104741).txt",
+      "run": 1,
+      "production": "A",
+      "authorityStatus": "NOT_CHECKED"
+    },
+    {
+      "subject": "Coco",
+      "text": "CocoΓÇÖs day had a clear sequence: 9:00 a.m. drop-off, bath, blue bows, an attempt to undo the bows, then pickup. The notable thing isnot that she objected, but that she objected and still left happy. Some complaints are brief. Some accessories outlast them.",
+      "suppliedReality": [
+        {
+          "id": "event-1",
+          "text": "Dropped off at 9:00 AM."
+        },
+        {
+          "id": "event-2",
+          "text": "Bath."
+        },
+        {
+          "id": "event-3",
+          "text": "Blue bows."
+        },
+        {
+          "id": "event-4",
+          "text": "Tried to remove the bows."
+        },
+        {
+          "id": "event-5",
+          "text": "Happy at pickup."
+        }
+      ],
+      "source": "Pasted text(20261001-104741).txt",
+      "run": 2,
+      "production": "C",
+      "authorityStatus": "NOT_CHECKED"
+    },
+    {
+      "subject": "Coco",
+      "text": "The bows survived the objection.",
+      "suppliedReality": [
+        {
+          "id": "event-1",
+          "text": "Dropped off at 9:00 AM."
+        },
+        {
+          "id": "event-2",
+          "text": "Bath."
+        },
+        {
+          "id": "event-3",
+          "text": "Blue bows."
+        },
+        {
+          "id": "event-4",
+          "text": "Tried to remove the bows."
+        },
+        {
+          "id": "event-5",
+          "text": "Happy at pickup."
+        }
+      ],
+      "source": "User nomination, 2026-10-01",
+      "authorityStatus": "NOT_CHECKED",
+      "note": "User-approved creative direction. No factual authority verdict is prescribed; not generator input."
+    }
+  ]
+}
