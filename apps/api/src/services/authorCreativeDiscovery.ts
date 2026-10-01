@@ -114,6 +114,12 @@ function candidateReferencesUncitedEvidence(
   events: ReadonlyArray<{ id: string; text: string }>,
 ): boolean {
   const cited = new Set(candidate.evidenceEventIds.map(clean));
+  // Shared subjects and details are not evidence of an uncited occurrence.
+  // Only vocabulary exclusive to uncited facts can trigger this early check;
+  // semantic verification still judges the actual claim and its premises.
+  const citedTokens = evidenceTokens(events
+    .filter((event) => cited.has(clean(event.id)))
+    .map((event) => event.text).join(" "));
   const candidateTokens = evidenceTokens([
     candidate.perception,
     candidate.relationship,
@@ -126,7 +132,9 @@ function candidateReferencesUncitedEvidence(
     .filter((event) => !cited.has(clean(event.id)))
     .some((event) => {
       const tokens = evidenceTokens(event.text);
-      return [...tokens].some((token) => candidateTokens.has(token));
+      return [...tokens].some((token) =>
+        !citedTokens.has(token) && candidateTokens.has(token),
+      );
     });
 }
 

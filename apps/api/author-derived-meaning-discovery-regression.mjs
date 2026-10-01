@@ -188,6 +188,9 @@ assert.deepEqual(mouth.DERIVED_MEANING, approved);
 assert.deepEqual(mouth.SUPPLIED_REALITY, events.slice(0, 2));
 assert.match(mouthSystems[0], /Make the meaning felt through the writing itself/);
 assert.match(mouthSystems[0], /Maximize meaningful inference while maintaining grounding/);
+assert.match(mouthSystems[0], /Each public line is a moving-text cut/);
+assert.match(mouthSystems[0], /One word may establish the charged detail/);
+assert.match(mouthSystems[0], /Keep the explanation of how the evidence supports it in private reasoning/);
 assert.doesNotMatch(mouthSystems[0], /Do not|Never/i, "Mouth should direct creation positively");
 assert.doesNotMatch(mouthSystems[0], /Coco|War of the Bows|Peace is temporary/i,
   "Taste references must remain outside production instructions");

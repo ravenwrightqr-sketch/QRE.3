@@ -88,7 +88,7 @@ assert.match(
 );
 assert.match(
   mouthPrompt,
-  /A tiny line may be right\. A complete sentence may be right\. A longer turn may be right when the thought requires it\./,
+  /One word may establish the charged detail\.[\s\S]*Use a longer line when its added words earn the attention\./,
   "Mouth must allow variable earned length",
 );
 assert.match(

@@ -14,6 +14,10 @@ function reasonsFor(text, facts = ["The visit happened."]) {
   }).reasons;
 }
 
+assert.equal(evaluateAuthorCut("Bows.", {
+  subject: "Coco", facts: ["Blue bows were added."],
+}).accepted, true, "A grounded one-word cut must remain valid");
+
 for (const text of [
   "A brief rebellion.",
   "A short visit.",

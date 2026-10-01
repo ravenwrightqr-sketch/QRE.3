@@ -118,6 +118,30 @@ const continued = await discover({ memory: [
   "Prior visit: Coco tried to remove the blue bows.",
   "Prior expressive framing: War of the Bows.",
 ] });
+// Repeated subjects and shared objects must not be mistaken for reliance on
+// uncited events. This reproduces the live Coco primary-read disappearance.
+const repeatedSubjectEvents = [
+  { id: "n", text: "Coco was nervous." },
+  { id: "b", text: "Coco got a bath." },
+  { id: "a", text: "A bow was added." },
+  { id: "r", text: "Coco tried to remove the bow." },
+  { id: "h", text: "Coco left happy." },
+];
+const bowRead = { id: "bow-read", perception: "The bow becomes something Coco resists.",
+  relationship: "Addition and attempted removal put the decoration in contention.",
+  evidenceEventIds: ["a", "r"] };
+const sharedSubject = await discover({ suppliedEvents: repeatedSubjectEvents, response: answer([bowRead]) });
+assert.equal(sharedSubject.discovery.selected.id, "bow-read");
+assert.ok(sharedSubject.requests.some(({ payload }) => payload.CANDIDATES?.some(({ id }) => id === "bow-read")),
+  "A read with shared vocabulary must reach semantic authority");
+const rejectedShared = await discover({ suppliedEvents: repeatedSubjectEvents,
+  response: answer([bowRead]), rejectedIds: ["bow-read"] });
+assert.equal(rejectedShared.discovery.selected.id, "reality-direct",
+  "Shared vocabulary never bypasses semantic rejection");
+const uncitedState = await discover({ suppliedEvents: repeatedSubjectEvents,
+  response: answer([{ ...bowRead, perception: "Coco was nervous about the bow." }]) });
+assert.equal(uncitedState.discovery.selected.id, "reality-direct",
+  "Vocabulary exclusive to an uncited fact must still fail the deterministic check");
 assert.deepEqual(continued.requests[0].payload.CURRENT_REALITY, events);
 assert.deepEqual(continued.discovery.playableEventIds, eventIds,
   "Remembered visits must not become new occurrences in the current corridor");
