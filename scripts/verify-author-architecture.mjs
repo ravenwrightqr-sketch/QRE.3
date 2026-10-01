@@ -55,6 +55,7 @@ const allowedAuthorServiceFiles = new Set([
   "authorRealityExtractor.ts",
   "authorRealityGraph.ts",
   "authorCreativeDiscovery.ts",
+  "authorDerivedMeaning.ts",
   "authorCreative.ts",
   "authorCreativeDoctrine.ts",
   "authorCutFloor.ts",

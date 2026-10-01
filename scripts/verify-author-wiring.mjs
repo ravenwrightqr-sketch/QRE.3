@@ -25,6 +25,7 @@ for (const [role, path] of Object.entries(files)) {
 if (!failures.length) {
   const brain = read(files.brain);
   const creative = read(files.creative);
+  const discovery = read(files.discovery);
   const service = read(files.service);
   const route = read(files.route);
   const acceptance = read(files.acceptance);
@@ -41,6 +42,16 @@ if (!failures.length) {
   if (!/extractAuthorReality\s*\(/.test(brain)) failures.push("brain does not extract reality");
   if (!/buildAuthorRealityGraph\s*\(/.test(brain)) failures.push("brain does not build RealityGraph");
   if (!/discoverAuthorCreativeDirection\s*\(/.test(brain)) failures.push("brain does not execute Creative Discovery");
+  if (!/await discoverAuthorDerivedMeaning\(input\.events\)/.test(discovery) ||
+    !/validateAuthorDerivedMeaningStructure\(/.test(discovery) ||
+    !/QRE Discovery Derived Meaning Authority/.test(discovery)) {
+    failures.push("Discovery must derive meaning through structural validation and semantic authority");
+  }
+  if (!/derivedMeaning:\s*input\.creativeDiscovery\.derivedMeaning/.test(creative) ||
+    !/DERIVED_MEANING:\s*input\.derivedMeaning/.test(creative) ||
+    !/derivedMeaning:\s*discoveryResult\.discovery\.derivedMeaning/.test(brain)) {
+    failures.push("approved derived meaning must reach Lens and final grounding separately from supplied events");
+  }
   if (!/createAuthorExperience\s*\(/.test(brain)) failures.push("brain does not execute QRE Creative");
   const hasAuthorStructurePrompt =
     /You are QRE Bare Author Structure Planner\./.test(creative) ||

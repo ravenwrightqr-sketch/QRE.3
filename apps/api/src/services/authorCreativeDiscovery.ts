@@ -1,5 +1,6 @@
 import type { AuthorDomainContext } from "@qre/contracts";
 import { localModelGenerate } from "./localModelRuntime.js";
+import { validateAuthorDerivedMeaningStructure, type AuthorDerivedMeaning } from "./authorDerivedMeaning.js";
 
 const clean = (value: unknown): string =>
   String(value ?? "").replace(/\s+/g, " ").trim();
@@ -73,6 +74,7 @@ export type AuthorCreativeCandidate = {
 };
 
 export type AuthorCreativeDiscovery = {
+  derivedMeaning?: AuthorDerivedMeaning;
   candidates: AuthorCreativeCandidate[];
   selectedCandidateId: string;
   selected: AuthorCreativeCandidate;
@@ -347,6 +349,123 @@ async function verifyDiscoveryCandidates(input: {
   }
 
   return { groundedIds, modelCalls: 1 };
+}
+
+// This is cognition, not another event extractor or a Lens treatment. Structural
+// validation and semantic authority both precede any downstream handoff.
+export async function discoverAuthorDerivedMeaning(
+  events: ReadonlyArray<{ id: string; text: string }>,
+): Promise<{ derivedMeaning: AuthorDerivedMeaning; modelCalls: number }> {
+  const empty: AuthorDerivedMeaning = { kind: "DERIVED_MEANING", relations: [] };
+  if (new Set(events.map((event) => event.id)).size < 2) {
+    return { derivedMeaning: empty, modelCalls: 0 };
+  }
+  let modelCalls = 0;
+  try {
+    modelCalls++;
+    const result = await localModelGenerate([
+      { role: "system", content: [
+        "You are QRE Discovery Relational Abstraction.",
+        "Examine only SUPPLIED_REALITY. Find meaningful relations among supplied facts, grounding each relation in at least two distinct supplied event IDs.",
+        "For each relation, derive distinct conceptual interpretations it supports, with a derivation explaining the evidence-to-meaning connection.",
+        "Interpretations express supported significance rather than merely renaming an event, object, action, participant, or sequence.",
+        "Use as many interpretations as the evidence earns. Zero relations is valid; do not force abstraction, pad alternatives, or require collective coverage.",
+        "Keep concrete reality fixed: participants, occurrences, states, chronology, causes, motives, intentions and outcomes must be supplied.",
+        "Return private cognition only, without viewer-facing lines, jokes, slogans, scenes or genre treatments.",
+        "Assign unique relation IDs and globally unique interpretation IDs. Return DERIVED_MEANING separately from supplied events.",
+      ].join("\n") },
+      { role: "user", content: JSON.stringify({ SUPPLIED_REALITY: events }) },
+    ], "json", {
+      numPredict: 1600,
+      temperature: 0.65,
+      jsonSchema: {
+        type: "object", additionalProperties: false, required: ["kind", "relations"],
+        properties: {
+          kind: { type: "string", enum: ["DERIVED_MEANING"] },
+          relations: { type: "array", maxItems: 4, items: {
+            type: "object", additionalProperties: false,
+            required: ["id", "relation", "groundingEventIds", "interpretations"],
+            properties: {
+              id: { type: "string", maxLength: 64 },
+              relation: { type: "string", maxLength: 180 },
+              groundingEventIds: { type: "array", minItems: 2, maxItems: 32, uniqueItems: true,
+                items: { type: "string", maxLength: 64 } },
+              interpretations: { type: "array", minItems: 1, maxItems: 4, items: {
+                type: "object", additionalProperties: false,
+                required: ["id", "interpretation", "derivation"],
+                properties: {
+                  id: { type: "string", maxLength: 64 },
+                  interpretation: { type: "string", maxLength: 180 },
+                  derivation: { type: "string", maxLength: 240 },
+                },
+              } },
+            },
+          } },
+        },
+      },
+    });
+    const validation = validateAuthorDerivedMeaningStructure(parseJson(result.text), events);
+    if (!validation.valid || !validation.value.relations.length ||
+      validation.value.relations.length > 4 ||
+      validation.value.relations.some((relation) => relation.interpretations.length > 4 || relation.groundingEventIds.length > 32)) {
+      return { derivedMeaning: empty, modelCalls };
+    }
+    const relations = validation.value.relations;
+    // Audit the relation independently and every interpretation WITH its
+    // derivation. A bad relation invalidates its children; bad siblings do not.
+    const claims = relations.flatMap((relation, r) => {
+      const evidence = events.filter((event) => relation.groundingEventIds.includes(event.id));
+      return [
+        { id: `r${r}`, relation: relation.relation, evidence },
+        ...relation.interpretations.map((interpretation, i) => ({
+          id: `r${r}i${i}`, relation: relation.relation, evidence,
+          interpretation: interpretation.interpretation, derivation: interpretation.derivation,
+        })),
+      ];
+    });
+    modelCalls++;
+    const audit = await localModelGenerate([
+      { role: "system", content: [
+        "You are QRE Discovery Derived Meaning Authority.",
+        "For each claim, judge factual support against that claim's cited evidence only.",
+        "Audit the relation, interpretation and derivation. Nonliteral significance is allowed when it introduces no unsupported material premise.",
+        "Reject unsupplied participants, occurrences, states, motives, intentions, ownership, causes, chronology, outcomes or hidden conditions required to understand any part of the claim.",
+        "Judge truth only, without ranking taste, creativity, strength or familiarity. Do not rewrite or repair.",
+        "Return exactly one verification for each claim ID. grounded is true exactly when unsupportedClaims is empty.",
+      ].join("\n") },
+      { role: "user", content: JSON.stringify({ DERIVED_MEANING_CLAIMS: claims }) },
+    ], "json", {
+      numPredict: Math.max(420, claims.length * 100), temperature: 0.08,
+      jsonSchema: {
+        type: "object", additionalProperties: false, required: ["verifications"],
+        properties: { verifications: { type: "array", minItems: claims.length, maxItems: claims.length,
+          items: { type: "object", additionalProperties: false,
+            required: ["claimId", "grounded", "unsupportedClaims"],
+            properties: { claimId: { type: "string", maxLength: 32 }, grounded: { type: "boolean" },
+              unsupportedClaims: { type: "array", maxItems: 16, items: { type: "string", maxLength: 140 } } },
+          } } },
+      },
+    });
+    const verifications = parseJson(audit.text)?.verifications;
+    if (!Array.isArray(verifications)) return { derivedMeaning: empty, modelCalls };
+    const grounded = (id: string): boolean => {
+      const matches = verifications.filter((value) => value && value.claimId === id);
+      return matches.length === 1 && matches[0].grounded === true &&
+        Array.isArray(matches[0].unsupportedClaims) && matches[0].unsupportedClaims.length === 0;
+    };
+    return {
+      derivedMeaning: { kind: "DERIVED_MEANING", relations: relations.flatMap((relation, r) => {
+        if (!grounded(`r${r}`)) return [];
+        const interpretations = relation.interpretations.filter((_, i) => grounded(`r${r}i${i}`));
+        return interpretations.length ? [{ ...relation, interpretations }] : [];
+      }) },
+      modelCalls,
+    };
+  } catch {
+    // Optional cognition fails closed; supplied facts and the approved primary
+    // Discovery read remain available. Account for attempted model calls.
+    return { derivedMeaning: empty, modelCalls };
+  }
 }
 
 async function repairDiscoveryCandidates(input: {
@@ -720,12 +839,17 @@ export async function discoverAuthorCreativeDirection(input: {
     Boolean(requestedSelected) &&
     selected.id === requestedSelectedId;
 
+  const derived = await discoverAuthorDerivedMeaning(input.events);
+
   // Evidence proves the selected meaning. MEMORY's available material is the
   // full supplied event corridor, regardless of selection, repair, or fallback.
   // Preserve input order and never let model-authored partitions narrow it.
   const playableEventIds = isMemoryContext(input.domainContext)
     ? unique(input.events.map((event) => event.id))
-    : unique(selected.evidenceEventIds).filter((id) => allowedEventIds.has(id));
+    : unique([
+        ...selected.evidenceEventIds,
+        ...derived.derivedMeaning.relations.flatMap((relation) => relation.groundingEventIds),
+      ]).filter((id) => allowedEventIds.has(id));
 
   const playableSet = new Set(playableEventIds);
 
@@ -735,6 +859,7 @@ export async function discoverAuthorCreativeDirection(input: {
 
   return {
     discovery: {
+      derivedMeaning: derived.derivedMeaning,
       candidates,
       selectedCandidateId: selected.id,
       selected,
@@ -752,6 +877,6 @@ export async function discoverAuthorCreativeDirection(input: {
         : selected.risk,
     },
     model: repairModel,
-    modelCalls: 1 + semanticVerification.modelCalls + repairModelCalls,
+    modelCalls: 1 + semanticVerification.modelCalls + repairModelCalls + derived.modelCalls,
   };
 }

@@ -2,6 +2,7 @@ import type { AuthorDomainContext, AuthorScene } from "@qre/contracts";
 import { localModelGenerate } from "./localModelRuntime.js";
 import type { LocalModelJsonSchema } from "./localModelRuntime.js";
 import type { AuthorCreativeDiscovery } from "./authorCreativeDiscovery.js";
+import type { AuthorDerivedMeaning } from "./authorDerivedMeaning.js";
 import { evaluateAuthorCut } from "./authorCutFloor.js";
 import { QRE_CREATIVE_OPERATING_DOCTRINE } from "./authorCreativeDoctrine.js";
 
@@ -1079,6 +1080,7 @@ export async function searchAuthorCreativeLensTreatments(input: {
   creativeOpportunity: string;
   relation: string;
   experienceMode?: string;
+  derivedMeaning?: AuthorDerivedMeaning;
   requestedLens?: string;
   domainContext?: AuthorDomainContext;
   semanticMechanic: AuthorSemanticMechanicCandidate;
@@ -1129,9 +1131,11 @@ export async function searchAuthorCreativeLensTreatments(input: {
         content: JSON.stringify({
           SUBJECT: input.subject,
           SUPPLIED_REALITY: creativeEvidenceProjection(input.suppliedReality),
+          APPROVED_MEANING: { perception: input.creativeOpportunity, relationship: input.relation },
+          DERIVED_MEANING: input.derivedMeaning ?? { kind: "DERIVED_MEANING", relations: [] },
           REQUESTED_LENS: requestedLens || undefined,
           instruction:
-            "Return exactly three independent notices. Each notice must contain only conception and evidenceEventIds. Give the thought, not a description, explanation, observation, meaning, interpretation, relation, rationale, theme, mechanic, lens, or semantic translation of the evidence. The notices do not owe collective coverage and may reuse the same evidence when the conceptions are genuinely different. Do not return story structure, latent relations, treatments, hidden inference, perception deltas, expressive behavior menus, or narrative instructions.",
+            "Treat APPROVED_MEANING and the alternatives in DERIVED_MEANING as already grounded cognition. Lens owns expressive treatment of that meaning. Interpretations are alternative reads, not additional facts or occurrences; choose what earns treatment without combining or covering every alternative. SUPPLIED_REALITY alone authorizes concrete facts. Return exactly three independent notices. Each notice must contain only conception and evidenceEventIds. Give the thought, not a description, explanation, observation, meaning, interpretation, relation, rationale, theme, mechanic, lens, or semantic translation of the evidence. The notices do not owe collective coverage and may reuse the same evidence when the conceptions are genuinely different. Do not return story structure, latent relations, treatments, hidden inference, perception deltas, expressive behavior menus, or narrative instructions.",
         }),
       },
     ],
@@ -4603,8 +4607,9 @@ export async function createAuthorExperience(input: {
             relationship: selected.relationship,
             evidenceEventIds: selected.evidenceEventIds,
           },
+          DERIVED_MEANING: input.creativeDiscovery.derivedMeaning ?? { kind: "DERIVED_MEANING", relations: [] },
           instruction:
-            "Return the strongest structural beat sequence using the authorized evidence IDs. Preserve every authorized evidence item somewhere in the sequence; group related evidence when that strengthens the experience.",
+            "Return the strongest structural beat sequence using the authorized evidence IDs. DERIVED_MEANING contains approved alternative interpretations, not additional facts or occurrences; use only what serves the approved meaning without combining every alternative. Preserve every authorized evidence item somewhere in the sequence; group related evidence when that strengthens the experience.",
         }),
       },
     ],
@@ -4738,6 +4743,7 @@ export async function createAuthorExperience(input: {
         plan,
         creativeOpportunity: selected.perception,
         relation: selected.relationship,
+        derivedMeaning: input.creativeDiscovery.derivedMeaning,
         experienceMode,
         requestedLens,
         domainContext: input.domainContext,
@@ -4939,6 +4945,8 @@ export async function createAuthorExperience(input: {
           })),
           CREATIVE_OPPORTUNITY: selected.perception,
           RELATION: selected.relationship,
+          DERIVED_MEANING: input.creativeDiscovery.derivedMeaning ?? { kind: "DERIVED_MEANING", relations: [] },
+          DERIVED_MEANING_AUTHORITY: "Approved alternative interpretations may inform expression. They are not new facts or occurrences and do not require coverage; SUPPLIED_REALITY alone authorizes concrete reality.",
           REALITY_DIRECT: realityDirect,
           LENS_MODE: lensMode,
           REQUESTED_LENS: requestedLens || (autoBusinessLens ? "AUTO" : "NONE"),

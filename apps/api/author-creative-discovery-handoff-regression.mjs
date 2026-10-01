@@ -17,7 +17,7 @@ function loadService(name, generate, extraExports = "") {
     process: { env: {} },
     require(specifier) {
       if (specifier === "./localModelRuntime.js") return { localModelGenerate: generate };
-      if (["./authorCutFloor.js", "./authorCreativeDoctrine.js"].includes(specifier)) {
+      if (["./authorCutFloor.js", "./authorCreativeDoctrine.js", "./authorDerivedMeaning.js"].includes(specifier)) {
         return loadService(specifier.slice(2, -3), generate);
       }
       throw new Error(`Unexpected regression dependency: ${specifier}`);
@@ -73,6 +73,7 @@ async function discover({
         unsupportedClaims: rejectedIds.includes(id) ? ["unsupported premise"] : [],
       })) };
     } else if (payload.FAILED_DISCOVERY) result = { candidates: repaired };
+    else if (payload.SUPPLIED_REALITY) result = { kind: "DERIVED_MEANING", relations: [] };
     else throw new Error("Unexpected Discovery model request");
     return { text: JSON.stringify(result), model: "offline-stub" };
   });
@@ -108,7 +109,7 @@ for (const domainContext of [businessMemory, { experienceMode: "MEMORY" }]) {
     assert.deepEqual(discovery.selected.evidenceEventIds, ["e4"]);
     assert.deepEqual(discovery.playableEventIds, eventIds);
     assert.deepEqual(discovery.backgroundEventIds, []);
-    assert.equal(requests.length, 2, "Discovery still uses semantic verification");
+    assert.equal(requests.length, 3, "Discovery verifies its primary read and runs relational abstraction");
     approvedDiscovery = discovery;
   }
 }

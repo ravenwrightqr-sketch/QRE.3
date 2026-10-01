@@ -7,14 +7,16 @@ const source = readFileSync(
 );
 
 const verifyStart = source.indexOf("async function verifyDiscoveryCandidates");
+const derivedStart = source.indexOf("export async function discoverAuthorDerivedMeaning");
 const repairStart = source.indexOf("async function repairDiscoveryCandidates");
 const discoveryStart = source.indexOf("export async function discoverAuthorCreativeDirection");
 
 assert.ok(verifyStart >= 0, "Discovery verifier must exist");
+assert.ok(derivedStart > verifyStart && derivedStart < repairStart, "Relational abstraction must remain a separate Discovery substage");
 assert.ok(repairStart > verifyStart, "Discovery repair must follow verifier");
 assert.ok(discoveryStart > repairStart, "Discovery main function must follow repair");
 
-const verifySource = source.slice(verifyStart, repairStart);
+const verifySource = source.slice(verifyStart, derivedStart);
 const repairSource = source.slice(repairStart, discoveryStart);
 
 assert.doesNotMatch(

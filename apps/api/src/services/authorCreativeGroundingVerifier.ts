@@ -1,5 +1,6 @@
 import type { AuthorDomainContext, AuthorScene } from "@qre/contracts";
 import { localModelGenerate } from "./localModelRuntime.js";
+import type { AuthorDerivedMeaning } from "./authorDerivedMeaning.js";
 
 const clean = (value: unknown): string =>
   String(value ?? "").replace(/\s+/g, " ").trim();
@@ -283,6 +284,7 @@ export async function verifyAuthorCreativeGrounding(input: {
   scenes: AuthorGroundingScene[];
   suppliedReality: readonly { id: string; text: string }[];
   semanticAuthority?: readonly string[];
+  derivedMeaning?: AuthorDerivedMeaning;
   domainContext?: AuthorDomainContext;
 }): Promise<{
   scenes: AuthorGroundingScene[];
@@ -307,6 +309,7 @@ export async function verifyAuthorCreativeGrounding(input: {
     "Distinguish MATERIAL REALITY from STORY TEXTURE.",
     "MATERIAL REALITY includes entities, actions, states, relationships, ownership, motive, causality, chronology, success or failure, completed outcomes, measurements, quantities, colors, temperatures, materials, sensory properties, physical attributes, physical manifestations, methods, components, environmental details, and concrete state changes. Material reality must be directly established by SUPPLIED_REALITY or be an unavoidable semantic paraphrase.",
     "Reality is closed; discourse is open. New language, generalized reference, rhetorical POV, personification, implication, metaphor, and derived significance may be grounded when they create no additional world commitment.",
+    "DERIVED_MEANING contains previously checked alternative interpretations. It may inform reading of expression, but it never authorizes additional material reality; audit concrete claims against SUPPLIED_REALITY alone.",
     "Mention is not participation. A category, role, group, narrator, institution, object voice, place voice, or social class may appear in expressive language without becoming a factual participant in the occurrence.",
     "POV licenses voice, not events. A rhetorical speaker is not automatically a literal actor, observer, thinker, or source of additional history.",
     "Universal authority test: strip away rhetoric, metaphor, POV, personification, generalized reference, abstraction, comparison, implication, interpretation, attitude, and discovered significance; then ask what additional thing the viewer must believe actually happened.",
@@ -378,6 +381,7 @@ export async function verifyAuthorCreativeGrounding(input: {
           SUPPLIED_REALITY: input.suppliedReality,
           WORLD_CONTEXT: input.domainContext,
           APPROVED_SEMANTIC_AUTHORITY: input.semanticAuthority ?? [],
+          DERIVED_MEANING: input.derivedMeaning ?? { kind: "DERIVED_MEANING", relations: [] },
           SEQUENCE: input.scenes.map((scene, sceneIndex) => ({
             sceneIndex,
             text: scene.text,
@@ -470,4 +474,3 @@ export async function verifyAuthorCreativeGrounding(input: {
     modelCalls: 1,
   };
 }
-
