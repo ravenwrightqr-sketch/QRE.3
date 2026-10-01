@@ -673,12 +673,12 @@ export async function discoverAuthorCreativeDirection(input: {
       "Find the grounded meaning. Supplied material remains available downstream independently of the evidence needed for that meaning. Do not choose final treatment, write final prose, plan scenes, or score authored output.",
     ] : []),
     "",
-    "SELECT BY COGNITIVE RETURN.",
-    "Choose the read whose necessary evidence creates the clearest supported change in understanding. Prefer a read that depends on supplied specifics, remains valid without hidden premises, preserves ambiguity where the facts leave it, and gives later creative work one grounded idea to carry forward.",
-    "Compare specificity, surprise, relationship density, character fit, sequence fit, and what the evidence can contribute to an earned landing. Favor the read with the strongest combination for this material.",
-    "A local contradiction, resistance, or charged detail may carry more cognitive return than the broad before-and-after arc. A pleasant ending establishes that ending state; it can leave another supplied tension alive.",
-    "A read does not become stronger by covering more facts. It becomes stronger when its cited evidence supports a sharper change in perception.",
-    "",
+    "SEARCH BEFORE SELECTION.",
+    "Do not choose a winner while generating reads. Build a genuinely divergent set first.",
+    "When the evidence supports it, make candidates differ in semantic operation, not merely wording or emphasis. Search across possibilities such as: a particular characterization of one friction; a broader human or social observation licensed by the detail; a rhetorical perspective or attitude available from a supplied entity or relevant category; an implication or recontextualization created when two facts collide; an inversion of which detail seems important.",
+    "These are search directions, not quotas or labels. Do not force a category the evidence does not earn. Do not make several candidates that all reduce to the same before/after summary.",
+    "A broader observation need not claim that it literally occurred inside the event. A rhetorical speaker need not become a factual participant. Keep those as interpretation while concrete reality stays closed.",
+    "Give disproportionate search attention to the odd, resistant, specific, awkward, or revealing detail. Do not automatically make the final positive state the meaning of the experience.",
     "Return only the requested structured object.",
   ].join("\n");
 
@@ -693,7 +693,7 @@ export async function discoverAuthorCreativeDirection(input: {
           MEMORY: (input.memory ?? []).slice(0, 12),
           BUSINESS_CONTEXT: input.domainContext,
           instruction:
-            "Find any grounded reads worth returning. Fewer than the schema allows is valid; zero is valid. Use only supplied evidence, select the read with the clearest supported change in understanding, and return no final prose or unsupported explanation.",
+            "Search for a divergent set of grounded reads worth considering. Fewer than the schema allows is valid; zero is valid. Do not select a winner. Make supported candidates conceptually different from one another rather than paraphrases of the same summary. Return no final prose or unsupported explanation.",
         }),
       },
     ],
@@ -706,9 +706,7 @@ export async function discoverAuthorCreativeDirection(input: {
         additionalProperties: false,
         required: [
           "candidates",
-          "selectedCandidateId",
           "confidence",
-          "selectionReason",
           "risk",
         ],
         properties: {
@@ -737,9 +735,7 @@ export async function discoverAuthorCreativeDirection(input: {
               },
             },
           },
-          selectedCandidateId: { type: "string", maxLength: 48 },
           confidence: { type: "number" },
-          selectionReason: { type: "string", maxLength: 220 },
           risk: { type: "string", maxLength: 180 },
         },
       },
@@ -783,7 +779,7 @@ export async function discoverAuthorCreativeDirection(input: {
     semanticVerification.groundedIds.has(candidate.id),
   );
 
-  const requestedSelectedId = clean(parsed?.selectedCandidateId);
+  let requestedSelectedId = "";
 
   let repairModel = result.model;
   let repairModelCalls = 0;
@@ -797,11 +793,9 @@ export async function discoverAuthorCreativeDirection(input: {
   );
 
   const repairTargets =
-    modelSelectedCandidate && !modelSelectedSurvived
-      ? [modelSelectedCandidate]
-      : !candidates.length
-        ? deterministicCandidates
-        : [];
+    !candidates.length
+      ? deterministicCandidates
+      : [];
 
   if (repairTargets.length) {
     const repair = await repairDiscoveryCandidates({
@@ -838,6 +832,65 @@ export async function discoverAuthorCreativeDirection(input: {
         )
         .filter((candidate): candidate is AuthorCreativeCandidate => Boolean(candidate));
     }
+  }
+
+  if (candidates.length > 1) {
+    const selectionResult = await localModelGenerate(
+      [
+        {
+          role: "system",
+          content: [
+            "You are QRE Creative Discovery Selector.",
+            "Discovery has already searched and semantic grounding has already removed unsupported reads.",
+            "Choose among GROUNDED_CANDIDATES only. Do not rewrite, merge, repair, or invent another candidate.",
+            "Select by cognitive return: which supported read most changes what becomes noticeable in this particular reality?",
+            "Prefer specificity, surprise, relationship density, character, unresolved pressure, and a meaning that depends on the supplied particulars.",
+            "Do not reward coverage. Do not automatically prefer chronology, a positive ending, emotional closure, or the candidate that summarizes the most events.",
+            "A small resistant detail may outrank the broad arc when it creates the sharper supported perception.",
+            "A broader observation, rhetorical attitude, implication, or recontextualization may outrank a literal particular characterization when the evidence genuinely licenses it.",
+            "Return only the selected candidate ID plus concise selection reasoning.",
+          ].join("\n"),
+        },
+        {
+          role: "user",
+          content: JSON.stringify({
+            SUPPLIED_REALITY: input.events,
+            GROUNDED_CANDIDATES: candidates.map((candidate) => ({
+              id: candidate.id,
+              perception: candidate.perception,
+              relationship: candidate.relationship,
+              evidenceEventIds: candidate.evidenceEventIds,
+            })),
+          }),
+        },
+      ],
+      "json",
+      {
+        numPredict: 260,
+        temperature: 0.35,
+        jsonSchema: {
+          type: "object",
+          additionalProperties: false,
+          required: ["selectedCandidateId", "selectionReason"],
+          properties: {
+            selectedCandidateId: { type: "string", maxLength: 48 },
+            selectionReason: { type: "string", maxLength: 220 },
+          },
+        },
+      },
+    );
+    const selectionParsed = parseJson(selectionResult.text);
+    const selectedId = clean(selectionParsed?.selectedCandidateId);
+    if (candidates.some((candidate) => candidate.id === selectedId)) {
+      requestedSelectedId = selectedId;
+      parsed.selectedCandidateId = selectedId;
+      parsed.selectionReason = clean(selectionParsed?.selectionReason);
+    }
+    repairModelCalls += 1;
+  } else if (candidates.length === 1) {
+    requestedSelectedId = candidates[0].id;
+    parsed.selectedCandidateId = requestedSelectedId;
+    parsed.selectionReason = candidates[0].perception;
   }
 
   const fallbackCandidate: AuthorCreativeCandidate = {
