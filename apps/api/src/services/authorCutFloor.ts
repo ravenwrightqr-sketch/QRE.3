@@ -55,7 +55,7 @@ const BODY_OR_SCENE =
 const ATTEMPT =
   /\b(?:try|tries|tried|attempt|attempts|attempted)\b/i;
 const COMPLETED_OUTCOME =
-  /\b(?:free|freed|escaped|released|removed|gone|won|victory|succeeded|successfully)\b/i;
+  /\b(?:free|freed|escaped|released|removed|gone|succeeded|successfully)\b/i;
 const ATTITUDE_ONLY =
   /^(?:no|yes|mine|ours|absolutely not|not happening|really|seriously|apparently|okay|fine|fight)[.!?]*$/i;
 const TEMPORAL_COMPARISON =

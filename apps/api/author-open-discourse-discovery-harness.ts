@@ -2,7 +2,10 @@ import { createHash } from "node:crypto";
 import { existsSync, readFileSync, mkdirSync, writeFileSync } from "node:fs";
 import type { AuthorDomainContext } from "@qre/contracts";
 import { buildAuthorRealityGraph } from "./src/services/authorRealityGraph.js";
-import { discoverAuthorCreativeDirection } from "./src/services/authorCreativeDiscovery.js";
+import {
+  discoverAuthorCreativeDirection,
+  verifyExperimentalRhetoricalPovCandidates,
+} from "./src/services/authorCreativeDiscovery.js";
 import * as authorCreativeModule from "./src/services/authorCreative.js";
 import {
   buildDirectAuthorMemoryMessages,
@@ -367,7 +370,158 @@ function parseJson(text: string): unknown {
     return undefined;
   }
 }
+async function probeDedicatedGeneralizationSearch(input: {
+  subject: string;
+  events: readonly AuthorCreativeEvent[];
+  domainContext?: AuthorDomainContext;
+}): Promise<void> {
+  const result = await localModelGenerate(
+    [
+      {
+        role: "system",
+        content: [
+          "You are QRE Experimental Rhetorical-POV Search.",
+          "This is a Discovery search, not a writing task.",
+          "Reality is fixed. Discourse may move.",
+          "",
+          "Search only for grounded RHETORICAL_POV available because SUPPLIED_REALITY is true.",
+          "Do not summarize the episode. Do not write moving-text cuts. Do not select a winner.",
+          "",
+          "Generate the thought itself, not an analysis of what a speaker could think.",
+          "perception must be a first-order proposition, judgment, observation, question, complaint, or opinion about the material.",
+          "Do not describe the availability of a viewpoint.",
+          "BAN META-DISCOURSE IN perception:",
+          "Do not write 'someone could think', 'someone could find', 'the speaker can', 'the speaker could', 'this invites', 'this suggests a view', 'this supports a view', 'can be seen as', or equivalent framing.",
+          "Those constructions explain a possible thought instead of supplying the thought.",
+          "relationship may explain why the thought is licensed. perception must contain the thought itself.",
+          "",
+          "The speaker's attitude does not have to paraphrase the supplied facts.",
+          "The thought may move sideways from the event.",
+          "It may treat a supplied detail as ridiculous, revealing, charming, annoying, excessive, trivial, important, contradictory, or worth commenting on when that stance is genuinely licensed by the evidence.",
+          "",
+          "Do not confuse rhetorical POV with event description.",
+          "A clever synonym, metaphorical recap, dramatic restatement, or personification of the timeline is not enough.",
+          "The candidate should contain an actual viewpoint: something being thought ABOUT the supplied reality rather than merely another way of describing it.",
+          "",
+          "The rhetorical speaker is not a participant in the supplied event.",
+          "A judgment, joke, complaint, question, comparison, opinion, or attitude does not create a new concrete participant or occurrence merely by being expressed.",
+          "",
+          "KEEP REALITY CLOSED.",
+          "Do not invent who acted, what happened, what was observed, motives, causes, duration, persistence, outcomes, chronology, history, measurements, physical states, mental states, or additional concrete examples.",
+          "Do not convert rhetorical attitude into documentary fact.",
+          "",
+          "Search for genuinely different viewpoints rather than several phrasings of one idea.",
+          "Zero useful viewpoints is valid.",
+          "Return discoveries, not polished public copy.",
+          "Return only the requested structured object.",
+        ].join("\n"),
+      },
+      {
+        role: "user",
+        content: JSON.stringify({
+          SUBJECT: input.subject,
+          SUPPLIED_REALITY: input.events,
+          BUSINESS_CONTEXT: input.domainContext,
+          instruction:
+            "Search for distinct grounded viewpoints that become available because these facts are true. Find what a speaker can legitimately have an opinion about without adding anything to what happened.",
+        }),
+      },
+    ],
+    "json",
+    {
+      numPredict: 700,
+      temperature: 0.92,
+      jsonSchema: {
+        type: "object",
+        additionalProperties: false,
+        required: ["candidates"],
+        properties: {
+          candidates: {
+            type: "array",
+            minItems: 0,
+            maxItems: 6,
+            items: {
+              type: "object",
+              additionalProperties: false,
+              required: [
+                "perception",
+                "relationship",
+                "evidenceEventIds",
+              ],
+              properties: {
+                perception: {
+                  type: "string",
+                  maxLength: 180,
+                },
+                relationship: {
+                  type: "string",
+                  maxLength: 180,
+                },
+                evidenceEventIds: {
+                  type: "array",
+                  maxItems: 32,
+                  items: {
+                    type: "string",
+                    maxLength: 64,
+                  },
+                },
+              },
+            },
+          },
+        },
+      },
+    },
+  );
 
+  const parsed = parseJson(result.text) as
+    | {
+        candidates?: Array<{
+          perception?: unknown;
+          relationship?: unknown;
+          evidenceEventIds?: unknown;
+        }>;
+      }
+    | undefined;
+
+  const probeCandidates = (parsed?.candidates ?? [])
+    .map((candidate, index) => ({
+      id: `rhetorical-pov-probe-${index + 1}`,
+      perception:
+        typeof candidate.perception === "string"
+          ? candidate.perception.trim()
+          : "",
+      relationship:
+        typeof candidate.relationship === "string"
+          ? candidate.relationship.trim()
+          : "",
+      evidenceEventIds: Array.isArray(candidate.evidenceEventIds)
+        ? candidate.evidenceEventIds.filter(
+            (id): id is string => typeof id === "string",
+          )
+        : [],
+    }))
+    .filter((candidate) => candidate.perception.length > 0);
+
+  const verification =
+    await verifyExperimentalRhetoricalPovCandidates({
+      candidates: probeCandidates,
+      events: input.events,
+      domainContext: input.domainContext,
+    });
+
+  printHeader("DEDICATED RHETORICAL POV SEARCH PROBE");
+  printJson({
+    model: result.model,
+    rawOutput: result.text,
+    parsed,
+  });
+
+  printHeader("RHETORICAL POV PRODUCTION AUTHORITY VERIFICATION");
+  printJson({
+    modelCalls: verification.modelCalls,
+    results: verification.results,
+  });
+}
 function captureQreDebugLogs(): {
   blocks: DebugBlock[];
   restore: () => void;
@@ -1430,16 +1584,55 @@ async function runDomain(
       const events = suppliedRealityEventsFromWorld(world);
 
       if (condition === "SEMANTIC_SCOPE") {
-        const discoveryResult = await discoverAuthorCreativeDirection({
-          events,
-          relations: world.relations.map((relation) => ({
-            from: relation.from,
-            to: relation.to,
-            kind: relation.kind,
-            strength: relation.strength,
-          })),
-          domainContext: domain.domainContext,
-        });
+  await probeDedicatedGeneralizationSearch({
+    subject: domain.subject,
+    events,
+    domainContext: domain.domainContext,
+  });
+
+  const fixedRhetoricalPovVerification =
+    await verifyExperimentalRhetoricalPovCandidates({
+      candidates: [
+        {
+          id: "fixed-pov-aesthetic-judgment",
+          perception: "The blue bows are a bit much.",
+          relationship:
+            "The supplied blue bows license an aesthetic judgment about the decoration.",
+          evidenceEventIds: ["event-3"],
+        },
+        {
+          id: "fixed-pov-value-judgment",
+          perception: "Happy at pickup is what matters most.",
+          relationship:
+            "The supplied happy pickup licenses a value judgment about which supplied detail matters most.",
+          evidenceEventIds: ["event-5"],
+        },
+        {
+          id: "fixed-pov-character-tendency",
+          perception:
+            "Trying to remove the bows is exactly the sort of thing Coco would do.",
+          relationship:
+            "The supplied removal attempt is the only evidence; this candidate tests whether one occurrence is improperly promoted into an enduring character tendency.",
+          evidenceEventIds: ["event-4"],
+        },
+      ],
+      events,
+      domainContext: domain.domainContext,
+    });
+
+  printHeader("FIXED RHETORICAL POV AUTHORITY BOUNDARY");
+  printJson(fixedRhetoricalPovVerification);
+
+  const discoveryResult = await discoverAuthorCreativeDirection({
+    events,
+    relations: world.relations.map((relation) => ({
+      from: relation.from,
+      to: relation.to,
+      kind: relation.kind,
+      strength: relation.strength,
+    })),
+    domainContext: domain.domainContext,
+  });
         const poolResult = await synthesizeGroundedDiscoveryPool({
           subject: domain.subject,
           events,
@@ -1475,6 +1668,7 @@ async function runDomain(
           synthesisModelCalls: poolResult.synthesis.modelCalls,
           synthesisEligible: poolResult.synthesis.truthResult.eligible,
           synthesisReasons: poolResult.synthesis.truthResult.reasons,
+          synthesisScoring: poolResult.synthesis.truthResult.scoring,
           synthesisRawOutput: poolResult.synthesis.rawOutput,
           usedSynthesizedRealization: Boolean(synthesizedText),
           fallbackMouthCalls: synthesizedText ? 0 : 1,

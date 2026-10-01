@@ -2128,7 +2128,6 @@ function treatmentAuthority(
     ...treatment.expressiveBehaviors,
   ]);
 }
-
 function scoreExpressiveMemoryProduction(
   variantIndex: number,
   mouthLines: readonly AuthorMemoryMouthLine[],
@@ -2136,82 +2135,109 @@ function scoreExpressiveMemoryProduction(
   subject: string,
   treatment?: AuthorCreativeTreatmentMouthAssignment,
   realityDirect = false,
+  authorizedRealizationPool: readonly AuthorizedRealization[] = [],
 ): MemorySequenceCandidate {
   const prior: string[] = [];
-  const semanticAuthority = treatmentAuthority(treatment);
+  const treatmentSemanticAuthority = treatmentAuthority(treatment);
+  const authorizedRealizationById = new Map(
+    authorizedRealizationPool.map((realization) => [
+      realization.id,
+      realization,
+    ]),
+  );
+
   const lines = [...mouthLines]
     .sort((a, b) => a.order - b.order)
     .map((mouthLine, index) => {
       const sourceEventIds = unique(mouthLine.sourceEventIds)
-        .filter((id) => suppliedReality.some((event) => clean(event.id) === id));
-      const beatFacts = factsForEventIds(sourceEventIds, suppliedReality);
+        .filter((id) =>
+          suppliedReality.some((event) => clean(event.id) === id),
+        );
+
+      const beatFacts = factsForEventIds(
+        sourceEventIds,
+        suppliedReality,
+      );
+
+      const lineSemanticAuthority = unique([
+        ...treatmentSemanticAuthority,
+        ...(mouthLine.synthesizedFrom ?? [])
+          .map(
+            (id) =>
+              authorizedRealizationById.get(id)?.text ?? "",
+          )
+          .filter(Boolean),
+      ]);
+
       const base = variantScore(
         mouthLine.text,
         beatFacts,
-        semanticAuthority,
+        lineSemanticAuthority,
         subject,
         prior,
         !realityDirect,
         false,
       );
+
       const operationalAnchorFailure =
-        inventedOperationalAnchorReason(mouthLine.text, suppliedReality);
+        inventedOperationalAnchorReason(
+          mouthLine.text,
+          suppliedReality,
+        );
+
       const accepted =
         base.accepted &&
         sourceEventIds.length > 0 &&
         !operationalAnchorFailure;
+
       const line = {
-        order: Number.isInteger(mouthLine.order) ? mouthLine.order : index + 1,
+        order: Number.isInteger(mouthLine.order)
+          ? mouthLine.order
+          : index + 1,
         sourceEventIds,
         beatFacts,
-        semanticMove: semanticAuthority.join(" | "),
+        semanticMove: lineSemanticAuthority.join(" | "),
         text: clean(mouthLine.text),
         ...(mouthLine.auditSpans?.length
-          ? { auditSpans: mouthLine.auditSpans.map((span) => ({ ...span })) }
+          ? {
+              auditSpans: mouthLine.auditSpans.map((span) => ({
+                ...span,
+              })),
+            }
           : {}),
         ...base,
         accepted,
         score: operationalAnchorFailure ? 0 : base.score,
         reasons: [
           ...base.reasons,
-          ...(sourceEventIds.length ? [] : ["missing-source-event-ids"]),
-          ...(operationalAnchorFailure ? [operationalAnchorFailure] : []),
+          ...(sourceEventIds.length
+            ? []
+            : ["missing-source-event-ids"]),
+          ...(operationalAnchorFailure
+            ? [operationalAnchorFailure]
+            : []),
         ],
       };
-      if (line.text) prior.push(line.text);
+
+      if (accepted) {
+        prior.push(line.text);
+      }
+
       return line;
     });
 
-  const usedLines = lines.filter((line) => Boolean(line.text));
-  const acceptedLines = usedLines.filter((line) => line.accepted);
-  const meanScore = acceptedLines.length
-    ? acceptedLines.reduce((sum, line) => sum + line.score, 0) / acceptedLines.length
+  const accepted = lines.every((line) => line.accepted);
+  const score = lines.length
+    ? lines.reduce((sum, line) => sum + line.score, 0) /
+      lines.length
     : 0;
-  const normalizedLines = usedLines
-    .map((line) => clean(line.text).toLowerCase())
-    .filter(Boolean);
-  const uniqueRatio = normalizedLines.length
-    ? new Set(normalizedLines).size / normalizedLines.length
-    : 0;
-  const rejectedUsedLines = usedLines.length - acceptedLines.length;
-  const score = Math.max(
-    0,
-    meanScore * 0.82 +
-      uniqueRatio * 0.18 -
-      rejectedUsedLines * 0.2,
-  );
-
-  const reasons: string[] = [];
-  if (!usedLines.length) reasons.push("empty-production");
-  if (rejectedUsedLines > 0) reasons.push("rejected-used-line");
-  if (uniqueRatio < 1) reasons.push("repeated-line");
 
   return {
     variantIndex,
+    accepted,
+    score,
+    reasons: unique(lines.flatMap((line) => line.reasons)),
     lines,
-    accepted: usedLines.length > 0 && rejectedUsedLines === 0,
-    score: Number(score.toFixed(3)),
-    reasons,
   };
 }
 
@@ -3567,7 +3593,6 @@ export function buildAuthorizedRealizationSynthesisInput(input: {
     forbiddenTexts: unique([...(input.forbiddenTexts ?? [])]),
   };
 }
-
 export const AUTHORIZED_REALIZATION_SYNTHESIZER_PROMPT = [
   "You are QRE Authorized Realization Synthesizer.",
   ...QRE_AUTHOR_WRITING_BRIEF,
@@ -3576,7 +3601,14 @@ export const AUTHORIZED_REALIZATION_SYNTHESIZER_PROMPT = [
   "Your job is to discover what the authorized discoveries mean together.",
   "Discover the supported relationship among the authorized ideas and give it a fresh realization. Select the material that makes that relationship felt.",
   "Find the strongest realization available across the authorized material.",
+  "Authorized ideas may disagree about what deserves attention. Do not resolve that disagreement merely by averaging them, summarizing the episode, or choosing the broadest or most reassuring interpretation.",
+  "Choose the thought with the greatest supported cognitive return: the one that most changes what becomes noticeable, arguable, funny, strange, revealing, or worth having an opinion about.",
+  "Do not automatically privilege chronology, completion, a positive ending, emotional closure, service success, or the final supplied state. An ending is evidence, not automatically the thesis.",
+  "A small resistant, contradictory, absurd, or revealing detail may carry more creative weight than the broad outcome when the authorized material supports that reading.",
+  "When one authorized idea merely closes the episode and another opens a sharper supported perception, prefer the perception with greater thought distance and attention value.",
+  "Do not manufacture conflict or eccentricity. Strange is valuable only when it is already available in the authorized meanings.",
   "You may combine meanings from multiple authorized realizations, notice setup/payoff relationships, recontextualize an earlier idea with a later idea, omit weaker material, compress several ideas into one thought, give disproportionate attention to the most interesting thing, write completely new wording, use implication, and change what the viewer notices.",
+  "You do not need to reconcile every authorized realization. Contradictory authorized readings are alternatives, not obligations to split the difference.",
   "FACT COUNT is not MOVE COUNT. AUTHORIZED REALIZATION COUNT is not OUTPUT LINE COUNT.",
   "Rich brain. Selective mouth. Use no more language than the realization earns.",
   "Make the meaning felt through implication, rhythm, contrast, attitude, or perspective. Let the viewer complete the connection.",
@@ -3590,7 +3622,6 @@ export const AUTHORIZED_REALIZATION_SYNTHESIZER_PROMPT = [
   "Before returning, privately verify each line: union the sourceEventIds of its synthesizedFrom realizations, then remove any output sourceEventId not present in that union.",
   "Return only structured JSON.",
 ].join("\n");
-
 const AUTHORIZED_REALIZATION_SYNTHESIZER_SCHEMA = {
   type: "object",
   additionalProperties: false,
@@ -3763,17 +3794,117 @@ function candidateHasCompletePositiveRealityAudit(
   });
 }
 
-function attachSynthesisAuditSpans(input: {
+function applySynthesisRealityAudit(input: {
   candidate: AuthorAssembledCandidate;
   diagnostic: AuthorRealityClaimAuditDiagnostic;
-}): AuthorAssembledCandidate {
-  const spans = input.diagnostic.spans.map((span) => ({ ...span }));
+  suppliedReality: readonly AuthorCreativeEvent[];
+}): {
+  candidate?: AuthorAssembledCandidate;
+  reason?: string;
+} {
+  if (input.diagnostic.unusableReason) {
+    return { reason: input.diagnostic.unusableReason };
+  }
+
+  const mapped = mapAuthorRealityClaimAuditRanges({
+    originalText: input.candidate.rawText,
+    spans: input.diagnostic.spans,
+  });
+  if (!mapped) {
+    return { reason: "synthesis_reality_auditor_span_not_exact" };
+  }
+  if (mapped.unusableReason) {
+    return { reason: mapped.unusableReason };
+  }
+
+  const coverageReason = unauditedSubstantiveGapReason({
+    originalText: input.candidate.rawText,
+    ranges: mapped.ranges,
+  });
+  if (coverageReason) {
+    return { reason: coverageReason };
+  }
+
+  const survivingLines: AuthorMemoryMouthLine[] = [];
+  let lineStart = 0;
+
+  for (const line of input.candidate.lines) {
+    const lineText = line.text;
+    const lineEnd = lineStart + lineText.length;
+
+    const lineRanges = mapped.ranges
+      .filter((range) => range.start >= lineStart && range.end <= lineEnd)
+      .map((range) => ({
+        start: range.start - lineStart,
+        end: range.end - lineStart,
+        span: { ...range.span },
+      }));
+
+    const crossingRange = mapped.ranges.some(
+      (range) =>
+        range.start < lineEnd &&
+        range.end > lineStart &&
+        !(range.start >= lineStart && range.end <= lineEnd),
+    );
+    if (crossingRange) {
+      return { reason: "synthesis_reality_auditor_span_crosses_line" };
+    }
+
+    const lineCoverageReason = unauditedSubstantiveGapReason({
+      originalText: lineText,
+      ranges: lineRanges,
+    });
+    if (lineCoverageReason) {
+      return { reason: lineCoverageReason };
+    }
+
+    const removal = removeUnsupportedClaimSpans({
+      originalText: lineText,
+      ranges: lineRanges,
+    });
+    if (removal.unusableReason) {
+      return { reason: removal.unusableReason };
+    }
+
+    const survivingText = clean(removal.text);
+    if (survivingText) {
+      survivingLines.push({
+        ...line,
+        order: survivingLines.length + 1,
+        text: survivingText,
+        sourceEventIds: [...line.sourceEventIds],
+        ...(line.synthesizedFrom?.length
+          ? { synthesizedFrom: [...line.synthesizedFrom] }
+          : {}),
+        auditSpans: removal.survivingSpans.map((span) => ({ ...span })),
+      });
+    }
+
+    lineStart = lineEnd + 1;
+  }
+
+  if (!survivingLines.length) {
+    return { reason: "synthesis_reality_auditor_removed_all_lines" };
+  }
+
+  const rawText = survivingLines.map((line) => line.text).join("\n");
+  const sourceRealizationIds = unique(
+    survivingLines.flatMap((line) => line.synthesizedFrom ?? []),
+  );
+  const selectedEventIds = new Set(
+    survivingLines.flatMap((line) => line.sourceEventIds),
+  );
+
   return {
-    ...input.candidate,
-    lines: input.candidate.lines.map((line, index) => ({
-      ...line,
-      auditSpans: index === 0 ? spans : [],
-    })),
+    candidate: {
+      ...input.candidate,
+      rawText,
+      lines: survivingLines,
+      sourceRealizationIds,
+      omittedSourceEventIds: input.suppliedReality
+        .map((event) => event.id)
+        .filter((id) => !selectedEventIds.has(id)),
+    },
   };
 }
 
@@ -3800,17 +3931,36 @@ function synthesisAuditProductions(
     },
   ];
 }
-
 async function auditSynthesizedAssemblyReality(input: {
   candidate: AuthorAssembledCandidate;
   suppliedReality: readonly AuthorCreativeEvent[];
+  pool: readonly AuthorizedRealization[];
 }): Promise<AuthorRealityEditorApplyResult & {
   model: string;
   modelCalls: number;
 }> {
+  const authorizedRealizationById = new Map(
+    input.pool.map((realization) => [
+      realization.id,
+      realization,
+    ]),
+  );
+
+  const semanticAuthority = unique(
+    input.candidate.lines.flatMap((line) =>
+      (line.synthesizedFrom ?? [])
+        .map(
+          (id) =>
+            authorizedRealizationById.get(id)?.text ?? "",
+        )
+        .filter(Boolean),
+    ),
+  );
+
   const result = await editDirectAuthorReality({
     suppliedReality: input.suppliedReality,
     productions: synthesisAuditProductions(input.candidate),
+    semanticAuthority,
   });
 
   return {
@@ -3952,9 +4102,10 @@ export async function synthesizeAuthorizedRealizations(input: {
   }
 
   const realityEditor = await auditReality({
-    candidate: normalized.candidate,
-    suppliedReality: input.suppliedReality,
-  }).catch(() => undefined);
+  candidate: normalized.candidate,
+  suppliedReality: input.suppliedReality,
+  pool: input.pool,
+}).catch(() => undefined);
   if (!realityEditor) {
     return synthesisFailureResult({
       synthesisInput,
@@ -3964,19 +4115,22 @@ export async function synthesizeAuthorizedRealizations(input: {
       modelCalls: 1,
     });
   }
-  const claimAuditor = realityEditor.diagnostics.find((diagnostic) => diagnostic.production === "A");
-  const rejectedByRealityEditor =
-    !claimAuditor ||
-    Boolean(claimAuditor.unusableReason) ||
-    claimAuditor.unsupportedDeletionRequired ||
-    clean(claimAuditor.reconstructedText) !== clean(normalized.candidate.rawText);
+  const claimAuditor = realityEditor.diagnostics.find(
+    (diagnostic) => diagnostic.production === "A",
+  );
 
-  const auditedCandidate = claimAuditor && !rejectedByRealityEditor
-    ? attachSynthesisAuditSpans({
+  const synthesisAudit = claimAuditor
+    ? applySynthesisRealityAudit({
         candidate: normalized.candidate,
         diagnostic: claimAuditor,
+        suppliedReality: input.suppliedReality,
       })
-    : normalized.candidate;
+    : {
+        reason: "synthesis-reality-editor-rejected",
+      };
+
+  const auditedCandidate =
+    synthesisAudit.candidate ?? normalized.candidate;
 
   const truthResult = verifyAuthorizedAssemblyCandidate({
     candidate: auditedCandidate,
@@ -3987,17 +4141,16 @@ export async function synthesizeAuthorizedRealizations(input: {
     realityDirect: input.realityDirect,
   });
 
-  const finalTruthResult = rejectedByRealityEditor
-    ? {
+  const finalTruthResult = synthesisAudit.candidate
+    ? truthResult
+    : {
         ...truthResult,
         eligible: false,
         reasons: unique([
           ...truthResult.reasons,
-          claimAuditor?.unusableReason ?? "synthesis-reality-editor-rejected",
+          synthesisAudit.reason ?? "synthesis-reality-editor-rejected",
         ]),
-      }
-    : truthResult;
-
+      };
   return {
     input: synthesisInput,
     rawOutput: result.text,
@@ -4081,13 +4234,14 @@ export function verifyAuthorizedAssemblyCandidate(input: {
     (missingSelectedRealizationText || Boolean(unauthorizedResidual));
 
   const scoring = scoreExpressiveMemoryProduction(
-    4,
-    input.candidate.lines,
-    input.suppliedReality,
-    input.subject,
-    undefined,
-    input.realityDirect ?? false,
-  );
+  4,
+  input.candidate.lines,
+  input.suppliedReality,
+  input.subject,
+  undefined,
+  input.realityDirect ?? false,
+  input.pool,
+);
   const reasons = [
     ...(missingAuthorizedRealization ? ["missing-authorized-realization"] : []),
     ...(resurrectedUnsupported ? ["resurrected-unsupported-realization"] : []),
@@ -4122,18 +4276,32 @@ export function verifyAuthorizedAssemblyCandidate(input: {
     },
   };
 }
-
 export async function editDirectAuthorReality(input: {
   suppliedReality: readonly AuthorCreativeEvent[];
   productions: readonly AuthorMemoryMouthProduction[];
+  semanticAuthority?: readonly string[];
 }): Promise<AuthorRealityEditorApplyResult & {
   model: string;
   modelCalls: number;
 }> {
-  if (!input.productions.length || input.productions.length > 3 ||
-      new Set(input.productions.map((production) => production.production)).size !== input.productions.length) {
-    throw new Error("Claim Auditor requires one to three distinct productions");
+  if (
+    !input.productions.length ||
+    input.productions.length > 3 ||
+    new Set(
+      input.productions.map((production) => production.production),
+    ).size !== input.productions.length
+  ) {
+    throw new Error(
+      "Claim Auditor requires one to three distinct productions",
+    );
   }
+
+  const semanticAuthority = unique(
+    (input.semanticAuthority ?? [])
+      .map(clean)
+      .filter(Boolean),
+  );
+
   const result = await localModelGenerate(
     [
       {
@@ -4160,6 +4328,13 @@ export async function editDirectAuthorReality(input: {
           "Expressiveness does not excuse an unsupported proposition.",
           "REALITY STAYS FIXED. MEANING MAY MOVE.",
           "REALITY IS CLOSED. DISCOURSE IS OPEN.",
+          "AUTHORIZED_SEMANTIC_AUTHORITY, when provided, contains upstream meanings that have already survived grounding and semantic authorization.",
+          "AUTHORIZED_SEMANTIC_AUTHORITY is authority for discourse, framing, interpretation, implication, rhetorical treatment, metaphor, personification, humor, attitude, and derived significance only.",
+          "AUTHORIZED_SEMANTIC_AUTHORITY is NOT supplied reality and must never establish an additional participant, event, action, interaction, object, place, chronology, cause, outcome, physical state, mental state, measurement, property, sensory detail, or other concrete occurrence.",
+          "When authored language is a fresh expression of an AUTHORIZED_SEMANTIC_AUTHORITY meaning, do not require it to paraphrase that authority literally.",
+          "Judge what additional concrete reality the fresh expression requires after its authorized rhetorical or interpretive meaning is recognized.",
+          "If the fresh expression remains within authorized semantic meaning and requires no additional concrete occurrence, it may qualify as KEEP_EXPRESSION.",
+          "If it converts semantic authority into a new concrete fact, classify the unsupported concrete proposition as UNSUPPORTED_REALITY.",
           "New language, perspective, implication, category reference, rhetorical speaker, personification, metaphor, and discovered significance are allowed when they do not require additional world participation.",
           "Mention is not participation. A category, role, group, narrator, institution, object voice, place voice, or social class may appear in expressive language without becoming a factual participant in the occurrence.",
           "Do not ask whether the span mentions an unsupplied entity. Ask whether understanding it requires believing a particular additional entity actually participated in the supplied world.",
@@ -4210,7 +4385,15 @@ export async function editDirectAuthorReality(input: {
       },
       {
         role: "user",
-        content: JSON.stringify(buildAuthorRealityEditorPayload(input)),
+        content: JSON.stringify({
+          ...buildAuthorRealityEditorPayload(input),
+          ...(semanticAuthority.length
+            ? {
+                AUTHORIZED_SEMANTIC_AUTHORITY:
+                  semanticAuthority,
+              }
+            : {}),
+        }),
       },
     ],
     "json",
@@ -4230,9 +4413,18 @@ export async function editDirectAuthorReality(input: {
             items: {
               type: "object",
               additionalProperties: false,
-              required: ["production", "atomicClaimSpans"],
+              required: [
+                "production",
+                "atomicClaimSpans",
+              ],
               properties: {
-                production: { type: "string", enum: input.productions.map((production) => production.production) },
+                production: {
+                  type: "string",
+                  enum: input.productions.map(
+                    (production) =>
+                      production.production,
+                  ),
+                },
                 atomicClaimSpans: {
                   type: "array",
                   minItems: 0,
@@ -4240,9 +4432,16 @@ export async function editDirectAuthorReality(input: {
                   items: {
                     type: "object",
                     additionalProperties: false,
-                    required: ["exactText", "classification", "sourceEventIds", "atomicity"],
+                    required: [
+                      "exactText",
+                      "classification",
+                      "sourceEventIds",
+                      "atomicity",
+                    ],
                     properties: {
-                      exactText: { type: "string" },
+                      exactText: {
+                        type: "string",
+                      },
                       classification: {
                         type: "string",
                         enum: [
@@ -4253,13 +4452,18 @@ export async function editDirectAuthorReality(input: {
                       },
                       atomicity: {
                         type: "string",
-                        enum: ["SMALLEST_INDEPENDENT_CLASSIFIABLE_UNIT"],
+                        enum: [
+                          "SMALLEST_INDEPENDENT_CLASSIFIABLE_UNIT",
+                        ],
                       },
                       sourceEventIds: {
                         type: "array",
                         minItems: 0,
                         maxItems: 32,
-                        items: { type: "string", maxLength: 64 },
+                        items: {
+                          type: "string",
+                          maxLength: 64,
+                        },
                       },
                     },
                   },
@@ -4887,7 +5091,7 @@ export async function createAuthorExperience(input: {
           "Keep the rhetorical world in expression and every concrete world commitment inside supplied evidence.",
           "Concrete reality comes from the supplied evidence carried by each beat and, for A/B/C, from each expressive line's declared sourceEventIds.",
           "Preserve supplied specificity exactly when it earns public attention. Operational anchors can carry identity, contrast, rhythm, or meaning; unused anchors remain in provenance.",
-          "Build the full perception privately. Express the words that make it felt.",
+          "Build the full perception privately. ",
           "Let the opening establish the charged detail or tension. Let any continuation change its significance or deepen the supported inference.",
           "Earn the ending from supplied evidence. Let the landing leave an implication alive for the receiver.",
           "Let the charged detail lead and let the landing change how it registers. A supplied ending state may be used, omitted, or placed earlier when that gives the strongest grounded realization.",

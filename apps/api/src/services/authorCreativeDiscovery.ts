@@ -198,7 +198,6 @@ function candidateCrossesOperationalServiceTruthFloor(
 
   return !OPERATIONAL_TRAIT_INFERENCE.test(suppliedRealityText);
 }
-
 function candidateCrossesDeterministicTruthFloor(
   candidate: AuthorCreativeCandidate,
   suppliedRealityText: string,
@@ -210,18 +209,12 @@ function candidateCrossesDeterministicTruthFloor(
   ].join(" "));
 
   // Deterministic Discovery rejection is intentionally structural only.
-  // Semantic words such as curation, rank, rebellion, resistance, ceremony,
-  // priority, or liberation can be either figurative framing or factual claims.
-  // The semantic verifier decides which. Do not blacklist meaning by vocabulary.
+  // Reject leakage from the representation layer into the discovered world.
+  // Semantic and evaluative language can be either grounded discourse or an
+  // unsupported factual claim; the semantic verifier owns that distinction.
   return (
-    (
-      RECORD_SHAPE_LANGUAGE.test(candidateText) &&
-      !RECORD_SHAPE_LANGUAGE.test(suppliedRealityText)
-    ) ||
-    (
-      UNSUPPORTED_ORDER_EVALUATION.test(candidateText) &&
-      !UNSUPPORTED_ORDER_EVALUATION.test(suppliedRealityText)
-    )
+    RECORD_SHAPE_LANGUAGE.test(candidateText) &&
+    !RECORD_SHAPE_LANGUAGE.test(suppliedRealityText)
   );
 }
 
@@ -620,7 +613,187 @@ async function repairDiscoveryCandidates(input: {
     modelCalls: 1,
   };
 }
+type AuthorDiscoverySemanticMove =
+  | "PARTICULAR"
+  | "GENERALIZATION"
+  | "RHETORICAL_POV"
+  | "IMPLICATION"
+  | "RECONTEXTUALIZATION"
+  | "INVERSION";
 
+type AuthorDiscoverySemanticMoveVerification = {
+  validIds: Set<string>;
+  modelCalls: number;
+};
+
+async function verifyDiscoverySemanticMoves(input: {
+  candidates: readonly AuthorCreativeCandidate[];
+  semanticMoveById: ReadonlyMap<string, string>;
+}): Promise<AuthorDiscoverySemanticMoveVerification> {
+  if (!input.candidates.length) {
+    return {
+      validIds: new Set<string>(),
+      modelCalls: 0,
+    };
+  }
+
+  const moveVerificationResult = await localModelGenerate(
+    [
+      {
+        role: "system",
+        content: [
+          "You are QRE Discovery Semantic-Move Verification.",
+          "Factual grounding has already been checked. Do not re-audit factual support and do not judge writing quality.",
+          "Your only job is to verify whether each candidate actually performs the semanticMove it claims.",
+          "PARTICULAR stays primarily about this specific episode or friction.",
+          "GENERALIZATION must escape the episode. Mentally remove the subject's name, this visit, chronology, service completion, pickup outcome, and episode recap. A broader proposition about people, behavior, taste, social convention, a relevant category, or ordinary life must remain.",
+          "A genericized episode description is NOT a GENERALIZATION. Saying 'a grooming visit can...' or 'a service can...' while still describing the same visit-pattern does not escape merely because the subject name disappeared.",
+          "RHETORICAL_POV must genuinely introduce an interpretive viewpoint or attitude rather than merely redescribe the event.",
+          "IMPLICATION must state a thought made available by the facts rather than restating them.",
+          "RECONTEXTUALIZATION must make one supplied fact materially change how another supplied fact registers.",
+          "INVERSION must make a seemingly secondary detail become the revealing or organizing detail.",
+          "Do not require every move to be broad. Verify the claimed move as written.",
+          "Return valid=false when the candidate is mislabeled, even if its perception is otherwise grounded and useful.",
+          "Do not rewrite, repair, improve, or relabel candidates.",
+        ].join("\n"),
+      },
+      {
+        role: "user",
+        content: JSON.stringify({
+          CANDIDATES: input.candidates.map((candidate) => ({
+            id: candidate.id,
+            semanticMove:
+              input.semanticMoveById.get(candidate.id) || "UNKNOWN",
+            perception: candidate.perception,
+            relationship: candidate.relationship,
+          })),
+        }),
+      },
+    ],
+    "json",
+    {
+      numPredict: 420,
+      temperature: 0,
+      jsonSchema: {
+        type: "object",
+        additionalProperties: false,
+        required: ["verifications"],
+        properties: {
+          verifications: {
+            type: "array",
+            items: {
+              type: "object",
+              additionalProperties: false,
+              required: ["candidateId", "valid", "reason"],
+              properties: {
+                candidateId: { type: "string", maxLength: 48 },
+                valid: { type: "boolean" },
+                reason: { type: "string", maxLength: 220 },
+              },
+            },
+          },
+        },
+      },
+    },
+  );
+
+  const moveParsed = parseJson(moveVerificationResult.text);
+  const moveVerifications = Array.isArray(moveParsed?.verifications)
+    ? moveParsed.verifications
+    : [];
+
+  const validIds = new Set<string>();
+
+  for (const value of moveVerifications) {
+    if (!value || typeof value !== "object") continue;
+
+    const verification = value as Record<string, unknown>;
+    if (verification.valid !== true) continue;
+
+    const candidateId = clean(verification.candidateId);
+    if (candidateId) validIds.add(candidateId);
+  }
+
+  return {
+    validIds,
+    modelCalls: 1,
+  };
+}
+export async function verifyExperimentalRhetoricalPovCandidates(input: {
+  candidates: ReadonlyArray<{
+    id: string;
+    perception: string;
+    relationship: string;
+    evidenceEventIds: string[];
+  }>;
+  events: ReadonlyArray<{ id: string; text: string }>;
+  relations?: readonly AuthorDiscoveryRelation[];
+  domainContext?: AuthorDomainContext;
+}): Promise<{
+  results: Array<{
+    id: string;
+    perception: string;
+    grounded: boolean;
+    semanticMoveValid: boolean;
+    accepted: boolean;
+  }>;
+  modelCalls: number;
+}> {
+  const candidates: AuthorCreativeCandidate[] = input.candidates.map(
+    (candidate) => ({
+      id: candidate.id,
+      mode: DEFAULT_DISCOVERY_MODE,
+      perception: clean(candidate.perception),
+      relationship: clean(candidate.relationship),
+      observerInference: "",
+      evidenceEventIds: candidate.evidenceEventIds,
+      whyItHits: "",
+      risk: "",
+    }),
+  );
+
+  const grounding = await verifyDiscoveryCandidates({
+    candidates,
+    events: input.events,
+    relations: input.relations,
+    domainContext: input.domainContext,
+  });
+
+  const groundedCandidates = candidates.filter((candidate) =>
+    grounding.groundedIds.has(candidate.id),
+  );
+
+  const semanticMoveById = new Map<string, string>(
+    groundedCandidates.map((candidate) => [
+      candidate.id,
+      "RHETORICAL_POV",
+    ]),
+  );
+
+  const semanticVerification = await verifyDiscoverySemanticMoves({
+    candidates: groundedCandidates,
+    semanticMoveById,
+  });
+
+  return {
+    results: candidates.map((candidate) => {
+      const grounded = grounding.groundedIds.has(candidate.id);
+      const semanticMoveValid =
+        grounded && semanticVerification.validIds.has(candidate.id);
+
+      return {
+        id: candidate.id,
+        perception: candidate.perception,
+        grounded,
+        semanticMoveValid,
+        accepted: grounded && semanticMoveValid,
+      };
+    }),
+    modelCalls:
+      grounding.modelCalls +
+      semanticVerification.modelCalls,
+  };
+}
 export async function discoverAuthorCreativeDirection(input: {
   events: ReadonlyArray<{ id: string; text: string }>;
   relations?: readonly AuthorDiscoveryRelation[];
@@ -650,34 +823,50 @@ export async function discoverAuthorCreativeDirection(input: {
     "Look sideways: explore what a supplied truth can mean, then let another supplied truth sharpen, contradict, or reframe that possibility. Find relationships before a downstream treatment amplifies them.",
     "Explore a supplied feeling as creative pressure rather than a request to explain its psychology. Search uncertainty, anticipation, stakes, vulnerability, readiness, and unresolved confidence as conceptual directions; keep only the significance other supplied facts make fertile.",
     "Let a feeling change how a supplied action or object registers. Find expectation, contrast, rhetorical status, or a question in that collision while preserving ambiguity about the feeling's cause. The discovered attitude belongs to the reading; additional actual beliefs and mental states require evidence.",
-    "Consider whether a supplied entity offers a fertile perspective on the same facts. Discover the supported relationship or attitude privately; leave its final voice and rhetorical realization to Lens and Mouth.",
+    "",
+    "DISCOVER THOUGHTS, NOT ANALYSIS OF THOUGHTS.",
+    "Discovery may contain a first-order proposition, judgment, observation, complaint, question, comparison, implication, or opinion when supplied reality licenses it.",
+    "When the useful discovery is a viewpoint, state the viewpoint itself. Do not explain that someone could have the viewpoint, that the facts invite the viewpoint, or that a detail can be seen a certain way.",
+    "A strong perception may take a position on the supplied material. It may call a detail excessive, trivial, revealing, absurd, important, contradictory, charming, annoying, negotiable, or otherwise characterize its significance when the evidence genuinely licenses that thought.",
+    "The perception does not have to paraphrase the evidence. Grounding is provenance, not paraphrase.",
+    "Search for conceptual consequences of the facts: what becomes sayable, arguable, funny, strange, revealing, or worth having an opinion about because these particular facts are true?",
+    "Do not merely rename an event with dramatic language. Thought distance comes from a new supported idea, not decorative wording.",
+    "Do not write about the existence of a possible interpretation when you can state the grounded interpretation itself.",
     "",
     "KEEP REALITY CLOSED.",
     "Supplied reality controls concrete occurrence: who or what materially exists, what materially happened, and which concrete states, causes, and outcomes are supplied.",
-    "Discovery may change attention, emphasis, relation, abstraction, and significance. It may not add concrete occurrence or turn interpretation into another fact.",
+    "Discovery may change attention, emphasis, relation, abstraction, significance, rhetorical status, and viewpoint. It may not add concrete occurrence or turn interpretation into another fact.",
+    "A rhetorical speaker is not a new participant in the event. An authored judgment is not automatically a new mental state belonging to the subject.",
+    "Do not infer enduring personality, habit, history, tendency, preference, motive, intention, belief, or disposition from a single occurrence unless supplied reality establishes it.",
     "SUPPLIED_RELATIONS may help identify connections among supplied facts. They do not independently authorize motive, causality, hierarchy, intention, ownership, or other concrete world claims.",
     "Read CURRENT_REALITY as facts about the world, not as formatting, field order, wording pattern, input record, or the act of recording.",
     "",
     "CREATE GROUNDED READS.",
     "Keep each one concise.",
     "Write complete thoughts inside the perception and relationship length limits. Let the essential connection fit rather than trailing off midway through an explanation.",
-    "perception = the supplied material as newly understood.",
-    "relationship = the grounded connection inside the supplied material that makes the perception possible.",
+    "perception = the grounded thought discovered from the supplied material.",
+    "relationship = the evidence connection that licenses that thought. relationship may explain the derivation; perception should contain the thought itself.",
     "evidenceEventIds = the supplied facts that make the read possible.",
-    "State interpretation as interpretation. Figurative meaning should remain perceptual, not invented history.",
+    "State interpretation as interpretation when needed to avoid converting it into concrete history. Figurative or rhetorical meaning may be stated directly when it does not require an additional concrete occurrence.",
     "BUSINESS_CONTEXT may clarify vocabulary, but it is not evidence for new occurrence.",
     ...(lensStageOwnsFraming ? [
       "",
       "HANDOFF BOUNDARY:",
-      "A downstream Creative Lens stage owns final treatment. Discovery owns the grounded perception and the evidence that carries it.",
-      "Find the grounded meaning. Supplied material remains available downstream independently of the evidence needed for that meaning. Do not choose final treatment, write final prose, plan scenes, or score authored output.",
+      "A downstream Creative Lens stage owns final treatment. Discovery owns the grounded thought and the evidence that carries it.",
+      "Discovery may find a sharp proposition or viewpoint, but do not optimize its wording as final public copy, choose final treatment, plan scenes, or score authored output.",
+      "Do not suppress a useful thought merely because downstream Mouth may later express it differently.",
     ] : []),
     "",
     "SEARCH BEFORE SELECTION.",
     "Do not choose a winner while generating reads. Build a genuinely divergent set first.",
     "When the evidence supports it, make candidates differ in semantic operation, not merely wording or emphasis.",
     "For every candidate, declare the semanticMove used to reach it. Available search moves are PARTICULAR, GENERALIZATION, RHETORICAL_POV, IMPLICATION, RECONTEXTUALIZATION, and INVERSION.",
-    "PARTICULAR stays close to the specific friction while changing what it means. GENERALIZATION asks what broader human, social, category-level, or ordinary-life observation this supplied detail can license without claiming another event. RHETORICAL_POV asks what attitude or judgment becomes available from a supplied entity or relevant generalized speaker without inventing participation. IMPLICATION identifies a supported thought the facts make available without restating them. RECONTEXTUALIZATION lets one supplied fact change how another registers. INVERSION asks whether the apparently minor or secondary detail is actually the revealing one.",
+    "PARTICULAR stays close to the specific friction while changing what it means.",
+    "GENERALIZATION asks what broader human, social, category-level, or ordinary-life observation this supplied detail can license without claiming another event.",
+    "RHETORICAL_POV states an actual grounded attitude, judgment, complaint, question, comparison, or opinion about the supplied material. Generate the thought itself, not an explanation of what a speaker could think.",
+    "IMPLICATION identifies a supported thought the facts make available without restating them.",
+    "RECONTEXTUALIZATION lets one supplied fact change how another registers.",
+    "INVERSION asks whether the apparently minor or secondary detail is actually the revealing one.",
     "GENERALIZATION MUST ESCAPE THE EPISODE. Apply this private test before tagging a candidate GENERALIZATION: mentally remove the subject's name, this visit, its chronology, service completion, pickup outcome, and other episode-specific recap. If no broader proposition remains that could stand as an observation about people, behavior, taste, social convention, a relevant category, or ordinary life, it is not GENERALIZATION.",
     "A summary of how this particular visit went is PARTICULAR or another appropriate move, even when phrased broadly. 'Overall it went well', 'the service ended positively', and similar episode summaries do not become generalizations merely by omitting details.",
     "A valid GENERALIZATION is licensed by the episode but is not a description of the episode. Its relationship must explain which supplied detail licenses the broader proposition; the perception itself should carry the broader thought.",
@@ -685,8 +874,9 @@ export async function discoverAuthorCreativeDirection(input: {
     "semanticMove is a search provenance tag, not viewer-facing language and not a claim that the candidate is good.",
     "When returning multiple candidates, use different semanticMove values unless the evidence genuinely supports only one move. Do not return several candidates that all reduce to the same before/after summary.",
     "Do not force unsupported breadth. One grounded candidate is better than invented diversity.",
-    "A broader observation need not claim that it literally occurred inside the event. A rhetorical speaker need not become a factual participant. Keep those as interpretation while concrete reality stays closed.",
+    "A broader observation need not claim that it literally occurred inside the event. A rhetorical speaker need not become a factual participant. Keep concrete reality closed while discourse moves.",
     "Give disproportionate search attention to the odd, resistant, specific, awkward, or revealing detail. Do not automatically make the final positive state the meaning of the experience.",
+    "Protect the strange. Police the facts.",
     "Return only the requested structured object.",
   ].join("\n");
 
@@ -701,7 +891,7 @@ export async function discoverAuthorCreativeDirection(input: {
           MEMORY: (input.memory ?? []).slice(0, 12),
           BUSINESS_CONTEXT: input.domainContext,
           instruction:
-            "Search for a divergent set of grounded reads worth considering. Fewer than the schema allows is valid; zero is valid. Do not select a winner. For multiple candidates, deliberately attempt different semanticMove values and keep only moves the supplied evidence supports. For any GENERALIZATION, apply the episode-escape test: the perception must still contain a broader proposition after the particular visit and its outcome are mentally removed. A GENERALIZATION or RHETORICAL_POV is interpretation, not a new occurrence. Return no final prose or unsupported explanation.",
+            "Search for a divergent set of grounded thoughts worth considering. Fewer than the schema allows is valid; zero is valid. Do not select a winner. For multiple candidates, deliberately attempt different semanticMove values and keep only moves the supplied evidence supports. At least consider whether the material licenses a first-order RHETORICAL_POV: an actual judgment, opinion, complaint, question, comparison, or attitude rather than an explanation that such a viewpoint is available. For any GENERALIZATION, apply the episode-escape test: the perception must still contain a broader proposition after the particular visit and its outcome are mentally removed. GENERALIZATION and RHETORICAL_POV are discourse, not new occurrence. Do not infer enduring character or tendency from one event. Return no final prose or unsupported explanation.",
         }),
       },
     ],
@@ -736,7 +926,17 @@ export async function discoverAuthorCreativeDirection(input: {
                 id: { type: "string", maxLength: 48 },
                 perception: { type: "string", maxLength: 180 },
                 relationship: { type: "string", maxLength: 140 },
-                semanticMove: { type: "string", enum: ["PARTICULAR", "GENERALIZATION", "RHETORICAL_POV", "IMPLICATION", "RECONTEXTUALIZATION", "INVERSION"] },
+                semanticMove: {
+                  type: "string",
+                  enum: [
+                    "PARTICULAR",
+                    "GENERALIZATION",
+                    "RHETORICAL_POV",
+                    "IMPLICATION",
+                    "RECONTEXTUALIZATION",
+                    "INVERSION",
+                  ],
+                },
                 evidenceEventIds: {
                   type: "array",
                   maxItems: 32,
@@ -753,131 +953,239 @@ export async function discoverAuthorCreativeDirection(input: {
   );
 
   const parsed = parseJson(result.text);
-  const rawCandidates = Array.isArray(parsed?.candidates) ? parsed.candidates : [];
-  const semanticMoveById = new Map(
-    rawCandidates
-      .filter((value: any) => value && typeof value.id === "string")
-      .map((value: any) => [clean(value.id), clean(value.semanticMove)]),
-  );
-  const suppliedRealityText = clean(input.events.map((event) => event.text).join(" "));
-  const deterministicCandidates = rawCandidates
-    .map((value, index) => normalizeCandidate(value, index, allowedEventIds))
-    .filter((value): value is AuthorCreativeCandidate => Boolean(value))
-    .filter((candidate) =>
-      !candidateCrossesDeterministicTruthFloor(candidate, suppliedRealityText),
-    )
-    .filter((candidate) =>
-      !candidateCrossesOperationalServiceTruthFloor(
-        candidate,
-        suppliedRealityText,
-        input.domainContext,
-      ),
-    )
-    .filter((candidate) =>
-      !candidateCrossesUnsupportedTemporalEvaluation(
-        candidate,
-        suppliedRealityText,
-      ),
-    )
-    .filter((candidate) =>
-      !candidateReferencesUncitedEvidence(candidate, input.events),
-    );
+  const mixedRawCandidates = Array.isArray(parsed?.candidates)
+    ? parsed.candidates
+    : [];
 
-  const semanticVerification = await verifyDiscoveryCandidates({
-    candidates: deterministicCandidates,
-    events: input.events,
-    relations: input.relations,
-    domainContext: input.domainContext,
-  });
-
-  let candidates = deterministicCandidates.filter((candidate) =>
-    semanticVerification.groundedIds.has(candidate.id),
-  );
-
-  let repairModel = result.model;
-  let repairModelCalls = 0;
-  let usedRepair = false;
-
-  if (candidates.length) {
-    const moveVerificationResult = await localModelGenerate(
-      [
-        {
-          role: "system",
-          content: [
-            "You are QRE Discovery Semantic-Move Verification.",
-            "Factual grounding has already been checked. Do not re-audit factual support and do not judge writing quality.",
-            "Your only job is to verify whether each candidate actually performs the semanticMove it claims.",
-            "PARTICULAR stays primarily about this specific episode or friction.",
-            "GENERALIZATION must escape the episode. Mentally remove the subject's name, this visit, chronology, service completion, pickup outcome, and episode recap. A broader proposition about people, behavior, taste, social convention, a relevant category, or ordinary life must remain.",
-            "A genericized episode description is NOT a GENERALIZATION. Saying 'a grooming visit can...' or 'a service can...' while still describing the same visit-pattern does not escape merely because the subject name disappeared.",
-            "RHETORICAL_POV must genuinely introduce an interpretive viewpoint or attitude rather than merely redescribe the event.",
-            "IMPLICATION must state a thought made available by the facts rather than restating them.",
-            "RECONTEXTUALIZATION must make one supplied fact materially change how another supplied fact registers.",
-            "INVERSION must make a seemingly secondary detail become the revealing or organizing detail.",
-            "Do not require every move to be broad. Verify the claimed move as written.",
-            "Return valid=false when the candidate is mislabeled, even if its perception is otherwise grounded and useful.",
-            "Do not rewrite, repair, improve, or relabel candidates.",
-          ].join("\n"),
-        },
-        {
-          role: "user",
-          content: JSON.stringify({
-            CANDIDATES: candidates.map((candidate) => ({
-              id: candidate.id,
-              semanticMove: semanticMoveById.get(candidate.id) || "UNKNOWN",
-              perception: candidate.perception,
-              relationship: candidate.relationship,
-            })),
-          }),
-        },
-      ],
-      "json",
+  // Give first-order rhetorical thought an independent search opportunity.
+  // This lane has no authority privilege: its candidates join the mixed search
+  // before deterministic floors, factual grounding, semantic-move verification,
+  // repair, and final selection.
+  const povResult = await localModelGenerate(
+    [
       {
-        numPredict: 420,
-        temperature: 0,
-        jsonSchema: {
-          type: "object",
-          additionalProperties: false,
-          required: ["verifications"],
-          properties: {
-            verifications: {
-              type: "array",
-              items: {
-                type: "object",
-                additionalProperties: false,
-                required: ["candidateId", "valid", "reason"],
-                properties: {
-                  candidateId: { type: "string", maxLength: 48 },
-                  valid: { type: "boolean" },
-                  reason: { type: "string", maxLength: 220 },
+        role: "system",
+       content: [
+  "You are QRE Creative Discovery: First-Order Rhetorical POV Search.",
+  "Reality is fixed. Discourse may move.",
+  "",
+  "Search only for grounded first-order viewpoints made possible by SUPPLIED_REALITY.",
+  "A useful candidate may be a judgment, opinion, complaint, question, comparison, attitude, or pointed observation.",
+  "State the thought itself. Do not describe a possible interpretation, explain that someone could hold an opinion, or say that the facts invite a viewpoint.",
+  "The authored rhetorical speaker is not a participant in the event and does not create a new mental state for the subject.",
+  "Grounding is provenance, not paraphrase. The perception may move sideways from the evidence when the evidence genuinely licenses the thought.",
+  "Take a position when the material earns one. Do not retreat into neutral event summary merely because it is safer.",
+  "Do not merely rename supplied events with dramatic language. Find a supported idea about their significance.",
+  "",
+  "SEARCH FOR THOUGHT DISTANCE.",
+  "Ask what becomes newly sayable because two or more supplied facts are true together.",
+  "Look for a change in status, meaning, importance, category, expectation, contradiction, proportion, or rhetorical role created by the relationship among the facts.",
+  "A strong viewpoint does more than call a supplied detail noticeable, important, cute, good, bad, or meaningful. It discovers what the detail has come to mean in this particular reality.",
+  "Do not stop at salience. Ask what follows from the salience.",
+  "Do not stop at significance. Ask what kind of significance the evidence creates.",
+  "Prefer a supported proposition that changes how the facts are understood over a judgment that merely rates them.",
+  "The thought may generalize rhetorically, compare unlike ideas, assign significance, invert an apparent hierarchy, expose an absurdity, or take an opinionated stance, provided it does not create another concrete occurrence.",
+  "Search laterally rather than cosmetically. New vocabulary is not a new thought.",
+  "If the candidate could have been written after seeing only one isolated fact, consider whether the relationship among the supplied facts supports a more distinctive thought.",
+  "",
+  "KEEP REALITY CLOSED.",
+  "Do not add a concrete participant, event, action, object, place, physical state, observation, motive, cause, duration, persistence, completed outcome, chronology, ownership, history, or material relationship.",
+  "Do not infer enduring personality, habit, history, tendency, preference, motive, intention, belief, or disposition from one occurrence unless supplied reality establishes it.",
+  "A judgment about a supplied detail is not automatically another factual occurrence.",
+  "Figurative, rhetorical, evaluative, humorous, or opinionated meaning may be stated directly when it does not require additional concrete reality.",
+  "",
+  "SEARCH, DO NOT SELECT.",
+  "Return zero candidates when no first-order rhetorical viewpoint is genuinely licensed.",
+  "Return at most two candidates. If returning two, make them meaningfully different thoughts rather than paraphrases.",
+  "These are private discoveries, not polished final public copy.",
+  "Every returned candidate must use semanticMove RHETORICAL_POV.",
+  "relationship must identify the supplied evidence connection that licenses the perception.",
+  "evidenceEventIds must contain only supplied event IDs actually needed for that thought.",
+  "Protect the strange. Police the facts.",
+  "Return only the requested structured object.",
+].join("\n"),
+      },
+      {
+        role: "user",
+        content: JSON.stringify({
+          CURRENT_REALITY: input.events,
+          SUPPLIED_RELATIONS: input.relations ?? [],
+          MEMORY: (input.memory ?? []).slice(0, 12),
+          BUSINESS_CONTEXT: input.domainContext,
+          instruction:
+            "Search independently for first-order rhetorical thoughts worth considering. State actual grounded judgments, opinions, complaints, questions, comparisons, attitudes, or pointed observations rather than analysis of possible viewpoints. Do not select a winner, do not write final prose, and do not infer enduring character or tendency from one event. Zero candidates is valid.",
+        }),
+      },
+    ],
+    "json",
+    {
+      numPredict: 420,
+      temperature: 0.88,
+      jsonSchema: {
+        type: "object",
+        additionalProperties: false,
+        required: ["candidates"],
+        properties: {
+          candidates: {
+            type: "array",
+            minItems: 0,
+            maxItems: 2,
+            items: {
+              type: "object",
+              additionalProperties: false,
+              required: [
+                "id",
+                "perception",
+                "relationship",
+                "evidenceEventIds",
+                "semanticMove",
+              ],
+              properties: {
+                id: {
+                  type: "string",
+                  maxLength: 40,
+                },
+                perception: {
+                  type: "string",
+                  maxLength: 180,
+                },
+                relationship: {
+                  type: "string",
+                  maxLength: 140,
+                },
+                semanticMove: {
+                  type: "string",
+                  enum: ["RHETORICAL_POV"],
+                },
+                evidenceEventIds: {
+                  type: "array",
+                  maxItems: 32,
+                  items: {
+                    type: "string",
+                    maxLength: 64,
+                  },
                 },
               },
             },
           },
         },
       },
+    },
+  );
+
+  const povParsed = parseJson(povResult.text);
+  const povRawCandidates = Array.isArray(povParsed?.candidates)
+    ? povParsed.candidates.map((value: unknown, index: number) => {
+        if (!value || typeof value !== "object") {
+          return value;
+        }
+
+        const record = value as Record<string, unknown>;
+
+        return {
+          ...record,
+          id: `pov-${clean(record.id) || index + 1}`,
+          semanticMove: "RHETORICAL_POV",
+        };
+      })
+    : [];
+
+  const rawCandidates = [
+    ...mixedRawCandidates,
+    ...povRawCandidates,
+  ];
+
+  const semanticMoveById = new Map(
+    rawCandidates
+      .filter((value: any) => value && typeof value.id === "string")
+      .map((value: any) => [
+        clean(value.id),
+        clean(value.semanticMove),
+      ]),
+  );
+
+  const suppliedRealityText = clean(
+    input.events.map((event) => event.text).join(" "),
+  );
+
+  const deterministicCandidates = rawCandidates
+    .map((value, index) =>
+      normalizeCandidate(value, index, allowedEventIds),
+    )
+    .filter(
+      (value): value is AuthorCreativeCandidate =>
+        Boolean(value),
+    )
+    .filter(
+      (candidate) =>
+        !candidateCrossesDeterministicTruthFloor(
+          candidate,
+          suppliedRealityText,
+        ),
+    )
+    .filter(
+      (candidate) =>
+        !candidateCrossesOperationalServiceTruthFloor(
+          candidate,
+          suppliedRealityText,
+          input.domainContext,
+        ),
+    )
+    .filter(
+      (candidate) =>
+        !candidateCrossesUnsupportedTemporalEvaluation(
+          candidate,
+          suppliedRealityText,
+        ),
+    )
+    .filter(
+      (candidate) =>
+        !candidateReferencesUncitedEvidence(
+          candidate,
+          input.events,
+        ),
     );
-    const moveParsed = parseJson(moveVerificationResult.text);
-    const moveVerifications = Array.isArray(moveParsed?.verifications)
-      ? moveParsed.verifications
-      : [];
-    const validMoveIds = new Set(
-      moveVerifications
-        .filter((value: any) => value?.valid === true)
-        .map((value: any) => clean(value?.candidateId))
-        .filter(Boolean),
-    );
-    candidates = candidates.filter((candidate) => validMoveIds.has(candidate.id));
-    repairModelCalls += 1;
-  }
+
+  const semanticVerification =
+    await verifyDiscoveryCandidates({
+      candidates: deterministicCandidates,
+      events: input.events,
+      relations: input.relations,
+      domainContext: input.domainContext,
+    });
+
+  let candidates = deterministicCandidates.filter(
+    (candidate) =>
+      semanticVerification.groundedIds.has(candidate.id),
+  );
+
+  let repairModel = result.model;
+  let repairModelCalls = 0;
+  let usedRepair = false;
+
+  const moveVerification =
+    await verifyDiscoverySemanticMoves({
+      candidates,
+      semanticMoveById,
+    });
+
+  candidates = candidates.filter((candidate) =>
+    moveVerification.validIds.has(candidate.id),
+  );
+
+  repairModelCalls += moveVerification.modelCalls;
 
   let requestedSelectedId = "";
 
-  const modelSelectedCandidate = deterministicCandidates.find(
-    (candidate) => candidate.id === requestedSelectedId,
-  );
+  const modelSelectedCandidate =
+    deterministicCandidates.find(
+      (candidate) =>
+        candidate.id === requestedSelectedId,
+    );
+
   const modelSelectedSurvived = candidates.some(
-    (candidate) => candidate.id === requestedSelectedId,
+    (candidate) =>
+      candidate.id === requestedSelectedId,
   );
 
   const repairTargets =
@@ -893,113 +1201,219 @@ export async function discoverAuthorCreativeDirection(input: {
       allowedEventIds,
       domainContext: input.domainContext,
     });
-    repairModel = repair.model === "none" ? result.model : repair.model;
+
+    repairModel =
+      repair.model === "none"
+        ? result.model
+        : repair.model;
+
     repairModelCalls += repair.modelCalls;
     usedRepair = repair.modelCalls > 0;
 
     if (repair.candidates.length) {
-      const repairedVerification = await verifyDiscoveryCandidates({
-        candidates: repair.candidates,
-        events: input.events,
-        relations: input.relations,
-        domainContext: input.domainContext,
-      });
-      repairModelCalls += repairedVerification.modelCalls;
+      const repairedVerification =
+        await verifyDiscoveryCandidates({
+          candidates: repair.candidates,
+          events: input.events,
+          relations: input.relations,
+          domainContext: input.domainContext,
+        });
 
-      const groundedRepairs = repair.candidates.filter((candidate) =>
-        repairedVerification.groundedIds.has(candidate.id),
-      );
+      repairModelCalls +=
+        repairedVerification.modelCalls;
+
+      const groundedRepairs =
+        repair.candidates.filter((candidate) =>
+          repairedVerification.groundedIds.has(
+            candidate.id,
+          ),
+        );
+
+      const repairedSemanticMoveById =
+        new Map<string, string>();
+
+      for (const candidate of groundedRepairs) {
+        const originalId = clean(candidate.id).replace(
+          /-repair(?:ed)?$/i,
+          "",
+        );
+
+        const originalMove =
+          semanticMoveById.get(originalId);
+
+        if (originalMove) {
+          repairedSemanticMoveById.set(
+            candidate.id,
+            originalMove,
+          );
+        }
+      }
+
+      const repairedMoveVerification =
+        await verifyDiscoverySemanticMoves({
+          candidates: groundedRepairs,
+          semanticMoveById:
+            repairedSemanticMoveById,
+        });
+
+      repairModelCalls +=
+        repairedMoveVerification.modelCalls;
+
+      const semanticallyValidRepairs =
+        groundedRepairs.filter((candidate) =>
+          repairedMoveVerification.validIds.has(
+            candidate.id,
+          ),
+        );
 
       candidates = unique([
-        ...groundedRepairs.map((candidate) => candidate.id),
-        ...candidates.map((candidate) => candidate.id),
+        ...semanticallyValidRepairs.map(
+          (candidate) => candidate.id,
+        ),
+        ...candidates.map(
+          (candidate) => candidate.id,
+        ),
       ])
-        .map((id) =>
-          groundedRepairs.find((candidate) => candidate.id === id) ??
-          candidates.find((candidate) => candidate.id === id),
+        .map(
+          (id) =>
+            semanticallyValidRepairs.find(
+              (candidate) =>
+                candidate.id === id,
+            ) ??
+            candidates.find(
+              (candidate) =>
+                candidate.id === id,
+            ),
         )
-        .filter((candidate): candidate is AuthorCreativeCandidate => Boolean(candidate));
+        .filter(
+          (
+            candidate,
+          ): candidate is AuthorCreativeCandidate =>
+            Boolean(candidate),
+        );
     }
   }
 
   if (candidates.length > 1) {
-    const selectionResult = await localModelGenerate(
-      [
+    const selectionResult =
+      await localModelGenerate(
+        [
+          {
+            role: "system",
+            content: [
+              "You are QRE Creative Discovery Selector.",
+              "Discovery has already searched and semantic grounding has already removed unsupported reads.",
+              "Choose among GROUNDED_CANDIDATES only. Do not rewrite, merge, repair, or invent another candidate.",
+              "Select by cognitive return: which supported read most changes what becomes noticeable in this particular reality?",
+              "Do not confuse semantic closeness with specificity. Specificity belongs in the evidence: the winning thought must be distinctly licensed by these supplied particulars, but the thought itself may travel beyond the episode.",
+              "Prefer surprise, relationship density, character, unresolved pressure, lateral insight, and thoughts difficult to obtain by merely retelling the supplied events. Do not automatically prefer chronology, a positive ending, emotional closure, episode summary, or the candidate that stays closest to the event.",
+              "A small resistant detail may outrank the broad arc when it creates the sharper supported perception.",
+              "Do not automatically prefer GENERALIZATION or any other semanticMove. When several moves are grounded, choose the perception with the greatest supported thought distance and cognitive return, not the one that repeats its evidence most faithfully.",
+              "Return only the selected candidate ID plus concise selection reasoning.",
+            ].join("\n"),
+          },
+          {
+            role: "user",
+            content: JSON.stringify({
+              SUPPLIED_REALITY: input.events,
+              GROUNDED_CANDIDATES:
+                candidates.map((candidate) => ({
+                  id: candidate.id,
+                  perception:
+                    candidate.perception,
+                  relationship:
+                    candidate.relationship,
+                  evidenceEventIds:
+                    candidate.evidenceEventIds,
+                  semanticMove:
+                    semanticMoveById.get(
+                      candidate.id,
+                    ) || "UNKNOWN",
+                })),
+            }),
+          },
+        ],
+        "json",
         {
-          role: "system",
-          content: [
-            "You are QRE Creative Discovery Selector.",
-            "Discovery has already searched and semantic grounding has already removed unsupported reads.",
-            "Choose among GROUNDED_CANDIDATES only. Do not rewrite, merge, repair, or invent another candidate.",
-            "Select by cognitive return: which supported read most changes what becomes noticeable in this particular reality?",
-            "Do not confuse semantic closeness with specificity. Specificity belongs in the evidence: the winning thought must be distinctly licensed by these supplied particulars, but the thought itself may travel beyond the episode.",
-            "Prefer surprise, relationship density, character, unresolved pressure, lateral insight, and thoughts difficult to obtain by merely retelling the supplied events. Do not automatically prefer chronology, a positive ending, emotional closure, episode summary, or the candidate that stays closest to the event.",
-            "A small resistant detail may outrank the broad arc when it creates the sharper supported perception.",
-            "Do not automatically prefer GENERALIZATION or any other semanticMove. When several moves are grounded, choose the perception with the greatest supported thought distance and cognitive return, not the one that repeats its evidence most faithfully.",
-            "Return only the selected candidate ID plus concise selection reasoning.",
-          ].join("\n"),
-        },
-        {
-          role: "user",
-          content: JSON.stringify({
-            SUPPLIED_REALITY: input.events,
-            GROUNDED_CANDIDATES: candidates.map((candidate) => ({
-              id: candidate.id,
-              perception: candidate.perception,
-              relationship: candidate.relationship,
-              evidenceEventIds: candidate.evidenceEventIds,
-              semanticMove: semanticMoveById.get(candidate.id) || "UNKNOWN",
-            })),
-          }),
-        },
-      ],
-      "json",
-      {
-        numPredict: 260,
-        temperature: 0.35,
-        jsonSchema: {
-          type: "object",
-          additionalProperties: false,
-          required: ["selectedCandidateId", "selectionReason"],
-          properties: {
-            selectedCandidateId: { type: "string", maxLength: 48 },
-            selectionReason: { type: "string", maxLength: 220 },
+          numPredict: 260,
+          temperature: 0.35,
+          jsonSchema: {
+            type: "object",
+            additionalProperties: false,
+            required: [
+              "selectedCandidateId",
+              "selectionReason",
+            ],
+            properties: {
+              selectedCandidateId: {
+                type: "string",
+                maxLength: 48,
+              },
+              selectionReason: {
+                type: "string",
+                maxLength: 220,
+              },
+            },
           },
         },
-      },
+      );
+
+    const selectionParsed =
+      parseJson(selectionResult.text);
+
+    const selectedId = clean(
+      selectionParsed?.selectedCandidateId,
     );
-    const selectionParsed = parseJson(selectionResult.text);
-    const selectedId = clean(selectionParsed?.selectedCandidateId);
-    if (candidates.some((candidate) => candidate.id === selectedId)) {
+
+    if (
+      candidates.some(
+        (candidate) =>
+          candidate.id === selectedId,
+      )
+    ) {
       requestedSelectedId = selectedId;
       parsed.selectedCandidateId = selectedId;
-      parsed.selectionReason = clean(selectionParsed?.selectionReason);
+      parsed.selectionReason = clean(
+        selectionParsed?.selectionReason,
+      );
     }
+
     repairModelCalls += 1;
   } else if (candidates.length === 1) {
     requestedSelectedId = candidates[0].id;
-    parsed.selectedCandidateId = requestedSelectedId;
-    parsed.selectionReason = candidates[0].perception;
+    parsed.selectedCandidateId =
+      requestedSelectedId;
+    parsed.selectionReason =
+      candidates[0].perception;
   }
 
   const fallbackCandidate: AuthorCreativeCandidate = {
     id: "reality-direct",
     mode: "RELATIONAL",
-    perception: "Use the supplied reality directly; no additional hidden relationship is established.",
+    perception:
+      "Use the supplied reality directly; no additional hidden relationship is established.",
     relationship: "",
     observerInference: "",
-    evidenceEventIds: input.events.map((event) => event.id),
+    evidenceEventIds: input.events.map(
+      (event) => event.id,
+    ),
     whyItHits: "",
     risk: "no_grounded_discovery_candidate",
   };
 
   const requestedSelected = !usedRepair
-    ? candidates.find((candidate) => candidate.id === requestedSelectedId)
+    ? candidates.find(
+        (candidate) =>
+          candidate.id === requestedSelectedId,
+      )
     : undefined;
 
   const repairedSelected = usedRepair
     ? candidates.find((candidate) => {
-        const baseId = clean(candidate.id).replace(/-repair(?:ed)?$/i, "");
+        const baseId = clean(
+          candidate.id,
+        ).replace(/-repair(?:ed)?$/i, "");
+
         return baseId === requestedSelectedId;
       })
     : undefined;
@@ -1014,23 +1428,39 @@ export async function discoverAuthorCreativeDirection(input: {
     Boolean(requestedSelected) &&
     selected.id === requestedSelectedId;
 
-  const derived = await discoverAuthorDerivedMeaning(input.events);
+  const derived =
+    await discoverAuthorDerivedMeaning(input.events);
 
   // Evidence proves the selected meaning. MEMORY's available material is the
   // full supplied event corridor, regardless of selection, repair, or fallback.
   // Preserve input order and never let model-authored partitions narrow it.
-  const playableEventIds = isMemoryContext(input.domainContext)
-    ? unique(input.events.map((event) => event.id))
+  const playableEventIds = isMemoryContext(
+    input.domainContext,
+  )
+    ? unique(
+        input.events.map((event) => event.id),
+      )
     : unique([
         ...selected.evidenceEventIds,
-        ...derived.derivedMeaning.relations.flatMap((relation) => relation.groundingEventIds),
-      ]).filter((id) => allowedEventIds.has(id));
+        ...derived.derivedMeaning.relations.flatMap(
+          (relation) =>
+            relation.groundingEventIds,
+        ),
+      ]).filter((id) =>
+        allowedEventIds.has(id),
+      );
 
-  const playableSet = new Set(playableEventIds);
+  const playableSet = new Set(
+    playableEventIds,
+  );
 
   // Compatibility output only: background is derived, never model-authored.
-  const backgroundEventIds = selected.evidenceEventIds
-    .filter((id) => allowedEventIds.has(id) && !playableSet.has(id));
+  const backgroundEventIds =
+    selected.evidenceEventIds.filter(
+      (id) =>
+        allowedEventIds.has(id) &&
+        !playableSet.has(id),
+    );
 
   return {
     discovery: {
@@ -1043,15 +1473,25 @@ export async function discoverAuthorCreativeDirection(input: {
       // Compatibility only. Structure owns arrangement and evidence revisits.
       experienceShape: [],
       lens: requestedLens || "NONE",
-      confidence: clamp(parsed?.confidence, 0.65),
-      selectionReason: selectedMatchesModelChoice
-        ? clean(parsed?.selectionReason)
-        : selected.perception || selected.relationship,
+      confidence: clamp(
+        parsed?.confidence,
+        0.65,
+      ),
+      selectionReason:
+        selectedMatchesModelChoice
+          ? clean(parsed?.selectionReason)
+          : selected.perception ||
+            selected.relationship,
       risk: selectedMatchesModelChoice
-        ? clean(parsed?.risk) || selected.risk
+        ? clean(parsed?.risk) ||
+          selected.risk
         : selected.risk,
     },
     model: repairModel,
-    modelCalls: 1 + semanticVerification.modelCalls + repairModelCalls + derived.modelCalls,
+    modelCalls:
+      2 +
+      semanticVerification.modelCalls +
+      repairModelCalls +
+      derived.modelCalls,
   };
 }
