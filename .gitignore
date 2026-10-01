@@ -14,6 +14,7 @@ pnpm-debug.log*
 npm-debug.log*
 yarn-error.log*
 API_DUMP.txt
+.qre-debug/author-live/
 *.env
 .env
 .env.*

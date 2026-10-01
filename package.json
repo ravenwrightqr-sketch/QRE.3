@@ -12,6 +12,7 @@
     "author:wow-guard": "node ./scripts/verify-author-wow-architecture.mjs",
     "author:discovery-handoff": "node ./apps/api/author-creative-discovery-handoff-regression.mjs",
     "author:derived-meaning": "node ./apps/api/author-derived-meaning-discovery-regression.mjs && node --import tsx ./apps/api/author-derived-meaning-contract-regression.ts",
+    "author:live": "node ./scripts/run-author-live.mjs",
     "author:production-gate": "node ./scripts/verify-author-production-gate.mjs",
     "author:wiring": "node ./scripts/verify-author-wiring.mjs",
     "author:reachability": "node ./scripts/verify-author-reachability.mjs",

@@ -71,6 +71,8 @@ async function derive({ output = meaning, rejected = ["r0i2", "r1"], verificatio
 }
 
 const grounded = await derive();
+assert.equal(JSON.stringify(grounded.requests[0].options.jsonSchema).includes('"uniqueItems"'), false,
+  "Discovery schema must avoid the provider-rejected uniqueItems keyword; validation enforces distinct IDs");
 assert.deepEqual(grounded.derivedMeaning, approved, "Keep grounded alternatives, reject bad relation and bad sibling");
 assert.equal(grounded.modelCalls, 2);
 const single = structuredClone(approved);

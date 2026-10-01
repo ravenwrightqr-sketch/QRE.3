@@ -388,7 +388,9 @@ export async function discoverAuthorDerivedMeaning(
             properties: {
               id: { type: "string", maxLength: 64 },
               relation: { type: "string", maxLength: 180 },
-              groundingEventIds: { type: "array", minItems: 2, maxItems: 32, uniqueItems: true,
+              // Provider schemas omit uniqueItems; the structural validator
+              // still rejects duplicate IDs before semantic authority runs.
+              groundingEventIds: { type: "array", minItems: 2, maxItems: 32,
                 items: { type: "string", maxLength: 64 } },
               interpretations: { type: "array", minItems: 1, maxItems: 4, items: {
                 type: "object", additionalProperties: false,
