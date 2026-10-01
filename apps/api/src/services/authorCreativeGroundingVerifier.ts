@@ -320,6 +320,8 @@ export async function verifyAuthorCreativeGrounding(input: {
     "An action does not establish its method, manner, tool, component, motive, preference, success, failure, ownership, or outcome unless supplied.",
     "A state or emotion does not establish bodily behavior, visible manifestation, private thought, preference, cause, or later continuity unless supplied.",
     "Chronology does not establish causality, resolution, transition mechanism, urgency, or duration beyond what is supplied.",
+    "Audit every material qualifier as well as the main action. In concreteClaims include timing, manner, degree, and continuity asserted by the clause; support for the action alone does not support its modifiers.",
+    "An ordered sequence establishes order, not immediacy. A timing qualifier that asserts how soon an action happened needs supplied timing evidence even when the action itself is supplied.",
     "A recurrence establishes only the supplied recurrence, not predictability, routine, habit, inevitability, cadence, or cause unless supplied.",
     "PARAPHRASE must preserve predicate type. A state may paraphrase to the same supplied state type, an action to the same supplied action type, and a property to the same supplied property type. It may not cross into a neighboring concrete or mental fact.",
     "Do not decide by vocabulary alone. Decide whether the clause is nonliteral framing of supplied reality or whether it asserts an additional concrete or mental fact.",

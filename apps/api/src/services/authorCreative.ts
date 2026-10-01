@@ -34,6 +34,11 @@ function debug(label: string, value: unknown): void {
   console.log(`\n--- QRE ${label} ---\n${text}\n--- END QRE ${label} ---\n`);
 }
 
+function captureMouthRequest(messages: Parameters<typeof localModelGenerate>[0]) {
+  debug("MOUTH-REQUEST", messages);
+  return messages;
+}
+
 const DIRECT_CREATIVE_AUTHOR_EXPERIMENT_FLAG =
   "QRE_AUTHOR_DIRECT_CREATIVE_EXPERIMENT";
 const AUTHOR_REALITY_EDITOR_EXPERIMENT_FLAG =
@@ -999,24 +1004,9 @@ function isOperationalOnlyStoryEvent(event: AuthorCreativeEvent | undefined): bo
 function creativeEvidenceProjection(
   suppliedReality: readonly AuthorCreativeEvent[],
 ): Array<{ id: string; text: string }> {
-  return suppliedReality.map((event) => {
-    const exact = clean(event.text);
-    // Creative Search does not need exact clock values to discover the story.
-    // Keep the semantic event (arrived / finished / action / object / state),
-    // while exact operational anchors remain in RealityGraph for provenance and
-    // later truth checking. This prevents precise metadata from becoming the
-    // accidental center of gravity simply because it looks distinctive.
-    const semanticText = exact
-      .replace(/\b(?:[01]?\d|2[0-3]):[0-5]\d\s*(?:am|pm)?\b/gi, " ")
-      .replace(/\s+/g, " ")
-      .replace(/\s+([,.;:!?])/g, "$1")
-      .replace(/^[,.;:\-\s]+|[,;:\-\s]+$/g, "")
-      .trim();
-    return {
-      id: clean(event.id),
-      text: semanticText || exact,
-    };
-  });
+  // Discovery, not a projection heuristic, decides which supplied specificity
+  // earns attention. Keep exact times available alongside the other facts.
+  return suppliedReality.map((event) => ({ id: clean(event.id), text: clean(event.text) }));
 }
 
 function fallbackStoryGravity(
@@ -4823,6 +4813,11 @@ export async function createAuthorExperience(input: {
   if (skipExpressiveMouth) {
     mouthFallbackReason = "no viable expressive treatments; skipped Mouth and returned deterministic Bare Reality";
   }
+  // D is already built deterministically downstream. Mixing a literal control
+  // into the expressive writing request invites all candidates to copy it.
+  const writingTreatmentAssignments = isMemoryMode && lensSearchEnabled
+    ? treatmentAssignmentsForMouth.filter((assignment) => assignment.production !== "D")
+    : treatmentAssignmentsForMouth;
   const mouthResult = directCreativeAuthorExperiment
     ? await generateDirectAuthorMemoryProductions({
         subject: input.subject,
@@ -4848,7 +4843,7 @@ export async function createAuthorExperience(input: {
         provider: "local" as const,
       }
     : await localModelGenerate(
-    [
+    captureMouthRequest([
       {
         role: "system",
         content: [
@@ -4875,7 +4870,7 @@ export async function createAuthorExperience(input: {
           "Let the material determine rhythm, voice, form, and length. Every word should strengthen perception, character, consequence, or surprise.",
           "Discover aggressively, interpret boldly, compress freely, and give disproportionate attention to the interesting thing. Surprise must be discovered from the material rather than cosmetically added.",
           "Structure Planner may provide structural and ordering affordances. Creative cognition discovers relationships and perception movement. Mouth owns final verbal realization and may compress, combine, omit, or express selectively inside those constraints. Presentation choices are outside Author.",
-          "Treat STORY_GRAVITY as evidence/provenance transport. Take expressive direction from the approved meaning and assigned treatment.",
+          "Take expressive direction from the approved meaning and assigned conception. Let the realization discover its opening, movement, and landing within supplied reality.",
           ...(realityDirect ? [
             "REALITY-DIRECT MODE: find the perception the supplied facts themselves make possible. Give their detail and relationships expressive force.",
           ] : []),
@@ -4897,8 +4892,10 @@ export async function createAuthorExperience(input: {
             ] : [
               "Realize the approved meaning with a distinctive voice and supported implication. Let the supplied relationships determine what earns expression.",
             ]),
-            "Return one production object for each listed production identity. A/B/C may use as little of the supplied reality as their strongest perception requires. D is the factual control.",
-            "For D, BEAT EVIDENCE IS ORDERED AUTHORITY. Follow the supplied evidence arrangement. For A/B/C, order is expressive order and sourceEventIds are grounding authority.",
+            lensSearchEnabled
+              ? "Return A/B/C expressive productions for the listed identities. Runtime independently preserves deterministic Bare Reality D from the evidence arrangement."
+              : "Return one production object for each listed production identity. A/B/C may use as little of the supplied reality as their strongest perception requires. D is the factual control.",
+            "For D, BEAT EVIDENCE IS ORDERED AUTHORITY. For A/B/C, order is expressive order and sourceEventIds are grounding authority.",
             "Keep factual chronology fixed. Expressive attention may compress, combine, omit, or select without tracking beat-by-beat chronology.",
           ] : [
             "For each beat, produce materially different realizations. Let each make a supported character, relationship, or perception felt.",
@@ -4912,15 +4909,21 @@ export async function createAuthorExperience(input: {
         content: JSON.stringify({
           SUBJECT: input.subject,
           SUPPLIED_REALITY: input.suppliedReality,
-          APPROVED_THESIS: plan.thesis,
-          APPROVED_BEATS: plan.beats.map((beat, index) => ({
-            order: beat.order,
-            role: beat.role,
-            eventIds: beat.eventIds,
-            attentionEvidence: beat.attention,
-            semanticMove: beat.change,
-            mayUseFullRelation: index === plan.beats.length - 1,
-          })),
+          ...(isMemoryMode ? {
+            APPROVED_MEANING: { perception: selected.perception, relationship: selected.relationship },
+            ...(!lensSearchEnabled ? {
+              BARE_CONTROL_EVIDENCE: plan.beats.map((beat) => ({ order: beat.order, eventIds: beat.eventIds })),
+            } : {}),
+          } : {
+            APPROVED_THESIS: plan.thesis,
+            APPROVED_BEATS: plan.beats.map((beat) => ({
+              order: beat.order,
+              role: beat.role,
+              eventIds: beat.eventIds,
+              attentionEvidence: beat.attention,
+              semanticMove: beat.change,
+            })),
+          }),
           CREATIVE_OPPORTUNITY: selected.perception,
           RELATION: selected.relationship,
           DERIVED_MEANING: input.creativeDiscovery.derivedMeaning ?? { kind: "DERIVED_MEANING", relations: [] },
@@ -4928,18 +4931,24 @@ export async function createAuthorExperience(input: {
           REALITY_DIRECT: realityDirect,
           LENS_MODE: lensMode,
           REQUESTED_LENS: requestedLens || (autoBusinessLens ? "AUTO" : "NONE"),
-          STORY_GRAVITY: lensSearch.storyGravity,
-          CREATIVE_TREATMENTS: authorMouthCreativeTreatmentPayload(treatmentAssignmentsForMouth),
+          ...(!isMemoryMode ? { STORY_GRAVITY: lensSearch.storyGravity } : {}),
+          CREATIVE_TREATMENTS: isMemoryMode
+            ? writingTreatmentAssignments.map((assignment) => ({
+                production: assignment.production,
+                conception: assignment.treatment,
+                evidenceEventIds: assignment.evidenceEventIds,
+              }))
+            : authorMouthCreativeTreatmentPayload(writingTreatmentAssignments),
           instruction: useIdentityClusterPlan
             ? "Return four candidate realizations of this IDENTITY character cluster. Make personality felt through the supported combination, distinctive voice, and implication. Let the viewer connect the dots. Use no more language than each realization earns. Keep concrete reality inside supplied facts."
             : isMemoryMode
               ? realityDirect
-                ? "Return candidate productions in PRODUCTION-MAJOR form for the listed CREATIVE_TREATMENTS only. Make the perception felt through implication, voice, and contrast. Push each assigned treatment as far as supplied reality supports. Give the charged detail disproportionate significance and let the ending earn its implication. Keep concrete reality fixed. Unused facts remain in provenance. Nominate the strongest production by its production letter: A, B, C, or D."
+                ? "Return candidate productions in PRODUCTION-MAJOR form for the listed CREATIVE_TREATMENTS only. Make the perception felt through implication, voice, and contrast. Push each assigned conception as far as supplied reality supports. Give the charged detail disproportionate significance and let the ending earn its implication. Keep concrete reality fixed. Unused facts remain in provenance. Nominate the strongest listed expressive production. Runtime preserves the factual control independently."
                 : "Return candidate productions in PRODUCTION-MAJOR form for the listed CREATIVE_TREATMENTS only. Make the perception felt through implication, voice, and contrast. Maximize meaningful inference while maintaining grounding. Let the supplied evidence earn the ending. Unused facts remain in provenance. Keep concrete reality fixed. Empty text is legal. Nominate the strongest viable expressive production by its production letter: A, B, or C. Preserve D as the factual fallback."
               : "Return four candidate lines per beat. The semantic plan controls meaning; the supplied event IDs control factual reality.",
         }),
       },
-    ],
+    ]),
     "json",
     {
       numPredict: 1050,
@@ -4955,21 +4964,22 @@ export async function createAuthorExperience(input: {
               productions: {
                 type: "array",
                 minItems: lensSearchEnabled
-                  ? Math.max(1, treatmentAssignmentsForMouth.length)
+                  ? Math.max(1, writingTreatmentAssignments.length)
                   : 4,
                 maxItems: lensSearchEnabled
-                  ? Math.max(1, treatmentAssignmentsForMouth.length)
+                  ? Math.max(1, writingTreatmentAssignments.length)
                   : 4,
                 items: {
                   type: "object",
                   additionalProperties: false,
                   required: ["production", "lines"],
                   properties: {
-                    production: { type: "string", enum: ["A", "B", "C", "D"] },
+                    production: { type: "string", enum: lensSearchEnabled ? ["A", "B", "C"] : ["A", "B", "C", "D"] },
                     lines: {
                       type: "array",
                       minItems: 0,
-                      maxItems: Math.max(1, input.suppliedReality.length),
+                      // Expressive cuts are not one slot per supplied event.
+                      maxItems: Math.max(16, input.suppliedReality.length),
                       items: {
                         type: "object",
                         additionalProperties: false,
@@ -4991,7 +5001,7 @@ export async function createAuthorExperience(input: {
               },
               selectedProduction: {
                 type: "string",
-                enum: ["A", "B", "C", "D"],
+                enum: lensSearchEnabled ? ["A", "B", "C"] : ["A", "B", "C", "D"],
               },
               selectionReason: { type: "string", maxLength: 220 },
             }

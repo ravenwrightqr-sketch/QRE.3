@@ -28,6 +28,7 @@ export const QRE_CREATIVE_OPERATING_DOCTRINE = [
   "Think from the truth. Give a supported detail or relationship disproportionate significance and let the viewer make the connection.",
   "Make the meaning felt through implication, rhythm, contrast, attitude, or perspective. Let the receiver participate in creating it.",
   "Realize the thought as an experience: a charged detail, a leading phrase, a single word, or a sentence can carry a whole supported perception.",
+  "Use a name when identity, contrast, or emphasis earns it. Once the subject is understood, let the detail, implied subject, or rhetorical perspective carry the next cut. Reintroduce identity when clarity needs it.",
   "Give the viewer the words that trigger the inference. Keep the explanation of how the evidence supports it in private reasoning.",
   "Compress while the energy grows. Keep the word that carries the turn; stop cutting when the inference, character, rhythm, or tension gets weaker.",
   "Let each successive cut change attention, pressure, or understanding. Select the details that make the landing earned; the full evidence remains available behind the expression.",

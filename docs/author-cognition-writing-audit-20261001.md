@@ -1,0 +1,35 @@
+# Author cognition and writing audit — 2026-10-01
+
+The live Coco runs produce factual recaps even when all transport and grounding checks pass. Passing those checks establishes neither creative quality nor the desired viewer experience.
+
+## Reviewed boundaries
+
+Reviewed the canonical route through `experienceService.ts`, `authorBrainCanonical.ts`, reality extraction and graph construction, primary Discovery and derived meaning, Structure, Lens, Mouth, repair, candidate selection, final grounding, and runtime projection. Also reviewed the adjacent Author state, memory, behavior-profile, tempo, truth, and readout helpers and the engine cognition modules for memory recommendations, service-memory evolution, analytics, and sponsor policy. Historical patch scripts and acceptance fixtures are not production creative owners.
+
+## Confirmed conflicts and changes
+
+| Location | Pressure toward artificial or explanatory writing | Change |
+| --- | --- | --- |
+| `authorCreative.ts`, MEMORY Mouth payload | `APPROVED_BEATS` repeated factual wording, assigned roles and semantic moves, and reserved full relation use for the last beat. | MEMORY expressive writing receives approved meaning and full supplied facts without that beat script. Non-MEMORY retains its beat contract; the last-beat-only relation flag is removed. |
+| `authorCreative.ts`, MEMORY Mouth payload | `STORY_GRAVITY` carried a `HARD` endpoint tied to the last supplied fact, despite instructions permitting another landing. | Remove this metadata from MEMORY writing. Structure and runtime still retain their arrangement and provenance. |
+| `authorCreative.ts`, MEMORY writing request | Model-generated D puts a literal recap beside expressive A/B/C; downstream selection already builds its own deterministic D. | Lens-enabled MEMORY requests A/B/C only. Deterministic D remains available downstream, including model failure recovery. |
+| `authorCreative.ts`, treatment payload | The same conception was repeated as creative pressure, treatment, and perception delta, with additional internal compatibility labels. | MEMORY writing receives one conception, its production identity, and evidence IDs. Internal treatment diagnostics remain intact. |
+| `authorCreative.ts`, MEMORY schema | Maximum line count equaled supplied event count, quietly limiting a sparse fact to one cut. | Allow expressive cut count to vary independently of fact count within a bounded output array. |
+| `authorCreative.ts`, Lens evidence projection | Clock times were stripped before creative search, prejudging whether a supplied detail could carry meaning. | Preserve exact supplied details. Creative cognition decides what earns expression. |
+| `authorCreativeDoctrine.ts` | Nothing explicitly encouraged implied subjects after identity was clear. | Names earn their place through identity, contrast, emphasis, or necessary clarity. Let details and perspective carry subsequent cuts. |
+| `authorCreativeDiscovery.ts` | Provider field limits were producing visibly unfinished private explanations. | Direct complete concise thoughts inside field limits. |
+| `authorCreativeGroundingVerifier.ts` | Live verification checked the action in “tried to remove it immediately” while omitting the timing commitment. | Explicitly audit material modifiers and distinguish order from immediacy. This is an audit instruction improvement, not proof that every model run will reject every unsupported qualifier. |
+| `authorCreative.ts`, debug output | Logs exposed candidates and decisions but not the exact normal Mouth input. | Log `MOUTH-REQUEST` when the existing raw-debug flag is enabled. No provider credentials enter this payload. |
+
+## Findings requiring live evaluation or a separate change
+
+- Lexical overlap is a rough source-replay signal, not a semantic measure of creative quality. Ordinary paraphrases can count as transformed, and meaningful sparse cuts can resemble their source vocabulary. Do not replace this with a genre-word checklist or arbitrary name ban.
+- Grounding models can overaccept hidden premises or overreject interpretive wording. Audit instructions and offline fixtures cannot demonstrate reliable live semantic judgment.
+- Primary Discovery sees at most twelve memory strings. Metadata can compete with useful historical context for that window. Durable memory storage is unchanged in this pass; callback retrieval deserves its own grounded-history test.
+- Behavior-profile and tempo helpers operate on learned preferences and persisted state. They do not directly write the current canonical Mouth lines. Changing their descriptive labels would not fix the observed recap.
+- Engine service-memory titles and summaries are deterministic metadata defaults. They are not the source of the live acceptance test's public cuts. Public metadata copy and broader memory evolution can be reviewed separately without rewriting historical occurrences.
+- Lens-disabled and non-MEMORY paths retain their existing contracts. The normal MEMORY payload correction should not be generalized into those paths without testing their actual output and ownership boundaries.
+
+## Validation and limits
+
+Focused regression coverage captures actual production messages with an offline model transport. It verifies full facts and clock times reaching Lens and Mouth, no hard endpoint or beat script in MEMORY writing, exactly three expressive production identities, one conception per identity, and continued deterministic fallback. Existing contracts, selection, direct experiments, and grounding regressions check compatibility. No live generation was run in this workspace; the next saved live run must establish whether the writing improves.

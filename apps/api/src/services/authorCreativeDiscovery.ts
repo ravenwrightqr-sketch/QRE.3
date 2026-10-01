@@ -385,6 +385,7 @@ export async function discoverAuthorDerivedMeaning(
         "Describe observed changes as observed changes. Sequence alone establishes order; a cause, duration, subjective experience, or resolution needs its own supplied evidence. Possibility words preserve uncertainty but do not supply missing evidence.",
         "Return private cognition only, without viewer-facing lines, jokes, slogans, scenes or genre treatments.",
         "Assign unique relation IDs and globally unique interpretation IDs. Return DERIVED_MEANING separately from supplied events.",
+        "Write complete concise thoughts inside each field's length limit; preserve the essential relationship and finish the thought.",
       ].join("\n") },
       { role: "user", content: JSON.stringify({ SUPPLIED_REALITY: events }) },
     ], "json", {
@@ -648,6 +649,7 @@ export async function discoverAuthorCreativeDirection(input: {
     "",
     "CREATE GROUNDED READS.",
     "Keep each one concise.",
+    "Write complete thoughts inside the perception and relationship length limits. Let the essential connection fit rather than trailing off midway through an explanation.",
     "perception = the supplied material as newly understood.",
     "relationship = the grounded connection inside the supplied material that makes the perception possible.",
     "evidenceEventIds = the supplied facts that make the read possible.",

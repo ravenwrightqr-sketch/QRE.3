@@ -180,15 +180,18 @@ const mouthSystems = [];
 await load("authorCreative", async (messages) => {
   const payload = JSON.parse(messages[1].content);
   mouthRequests.push(payload);
-  if (payload.APPROVED_BEATS) mouthSystems.push(messages[0].content);
+  if (payload.CREATIVE_TREATMENTS) mouthSystems.push(messages[0].content);
   throw new Error("Offline Mouth fallback");
 }).createAuthorExperience({ subject: "Coco", suppliedReality: events.slice(0, 2),
   creativeDiscovery: { ...discovery, playableEventIds: ["a", "b"] },
   domainContext: { experienceMode: "MEMORY" }, requestedLens: "NONE" });
-const mouth = mouthRequests.find((payload) => payload.APPROVED_BEATS);
+const mouth = mouthRequests.find((payload) => payload.CREATIVE_TREATMENTS);
 assert.ok(mouth, "Normal Mouth must receive derived meaning");
 assert.deepEqual(mouth.DERIVED_MEANING, approved);
 assert.deepEqual(mouth.SUPPLIED_REALITY, events.slice(0, 2));
+assert.equal("APPROVED_BEATS" in mouth, false, "MEMORY writing must not be assigned beat-by-beat public coverage");
+assert.equal("STORY_GRAVITY" in mouth, false, "A HARD metadata endpoint must not dictate the expressive landing");
+assert.match(mouthSystems[0], /Use a name when identity, contrast, or emphasis earns it/);
 assert.match(mouthSystems[0], /Make the meaning felt through the writing itself/);
 assert.match(mouthSystems[0], /Maximize meaningful inference while maintaining grounding/);
 assert.match(mouthSystems[0], /Each public line is a moving-text cut/);
@@ -201,6 +204,44 @@ assert.match(mouthSystems[0], /stop cutting when the inference, character, rhyth
 assert.doesNotMatch(mouthSystems[0], /Do not|Never/i, "Mouth should direct creation positively");
 assert.doesNotMatch(mouthSystems[0], /Coco|War of the Bows|Peace is temporary/i,
   "Taste references must remain outside production instructions");
+
+// Capture the actual expressive request, including its schema. D is a runtime
+// control, so the writer should receive neither its prose nor endpoint pressure.
+const timedEvents = [events[0], { ...events[1], text: "At 5:00 PM, Coco tried to remove the bow." }];
+let expressiveRequest;
+let lensEvidence;
+const expressiveFallback = await load("authorCreative", async (messages, format, options) => {
+  const payload = JSON.parse(messages[1].content);
+  if (payload.CREATIVE_TREATMENTS) {
+    expressiveRequest = { payload, system: messages[0].content, options };
+    throw new Error("Captured expressive Mouth");
+  }
+  lensEvidence = payload.SUPPLIED_REALITY;
+  return { model: "offline", text: JSON.stringify({ notices: [
+    { conception: "Adornment becomes contested.", evidenceEventIds: ["a", "b"] },
+    { conception: "An addition meets refusal.", evidenceEventIds: ["a", "b"] },
+    { conception: "Presentation has a rival.", evidenceEventIds: ["a", "b"] },
+  ] }) };
+}).createAuthorExperience({ subject: "Coco", suppliedReality: timedEvents,
+  creativeDiscovery: { ...discovery, playableEventIds: ["a", "b"] },
+  domainContext: { experienceMode: "MEMORY" }, requestedLens: "HORROR" });
+assert.deepEqual(lensEvidence, timedEvents, "Lens must receive supplied specificity, including exact clock times");
+assert.ok(expressiveRequest, "Expressive Mouth request must be captured");
+assert.deepEqual(expressiveRequest.payload.SUPPLIED_REALITY, timedEvents);
+assert.equal("APPROVED_BEATS" in expressiveRequest.payload, false);
+assert.equal("STORY_GRAVITY" in expressiveRequest.payload, false);
+assert.deepEqual(expressiveRequest.payload.CREATIVE_TREATMENTS.map(({ production }) => production), ["A", "B", "C"]);
+for (const treatment of expressiveRequest.payload.CREATIVE_TREATMENTS) {
+  assert.deepEqual(Object.keys(treatment).sort(), ["conception", "evidenceEventIds", "production"]);
+}
+assert.equal(expressiveRequest.options.jsonSchema.properties.productions.minItems, 3);
+assert.ok(expressiveRequest.options.jsonSchema.properties.productions.items.properties.lines.maxItems > timedEvents.length,
+  "A supplied detail may support more than one expressive cut; event count is not cut count");
+assert.deepEqual(plain(expressiveRequest.options.jsonSchema.properties.productions.items.properties.production.enum), ["A", "B", "C"]);
+assert.equal(expressiveFallback.diagnostics.selectedProduction, "D",
+  "Failure of expressive writing must retain the deterministic D fallback");
+assert.deepEqual(plain(expressiveFallback.scenes.flatMap(({ sourceEventIds }) => sourceEventIds)), ["a", "b"],
+  "Model failure must preserve the complete supplied corridor in factual fallback");
 
 const directMessages = load("authorCreative", () => { throw new Error("No live calls"); })
   .buildDirectAuthorMemoryMessages({ subject: "Coco", suppliedReality: events });

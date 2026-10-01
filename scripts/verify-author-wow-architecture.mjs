@@ -133,9 +133,11 @@ if (!failures.length) {
   );
   assertContains(
     creative,
-    'production: { type: "string", enum: ["A", "B", "C", "D"] }',
-    "Mouth schema must preserve A/B/C/D production identities",
+    'production: { type: "string", enum: lensSearchEnabled ? ["A", "B", "C"] : ["A", "B", "C", "D"] }',
+    "Expressive Mouth schema must request A/B/C while retaining D in the non-Lens contract",
   );
+  assertContains(creative, "const bareProduction = scoreMemorySequence(",
+    "Runtime must independently preserve the deterministic D control");
   assertContains(
     creative,
     'const variantIndex = ["A", "B", "C", "D"].indexOf(production);',
