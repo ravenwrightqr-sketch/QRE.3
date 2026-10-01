@@ -2498,7 +2498,8 @@ function selectMemoryProductionCandidate(input: {
   suppliedReality: readonly AuthorCreativeEvent[];
   subject: string;
   expressiveProductions: readonly AuthorMemoryMouthProduction[];
-  assembledProduction?: AuthorMemoryMouthProduction;
+  assembledProductions?: readonly AuthorMemoryMouthProduction[];
+  authorizedRealizationPool?: readonly AuthorizedRealization[];
   treatmentAssignments: readonly AuthorCreativeTreatmentMouthAssignment[];
   selectedProduction?: string;
   lensSearchEnabled: boolean;
@@ -2534,16 +2535,17 @@ function selectMemoryProductionCandidate(input: {
       input.realityDirect,
     ),
   );
-  const assembledProduction = input.assembledProduction
-    ? scoreExpressiveMemoryProduction(
-        4,
-        input.assembledProduction.lines,
-        input.suppliedReality,
-        input.subject,
-        undefined,
-        input.realityDirect,
-      )
-    : undefined;
+  const assembledProductions = (input.assembledProductions ?? []).map((production) =>
+    scoreExpressiveMemoryProduction(
+      4,
+      production.lines,
+      input.suppliedReality,
+      input.subject,
+      undefined,
+      input.realityDirect,
+      input.authorizedRealizationPool ?? [],
+    ),
+  );
   const bareProduction = scoreMemorySequence(
     3,
     input.plan,
@@ -2553,7 +2555,7 @@ function selectMemoryProductionCandidate(input: {
     input.realityDirect,
   );
   const minimumExpressiveCuts = input.minimumExpressiveCuts ?? 1;
-  const developedExpressiveProductions = [...expressiveProductions, ...(assembledProduction ? [assembledProduction] : [])]
+  const developedExpressiveProductions = [...expressiveProductions, ...assembledProductions]
     .map((production) => {
       const underdeveloped = production.lines.filter((line) => Boolean(clean(line.text))).length < minimumExpressiveCuts;
       return underdeveloped
@@ -2680,7 +2682,9 @@ export function evaluateAuthorMemoryProductions(
     suppliedReality: readonly AuthorCreativeEvent[];
     subject: string;
     expressiveProductions: readonly AuthorMemoryMouthProduction[];
+    assembledProductions?: readonly AuthorMemoryMouthProduction[];
     assembledProduction?: AuthorMemoryMouthProduction;
+    authorizedRealizationPool?: readonly AuthorizedRealization[];
     treatmentAssignments: readonly AuthorCreativeTreatmentMouthAssignment[];
     selectedProduction?: string;
     lensSearchEnabled?: boolean;
@@ -2693,7 +2697,10 @@ export function evaluateAuthorMemoryProductions(
     suppliedReality: input.suppliedReality,
     subject: input.subject,
     expressiveProductions: input.expressiveProductions,
-    assembledProduction: input.assembledProduction,
+    assembledProductions: input.assembledProductions ?? (
+      input.assembledProduction ? [input.assembledProduction] : []
+    ),
+    authorizedRealizationPool: input.authorizedRealizationPool,
     treatmentAssignments: input.treatmentAssignments,
     selectedProduction: input.selectedProduction,
     lensSearchEnabled: input.lensSearchEnabled ?? true,
@@ -4340,6 +4347,9 @@ export async function editDirectAuthorReality(input: {
           "Do not ask whether the span mentions an unsupplied entity. Ask whether understanding it requires believing a particular additional entity actually participated in the supplied world.",
           "POV licenses voice, not events. A rhetorical speaker is not automatically a literal actor, observer, thinker, or source of additional history.",
           "A derived characterization of supplied reality is not automatically another fact in supplied reality.",
+          "A rhetorical verb or predicate may characterize, personify, or reframe a supplied occurrence without asserting a second literal action, observation, interaction, or event.",
+          "Do not convert rhetorical grammar into documentary ontology: if the authored predicate can be understood entirely as a characterization of already-supplied reality, test that rhetorical meaning before treating its surface verb as an additional concrete occurrence.",
+          "When AUTHORIZED_SEMANTIC_AUTHORITY supports that characterization and the viewer need not believe anything else happened, classify the characterization as KEEP_EXPRESSION rather than inventing a literal occurrence behind the rhetoric.",
           "Ask whether understanding the authored characterization requires believing that an additional concrete occurrence happened.",
           "If no additional concrete occurrence is required, the span may qualify as KEEP_EXPRESSION even when the exact characterization was not supplied.",
           "KEEP_EXPRESSION may characterize, interpret, reframe, compress, compare, intensify, abstract, or change the perceived significance of supplied material without becoming an additional occurrence.",
@@ -4583,6 +4593,11 @@ async function assignDirectAuthorProductionProvenance(input: {
 export function buildDirectAuthorMemoryMessages(input: {
   subject: string;
   suppliedReality: readonly AuthorCreativeEvent[];
+  approvedMeaning?: {
+    perception: string;
+    relationship: string;
+    evidenceEventIds: string[];
+  };
   semanticScopeSearchInstruction?: string;
 }): Array<{
   role: "system" | "user";
@@ -4594,7 +4609,17 @@ export function buildDirectAuthorMemoryMessages(input: {
     ...QRE_AUTHOR_WRITING_BRIEF,
     "Maximize meaningful inference while maintaining grounding.",
     "Keep every concrete participant, event, action, interaction, object, place, physical behavior, observation, mental state, sensory fact, causality, and outcome inside supplied reality.",
-    "Write three independent attempts. In each text field, separate moving-text cuts with newline characters. Return public words only; private thought and explanation stay private.",
+    ...(input.approvedMeaning
+      ? [
+          "APPROVED_MEANING is already-authorized semantic authority for expression, recontextualization, compression, questioning, judgment, humor, attitude, implication, and derived significance.",
+          "APPROVED_MEANING is NOT supplied reality. It authorizes no concrete participant, event, action, interaction, object, place, chronology, cause, outcome, physical state, mental state, observation, or other concrete occurrence.",
+          "Concrete facts and occurrences remain bounded exclusively by REALITY.",
+          "Write three independent expressive treatments of the same APPROVED_MEANING, not three new Discovery searches from raw reality.",
+        ]
+      : [
+          "Write three independent attempts.",
+        ]),
+    "In each text field, separate moving-text cuts with newline characters. Return public words only; private thought and explanation stay private.",
     ...(input.semanticScopeSearchInstruction
       ? [input.semanticScopeSearchInstruction]
       : []),
@@ -4611,6 +4636,11 @@ export function buildDirectAuthorMemoryMessages(input: {
       content: JSON.stringify({
         SUBJECT: input.subject,
         REALITY: directCreativeRealityText(input.suppliedReality),
+        ...(input.approvedMeaning
+          ? {
+              APPROVED_MEANING: input.approvedMeaning,
+            }
+          : {}),
         instruction:
           "Return exactly three attempts using the required schema.",
       }),
@@ -4621,6 +4651,11 @@ export function buildDirectAuthorMemoryMessages(input: {
 export async function generateDirectAuthorMemoryProductions(input: {
   subject: string;
   suppliedReality: readonly AuthorCreativeEvent[];
+  approvedMeaning?: {
+    perception: string;
+    relationship: string;
+    evidenceEventIds: string[];
+  };
   semanticScopeSearchInstruction?: string;
 }): Promise<{
   text: string;
@@ -5031,7 +5066,7 @@ export async function createAuthorExperience(input: {
   let deterministicAssemblerRawOutput: string | undefined;
   let deterministicAssemblyTruthResult: AuthorAssemblyTruthResult | undefined;
   let synthesisAttempt: AuthorSynthesisAttemptResult | undefined;
-  let assembledMemoryProduction: AuthorMemoryMouthProduction | undefined;
+  const assembledMemoryProductions: AuthorMemoryMouthProduction[] = [];
   if (skipExpressiveMouth) {
     mouthFallbackReason = "no viable expressive treatments; skipped Mouth and returned deterministic Bare Reality";
   }
@@ -5045,6 +5080,11 @@ export async function createAuthorExperience(input: {
     ? await generateDirectAuthorMemoryProductions({
         subject: input.subject,
         suppliedReality: input.suppliedReality,
+        approvedMeaning: {
+          perception: selected.perception,
+          relationship: selected.relationship,
+          evidenceEventIds: [...selected.evidenceEventIds],
+        },
       }).catch((error: unknown) => {
         mouthFallbackReason =
           clean((error as { message?: unknown })?.message) ||
@@ -5315,6 +5355,10 @@ export async function createAuthorExperience(input: {
           const editorResult = await editDirectAuthorReality({
             suppliedReality: input.suppliedReality,
             productions: provenanceResult.productions,
+            semanticAuthority: [
+              selected.perception,
+              selected.relationship,
+            ].map(clean).filter(Boolean),
           }).catch((error: unknown) => ({
             ...emptyAuditedProductions({
               productions: provenanceResult.productions,
@@ -5402,29 +5446,39 @@ export async function createAuthorExperience(input: {
           );
           authorizedRealizationSynthesisModelCalls += synthesisAttempt.modelCalls;
 
-          if (synthesisAttempt.truthResult.eligible && synthesisAttempt.candidate) {
-            assembledCandidate = synthesisAttempt.candidate;
-            assemblyTruthResult = synthesisAttempt.truthResult;
-          } else {
-            assembledCandidate = deterministicCandidate;
-            assemblyTruthResult = deterministicTruthResult;
+          if (deterministicTruthResult.eligible && deterministicCandidate) {
+            assembledMemoryProductions.push({
+              production: "ASSEMBLED",
+              lines: deterministicCandidate.lines.map((line) => ({
+                order: line.order,
+                text: line.text,
+                sourceEventIds: [...line.sourceEventIds],
+                ...(line.synthesizedFrom?.length
+                  ? { synthesizedFrom: [...line.synthesizedFrom] }
+                  : {}),
+                ...(line.auditSpans?.length
+                  ? { auditSpans: line.auditSpans.map((span) => ({ ...span })) }
+                  : {}),
+              })),
+            });
           }
 
-          assembledMemoryProduction = assemblyTruthResult.eligible && assembledCandidate
-            ? {
-                production: "ASSEMBLED",
-                lines: assembledCandidate.lines.map((line) => ({
-                  ...line,
-                  sourceEventIds: [...line.sourceEventIds],
-                  ...(line.synthesizedFrom?.length
-                    ? { synthesizedFrom: [...line.synthesizedFrom] }
-                    : {}),
-                  ...(line.auditSpans?.length
-                    ? { auditSpans: line.auditSpans.map((span) => ({ ...span })) }
-                    : {}),
-                })),
-              }
-            : undefined;
+          if (synthesisAttempt.truthResult.eligible && synthesisAttempt.candidate) {
+            assembledMemoryProductions.push({
+              production: "ASSEMBLED",
+              lines: synthesisAttempt.candidate.lines.map((line) => ({
+                order: line.order,
+                text: line.text,
+                sourceEventIds: [...line.sourceEventIds],
+                ...(line.synthesizedFrom?.length
+                  ? { synthesizedFrom: [...line.synthesizedFrom] }
+                  : {}),
+                ...(line.auditSpans?.length
+                  ? { auditSpans: line.auditSpans.map((span) => ({ ...span })) }
+                  : {}),
+              })),
+            });
+          }
 
           debug("AUTHORIZED-REALIZATION-POOL", authorizedRealizationPool);
           debug("ASSEMBLER-RAW-OUTPUT", deterministicCandidate?.rawText ?? "");
@@ -5605,7 +5659,8 @@ export async function createAuthorExperience(input: {
         suppliedReality: input.suppliedReality,
         subject: input.subject,
         expressiveProductions: memoryMouthProductions,
-        assembledProduction: assembledMemoryProduction,
+        assembledProductions: assembledMemoryProductions,
+        authorizedRealizationPool,
         treatmentAssignments: treatmentAssignmentsForMouth,
         selectedProduction: selectedProductionRaw,
         lensSearchEnabled,
@@ -5662,7 +5717,8 @@ export async function createAuthorExperience(input: {
             suppliedReality: input.suppliedReality,
             subject: input.subject,
             expressiveProductions: repairedProductions,
-            assembledProduction: assembledMemoryProduction,
+            assembledProductions: assembledMemoryProductions,
+            authorizedRealizationPool,
             treatmentAssignments: treatmentAssignmentsForMouth,
             selectedProduction: selectedProductionRaw,
             lensSearchEnabled,

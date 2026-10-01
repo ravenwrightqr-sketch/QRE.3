@@ -1738,11 +1738,12 @@ async function runDomain(
     const capture = captureQreDebugLogs();
     let creativeResult: Awaited<ReturnType<typeof createAuthorExperience>>;
     let groundingResult: Awaited<ReturnType<typeof verifyAuthorCreativeGrounding>>;
+    let fullAuthorDiscoveryResult: Awaited<ReturnType<typeof discoverAuthorCreativeDirection>>;
 
     try {
       const world = buildDomainRealityGraph(domain);
       const events = suppliedRealityEventsFromWorld(world);
-      const discoveryResult = await discoverAuthorCreativeDirection({
+      fullAuthorDiscoveryResult = await discoverAuthorCreativeDirection({
         events,
         relations: world.relations.map((relation) => ({
           from: relation.from,
@@ -1757,7 +1758,7 @@ async function runDomain(
       creativeResult = await createAuthorExperience({
         subject: domain.subject,
         suppliedReality: events,
-        creativeDiscovery: discoveryResult.discovery,
+        creativeDiscovery: fullAuthorDiscoveryResult.discovery,
         memory: [],
         domainContext: domain.domainContext,
       });
@@ -1766,8 +1767,8 @@ async function runDomain(
         scenes: creativeResult.scenes,
         suppliedReality: events,
         semanticAuthority: [
-          discoveryResult.discovery.selected.perception,
-          discoveryResult.discovery.selected.relationship,
+          fullAuthorDiscoveryResult.discovery.selected.perception,
+          fullAuthorDiscoveryResult.discovery.selected.relationship,
         ].map(clean).filter(Boolean),
         domainContext: domain.domainContext,
       });
@@ -1775,6 +1776,15 @@ async function runDomain(
       capture.restore();
     }
 
+    printHeader("FULL AUTHOR DISCOVERY HANDOFF");
+    printJson({
+      model: fullAuthorDiscoveryResult.model,
+      modelCalls: fullAuthorDiscoveryResult.modelCalls,
+      candidates: fullAuthorDiscoveryResult.discovery.candidates,
+      selectedCandidateId: fullAuthorDiscoveryResult.discovery.selectedCandidateId,
+      selected: fullAuthorDiscoveryResult.discovery.selected,
+      selectionReason: fullAuthorDiscoveryResult.discovery.selectionReason,
+    });
     const rawAuthor = debugBlock(capture.blocks, "DIRECT-CREATIVE-AUTHOR-PRODUCTIONS")?.parsed;
     const realityEditorDebug = debugBlock(capture.blocks, "REALITY-EDITOR")?.parsed;
     const memoryProductionsDebug = debugBlock(capture.blocks, "MEMORY-PRODUCTIONS")?.parsed;
