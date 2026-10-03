@@ -127,10 +127,3 @@ export type AuthorScene = {
   sourceEventIds?: string[];
   kind?: "line" | "hook" | "movement" | "discovery" | "turn" | "payoff" | "afterglow";
 };
-
-export type AuthorRenderedScene = AuthorScene & {
-  durationHintMs?: number;
-  transitionHint?: "none" | "fade" | "slide" | "zoom" | "cinematic" | "flash";
-  audioMood?: string;
-  visualHint?: string;
-};

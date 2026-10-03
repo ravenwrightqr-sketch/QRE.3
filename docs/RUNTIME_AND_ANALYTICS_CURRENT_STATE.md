@@ -8,7 +8,7 @@
 
 ```text
 RUNTIME
-  scan / access / moments / flow / geo / cinematic / delivery / session
+  scan / access / moments / flow / geo / playout-compatible delivery / session
 
 ANALYTICS
   observations / registry semantics / repository persistence / read-side insight
@@ -17,7 +17,7 @@ LEARNING
   governed event classes / behavior signals / creative preference inference
 
 COGNITION + AUTHOR
-  world understanding / significance / movie search / trajectory / tempo / mouth
+  world understanding / significance / semantic discovery / trajectory / mouth
 
 MEMORY
   durable world facts + relations + provenance
@@ -107,7 +107,7 @@ Author cognition context
         ↓
 behavioral profile
         ↓
-movie / tempo / realization decisions
+semantic discovery / realization decisions
         ↓
 new experience
         ↓

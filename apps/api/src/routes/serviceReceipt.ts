@@ -108,7 +108,7 @@ router.post("/create", requireAuth, async (req, res) => {
       sessionId,
       operationId: `service-receipt:${sessionId}`,
       memoryRepository: createMemoryRepository(),
-      movieMode: true,
+      playoutMode: "experience",
       geoAnchor: geo && typeof geo.latitude === "number" && typeof geo.longitude === "number"
         ? {
             latitude: geo.latitude,

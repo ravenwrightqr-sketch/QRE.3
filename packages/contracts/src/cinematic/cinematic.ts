@@ -1,5 +1,12 @@
 import type { ExperienceMoment } from "../experience/moment.js";
 
+/**
+ * Legacy scan/player compatibility contract.
+ *
+ * New Author output must flow through ExperiencePlayout. This contract remains
+ * only because current scan responses, persisted sessions, and the web scan
+ * player still consume cinematicScenes.
+ */
 export type CinematicSceneType =
   | "intro"
   | "system"

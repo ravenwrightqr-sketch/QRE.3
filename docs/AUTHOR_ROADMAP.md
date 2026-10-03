@@ -67,6 +67,8 @@ Requirements:
 
 Goal: separate Author semantics from phone presentation.
 
+Current source state: v1 text transport is implemented. One final grounded Author scene becomes one TEXT Playout item with provenance. Sentence splitting, timing, IMAGE, VIDEO, frontend rendering, and analytics remain future work.
+
 Input:
 - final Author beats
 - source provenance
@@ -186,7 +188,7 @@ Capture enough to reconstruct why an experience won:
 2. Universal treatment/stance preservation verification.
 3. AUTO treatment selection.
 4. Lock another checkpoint.
-5. Build `ExperiencePlayout` / `SequenceComposer`.
+5. Build `ExperiencePlayout` / `SequenceComposer` v1 text transport. Done.
 6. Add sentence-by-sentence reveal behavior.
 7. Add IMAGE/VIDEO timeline items.
 8. Tune timing and phone UX.

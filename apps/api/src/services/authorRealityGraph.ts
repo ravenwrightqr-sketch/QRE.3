@@ -17,7 +17,7 @@ import { looksLikeIdentityAssertion } from "@qre/contracts";
  * MEDIA RULE: media is an artifact, not an inferred human action.
  *
  * The graph is intentionally rich. Truth stays in evidence/event labels;
- * everything below is derived scaffolding for cognition, movie search and
+ * everything below is derived scaffolding for cognition, semantic discovery and
  * creative framing. Derived structure may suggest meaning, never assert it.
  */
 

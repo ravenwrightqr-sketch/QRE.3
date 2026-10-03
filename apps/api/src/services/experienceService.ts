@@ -203,7 +203,12 @@ function experienceBeats(scenes: Array<{ text: string; kind?: string }>, sourceI
   }));
 }
 
-function cinematicScenes(scenes: Array<{ text: string; kind?: string }>, sourceIds: string[][]): Array<Record<string, unknown>> {
+/*
+ * Legacy API compatibility projection.
+ * ExperiencePlayout is the current presentation-composition boundary; this
+ * keeps existing cinematicScenes consumers stable until the player migrates.
+ */
+function legacyCinematicScenes(scenes: Array<{ text: string; kind?: string }>, sourceIds: string[][]): Array<Record<string, unknown>> {
   return scenes.map((scene, index) => ({
     id: `canonical-scene-${index + 1}`,
     type: index === 0 ? "intro" : index === scenes.length - 1 ? "emotion" : "action",
@@ -454,7 +459,7 @@ const authorInput: AuthorBrainTruth = {
   const authoredScenes = canonical.scenes.map((scene) => ({ text: clean(scene.text), kind: scene.kind }));
   const beats = experienceBeats(authoredScenes, sourceIds);
   const renderedMoments = moments(authoredScenes, sourceIds);
-  const renderedScenes = cinematicScenes(authoredScenes, sourceIds);
+  const renderedScenes = legacyCinematicScenes(authoredScenes, sourceIds);
 
   /*
    * Persistence projects only the reality supplied in this authoring round.

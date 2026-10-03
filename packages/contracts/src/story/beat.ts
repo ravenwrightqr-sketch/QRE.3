@@ -13,8 +13,5 @@ export type ExperienceBeat = {
   attentionRole?: string;
   operator?: string;
   callback?: boolean;
-  durationHintMs?: number;
-  visualHint?: string;
-  audioMood?: string;
   meta?: Record<string, unknown>;
 };

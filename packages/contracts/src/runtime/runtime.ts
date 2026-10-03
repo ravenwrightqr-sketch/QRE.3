@@ -37,6 +37,7 @@ export type Experience = {
   asset: AssetSummary | null;
   moments: ExperienceMoment[];
   geoStory: GeoStory | null;
+  /** @deprecated Compatibility scan/player surface. New presentation composition belongs to ExperiencePlayout. */
   cinematicScenes: CinematicScene[];
   memorySnapshot: MemorySnapshot | null;
   receipt: ServiceReceipt | null;
