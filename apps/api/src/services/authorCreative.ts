@@ -209,6 +209,13 @@ export type AuthorRealizationSynthesizerInput = {
     id: string;
     text: string;
   }>;
+  protectedExpressiveRealizations: Array<{
+    id: string;
+    sourceProduction: "A" | "B" | "C";
+    text: string;
+    sourceEventIds: string[];
+    materialKind: "EXPRESSIVE_PERSPECTIVE";
+  }>;
   authorizedRealizationPool: Array<{
     id: string;
     sourceProduction: "A" | "B" | "C";
@@ -3600,6 +3607,14 @@ function selectAuthorizedRealizations(input: {
     });
 }
 
+function protectedExpressiveRealizationsForSynthesis(input: {
+  pool: readonly AuthorizedRealization[];
+  suppliedReality: readonly AuthorCreativeEvent[];
+}): AuthorizedRealization[] {
+  return selectAuthorizedRealizations(input)
+    .filter((realization) => realization.materialKind === "EXPRESSIVE_PERSPECTIVE");
+}
+
 function composeAuthorizedRealizationText(
   selected: readonly AuthorizedRealization[],
 ): string {
@@ -3673,6 +3688,18 @@ export function buildAuthorizedRealizationSynthesisInput(input: {
         text: clean(event.text),
       }))
       .filter((event) => event.id && event.text),
+    protectedExpressiveRealizations: protectedExpressiveRealizationsForSynthesis({
+      pool: input.pool,
+      suppliedReality: input.suppliedReality,
+    })
+      .map((realization) => ({
+        id: clean(realization.id),
+        sourceProduction: realization.sourceProduction,
+        text: clean(realization.text),
+        sourceEventIds: [...realization.sourceEventIds],
+        materialKind: "EXPRESSIVE_PERSPECTIVE" as const,
+      }))
+      .filter((realization) => realization.id && realization.text),
     authorizedRealizationPool: input.pool
       .map((realization) => ({
         id: clean(realization.id),
@@ -3692,7 +3719,21 @@ export const AUTHORIZED_REALIZATION_SYNTHESIZER_PROMPT = [
   "WRITING_PREFERENCES guide expression only. They authorize no participants, events, states, or history.",
   "The first Author explored. Auditors established which discoveries have authority.",
   "Your job is to discover what the authorized discoveries mean together.",
-  "Discover the supported relationship among the authorized ideas and give it a fresh realization. Select the material that makes that relationship felt.",
+  "Authorized realizations are sufficient creative material, not a mandate to reconstruct the event record. Omitted facts are not missing context; use supplied reality selectively and do not restore facts merely to complete coverage.",
+  "Turn the strongest authorized material into a moving-text experience: short readable beats that progressively develop meaning across the sequence, building through setup, contrast, turn, payoff, and an optional aftershock when each earns its place.",
+  "There is no fixed cut count. Do not infer sequence length from domain, event count, semantic complexity, subject type, or the apparent size of the central observation. Conceptual simplicity does not imply presentation brevity.",
+  "The shared writing brief's general cut-count suggestion is not a target or minimum for synthesis; choose the sequence length this experience earns.",
+  "Keep each beat immediately readable on a phone. Roughly ten words or fewer is a useful tendency, not a rule: one word, two to seven words, eight to ten words, or a longer immediately readable thought may be right. Do not count mechanically or force fragments.",
+  "Setup is useful when it creates anticipation, contrast, attitude, changes how a later line reads, strengthens its impact, or contributes rhythm or character. Setup is waste when it only replays facts for completeness.",
+  "EXPRESSIVE_PERSPECTIVE should strongly shape the experience. SUPPLIED_REALITY_MATERIAL may provide setup or contrast when useful. Neither material type automatically becomes the sequence backbone.",
+  "protectedExpressiveRealizations names the strongest authorized expressive discoveries found before synthesis. Preserve or intensify their expressive force; do not replace them with a fuller factual inventory.",
+  "Every protected expressive realization must remain materially central. Reword, split, compress, or combine it if that improves the experience, but cite each protected id in synthesizedFrom on at least one line.",
+  "If factual setup does not make a protected expressive realization hit harder, omit that setup.",
+  "The deterministic assembler is evidence of strong discovered meaning. You may expand that meaning across beats when the buildup makes the realization stronger; do not simply copy the assembler, automatically compress below it, or rebuild chronology around it.",
+  "Optimize for progressive disclosure, phone readability, tension, rhythm, contrast, attitude, humor, surprise, character, implication, sideways observation, and payoff. Do not optimize for fewest or most lines, complete event coverage, paragraph coherence, explanation, or recap.",
+  "Let the viewer connect supported dots across successive beats. Feel it; do not explain it. Each beat must earn its place, and the sequence ends when its experience lands.",
+  "Protect the strange; police the facts. The synthesizer's job is to make the strongest moving-text experience from authorized material, not merely make the record more complete.",
+  "Discover the supported relationship among the authorized ideas and give it a fresh, progressive realization. Select the material and sequence that make that relationship felt.",
   "Find the strongest realization available across the authorized material.",
   "Authorized ideas may disagree about what deserves attention. Do not resolve that disagreement merely by averaging them, summarizing the episode, or choosing the broadest or most reassuring interpretation.",
   "Choose the thought with the greatest supported cognitive return: the one that most changes what becomes noticeable, arguable, funny, strange, revealing, or worth having an opinion about.",
@@ -3703,9 +3744,9 @@ export const AUTHORIZED_REALIZATION_SYNTHESIZER_PROMPT = [
   "You may combine meanings from multiple authorized realizations, notice setup/payoff relationships, recontextualize an earlier idea with a later idea, omit weaker material, compress several ideas into one thought, give disproportionate attention to the most interesting thing, write completely new wording, use implication, and change what the viewer notices.",
   "You do not need to reconcile every authorized realization. Contradictory authorized readings are alternatives, not obligations to split the difference.",
   "FACT COUNT is not MOVE COUNT. AUTHORIZED REALIZATION COUNT is not OUTPUT LINE COUNT.",
-  "Rich brain. Selective mouth. Use no more language than the realization earns.",
+  "Let each beat carry only the language its thought needs, while giving the full sequence the space its buildup and payoff earn.",
   "Make the meaning felt through implication, rhythm, contrast, attitude, or perspective. Let the viewer complete the connection.",
-  "Let the ending earn its implication from supplied evidence. Stop when that perception lands.",
+  "Let the ending earn its implication from supplied evidence. A payoff or aftershock may follow the central realization when it strengthens the experience.",
   "World boundary: transform interpretation while keeping concrete occurrence inside supplied reality. New metaphor, implication, rhetorical framing, comparison, attitude, and perspective are available as expression.",
   "PROVENANCE IS LINE-LOCAL. For every output line, synthesizedFrom declares exactly which authorized realizations license that line.",
   "For that line, sourceEventIds MUST be a subset of the union of sourceEventIds attached to the realizations named in synthesizedFrom.",
@@ -3724,7 +3765,6 @@ const AUTHORIZED_REALIZATION_SYNTHESIZER_SCHEMA = {
     lines: {
       type: "array",
       minItems: 1,
-      maxItems: 4,
       items: {
         type: "object",
         additionalProperties: false,
@@ -3773,7 +3813,7 @@ export function normalizeSynthesizedAssemblyCandidate(input: {
     return { reasons: ["synthesizer-output-production-invalid"] };
   }
 
-  if (!Array.isArray(record.lines) || record.lines.length < 1 || record.lines.length > 4) {
+  if (!Array.isArray(record.lines) || record.lines.length < 1) {
     return { reasons: ["synthesizer-output-lines-invalid"] };
   }
 
@@ -4279,6 +4319,25 @@ function assemblyUnauthorizedResidual(input: {
   );
 }
 
+function missingProtectedExpressiveRealizationIds(input: {
+  candidate: AuthorAssembledCandidate;
+  pool: readonly AuthorizedRealization[];
+  suppliedReality: readonly AuthorCreativeEvent[];
+}): string[] {
+  const protectedIds = protectedExpressiveRealizationsForSynthesis({
+    pool: input.pool,
+    suppliedReality: input.suppliedReality,
+  }).map((realization) => realization.id);
+  if (!protectedIds.length) return [];
+
+  const usedIds = new Set([
+    ...input.candidate.sourceRealizationIds,
+    ...input.candidate.lines.flatMap((line) => line.synthesizedFrom ?? []),
+  ].map(clean).filter(Boolean));
+
+  return protectedIds.filter((id) => !usedIds.has(id));
+}
+
 export function verifyAuthorizedAssemblyCandidate(input: {
   candidate: AuthorAssembledCandidate | undefined;
   pool: readonly AuthorizedRealization[];
@@ -4311,6 +4370,12 @@ export function verifyAuthorizedAssemblyCandidate(input: {
     input.suppliedReality,
     32,
   );
+  const missingProtectedExpressiveRealizations =
+    missingProtectedExpressiveRealizationIds({
+      candidate: input.candidate,
+      pool: input.pool,
+      suppliedReality: input.suppliedReality,
+    });
   const missingSelectedRealizationText = selected.some((realization) =>
     !rawOutput.toLowerCase().includes(clean(realization.text).toLowerCase().replace(/[.!?]+$/g, "")),
   );
@@ -4339,6 +4404,9 @@ export function verifyAuthorizedAssemblyCandidate(input: {
     ...(missingAuthorizedRealization ? ["missing-authorized-realization"] : []),
     ...(resurrectedUnsupported ? ["resurrected-unsupported-realization"] : []),
     ...(evidenceEventIds.length ? [] : ["missing-source-event-ids"]),
+    ...(missingProtectedExpressiveRealizations.length
+      ? ["assembly-dropped-protected-expressive-realization"]
+      : []),
     ...(addedUnauthorizedMaterial
       ? ["assembly-added-unauthorized-material"]
       : []),
@@ -4351,6 +4419,7 @@ export function verifyAuthorizedAssemblyCandidate(input: {
       !missingAuthorizedRealization &&
       !resurrectedUnsupported &&
       evidenceEventIds.length > 0 &&
+      missingProtectedExpressiveRealizations.length === 0 &&
       !addedUnauthorizedMaterial,
     reasons,
     candidate: input.candidate,

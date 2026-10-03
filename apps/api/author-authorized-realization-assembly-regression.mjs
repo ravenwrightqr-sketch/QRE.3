@@ -266,10 +266,23 @@ const synthesis = await synthesizeAuthorizedRealizations({
     const payload = JSON.parse(messages.at(-1).content);
     assert.deepEqual(
       Object.keys(payload).sort(),
-      ["WRITING_PREFERENCES", "authorizedRealizationPool", "forbiddenTexts", "instruction", "subject", "suppliedReality"].sort(),
+      [
+        "WRITING_PREFERENCES",
+        "authorizedRealizationPool",
+        "forbiddenTexts",
+        "instruction",
+        "protectedExpressiveRealizations",
+        "subject",
+        "suppliedReality",
+      ].sort(),
       "synthesizer input should stay narrow",
     );
     assert.deepEqual(payload.suppliedReality, suppliedReality, "Writing preferences must not add factual authority");
+    assert.deepEqual(
+      payload.protectedExpressiveRealizations.map((realization) => realization.id),
+      ["A:1", "B:1"],
+      "synthesizer input should identify the strongest expressive material that must survive synthesis",
+    );
     assert.ok(payload.WRITING_PREFERENCES.some((line) => line.startsWith("EXPLANATION AVERSION=")));
     assert.equal(
       payload.authorizedRealizationPool.some((realization) => /groomer laughed|won a trophy/i.test(realization.text)),
@@ -339,6 +352,83 @@ assert.deepEqual(
   synthesis.candidate.lines[0].synthesizedFrom,
   ["A:1", "B:1"],
   "valid synthesizedFrom IDs should be preserved",
+);
+
+const groundedButFlattened = await synthesizeAuthorizedRealizations({
+  subject: "Coco",
+  suppliedReality,
+  pool,
+  realityDirect: true,
+  generate: async () => ({
+    text: JSON.stringify({
+      production: "ASSEMBLED",
+      lines: [{
+        order: 1,
+        text: "Dropped off at 9:00 AM. Bath.",
+        synthesizedFrom: ["C:1", "C:2"],
+        sourceEventIds: ["event-1", "event-2"],
+      }],
+    }),
+    model: "mock-synthesizer",
+    provider: "local",
+  }),
+  auditReality: async ({ candidate }) => ({
+    productions: [{
+      production: "A",
+      lines: [{
+        order: 1,
+        text: candidate.rawText,
+        sourceEventIds: ["event-1", "event-2"],
+        auditSpans: [
+          {
+            exactText: "Dropped off at 9:00 AM.",
+            classification: "SUPPORTED_REALITY",
+            sourceEventIds: ["event-1"],
+          },
+          {
+            exactText: "Bath.",
+            classification: "SUPPORTED_REALITY",
+            sourceEventIds: ["event-2"],
+          },
+        ],
+      }],
+    }],
+    applied: true,
+    diagnostics: [{
+      production: "A",
+      originalText: candidate.rawText,
+      spans: [
+        {
+          exactText: "Dropped off at 9:00 AM.",
+          classification: "SUPPORTED_REALITY",
+          sourceEventIds: ["event-1"],
+        },
+        {
+          exactText: "Bath.",
+          classification: "SUPPORTED_REALITY",
+          sourceEventIds: ["event-2"],
+        },
+      ],
+      removedSpans: [],
+      reconstructedText: candidate.rawText,
+      semanticClassificationValid: true,
+      auditProtocolValid: true,
+      exactSpanMappingValid: true,
+      unsupportedDeletionRequired: false,
+      survivorIntegrity: "NOT_REQUIRED",
+    }],
+    model: "mock-claim-auditor",
+    modelCalls: 0,
+  }),
+});
+assert.equal(
+  groundedButFlattened.truthResult.eligible,
+  false,
+  "grounded factual coverage must not be eligible when synthesis drops protected expressive material",
+);
+assert.ok(
+  groundedButFlattened.truthResult.reasons.includes("assembly-dropped-protected-expressive-realization"),
+  "flattened synthesis should fail the expressive preservation gate",
 );
 
 const unknownSource = await synthesizeAuthorizedRealizations({
