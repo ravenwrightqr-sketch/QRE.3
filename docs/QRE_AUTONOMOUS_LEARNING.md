@@ -1,57 +1,18 @@
-# QRE Autonomous Learning
+# QRE AUTONOMOUS LEARNING · PARKED HISTORICAL NOTE
 
-QRE does not require the owner to manually judge every generated experience.
+**Status:** NOT CURRENT ARCHITECTURE
+**Updated:** 2026-10-03
 
-## What QRE observes
+This file is retained only because it could not be removed during the documentation cleanup pass.
 
-QRE reads behavioral analytics already produced by real use, including:
+Do not use it as implementation guidance.
 
-- scans
-- flow completions
-- flow abandonment
-- errors
-- replays
-- saves
-- shares
-- CTA clicks
-- earned rewards
-- completed payments
-- selected memory recommendations
+Current Author truth lives in:
+- `AUTHOR_CURRENT.md`
+- `AUTHOR_ROADMAP.md`
+- `PLAYOUT_AND_MEDIA_PLAN.md`
+- `author-validation-20261003.md`
 
-## What QRE records about creative work
+Autonomous-learning work is explicitly parked until Identity unification, universal treatment/stance preservation, deterministic AUTO treatment selection, and the Playout/media boundary are stable.
 
-Each generated experience persists a lightweight learning profile containing:
-
-- cognitive lens
-- prompt size class
-- automatically detected prompt characteristics
-- whether a generative author was used
-- whether memory was available
-
-Examples of automatically detected characteristics include comedy, romance, horror, mystery, cinematic, memory, place-centered, service-centered, object-centered, relationship-centered, escalation, and understatement.
-
-## How autonomous learning works
-
-QRE groups experiences by those characteristics and compares measured outcomes.
-
-A behavioral score combines:
-
-- completion rate
-- positive actions per scan
-- abandonment/errors per scan
-
-The resulting signals are labeled as behavioral winners or weaknesses and are injected back into the next creative authoring context as soft guidance.
-
-This is evidence-based preference learning, not hard-coded storytelling templates.
-
-## Privacy boundary
-
-Behavioral learning is scoped to the authenticated user's owned assets/account assets. One customer's creative behavior is not used as another customer's private preference context.
-
-## Human feedback
-
-Explicit feedback remains supported and is treated as a higher-value signal, but it is optional. QRE is intended to keep learning while users live normally, create experiences, scan objects, travel, add memories, and interact with the system.
-
-## What this does not yet do
-
-This layer does not automatically fine-tune model weights. It changes future creative context using observed outcomes. A later training pipeline can turn accumulated accepted/rejected/outcome data into a QRE-specific fine-tuning dataset.
+No learning mechanism may mutate supplied reality, weaken provenance, or become a second semantic authority.
