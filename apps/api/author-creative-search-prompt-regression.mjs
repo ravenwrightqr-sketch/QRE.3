@@ -9,7 +9,8 @@ assert.ok(promptStart >= 0, "Creative Search prompt not found");
 assert.ok(promptEnd > promptStart, "Creative Search prompt end not found");
 
 const prompt = source.slice(promptStart, promptEnd + 80);
-const userInstructionStart = source.indexOf("Return exactly eight independent notices.", promptEnd);
+const userInstructionStart = source.indexOf("Return exactly eight independent notices", promptEnd);
+assert.ok(userInstructionStart > promptEnd, "Creative Search user instruction not found");
 const userInstruction = source.slice(userInstructionStart, userInstructionStart + 700);
 const schemaStart = source.indexOf("jsonSchema:", userInstructionStart);
 const schemaEnd = source.indexOf(").catch", schemaStart);
@@ -29,6 +30,11 @@ assert.ok(mouthSchemaEnd > mouthSchemaStart, "Mouth schema end not found");
 const mouthPromptAndPayload = source.slice(mouthPromptStart, mouthPayloadEnd + 1200);
 const mouthPayload = source.slice(mouthPayloadStart, mouthPayloadEnd);
 const mouthSchema = source.slice(mouthSchemaStart, mouthSchemaEnd);
+const searchFunctionStart = source.indexOf("export async function searchAuthorCreativeLensTreatments");
+const searchFunctionEnd = source.indexOf("const fallbackGravity", searchFunctionStart);
+assert.ok(searchFunctionStart >= 0, "Creative Search function not found");
+assert.ok(searchFunctionEnd > searchFunctionStart, "Creative Search function end not found");
+const searchFunction = source.slice(searchFunctionStart, searchFunctionEnd);
 
 function mustContain(text, pattern, label) {
   assert.match(text, pattern, label);
@@ -42,6 +48,16 @@ mustContain(
   prompt,
   /Reality is evidence for thought\./,
   "Creative Search must frame reality as evidence for thought",
+);
+mustContain(
+  searchFunction,
+  /localModelGenerate\([\s\S]*?numPredict:\s*1200,/,
+  "Creative Search generation allowance must be 1200",
+);
+mustNotContain(
+  searchFunction,
+  /localModelGenerate\([\s\S]*?numPredict:\s*520,/,
+  "Creative Search generation allowance must not regress to 520",
 );
 mustContain(
   prompt,
@@ -105,13 +121,33 @@ mustContain(
 );
 mustContain(
   prompt,
-  /Return only conception and evidenceEventIds for each notice/i,
-  "Creative Search must forbid replacement intermediate fields",
+  /For each notice, return only conception and evidenceEventIds/i,
+  "Creative Search must keep private notice fields narrow",
+);
+mustContain(
+  prompt,
+  /A treatment is not the conception repeated/i,
+  "Creative Search must distinguish treatment from private conception",
+);
+mustContain(
+  prompt,
+  /creativePressure says what Mouth should do differently/i,
+  "Creative Search must ask for treatment pressure",
+);
+mustContain(
+  prompt,
+  /Do not write public copy in Creative Search/i,
+  "Creative Search must not ask treatments to write final lines",
+);
+mustContain(
+  prompt,
+  /Transform the rhetorical world, not the factual world/i,
+  "Creative Search must preserve rhetorical/factual boundary",
 );
 mustContain(
   userInstruction,
-  /exactly eight independent notices/i,
-  "Creative Search must keep exactly eight private notices",
+  /exactly eight independent notices and exactly three public treatments/i,
+  "Creative Search must keep eight private notices and three public treatments",
 );
 mustContain(
   userInstruction,
@@ -120,16 +156,15 @@ mustContain(
 );
 mustContain(
   userInstruction,
-  /keep explanation and semantic translation private/i,
-  "Creative Search user instruction must reject explanatory replacement fields",
+  /Each treatment must transform a selected conception through a distinct rhetorical operating mode/i,
+  "Creative Search user instruction must require rhetorical treatment transformation",
 );
 mustContain(prompt, /Let the discovered relationship supply the pressure and the treatment accelerate it/,
   "Treatment must amplify discovered meaning");
-mustNotContain(prompt, /"Do not|"Never/i, "Creative Search should direct creation positively");
 mustContain(
   schema,
-  /required:\s*\["notices"\]/,
-  "Creative Search schema must still require notices",
+  /required:\s*\["notices", "treatments"\]/,
+  "Creative Search schema must require notices and treatments",
 );
 mustContain(
   schema,
@@ -141,6 +176,16 @@ mustContain(
   /required:\s*\["evidenceEventIds", "conception"\]/,
   "Creative Search notice schema must require evidenceEventIds and conception",
 );
+mustContain(
+  schema,
+  /treatments:\s*\{\s*type:\s*"array",\s*minItems:\s*3,\s*maxItems:\s*3,/s,
+  "Creative Search schema must require exactly three public treatments",
+);
+mustContain(
+  schema,
+  /required:\s*\[\s*"sourceNoticeIndex",\s*"evidenceEventIds",\s*"treatment",\s*"creativePressure",\s*"perceptionDelta",\s*"expressiveBehaviors",\s*"intensity",\s*\]/s,
+  "Creative Search treatment schema must require rhetorical treatment fields",
+);
 mustNotContain(schema, /\battention\b/, "Creative Search schema must not contain attention");
 
 for (const field of [
@@ -151,7 +196,6 @@ for (const field of [
   "rationale",
   "explanation",
   "theme",
-  "mechanic",
   "lens",
 ]) {
   mustNotContain(
@@ -163,8 +207,8 @@ for (const field of [
 
 mustContain(
   source,
-  /const sourceRelation = "model-selected evidence provenance";/,
-  "Creative Search must use neutral downstream sourceRelation compatibility",
+  /const sourceRelation = "model-selected rhetorical treatment from private conception";/,
+  "Creative Search must keep neutral downstream sourceRelation compatibility for model treatments",
 );
 mustContain(
   source,
@@ -183,23 +227,23 @@ mustContain(
 );
 mustContain(
   source,
-  /const modelTreatments:\s*AuthorCreativeTreatment\[\]\s*=\s*privateConceptions\s*[\r\n]+\s*\.slice\(0,\s*3\)/,
-  "Public treatments must derive only from the first three private conceptions",
+  /const rawTreatmentAssignments = Array\.isArray\(parsedLens\?\.treatments\)/,
+  "Public treatments must parse the model treatment assignments",
 );
 mustContain(
   source,
-  /creativePressure:\s*privateConception\.conception,/,
-  "Creative Search conception must still reach downstream treatments",
+  /const parsedModelTreatments:\s*AuthorCreativeTreatment\[\]\s*=\s*rawTreatmentAssignments/,
+  "Public treatments must derive from explicit treatment records",
 );
 mustContain(
   source,
-  /treatment:\s*privateConception\.conception,/,
-  "Creative Search conception must still reach Mouth as treatment",
+  /collapsedTreatment/,
+  "Creative Search parser must detect collapsed conception/treatment/pressure fields",
 );
 mustContain(
   source,
-  /perceptionDelta:\s*privateConception\.conception,/,
-  "Creative Search conception must still reach Mouth as perception delta",
+  /directRhetoricalTreatmentLabel\(\)/,
+  "Collapsed or missing treatments must repair to direct rhetorical realization",
 );
 mustContain(
   source,
@@ -248,8 +292,8 @@ mustContain(
 );
 mustContain(
   mouthPayload,
-  /CREATIVE_TREATMENTS:\s*isMemoryMode\s*\?\s*writingTreatmentAssignments\.map\(\(assignment\) => \(\{\s*production: assignment\.production,\s*conception: assignment\.treatment,\s*evidenceEventIds: assignment\.evidenceEventIds,\s*\}\)\)/s,
-  "Mouth public treatment identities must remain A/B/C anchors with their existing assignment shape",
+  /CREATIVE_TREATMENTS:\s*isMemoryMode\s*\?\s*writingTreatmentAssignments\.map\(\(assignment\) => \(\{\s*production: assignment\.production,\s*conception: assignment\.treatment,\s*treatment: assignment\.treatment,\s*creativePressure: assignment\.creativePressure,\s*perceptionDelta: assignment\.perceptionDelta,\s*expressiveBehaviors: assignment\.expressiveBehaviors,\s*intensity: assignment\.intensity,\s*evidenceEventIds: assignment\.evidenceEventIds,\s*\}\)\)/s,
+  "Mouth public treatment identities must carry rhetorical treatment pressure",
 );
 mustContain(
   source,

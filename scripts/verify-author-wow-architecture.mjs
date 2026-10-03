@@ -108,8 +108,8 @@ if (!failures.length) {
 
   assertContains(
     creative,
-    "Return exactly eight independent notices.",
-    "Lens must create exactly eight private conceptions",
+    "Return exactly eight independent notices and exactly three public treatments.",
+    "Lens must create exactly eight private conceptions and three public treatments",
   );
   assertContains(
     creative,

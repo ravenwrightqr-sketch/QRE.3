@@ -915,6 +915,17 @@ export function sanitizeAuthorMouthTreatmentAssignments(
 
 const AUTHOR_EXPRESSIVE_PRODUCTIONS = ["A", "B", "C"] as const;
 
+function directRhetoricalTreatmentLabel(): string {
+  return "DIRECT_RHETORICAL_STANCE";
+}
+
+function directRhetoricalPressure(conception: string): string {
+  const text = clean(conception);
+  return text
+    ? `Realize this supported conception as a direct rhetorical stance: ${text}`
+    : "Realize the supported perception as a direct rhetorical stance without adding concrete facts.";
+}
+
 function fallbackMouthTreatmentAssignment(input: {
   production: "A" | "B" | "C";
   index: number;
@@ -942,11 +953,11 @@ function fallbackMouthTreatmentAssignment(input: {
     sourceCandidateId: clean(conception?.sourceCandidateId) || `public-${input.production}`,
     sourceRelation: clean(input.selected.relationship) || "public production identity",
     evidenceEventIds,
-    creativePressure: text,
+    creativePressure: directRhetoricalPressure(text),
     hiddenInference: "",
-    treatment: text,
+    treatment: directRhetoricalTreatmentLabel(),
     perceptionDelta: text,
-    expressiveBehaviors: ["public production identity"],
+    expressiveBehaviors: ["direct rhetorical stance", "supported implication"],
     intensity: "MEDIUM",
   };
 }
@@ -1176,9 +1187,14 @@ export async function searchAuthorCreativeLensTreatments(input: {
           ...QRE_CREATIVE_OPERATING_DOCTRINE,
           "Reality is evidence for thought.",
           "Return eight independent private conceptions that become possible because the supplied reality was noticed.",
+          "Then return three public treatment assignments selected from those private conceptions.",
           "Give the thought made possible by the evidence. Keep evidence description, semantic translation, and explanatory reasoning private.",
           "Think because of the evidence, then give the thought.",
           "The conception must add a perception that was not already contained in the supplied fact wording.",
+          "A treatment is not the conception repeated. A treatment names the imaginative frame, expressive world, or rhetorical operating mode that can transform how the conception feels.",
+          "creativePressure says what Mouth should do differently because of that treatment.",
+          "perceptionDelta says how the approved perception changes under that treatment.",
+          "expressiveBehaviors are compact rhetorical behaviors, not public lines.",
           "Find the detail with the strongest pressure: specificity, surprise, relationship density, character fit, and the implication it can leave alive. Carry that pressure into the conception.",
           "Let independent conceptions explore genuinely different readings of the material. A local tension may remain the center even when the wider sequence ends pleasantly.",
           "A supplied feeling can carry an expressive stance, anticipation, rhetorical stakes, or an unresolved question. Let that pressure collide with another supplied fact while leaving its actual cause unknown. A voice can make the tension felt without reporting an additional belief or mental state.",
@@ -1189,7 +1205,12 @@ export async function searchAuthorCreativeLensTreatments(input: {
           "evidenceEventIds are provenance only. Choose them because they licensed the thought, not because events need coverage. They are not output slots, rewrite assignments, coverage obligations, or public representation requirements.",
           "Amplify discovered meaning through perspective, attitude, implication, rhetorical status, scale, humor, or delayed realization. Let the discovered relationship supply the pressure and the treatment accelerate it.",
           "Keep concrete participation and world commitments inside supplied evidence: participants, objects, places, physical actions, interactions, observations, sensory facts, measurements, motives, outcomes, recurrence, physical conditions, causality, and chronology.",
-          "Return only conception and evidenceEventIds for each notice. The conception is private expressive thought; Mouth owns public prose and Structure owns evidence arrangement.",
+          "For each notice, return only conception and evidenceEventIds. The conception is private expressive thought; Mouth owns public prose and Structure owns evidence arrangement.",
+          "For each treatment, return an open treatment string plus creativePressure, perceptionDelta, expressiveBehaviors, evidenceEventIds, sourceNoticeIndex, and intensity.",
+          "Treatment strings are open labels or short operating modes, not a closed enum.",
+          "A treatment may be direct rhetorical realization when that is stronger than a named expressive world.",
+          "Do not write public copy in Creative Search.",
+          "Do not literalize the treatment. Transform the rhetorical world, not the factual world.",
           "Protect strange thinking; police factual invention later.",
         ].join("\n"),
       },
@@ -1200,20 +1221,22 @@ export async function searchAuthorCreativeLensTreatments(input: {
           SUPPLIED_REALITY: creativeEvidenceProjection(input.suppliedReality),
           APPROVED_MEANING: { perception: input.creativeOpportunity, relationship: input.relation },
           DERIVED_MEANING: input.derivedMeaning ?? { kind: "DERIVED_MEANING", relations: [] },
+          SEMANTIC_MECHANIC: semanticMechanic,
+          SEMANTIC_MECHANIC_CANDIDATES: input.semanticMechanicCandidates,
           REQUESTED_LENS: requestedLens || undefined,
           instruction:
-            "Treat APPROVED_MEANING and the alternatives in DERIVED_MEANING as already grounded cognition. Lens owns expressive treatment of that meaning. Choose a fertile reading for each conception; SUPPLIED_REALITY alone authorizes concrete facts and occurrences. Return exactly eight independent notices. Each notice must contain only conception and evidenceEventIds. Give each fact-dependent thought directly; keep explanation and semantic translation private. Amplify the discovered relationship through a distinct perspective, attitude, or rhetorical operation. Evidence IDs carry provenance and may repeat across genuinely different conceptions. Keep Structure's evidence arrangement and Mouth's public realization in their own downstream stages.",
+            "Treat APPROVED_MEANING and the alternatives in DERIVED_MEANING as already grounded cognition. Lens owns expressive treatment of that meaning. Choose a fertile reading for each conception; SUPPLIED_REALITY alone authorizes concrete facts and occurrences. Return exactly eight independent notices and exactly three public treatments. Each notice must contain only conception and evidenceEventIds. Each treatment must transform a selected conception through a distinct rhetorical operating mode and must say what pressure Mouth should follow. Treatment is not final copy. Evidence IDs carry provenance and may repeat across genuinely different conceptions or treatments. Keep Structure's evidence arrangement and Mouth's public realization in their own downstream stages.",
         }),
       },
     ],
     "json",
     {
-      numPredict: 520,
+      numPredict: 1200,
       temperature: 0.98,
       jsonSchema: {
         type: "object",
         additionalProperties: false,
-        required: ["notices"],
+        required: ["notices", "treatments"],
         properties: {
           notices: {
             type: "array",
@@ -1231,6 +1254,50 @@ export async function searchAuthorCreativeLensTreatments(input: {
                   items: { type: "string", maxLength: 64 },
                 },
                 conception: { type: "string" },
+              },
+            },
+          },
+          treatments: {
+            type: "array",
+            minItems: 3,
+            maxItems: 3,
+            items: {
+              type: "object",
+              additionalProperties: false,
+              required: [
+                "sourceNoticeIndex",
+                "evidenceEventIds",
+                "treatment",
+                "creativePressure",
+                "perceptionDelta",
+                "expressiveBehaviors",
+                "intensity",
+              ],
+              properties: {
+                sourceNoticeIndex: {
+                  type: "integer",
+                  minimum: 1,
+                  maximum: 8,
+                },
+                evidenceEventIds: {
+                  type: "array",
+                  minItems: 1,
+                  maxItems: 16,
+                  items: { type: "string", maxLength: 64 },
+                },
+                treatment: { type: "string" },
+                creativePressure: { type: "string" },
+                perceptionDelta: { type: "string" },
+                expressiveBehaviors: {
+                  type: "array",
+                  minItems: 1,
+                  maxItems: 8,
+                  items: { type: "string" },
+                },
+                intensity: {
+                  type: "string",
+                  enum: ["LIGHT", "MEDIUM", "STRONG"],
+                },
               },
             },
           },
@@ -1262,6 +1329,9 @@ export async function searchAuthorCreativeLensTreatments(input: {
   const storyGravity: AuthorStoryGravity = fallbackGravity;
 
   const rawNotices = Array.isArray(parsedLens?.notices) ? parsedLens.notices : [];
+  const rawTreatmentAssignments = Array.isArray(parsedLens?.treatments)
+    ? parsedLens.treatments
+    : [];
   const parseRejectedTreatments: Array<{
     treatment: AuthorCreativeTreatment;
     reason: string;
@@ -1292,29 +1362,117 @@ export async function searchAuthorCreativeLensTreatments(input: {
     .filter((value): value is AuthorCreativePrivateConception => Boolean(value))
     .slice(0, 8);
 
-  const modelTreatments: AuthorCreativeTreatment[] = privateConceptions
-    .slice(0, 3)
-    .map((privateConception, index): AuthorCreativeTreatment => {
-      const sourceRelation = "model-selected evidence provenance";
+  const fallbackTreatmentForConception = (
+    privateConception: AuthorCreativePrivateConception | undefined,
+    index: number,
+  ): AuthorCreativeTreatment | undefined => {
+    if (!privateConception) return undefined;
+    const sourceRelation = "direct rhetorical realization of private conception";
+
+    latentRelations.push({
+      relation: sourceRelation,
+      evidenceEventIds: privateConception.evidenceEventIds,
+    });
+
+    return {
+      id: `treatment-${index + 1}`,
+      sourceCandidateId: privateConception.sourceCandidateId,
+      sourceRelation,
+      evidenceEventIds: privateConception.evidenceEventIds,
+      creativePressure: directRhetoricalPressure(privateConception.conception),
+      hiddenInference: "",
+      treatment: directRhetoricalTreatmentLabel(),
+      perceptionDelta: privateConception.conception,
+      expressiveBehaviors: ["direct rhetorical stance", "supported implication"],
+      intensity: "MEDIUM",
+    };
+  };
+
+  const parsedModelTreatments: AuthorCreativeTreatment[] = rawTreatmentAssignments
+    .map((value, index): AuthorCreativeTreatment | undefined => {
+      if (!value || typeof value !== "object") return undefined;
+      const record = value as Record<string, unknown>;
+      const sourceNoticeIndex = Number(record.sourceNoticeIndex);
+      const privateConception = Number.isInteger(sourceNoticeIndex)
+        ? privateConceptions[sourceNoticeIndex - 1]
+        : privateConceptions[index];
+      if (!privateConception) return undefined;
+
+      const evidenceEventIds = Array.isArray(record.evidenceEventIds)
+        ? unique(
+            record.evidenceEventIds
+              .filter((id): id is string => typeof id === "string")
+              .map(clean)
+              .filter((id) => input.suppliedReality.some((event) => clean(event.id) === id)),
+          )
+        : [];
+      const treatmentText = clean(record.treatment);
+      const creativePressure = clean(record.creativePressure);
+      const perceptionDelta = clean(record.perceptionDelta);
+      const expressiveBehaviors = stringArray(record.expressiveBehaviors, 8);
+      const intensity = clean(record.intensity).toUpperCase();
+      const normalizedIntensity =
+        intensity === "LIGHT" || intensity === "STRONG" ? intensity : "MEDIUM";
+      const collapsedTreatment =
+        treatmentText &&
+        treatmentText.toLowerCase() === privateConception.conception.toLowerCase() &&
+        creativePressure.toLowerCase() === privateConception.conception.toLowerCase() &&
+        perceptionDelta.toLowerCase() === privateConception.conception.toLowerCase();
+      const treatment = collapsedTreatment
+        ? directRhetoricalTreatmentLabel()
+        : treatmentText;
+      const pressure = collapsedTreatment
+        ? directRhetoricalPressure(privateConception.conception)
+        : creativePressure;
+      const delta = perceptionDelta || privateConception.conception;
+      const behaviors = expressiveBehaviors.length
+        ? expressiveBehaviors
+        : ["rhetorical transformation"];
+
+      if (!treatment || !pressure || !delta || !behaviors.length) {
+        return fallbackTreatmentForConception(privateConception, index);
+      }
+
+      const sourceRelation = "model-selected rhetorical treatment from private conception";
+      const finalEvidenceEventIds = evidenceEventIds.length
+        ? evidenceEventIds
+        : privateConception.evidenceEventIds;
 
       latentRelations.push({
         relation: sourceRelation,
-        evidenceEventIds: privateConception.evidenceEventIds,
+        evidenceEventIds: finalEvidenceEventIds,
       });
 
       return {
         id: `treatment-${index + 1}`,
         sourceCandidateId: privateConception.sourceCandidateId,
         sourceRelation,
-        evidenceEventIds: privateConception.evidenceEventIds,
-        creativePressure: privateConception.conception,
+        evidenceEventIds: finalEvidenceEventIds,
+        creativePressure: pressure,
         hiddenInference: "",
-        treatment: privateConception.conception,
-        perceptionDelta: privateConception.conception,
-        expressiveBehaviors: ["notice"],
-        intensity: "MEDIUM",
+        treatment,
+        perceptionDelta: delta,
+        expressiveBehaviors: behaviors,
+        intensity: normalizedIntensity as "LIGHT" | "MEDIUM" | "STRONG",
       };
-    });
+    })
+    .filter((value): value is AuthorCreativeTreatment => Boolean(value))
+    .slice(0, 3);
+
+  const modelTreatments: AuthorCreativeTreatment[] = [
+    ...parsedModelTreatments,
+    ...privateConceptions
+      .filter((conception) =>
+        !parsedModelTreatments.some(
+          (treatment) => treatment.sourceCandidateId === conception.sourceCandidateId,
+        ),
+      )
+      .slice(0, Math.max(0, 3 - parsedModelTreatments.length))
+      .map((conception, offset) =>
+        fallbackTreatmentForConception(conception, parsedModelTreatments.length + offset),
+      )
+      .filter((value): value is AuthorCreativeTreatment => Boolean(value)),
+  ].slice(0, 3);
 
   const creativeNotice: AuthorCreativeNotice = {
     latentRelations,
@@ -5541,6 +5699,11 @@ export async function createAuthorExperience(input: {
             ? writingTreatmentAssignments.map((assignment) => ({
                 production: assignment.production,
                 conception: assignment.treatment,
+                treatment: assignment.treatment,
+                creativePressure: assignment.creativePressure,
+                perceptionDelta: assignment.perceptionDelta,
+                expressiveBehaviors: assignment.expressiveBehaviors,
+                intensity: assignment.intensity,
                 evidenceEventIds: assignment.evidenceEventIds,
               }))
             : authorMouthCreativeTreatmentPayload(writingTreatmentAssignments),
