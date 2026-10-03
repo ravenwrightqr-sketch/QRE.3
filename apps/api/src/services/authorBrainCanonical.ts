@@ -370,6 +370,7 @@ export async function authorBrainCanonical(
   let verifiedCreative = await verifyAuthorCreativeGrounding({
     scenes: creativeResult.scenes,
     suppliedReality: events,
+    subject,
     derivedMeaning: discoveryResult.discovery.derivedMeaning,
     semanticAuthority: unique([
       discoveryResult.discovery.selected.perception,
@@ -421,6 +422,7 @@ export async function authorBrainCanonical(
       const recovered = await verifyAuthorCreativeGrounding({
         scenes: alternativeScenes,
         suppliedReality: events,
+        subject,
         derivedMeaning: discoveryResult.discovery.derivedMeaning,
         semanticAuthority: unique([
           discoveryResult.discovery.selected.perception,
@@ -515,6 +517,7 @@ export async function authorBrainCanonical(
       const recovered = await verifyAuthorCreativeGrounding({
         scenes: recoveryCandidates,
         suppliedReality: events,
+        subject,
         derivedMeaning: discoveryResult.discovery.derivedMeaning,
         semanticAuthority: unique([
           discoveryResult.discovery.selected.perception,

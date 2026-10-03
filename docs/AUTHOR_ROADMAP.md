@@ -4,13 +4,13 @@
 **Branch:** `fuck-you-bitch-is-awake`
 **Updated:** 2026-10-03
 
-This roadmap starts from checkpoint `e2971c82` plus the canonical doctrine in `AUTHOR_CURRENT.md`.
+This roadmap starts from checkpoint `83e45219` plus the canonical doctrine in `AUTHOR_CURRENT.md`.
 
 ## P0 · Unify Identity
 
 Goal: Identity keeps its subject/context semantics but stops using the older `variantsByBeat` + local selector as a separate writing topology.
 
-Current source state: Identity now enters the shared production-major Mouth contract and whole-production selection path while retaining Identity-specific semantic inputs. Refreshed live validation and broader regression coverage remain before checkpointing.
+Current source state: Identity now enters the shared production-major Mouth contract and whole-production selection path while retaining Identity-specific semantic inputs. Isolated Milo Identity live validation proved the topology. Follow-up refinement: the supplied Identity subject name is authorized identity material for optional rhetorical anchoring, without widening factual authority.
 
 Do:
 - move Identity onto the same production-major Author writing/selection architecture used by Memory where appropriate

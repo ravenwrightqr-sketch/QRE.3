@@ -2,7 +2,7 @@
 
 **Status:** canonical current Author reference
 **Branch:** `fuck-you-bitch-is-awake`
-**Checkpoint:** `e2971c82` — `fix(author): preserve expressive realizations through synthesis`
+**Checkpoint:** `83e45219` — `feat(author): unify identity production-major topology`
 **Updated:** 2026-10-03
 
 ## Product contract
@@ -34,7 +34,9 @@ supplied reality / provenance
   -> Author scenes / cuts
 ```
 
-Memory and Identity now share the production-major Mouth topology in source: A/B/C expressive productions plus deterministic D fallback, followed by whole-production selection. Identity retains its Identity-specific semantics and deterministic cluster plan when useful; live cross-case validation still needs to be refreshed after this change.
+Memory and Identity now share the production-major Mouth topology in source: A/B/C expressive productions plus deterministic D fallback, followed by whole-production selection. Identity retains its Identity-specific semantics and deterministic cluster plan when useful; isolated Milo Identity live validation proved the topology.
+
+Identity subject-name doctrine: in Identity, the supplied subject name is first-class authorized identity material. Author may use it creatively as an optional, non-templated rhetorical anchor, title-like line, callback, possessive, or framing device. The name itself does not authorize new facts, events, actions, relationships, motives, preferences, places, or states.
 
 ## What is proven working
 
@@ -162,7 +164,7 @@ Representative final behavior included:
 - Relationship: a valid single semantic beat can contain several reveal-worthy short sentences.
 - Milo Memory: variable multi-beat progression.
 - House / real estate: rhetorical runway/takeoff language grounded in supplied timing.
-- Milo Identity: rhetorically valid output in the prior run; source now routes Identity through production-major Mouth/selection, with refreshed live validation pending.
+- Milo Identity: source now routes Identity through production-major Mouth/selection; isolated live validation proved A/B/C + D topology, whole-production selection, no `variantsByBeat`, and no per-beat four-variant local selector.
 
 ## Deterministic gates currently green
 
@@ -174,6 +176,8 @@ Representative final behavior included:
 - `scripts/verify-author-wow-architecture.mjs`
 - `apps/api/author-authorized-realization-assembly-regression.mjs`
 - `apps/api/author-identity-production-major-regression.mjs`
+- `apps/api/author-identity-name-anchor-regression.mjs`
+- `apps/api/author-grounding-reconstruction-regression.mjs`
 - `git diff --check`
 
 ## Current infrastructure notes

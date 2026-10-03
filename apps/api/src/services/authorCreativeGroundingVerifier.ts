@@ -416,6 +416,7 @@ function reconciledUnsupportedClaims(input: {
 export async function verifyAuthorCreativeGrounding(input: {
   scenes: AuthorGroundingScene[];
   suppliedReality: readonly { id: string; text: string }[];
+  subject?: string;
   semanticAuthority?: readonly string[];
   derivedMeaning?: AuthorDerivedMeaning;
   domainContext?: AuthorDomainContext;
@@ -506,6 +507,7 @@ export async function verifyAuthorCreativeGrounding(input: {
     "Never set supported=true because priorAudit.classification is KEEP_EXPRESSION or SUPPORTED_REALITY.",
     "Never treat priorAudit.sourceEventIds as proof. Supplied reality remains the truth authority.",
     "Unsupported concrete or mental reality must still be rejected even if priorAudit classified the span as KEEP_EXPRESSION.",
+    "In IDENTITY mode only, SUBJECT_NAME is supplied identity reality. The subject name may appear as a label, title-like line, callback, possessive, or rhetorical anchor, but the name itself authorizes no action, place, relationship, motive, preference, occurrence, or factual state beyond SUPPLIED_REALITY.",
     "Return exactly one verification for every atomic clause, preserving sceneIndex and clauseIndex.",
   ].join("\n");
 
@@ -516,6 +518,7 @@ export async function verifyAuthorCreativeGrounding(input: {
         role: "user",
         content: JSON.stringify({
           SUPPLIED_REALITY: input.suppliedReality,
+          SUBJECT_NAME: clean(input.subject),
           WORLD_CONTEXT: input.domainContext,
           APPROVED_SEMANTIC_AUTHORITY: input.semanticAuthority ?? [],
           DERIVED_MEANING: input.derivedMeaning ?? { kind: "DERIVED_MEANING", relations: [] },
