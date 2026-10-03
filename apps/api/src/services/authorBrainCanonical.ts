@@ -245,7 +245,7 @@ function makeReadout(input: {
 
 export type CanonicalAuthorResult = {
   readout: AuthorReadout;
-  scenes: AuthorScene[];
+  scenes: Array<AuthorScene & { sourceEventIds: string[] }>;
   sequence: SequencePlay;
   movie?: LatentMovieCandidate;
   realizationMode: "collection" | "state" | "sequence-film";
@@ -580,7 +580,11 @@ export async function authorBrainCanonical(
     verifiedCreative.scenes,
   );
 
-  const scenes = verifiedCreative.scenes.map(({ text, kind }) => ({ text, kind }));
+  const scenes = verifiedCreative.scenes.map(({ text, kind, sourceEventIds }) => ({
+    text,
+    kind,
+    sourceEventIds: [...sourceEventIds],
+  }));
   const complete = scenes.length > 0;
   const selection = selectionFromDiscovery(discoveryResult.discovery);
 

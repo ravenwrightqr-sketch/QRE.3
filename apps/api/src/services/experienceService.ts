@@ -13,6 +13,7 @@ import type {
   AuthorDomainContext,
   AuthorPlayoutMode,
   AuthorExperienceState,
+  ExperiencePlayout,
   ExperienceBeat,
   ExperiencePresenceContext,
   MemoryContext,
@@ -29,6 +30,7 @@ import { adaptAuthorExperienceState } from "./authorAdaptiveTempo.js";
 import { buildAuthorBehaviorProfile } from "./authorBehaviorProfile.js";
 import { buildAuthorExperienceState } from "./authorExperienceState.js";
 import { authorBrainCanonical } from "./authorBrainCanonical.js";
+import { composeExperiencePlayout } from "./experiencePlayout.js";
 import { buildAuthorRealityGraph } from "./authorRealityGraph.js";
 import { resolveSubjectTruth } from "./authorTruth.js";
 import { getCreativeLearningContext, learningContextLines } from "./creativeLearning.js";
@@ -71,6 +73,7 @@ export type CompiledExperienceResult = {
   memory?: { entities: number; facts: number; relations: number; events: number } | null;
   geo?: GeoAnchorInput | null;
   presence?: ExperiencePresenceContext | null;
+  playout?: ExperiencePlayout;
   playoutMode?: AuthorPlayoutMode;
   /** @deprecated Compatibility only. Prefer playoutMode. */
   movieMode?: boolean;
@@ -447,6 +450,7 @@ const authorInput: AuthorBrainTruth = {
   }
 }
   const sourceIds = canonical.sequence.cuts.map((cut) => [...cut.sourceIds]);
+  const playout = composeExperiencePlayout(canonical.scenes);
   const authoredScenes = canonical.scenes.map((scene) => ({ text: clean(scene.text), kind: scene.kind }));
   const beats = experienceBeats(authoredScenes, sourceIds);
   const renderedMoments = moments(authoredScenes, sourceIds);
@@ -573,6 +577,7 @@ const authorInput: AuthorBrainTruth = {
     memory,
     geo: input.geoAnchor ?? null,
     presence,
+    playout,
     playoutMode: requestedPlayoutMode,
     movieMode: requestedMovieMode,
     warnings,

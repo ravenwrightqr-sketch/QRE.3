@@ -80,6 +80,8 @@ Author beat = semantic / creative unit
 Text reveal = viewer pacing unit
 ```
 
+Current Playout v1 transports each final grounded Author scene as one TEXT item with source provenance. Playout owns presentation transport; it does not rewrite Author text, split sentences, add timing, place media, or choose a new treatment.
+
 Example Author beat:
 
 `Nervous before meeting Alex. Not a warning. A threshold.`

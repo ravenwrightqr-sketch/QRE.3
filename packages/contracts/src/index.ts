@@ -17,6 +17,7 @@ export * from "./author/index.js";
 export * from "./cognition/index.js";
 export * from "./reality/index.js";
 export * from "./media/index.js";
+export * from "./playout/index.js";
 export * from "./sponsorship/index.js";
 export * from "./intelligence/index.js";
 export * from "./mouth/index.js";

@@ -123,6 +123,8 @@ export type AuthorBrainTruth = {
 
 export type AuthorScene = {
   text: string;
+  /** Grounded reality provenance for this semantic Author scene. */
+  sourceEventIds?: string[];
   kind?: "line" | "hook" | "movement" | "discovery" | "turn" | "payoff" | "afterglow";
 };
 

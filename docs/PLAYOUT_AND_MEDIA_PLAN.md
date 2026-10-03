@@ -1,6 +1,6 @@
 # QRE PLAYOUT + MEDIA PLAN
 
-**Status:** next-layer architecture; not yet implemented
+**Status:** Playout v1 text transport implemented; media/timing/frontend remain future
 **Branch:** `fuck-you-bitch-is-awake`
 **Updated:** 2026-10-03
 
@@ -43,7 +43,24 @@ This is presentation splitting, not Author rewriting.
 
 ## Proposed item model
 
-Conceptually:
+Implemented v1 text-only contract:
+
+```ts
+type PlayoutTextItem = {
+  kind: "TEXT";
+  text: string;
+  sourceSceneIndex: number;
+  sourceEventIds: string[];
+};
+
+type PlayoutItem = PlayoutTextItem;
+
+type ExperiencePlayout = {
+  items: PlayoutItem[];
+};
+```
+
+Future media expansion remains conceptual:
 
 ```ts
 type PlayoutItem =
@@ -141,8 +158,8 @@ If text is semantically wrong, fix Author. If the text is right but paced badly,
 
 ## Build order
 
-1. Define `PlayoutItem` contract.
-2. Convert current final Author scenes/beats into TEXT items without behavior change.
+1. Define `PlayoutItem` contract. Implemented for TEXT in `packages/contracts/src/playout/`.
+2. Convert current final Author scenes/beats into TEXT items without behavior change. Implemented by deterministic Author scene -> TEXT transport.
 3. Add sentence/fragment reveal splitting with deterministic tests.
 4. Add timing metadata.
 5. Add IMAGE items with provenance.
