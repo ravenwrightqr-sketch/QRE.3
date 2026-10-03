@@ -4966,9 +4966,9 @@ export async function generateDirectAuthorMemoryProductions(input: {
 function buildDeterministicMouthFallback(
   plan: AuthorSemanticPlan,
   events: readonly AuthorCreativeEvent[],
-  memoryMode: boolean,
+  productionMajorMouth: boolean,
 ): string {
-  if (memoryMode) {
+  if (productionMajorMouth) {
     return JSON.stringify({
       productions: [
         {
@@ -5079,6 +5079,8 @@ export async function createAuthorExperience(input: {
     playableIds.has(clean(event.id)),
   );
   const isMemoryMode = experienceMode === "MEMORY";
+  const isIdentityMode = experienceMode === "IDENTITY";
+  const usesProductionMajorMouth = isMemoryMode || isIdentityMode;
   const directCreativeAuthorExperiment =
     isMemoryMode && directCreativeAuthorExperimentEnabled();
   const directAuthorRealityEditorExperiment =
@@ -5093,7 +5095,7 @@ export async function createAuthorExperience(input: {
     useDeterministicSparsePlan || useDeterministicRealityDirectMemoryPlan;
   const useIdentityClusterPlan =
     useDeterministicSparsePlan &&
-    experienceMode === "IDENTITY" &&
+    isIdentityMode &&
     selectedEvidence.length > 1;
 
   const planResult = useDeterministicPlan
@@ -5345,7 +5347,8 @@ export async function createAuthorExperience(input: {
   }
   // D is already built deterministically downstream. Mixing a literal control
   // into the expressive writing request invites all candidates to copy it.
-  const writingTreatmentAssignments = isMemoryMode && lensSearchEnabled
+  const usesWholeProductionSelection = isIdentityMode || (isMemoryMode && lensSearchEnabled);
+  const writingTreatmentAssignments = usesProductionMajorMouth && lensSearchEnabled
     ? expressiveMouthTreatmentAssignments({
         assignments: treatmentAssignmentsForMouth,
         privateConceptions: lensSearch.privateConceptions,
@@ -5377,7 +5380,7 @@ export async function createAuthorExperience(input: {
           text: buildDeterministicMouthFallback(
             plan,
             input.suppliedReality,
-            isMemoryMode,
+            usesProductionMajorMouth,
           ),
           model: "deterministic-bare-direct-author-fallback",
           provider: "local" as const,
@@ -5385,7 +5388,7 @@ export async function createAuthorExperience(input: {
       })
     : skipExpressiveMouth
     ? {
-        text: buildDeterministicMouthFallback(plan, input.suppliedReality, isMemoryMode),
+        text: buildDeterministicMouthFallback(plan, input.suppliedReality, usesProductionMajorMouth),
         model: "deterministic-bare-mouth-skip",
         provider: "local" as const,
       }
@@ -5477,6 +5480,17 @@ export async function createAuthorExperience(input: {
               : "Return one production object for each listed production identity. A/B/C may use as little of the supplied reality as their strongest perception requires. D is the factual control.",
             "For D, BEAT EVIDENCE IS ORDERED AUTHORITY. For A/B/C, order is expressive order and sourceEventIds are grounding authority.",
             "Keep factual chronology fixed. Expressive attention may compress, combine, omit, or select without tracking beat-by-beat chronology.",
+          ] : isIdentityMode ? [
+            "IDENTITY REALIZATION: keep the stable subject, participant/context information, preferences, relationships, recurring identity context, approved perception, supplied reality, and provenance alive as identity material.",
+            "Identity semantics are not Memory semantics. Do not pretend stable identity context is a new current occurrence, visit, action, or chronology.",
+            "Make the supported combination reveal character through implication, contrast, voice, relation, distinctive perspective, attitude, status, or playful self-presentation.",
+            "A/B/C are competing whole productions. Each production should explore a supported character read, not inventory the facts.",
+            "A production may be one semantic beat when the identity read lands in one compact thought. Do not split sentences for frontend reveal behavior.",
+            "Use stable preferences and relationships as creative pressure, but every concrete commitment remains inside supplied facts and each line's sourceEventIds.",
+            "Let the viewer connect the dots. Choose the production whose whole shape creates the strongest supported portrait.",
+            "D is the deterministic factual control/fallback and remains available outside the expressive productions.",
+            "Return production-major A/B/C expressive productions for the listed production identities. Runtime independently preserves deterministic Bare Reality D from the evidence arrangement.",
+            "For A/B/C, order is expressive order and sourceEventIds are grounding authority. Expressive attention may compress, combine, omit, or select without covering every fact.",
           ] : [
             "For each beat, produce materially different realizations. Let each make a supported character, relationship, or perception felt.",
             "An intentionally unused beat can carry empty text.",
@@ -5505,6 +5519,14 @@ export async function createAuthorExperience(input: {
               semanticMove: beat.change,
             })),
           }),
+          ...(isIdentityMode ? {
+            IDENTITY_CONTEXT: input.memory ?? [],
+            IDENTITY_MODE: {
+              subject: input.subject,
+              experienceMode,
+              domainContext: input.domainContext ?? {},
+            },
+          } : {}),
           CREATIVE_OPPORTUNITY: selected.perception,
           RELATION: selected.relationship,
           DERIVED_MEANING: input.creativeDiscovery.derivedMeaning ?? { kind: "DERIVED_MEANING", relations: [] },
@@ -5513,7 +5535,7 @@ export async function createAuthorExperience(input: {
           LENS_MODE: lensMode,
           REQUESTED_LENS: requestedLens || (autoBusinessLens ? "AUTO" : "NONE"),
           ...(!isMemoryMode ? { STORY_GRAVITY: lensSearch.storyGravity } : {}),
-          ...(isMemoryMode && lensSearchEnabled ? { PRIVATE_CREATIVE_FIELD: privateCreativeField } : {}),
+          ...(usesProductionMajorMouth && lensSearchEnabled ? { PRIVATE_CREATIVE_FIELD: privateCreativeField } : {}),
           CREATIVE_TREATMENTS: isMemoryMode
             ? writingTreatmentAssignments.map((assignment) => ({
                 production: assignment.production,
@@ -5522,26 +5544,28 @@ export async function createAuthorExperience(input: {
               }))
             : authorMouthCreativeTreatmentPayload(writingTreatmentAssignments),
           instruction: useIdentityClusterPlan
-            ? "Return four candidate realizations of this IDENTITY character cluster. Make personality felt through the supported combination, distinctive voice, and implication. Let the viewer connect the dots. Use no more language than each realization earns. Keep concrete reality inside supplied facts."
+            ? "Return candidate productions in PRODUCTION-MAJOR form for the listed CREATIVE_TREATMENTS only. Keep Identity semantics: make the stable supported combination reveal character through implication, voice, contrast, relation, and distinctive perspective. Do not turn stable identity context into a new current occurrence. Let A/B/C explore meaning rather than inventory. Keep concrete reality inside supplied facts and line sourceEventIds. Nominate the strongest expressive production. Runtime preserves D as factual fallback."
             : isMemoryMode
               ? realityDirect
                 ? "Return candidate productions in PRODUCTION-MAJOR form for the listed CREATIVE_TREATMENTS only. Make the perception felt through implication, voice, and contrast. Let A/B/C draw from the shared PRIVATE_CREATIVE_FIELD as far as supplied reality supports. Give the charged detail disproportionate significance and let the ending earn its implication. Keep concrete reality fixed. Unused facts remain in provenance. Nominate the strongest listed expressive production. Runtime preserves the factual control independently."
                 : "Return candidate productions in PRODUCTION-MAJOR form for the listed CREATIVE_TREATMENTS only. Make the perception felt through implication, voice, and contrast. Maximize meaningful inference while maintaining grounding. Let the supplied evidence earn the ending. Unused facts remain in provenance. Keep concrete reality fixed. Empty text is legal. Nominate the strongest viable expressive production by its production letter: A, B, or C. Preserve D as the factual fallback."
+              : isIdentityMode
+                ? "Return candidate productions in PRODUCTION-MAJOR form for the listed CREATIVE_TREATMENTS only. Make the supported identity combination reveal character through implication, voice, contrast, relation, and distinctive perspective. Stable preferences and relationships may inform character, but do not pretend they are new current events. A/B/C should explore meaning rather than inventory. Keep concrete reality fixed. Nominate the strongest viable expressive production by its production letter. Runtime preserves D as factual fallback."
               : "Return four candidate lines per beat. The semantic plan controls meaning; the supplied event IDs control factual reality.",
         }),
       },
     ]),
     "json",
     {
-      numPredict: isMemoryMode && lensSearchEnabled ? 1600 : 1050,
+      numPredict: usesProductionMajorMouth && lensSearchEnabled ? 1600 : 1050,
       temperature: isMemoryMode ? 0.96 : 0.86,
       jsonSchema: {
         type: "object",
         additionalProperties: false,
-        required: isMemoryMode
+        required: usesProductionMajorMouth
           ? ["productions", "selectedProduction", "selectionReason"]
           : ["variantsByBeat"],
-        properties: isMemoryMode
+        properties: usesProductionMajorMouth
           ? {
               productions: {
                 type: "array",
@@ -5614,7 +5638,7 @@ export async function createAuthorExperience(input: {
       text: buildDeterministicMouthFallback(
         plan,
         input.suppliedReality,
-        isMemoryMode,
+        usesProductionMajorMouth,
       ),
       model: "deterministic-bare-mouth-fallback",
       provider: "local" as const,
@@ -5810,18 +5834,18 @@ export async function createAuthorExperience(input: {
   }
 
   const variantsByOrder = new Map<number, string[]>();
-  const memoryMouthProductions: AuthorMemoryMouthProduction[] = [];
+  const productionMajorMouthProductions: AuthorMemoryMouthProduction[] = [];
 
-  if (isMemoryMode) {
+  if (usesProductionMajorMouth) {
     if (!Array.isArray(parsedMouth?.productions)) {
       mouthFallbackReason =
         mouthFallbackReason ||
-        "QRE MEMORY Mouth contract invalid: production-major productions are required";
+        `QRE ${isIdentityMode ? "IDENTITY" : "MEMORY"} Mouth contract invalid: production-major productions are required`;
       parsedMouth = parseJson(
         buildDeterministicMouthFallback(
           plan,
           input.suppliedReality,
-          true,
+          usesProductionMajorMouth,
         ),
       );
     }
@@ -5857,7 +5881,7 @@ export async function createAuthorExperience(input: {
           input.suppliedReality,
         );
 
-        if (lensSearchEnabled && variantIndex < 3) {
+        if (variantIndex < 3 && usesWholeProductionSelection) {
           if (!sourceEventIds.length) continue;
           variableLines.push({
             order,
@@ -5868,14 +5892,16 @@ export async function createAuthorExperience(input: {
           continue;
         }
 
-        const variants = [...(variantsByOrder.get(order) ?? ["", "", "", ""])];
-        while (variants.length < 4) variants.push("");
-        variants[variantIndex] = text;
-        variantsByOrder.set(order, variants.slice(0, 4));
+        if (isMemoryMode && !lensSearchEnabled) {
+          const variants = [...(variantsByOrder.get(order) ?? ["", "", "", ""])];
+          while (variants.length < 4) variants.push("");
+          variants[variantIndex] = text;
+          variantsByOrder.set(order, variants.slice(0, 4));
+        }
       }
 
-      if (lensSearchEnabled && variantIndex >= 0 && variantIndex < 3) {
-        memoryMouthProductions.push({
+      if (variantIndex >= 0 && variantIndex < 3) {
+        productionMajorMouthProductions.push({
           production: production as AuthorProductionLetter,
           lines: variableLines.sort((a, b) => a.order - b.order),
         });
@@ -5886,7 +5912,7 @@ export async function createAuthorExperience(input: {
     // production for contract compatibility, but its wording never competes.
     // The control is rebuilt directly from the supplied evidence so Bare
     // cannot smuggle interpretation, rhetoric, or invented state into reality.
-    if (lensSearchEnabled) {
+    if (usesWholeProductionSelection) {
       for (const beat of plan.beats) {
         const variants = [...(variantsByOrder.get(beat.order) ?? ["", "", "", ""])];
         while (variants.length < 4) variants.push("");
@@ -5946,36 +5972,38 @@ export async function createAuthorExperience(input: {
     selected: string;
   }> = [];
 
-  if (isMemoryMode) {
-    if (lensSearchEnabled) {
-      const selectedProductionRaw = clean(parsedMouth?.selectedProduction).toUpperCase();
-      let selection = selectMemoryProductionCandidate({
-        plan,
-        suppliedReality: input.suppliedReality,
-        subject: input.subject,
-        expressiveProductions: memoryMouthProductions,
-        assembledProductions: assembledMemoryProductions,
-        authorizedRealizationPool,
-        treatmentAssignments: treatmentAssignmentsForMouth,
-        selectedProduction: selectedProductionRaw,
-        lensSearchEnabled,
-        realityDirect,
-        minimumExpressiveCuts,
-      });
+  if (usesWholeProductionSelection) {
+    const selectedProductionRaw = clean(parsedMouth?.selectedProduction).toUpperCase();
+    let selection = selectMemoryProductionCandidate({
+      plan,
+      suppliedReality: input.suppliedReality,
+      subject: input.subject,
+      expressiveProductions: productionMajorMouthProductions,
+      assembledProductions: assembledMemoryProductions,
+      authorizedRealizationPool,
+      treatmentAssignments: treatmentAssignmentsForMouth,
+      selectedProduction: selectedProductionRaw,
+      lensSearchEnabled,
+      realityDirect,
+      minimumExpressiveCuts,
+    });
 
-      const repairTarget =
-        selection.nominatedAny &&
-        selection.nominatedAny.variantIndex < 3 &&
-        treatmentByVariantIndex.has(selection.nominatedAny.variantIndex)
-          ? selection.nominatedAny
-          : selection.internalProductions
-              .filter(
-                (production) =>
-                  production.variantIndex < 3 &&
-                  treatmentByVariantIndex.has(production.variantIndex) &&
-                  !production.accepted,
-              )
-              .sort((a, b) => b.score - a.score)[0];
+    const repairTarget = isMemoryMode
+      ? (
+          selection.nominatedAny &&
+          selection.nominatedAny.variantIndex < 3 &&
+          treatmentByVariantIndex.has(selection.nominatedAny.variantIndex)
+            ? selection.nominatedAny
+            : selection.internalProductions
+                .filter(
+                  (production) =>
+                    production.variantIndex < 3 &&
+                    treatmentByVariantIndex.has(production.variantIndex) &&
+                    !production.accepted,
+                )
+                .sort((a, b) => b.score - a.score)[0]
+        )
+      : undefined;
 
       if (repairTarget && !repairTarget.accepted) {
         const repair = await repairNominatedMemoryProduction({
@@ -5990,7 +6018,7 @@ export async function createAuthorExperience(input: {
 
         if (repair.replacements.size) {
           const repairLetter = productionLetterFromVariantIndex(repairTarget.variantIndex);
-          const repairedProductions = memoryMouthProductions.map((production) =>
+          const repairedProductions = productionMajorMouthProductions.map((production) =>
             production.production === repairLetter
               ? {
                   ...production,
@@ -6058,6 +6086,7 @@ export async function createAuthorExperience(input: {
       scenes.push(...selection.evaluation.scenes);
 
       debug("MEMORY-PRODUCTIONS", {
+        mode: isIdentityMode ? "IDENTITY" : "MEMORY",
         modelNomination: selectedProductionRaw || "NONE",
         modelSelectionReason: clean(parsedMouth?.selectionReason),
         winner: selectedMemoryProduction ?? "NONE",
@@ -6071,7 +6100,7 @@ export async function createAuthorExperience(input: {
           assemblyTruthResult?.scoring ??
           null,
       });
-    } else {
+  } else if (isMemoryMode) {
       const productions = [0, 1, 2, 3]
         .map((variantIndex) =>
           scoreMemorySequence(
@@ -6124,7 +6153,6 @@ export async function createAuthorExperience(input: {
           sourceEventIds: [...beat.eventIds],
         });
       }
-    }
   } else {
     const prior: string[] = [];
 
@@ -6217,9 +6245,11 @@ export async function createAuthorExperience(input: {
           lensSearch.treatmentSetAssessment.creativeSetComplete,
         renderable: lensSearch.treatmentSetAssessment.renderable,
       },
-      variantsByBeat: [...variantsByOrder.entries()]
-        .sort(([a], [b]) => a - b)
-        .map(([order, variants]) => ({ order, variants })),
+      variantsByBeat: isIdentityMode
+        ? []
+        : [...variantsByOrder.entries()]
+            .sort(([a], [b]) => a - b)
+            .map(([order, variants]) => ({ order, variants })),
       choices,
       selectedProduction: selectedMemoryProduction,
       mouthFallback: mouthFallbackReason

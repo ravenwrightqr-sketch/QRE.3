@@ -34,7 +34,7 @@ supplied reality / provenance
   -> Author scenes / cuts
 ```
 
-The Memory path has the newest production-major behavior. Identity still uses its older `variantsByBeat` writer/selector and must be unified next.
+Memory and Identity now share the production-major Mouth topology in source: A/B/C expressive productions plus deterministic D fallback, followed by whole-production selection. Identity retains its Identity-specific semantics and deterministic cluster plan when useful; live cross-case validation still needs to be refreshed after this change.
 
 ## What is proven working
 
@@ -162,7 +162,7 @@ Representative final behavior included:
 - Relationship: a valid single semantic beat can contain several reveal-worthy short sentences.
 - Milo Memory: variable multi-beat progression.
 - House / real estate: rhetorical runway/takeoff language grounded in supplied timing.
-- Milo Identity: rhetorically valid output, but still on the older Identity topology.
+- Milo Identity: rhetorically valid output in the prior run; source now routes Identity through production-major Mouth/selection, with refreshed live validation pending.
 
 ## Deterministic gates currently green
 
@@ -173,6 +173,7 @@ Representative final behavior included:
 - `scripts/verify-author-production-gate.mjs`
 - `scripts/verify-author-wow-architecture.mjs`
 - `apps/api/author-authorized-realization-assembly-regression.mjs`
+- `apps/api/author-identity-production-major-regression.mjs`
 - `git diff --check`
 
 ## Current infrastructure notes
@@ -182,7 +183,7 @@ OpenRouter validation used `openai/gpt-5.4-mini`. Local Ollama model IDs such as
 ## Definition of done for Author
 
 Author is done enough to hand off to Playout when:
-- Memory and Identity share the intended production-major writing/selection architecture.
+- Memory and Identity share the intended production-major writing/selection architecture and pass deterministic topology guards.
 - Creative treatment can be selected/preserved universally without literal invention.
 - Strong discovered expressive meaning survives all later stages unless rejected for truth.
 - Variable semantic sequence length remains earned.

@@ -10,6 +10,8 @@ This roadmap starts from checkpoint `e2971c82` plus the canonical doctrine in `A
 
 Goal: Identity keeps its subject/context semantics but stops using the older `variantsByBeat` + local selector as a separate writing topology.
 
+Current source state: Identity now enters the shared production-major Mouth contract and whole-production selection path while retaining Identity-specific semantic inputs. Refreshed live validation and broader regression coverage remain before checkpointing.
+
 Do:
 - move Identity onto the same production-major Author writing/selection architecture used by Memory where appropriate
 - retain Identity-specific subject, durable context, permissions, provenance, and world truth

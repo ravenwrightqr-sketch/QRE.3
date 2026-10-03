@@ -89,19 +89,94 @@ export type AuthorGroundingAtomicAuthority = {
   unsupportedClaims: string[];
 };
 
-function beatClauseFragments(text: string): string[] {
-  const fragments = clean(text)
-    .split(/(?<=[.!?])\s+|\s*[;|]\s*/g)
-    .map((part) => clean(part))
-    .filter(Boolean);
+type BeatClauseSegment = {
+  fragment: string;
+  clause: string;
+  start: number;
+  end: number;
+};
 
-  return fragments.length ? fragments.slice(0, 12) : [clean(text)].filter(Boolean);
+function beatClauseSegments(text: string): BeatClauseSegment[] {
+  const source = clean(text);
+  if (!source) return [];
+
+  const segments: BeatClauseSegment[] = [];
+  const boundary = /(?<=[.!?])\s+|\s*[;|]\s*/g;
+  let start = 0;
+  let match: RegExpExecArray | null;
+
+  while ((match = boundary.exec(source)) && segments.length < 12) {
+    const end = match.index;
+    const fragment = clean(source.slice(start, end));
+    if (fragment) {
+      segments.push({
+        fragment,
+        clause: clean(fragment.replace(/[.!?]+$/g, "")),
+        start,
+        end,
+      });
+    }
+    start = match.index + match[0].length;
+  }
+
+  if (segments.length < 12) {
+    const fragment = clean(source.slice(start));
+    if (fragment) {
+      segments.push({
+        fragment,
+        clause: clean(fragment.replace(/[.!?]+$/g, "")),
+        start,
+        end: source.length,
+      });
+    }
+  }
+
+  return segments.length
+    ? segments
+    : [{ fragment: source, clause: clean(source.replace(/[.!?]+$/g, "")), start: 0, end: source.length }];
+}
+
+function beatClauseFragments(text: string): string[] {
+  return beatClauseSegments(text).map((segment) => segment.fragment);
 }
 
 function beatClauses(text: string): string[] {
-  return beatClauseFragments(text)
-    .map((part) => clean(part.replace(/[.!?]+$/g, "")))
-    .filter(Boolean);
+  return beatClauseSegments(text).map((segment) => segment.clause).filter(Boolean);
+}
+
+function reconstructAcceptedClauseText(
+  text: string,
+  segments: readonly BeatClauseSegment[],
+  acceptedClauseIndexes: readonly number[],
+): string {
+  const source = clean(text);
+  const accepted = [...new Set(acceptedClauseIndexes)]
+    .filter((index) => Number.isInteger(index) && index >= 0 && index < segments.length)
+    .sort((a, b) => a - b);
+
+  if (!accepted.length) return "";
+  if (accepted.length === segments.length) return source;
+
+  const ranges: Array<{ start: number; end: number }> = [];
+  let previousIndex = -2;
+  for (const index of accepted) {
+    const segment = segments[index];
+    if (!segment) continue;
+    const prior = ranges[ranges.length - 1];
+    if (prior && index === previousIndex + 1) {
+      prior.end = segment.end;
+    } else {
+      ranges.push({ start: segment.start, end: segment.end });
+    }
+    previousIndex = index;
+  }
+
+  return clean(
+    ranges
+      .map((range) => clean(source.slice(range.start, range.end)))
+      .filter(Boolean)
+      .join(" "),
+  );
 }
 
 function auditSpanForFragment(
@@ -249,25 +324,26 @@ function applyAuthorGroundingVerificationsWithAuthority(input: {
   // Timing words are interpreted semantically by the verifier model and unsupported-claim reconciliation.
   // There is no second vocabulary-level veto here.
   const scenes = input.scenes.flatMap((scene, sceneIndex) => {
-    const fragments = beatClauseFragments(scene.text);
-    const clauses = beatClauses(scene.text);
+    const segments = beatClauseSegments(scene.text);
     const supportedIds = new Set<string>();
-    const supportedFragments: string[] = [];
+    const supportedClauseIndexes: number[] = [];
 
-    for (let clauseIndex = 0; clauseIndex < clauses.length; clauseIndex += 1) {
+    for (let clauseIndex = 0; clauseIndex < segments.length; clauseIndex += 1) {
       const authority = authorityByClause.get(`${sceneIndex}:${clauseIndex}`);
       if (!authority?.supported) continue;
 
-      const fragment = fragments[clauseIndex];
-      if (!fragment) continue;
-
-      supportedFragments.push(fragment);
+      supportedClauseIndexes.push(clauseIndex);
       authority.sourceEventIds.forEach((id) => supportedIds.add(id));
     }
 
-    if (!supportedFragments.length || !supportedIds.size) return [];
+    if (!supportedClauseIndexes.length || !supportedIds.size) return [];
 
-    const text = clean(supportedFragments.join(" "));
+    const text = reconstructAcceptedClauseText(
+      scene.text,
+      segments,
+      supportedClauseIndexes,
+    );
+    if (!text) return [];
 
     return [{
       ...scene,

@@ -223,8 +223,8 @@ mustContain(
 );
 mustContain(
   source,
-  /const writingTreatmentAssignments = isMemoryMode && lensSearchEnabled\s*\?\s*expressiveMouthTreatmentAssignments\(\{\s*assignments: treatmentAssignmentsForMouth,\s*privateConceptions: lensSearch\.privateConceptions,\s*selected,\s*suppliedReality: input\.suppliedReality,\s*\}\)\s*: treatmentAssignmentsForMouth;/s,
-  "Memory Lens Mouth must derive unconditional A/B/C writing identities independently of accepted treatment count",
+  /const writingTreatmentAssignments = usesProductionMajorMouth && lensSearchEnabled\s*\?\s*expressiveMouthTreatmentAssignments\(\{\s*assignments: treatmentAssignmentsForMouth,\s*privateConceptions: lensSearch\.privateConceptions,\s*selected,\s*suppliedReality: input\.suppliedReality,\s*\}\)\s*: treatmentAssignmentsForMouth;/s,
+  "Production-major Mouth must derive unconditional A/B/C writing identities independently of accepted treatment count",
 );
 mustContain(
   source,
@@ -243,7 +243,7 @@ mustContain(
 );
 mustContain(
   mouthPayload,
-  /\.\.\.\(isMemoryMode && lensSearchEnabled \? \{ PRIVATE_CREATIVE_FIELD: privateCreativeField \} : \{\}\),\s*CREATIVE_TREATMENTS:/,
+  /\.\.\.\(usesProductionMajorMouth && lensSearchEnabled \? \{ PRIVATE_CREATIVE_FIELD: privateCreativeField \} : \{\}\),\s*CREATIVE_TREATMENTS:/,
   "Mouth payload must send PRIVATE_CREATIVE_FIELD as one shared top-level field before public treatments",
 );
 mustContain(
