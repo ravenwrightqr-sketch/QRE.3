@@ -1,6 +1,10 @@
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
-import { composeExperiencePlayout } from "./src/services/experiencePlayout.ts";
+import {
+  composeExperiencePlayout,
+  reconstructPlayoutSceneText,
+  splitAuthorSceneTextForPlayout,
+} from "./src/services/experiencePlayout.ts";
 
 function keys(value) {
   return Object.keys(value).sort();
@@ -10,11 +14,12 @@ const single = composeExperiencePlayout([
   { text: "Nervous first.", kind: "hook", sourceEventIds: ["event-1"] },
 ]);
 
-assert.equal(single.items.length, 1, "one Author scene must become one TEXT item");
+assert.equal(single.items.length, 1, "one single-sentence Author scene must become one TEXT item");
 assert.deepEqual(single.items[0], {
   kind: "TEXT",
   text: "Nervous first.",
   sourceSceneIndex: 0,
+  revealIndex: 0,
   sourceEventIds: ["event-1"],
 });
 
@@ -34,10 +39,15 @@ assert.deepEqual(
   [0, 1, 2],
   "source scene indexes must preserve Author scene order",
 );
+assert.deepEqual(
+  multiple.items.map((item) => item.revealIndex),
+  [0, 0, 0],
+  "single-reveal scenes must each start at revealIndex zero",
+);
 assert.equal(
   multiple.items.length,
   3,
-  "Author scene count and Playout item count must match normal text-only v1 input",
+  "one-sentence scenes still transport one item each",
 );
 
 const punctuation = "Wait... the bow stayed? No: Coco left happy!";
@@ -45,7 +55,7 @@ const punctuationPlayout = composeExperiencePlayout([
   { text: punctuation, sourceEventIds: ["event-4"] },
 ]);
 assert.equal(
-  punctuationPlayout.items[0]?.text,
+  reconstructPlayoutSceneText(punctuationPlayout.items.map((item) => item.text)),
   punctuation,
   "exact text and punctuation must survive unchanged",
 );
@@ -54,12 +64,58 @@ const multiSentence = "First the bow said hello. Coco said no. Then Coco left ha
 const multiSentencePlayout = composeExperiencePlayout([
   { text: multiSentence, sourceEventIds: ["event-1", "event-2", "event-3"] },
 ]);
-assert.equal(multiSentencePlayout.items.length, 1, "multi-sentence scene must stay ONE item in v1");
-assert.equal(multiSentencePlayout.items[0]?.text, multiSentence);
+assert.equal(multiSentencePlayout.items.length, 3, "multi-sentence scene must split into deterministic v2 reveals");
 assert.deepEqual(
-  multiSentencePlayout.items[0]?.sourceEventIds,
-  ["event-1", "event-2", "event-3"],
+  multiSentencePlayout.items.map((item) => item.text),
+  ["First the bow said hello. ", "Coco said no. ", "Then Coco left happy."],
+  "reveal text must preserve exact punctuation and separating whitespace",
+);
+assert.deepEqual(
+  multiSentencePlayout.items.map((item) => item.sourceSceneIndex),
+  [0, 0, 0],
+  "split reveals must point back to the same semantic Author scene",
+);
+assert.deepEqual(
+  multiSentencePlayout.items.map((item) => item.revealIndex),
+  [0, 1, 2],
+  "split reveals must be ordered within their source scene",
+);
+assert.deepEqual(
+  multiSentencePlayout.items.map((item) => item.sourceEventIds),
+  [
+    ["event-1", "event-2", "event-3"],
+    ["event-1", "event-2", "event-3"],
+    ["event-1", "event-2", "event-3"],
+  ],
   "provenance must survive unchanged",
+);
+assert.equal(
+  reconstructPlayoutSceneText(multiSentencePlayout.items.map((item) => item.text)),
+  multiSentence,
+  "concatenating reveal texts for a scene must reconstruct original Author text exactly",
+);
+
+const abbreviationScene = "Dr. Coco arrived at 9.5 minutes. Then the bow said hello.";
+const abbreviationReveals = splitAuthorSceneTextForPlayout(abbreviationScene);
+assert.deepEqual(
+  abbreviationReveals,
+  ["Dr. Coco arrived at 9.5 minutes. ", "Then the bow said hello."],
+  "splitter must avoid obvious abbreviation/decimal period splits",
+);
+assert.equal(reconstructPlayoutSceneText(abbreviationReveals), abbreviationScene);
+
+const newlineScene = "Nervous first.\nThen came the bow.\nThe bow was not.";
+const newlinePlayout = composeExperiencePlayout([
+  { text: newlineScene, sourceEventIds: ["event-7"] },
+]);
+assert.deepEqual(
+  newlinePlayout.items.map((item) => item.text),
+  ["Nervous first.\n", "Then came the bow.\n", "The bow was not."],
+  "explicit Author line breaks are deterministic reveal boundaries",
+);
+assert.equal(
+  reconstructPlayoutSceneText(newlinePlayout.items.map((item) => item.text)),
+  newlineScene,
 );
 
 const hinted = composeExperiencePlayout([
@@ -75,7 +131,7 @@ const hinted = composeExperiencePlayout([
 
 assert.deepEqual(
   keys(hinted.items[0]),
-  ["kind", "sourceEventIds", "sourceSceneIndex", "text"],
+  ["kind", "revealIndex", "sourceEventIds", "sourceSceneIndex", "text"],
   "Playout TEXT items must not invent or transport timing/transition/audio/visual metadata",
 );
 assert.equal("durationHintMs" in hinted.items[0], false, "no timing metadata may be invented");
@@ -140,4 +196,4 @@ assert.match(
   "compiled experience result must expose additive playout output",
 );
 
-console.log("AUTHOR PLAYOUT TEXT TRANSPORT GREEN - SCENE TEXT/PROVENANCE - NO SPLITTING - OFFLINE");
+console.log("AUTHOR PLAYOUT TEXT TRANSPORT GREEN - DETERMINISTIC REVEALS - EXACT RECONSTRUCTION - OFFLINE");

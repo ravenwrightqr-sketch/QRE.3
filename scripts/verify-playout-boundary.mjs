@@ -22,6 +22,18 @@ assert.match(
   "current Playout contract must be exported from @qre/contracts",
 );
 
+const playoutContract = read("packages/contracts/src/playout/playout.ts");
+assert.match(
+  playoutContract,
+  /revealIndex: number;/,
+  "TEXT Playout items must carry deterministic revealIndex within their source scene",
+);
+assert.doesNotMatch(
+  playoutContract,
+  /\b(?:duration|durationHintMs|transition|animation|audio|visual|camera)\b/,
+  "Playout v2 reveal contract must not add timing, transition, animation, audio, visual, or camera metadata",
+);
+
 const authorBrain = read("packages/contracts/src/author/authorBrain.ts");
 assert.doesNotMatch(
   authorBrain,
@@ -61,6 +73,21 @@ assert.doesNotMatch(
   playoutSource,
   /cinematic|Cinematic|movie|Movie/,
   "ExperiencePlayout must not import or depend on old Cinematic/Movie authoring vocabulary",
+);
+assert.match(
+  playoutSource,
+  /splitAuthorSceneTextForPlayout/,
+  "ExperiencePlayout must own deterministic reveal splitting",
+);
+assert.match(
+  playoutSource,
+  /reconstructPlayoutSceneText/,
+  "ExperiencePlayout must expose the exact reconstruction rule",
+);
+assert.match(
+  playoutSource,
+  /revealIndex/,
+  "ExperiencePlayout output must include revealIndex",
 );
 
 const experienceService = read("apps/api/src/services/experienceService.ts");

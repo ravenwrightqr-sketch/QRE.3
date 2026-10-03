@@ -1,6 +1,6 @@
 # QRE PLAYOUT + MEDIA PLAN
 
-**Status:** Playout v1 text transport implemented; media/timing/frontend remain future
+**Status:** Playout v2 deterministic TEXT reveal splitting implemented; media/timing/frontend remain future
 **Branch:** `fuck-you-bitch-is-awake`
 **Updated:** 2026-10-03
 
@@ -43,13 +43,14 @@ This is presentation splitting, not Author rewriting.
 
 ## Proposed item model
 
-Implemented v1 text-only contract:
+Implemented v2 text-only contract:
 
 ```ts
 type PlayoutTextItem = {
   kind: "TEXT";
   text: string;
   sourceSceneIndex: number;
+  revealIndex: number;
   sourceEventIds: string[];
 };
 
@@ -112,15 +113,14 @@ Rules:
 
 ## Reveal splitting
 
-Initial splitter may consider:
+Implemented v2 splitter:
 - explicit Author line breaks
 - sentence boundaries
-- rhetorical short fragments
 - question/exclamation boundaries
-- readability length
-- nearby media insertion points
 
-Do not blindly split every period. Preserve rhetorical units when a sentence pair depends on immediate adjacency.
+The reconstruction rule is direct concatenation of reveal `text` values for the same `sourceSceneIndex` ordered by `revealIndex`. That reconstructed string must equal the original Author scene exactly. The splitter avoids obvious abbreviation, decimal, and ellipsis period splits.
+
+Future splitting may consider rhetorical short fragments, readability length, and nearby media insertion points. Do not blindly split every period. Preserve rhetorical units when a sentence pair depends on immediate adjacency.
 
 ## Timing
 
@@ -160,7 +160,7 @@ If text is semantically wrong, fix Author. If the text is right but paced badly,
 
 1. Define `PlayoutItem` contract. Implemented for TEXT in `packages/contracts/src/playout/`.
 2. Convert current final Author scenes/beats into TEXT items without behavior change. Implemented by deterministic Author scene -> TEXT transport.
-3. Add sentence/fragment reveal splitting with deterministic tests.
+3. Add sentence/fragment reveal splitting with deterministic tests. Implemented for line and sentence boundaries without rewriting text.
 4. Add timing metadata.
 5. Add IMAGE items with provenance.
 6. Add VIDEO items.

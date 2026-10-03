@@ -47,4 +47,4 @@ When documents disagree:
 
 ## Current checkpoint
 
-The Author checkpoint committed at `e2971c82` preserves strong authorized expressive realizations through synthesis. The next architecture task is Identity unification, followed by universal treatment/stance preservation and deterministic AUTO treatment selection, then `ExperiencePlayout` / `SequenceComposer` with sentence-level reveals and supplied media.
+The current Playout checkpoint keeps Author semantics separate from presentation and adds deterministic TEXT reveal splitting. Remaining presentation work is timing, IMAGE/VIDEO composition, frontend Playout rendering, and item-level analytics.

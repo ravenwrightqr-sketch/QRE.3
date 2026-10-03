@@ -15,7 +15,7 @@ Playout reveal count = viewer pacing.
 
 Sequence length is earned, with no fixed Author beat count. Beats should progressively develop meaning through setup, contrast, turn, payoff, and optional aftershock when those moves earn their place. The synthesizer should prioritize phone readability without mechanical word counting, avoid event coverage as a goal, and let supplied reality selectively support expressive perspective.
 
-An **Author beat** is a semantic/creative unit, not necessarily a frontend text reveal. Current canonical playout maps each scene to one sequence cut and then to one beat/moment. A scene containing multiple short sentences remains one current cut; a future Playout layer may split it into ordered text reveals. Media belongs in that future presentation layer, not in Author text-count rules.
+An **Author beat** is a semantic/creative unit, not necessarily a frontend text reveal. Current canonical playout preserves each Author scene as the semantic source and may split it into ordered TEXT reveal items. Media belongs in a future presentation layer, not in Author text-count rules.
 
 ## Case Results
 
@@ -66,7 +66,7 @@ An **Author beat** is a semantic/creative unit, not necessarily a frontend text 
 - Raw synthesizer: “Before Alex: nerves. / The conversation didn’t. / That’s the whole trick. / After Alex: air. / Next week, again. / So it was never the wall.” Synthesis eligibility was false: `invented-concrete-reality`.
 - Winner / final: production A; one Author beat containing “Nervous before meeting Alex. Not a warning. A threshold. The meeting was hard to enter, not hard to sustain.”
 - Canonical grounding: four captured clauses; zero with unsupported claims. Model calls: 15. Camera recovery: NOT CAPTURED.
-- Assessment: PASS with a stage limitation. The invalid synthesizer candidate was rejected and production A survived. Its four short sentences are one current Author beat, not four current frontend reveals; future Playout may separate those reveals. The failed synthesis candidate is not evidence that a six-line output is required.
+- Assessment: PASS with a stage limitation. The invalid synthesizer candidate was rejected and production A survived. Its four short sentences are one current Author beat; Playout may separate those presentation reveals without changing the Author beat. The failed synthesis candidate is not evidence that a six-line output is required.
 - Log: [RELATIONSHIP.log](../.qre-debug/author-final-validation-20261002-200910511/RELATIONSHIP.log)
 
 ### MILO_MEMORY
@@ -89,7 +89,7 @@ An **Author beat** is a semantic/creative unit, not necessarily a frontend text 
 - Claim Auditor, pool, assembler, synthesizer, synthesis eligibility, and production winner: NOT CAPTURED; they did not run.
 - Final: “Walks and bacon sit on the same shelf for Milo. No hierarchy, no apology.” One Author beat with two short sentences.
 - Canonical grounding: two captured clauses; zero with unsupported claims. Model calls: 10. Camera recovery: NOT CAPTURED.
-- Assessment: PASS for this Identity fixture, not a validation of the experimental stack. The rhetorical character read survived local selection. The single scene contains two sentences; a future Playout layer may reveal them separately.
+- Assessment: PASS for this Identity fixture, not a validation of the experimental stack. The rhetorical character read survived local selection. The single scene contains two sentences; Playout may reveal them separately.
 - Log: [MILO.log](../.qre-debug/author-final-validation-20261002-200910511/MILO.log)
 
 ### HOUSE / REAL ESTATE
@@ -122,7 +122,7 @@ An **Author beat** is a semantic/creative unit, not necessarily a frontend text 
 - Housekeeping shows synthesis can flatten the assembler’s stronger attitude into event coverage.
 - Relationship synthesis was rejected by truth evaluation; the fallback worked in this run.
 - Camera recovery activation is not captured.
-- Current renderer preserves one scene/cut per Author beat. Splitting multi-sentence beats into timed text reveals belongs to future `ExperiencePlayout` / `SequenceComposer`, alongside ordered TEXT / IMAGE / VIDEO items.
+- Current Playout preserves one semantic Author scene while allowing deterministic TEXT reveal splitting. Timed reveals, IMAGE, and VIDEO items remain future `ExperiencePlayout` / `SequenceComposer` work.
 - The build still has unrelated TypeScript errors in `authorCreativeDiscovery.ts`; previously observed stale Reality Editor/Claim Auditor regression assertions are not fixed here.
 
 ## Housekeeping Preservation Correction
