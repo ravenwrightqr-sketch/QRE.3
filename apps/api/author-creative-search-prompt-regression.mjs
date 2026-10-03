@@ -9,13 +9,26 @@ assert.ok(promptStart >= 0, "Creative Search prompt not found");
 assert.ok(promptEnd > promptStart, "Creative Search prompt end not found");
 
 const prompt = source.slice(promptStart, promptEnd + 80);
-const userInstructionStart = source.indexOf("Return exactly three independent notices.", promptEnd);
+const userInstructionStart = source.indexOf("Return exactly eight independent notices.", promptEnd);
 const userInstruction = source.slice(userInstructionStart, userInstructionStart + 700);
 const schemaStart = source.indexOf("jsonSchema:", userInstructionStart);
 const schemaEnd = source.indexOf(").catch", schemaStart);
 assert.ok(schemaStart > userInstructionStart, "Creative Search schema not found");
 assert.ok(schemaEnd > schemaStart, "Creative Search schema end not found");
 const schema = source.slice(schemaStart, schemaEnd);
+const mouthPromptStart = source.indexOf('"You are QRE Mouth."');
+const mouthPayloadStart = source.indexOf("content: JSON.stringify({", mouthPromptStart);
+const mouthPayloadEnd = source.indexOf("instruction:", mouthPayloadStart);
+const mouthSchemaStart = source.indexOf("jsonSchema:", mouthPayloadEnd);
+const mouthSchemaEnd = source.indexOf(").catch", mouthSchemaStart);
+assert.ok(mouthPromptStart >= 0, "Mouth prompt not found");
+assert.ok(mouthPayloadStart > mouthPromptStart, "Mouth payload not found");
+assert.ok(mouthPayloadEnd > mouthPayloadStart, "Mouth payload end not found");
+assert.ok(mouthSchemaStart > mouthPayloadEnd, "Mouth schema not found");
+assert.ok(mouthSchemaEnd > mouthSchemaStart, "Mouth schema end not found");
+const mouthPromptAndPayload = source.slice(mouthPromptStart, mouthPayloadEnd + 1200);
+const mouthPayload = source.slice(mouthPayloadStart, mouthPayloadEnd);
+const mouthSchema = source.slice(mouthSchemaStart, mouthSchemaEnd);
 
 function mustContain(text, pattern, label) {
   assert.match(text, pattern, label);
@@ -97,8 +110,8 @@ mustContain(
 );
 mustContain(
   userInstruction,
-  /exactly three independent notices/i,
-  "Creative Search must keep exactly three independent notices",
+  /exactly eight independent notices/i,
+  "Creative Search must keep exactly eight private notices",
 );
 mustContain(
   userInstruction,
@@ -120,8 +133,8 @@ mustContain(
 );
 mustContain(
   schema,
-  /minItems:\s*3,\s*\n\s*maxItems:\s*3,/,
-  "Creative Search schema must still require exactly three notices",
+  /minItems:\s*8,\s*\n\s*maxItems:\s*8,/,
+  "Creative Search schema must require exactly eight private notices",
 );
 mustContain(
   schema,
@@ -155,18 +168,188 @@ mustContain(
 );
 mustContain(
   source,
-  /creativePressure:\s*conception,/,
+  /export type AuthorCreativePrivateConception = \{\s*id: string;\s*sourceCandidateId: string;\s*evidenceEventIds: string\[\];\s*conception: string;\s*\};/s,
+  "Creative Search must expose a typed private conception record",
+);
+mustContain(
+  source,
+  /privateConceptions:\s*AuthorCreativePrivateConception\[\];/,
+  "Creative Search result must carry privateConceptions",
+);
+mustContain(
+  source,
+  /const privateConceptions:\s*AuthorCreativePrivateConception\[\]\s*=\s*rawNotices[\s\S]*?\.slice\(0,\s*8\);/,
+  "Creative Search parsing must preserve up to eight private conceptions",
+);
+mustContain(
+  source,
+  /const modelTreatments:\s*AuthorCreativeTreatment\[\]\s*=\s*privateConceptions\s*[\r\n]+\s*\.slice\(0,\s*3\)/,
+  "Public treatments must derive only from the first three private conceptions",
+);
+mustContain(
+  source,
+  /creativePressure:\s*privateConception\.conception,/,
   "Creative Search conception must still reach downstream treatments",
 );
 mustContain(
   source,
-  /treatment:\s*conception,/,
+  /treatment:\s*privateConception\.conception,/,
   "Creative Search conception must still reach Mouth as treatment",
 );
 mustContain(
   source,
-  /perceptionDelta:\s*conception,/,
+  /perceptionDelta:\s*privateConception\.conception,/,
   "Creative Search conception must still reach Mouth as perception delta",
 );
+mustContain(
+  source,
+  /const generatedExpressiveCount = modelTreatments\.length;/,
+  "Public expressive treatment width must be counted from public model treatments only",
+);
+mustContain(
+  source,
+  /const privateCreativeField = lensSearch\.privateConceptions\.map\(\(conception\) => \(\{\s*id: conception\.id,\s*sourceCandidateId: conception\.sourceCandidateId,\s*evidenceEventIds: \[\.\.\.conception\.evidenceEventIds\],\s*conception: conception\.conception,\s*\}\)\);/s,
+  "Mouth handoff must normalize the shared private creative field without inventing provenance",
+);
+mustContain(
+  source,
+  /const parsedTreatments:\s*AuthorCreativeTreatment\[\]\s*=\s*lensSearchEnabled\s*\?\s*\[\.\.\.modelTreatments,\s*deterministicBareTreatment\]\s*:\s*\[\];/,
+  "Bare D must remain a separate deterministic fourth treatment",
+);
+mustContain(
+  source,
+  /id:\s*"treatment-4",\s*[\r\n]+\s*sourceCandidateId:\s*"bare",/,
+  "Bare D must keep deterministic treatment-4 identity",
+);
+mustContain(
+  source,
+  /const writingTreatmentAssignments = isMemoryMode && lensSearchEnabled\s*\?\s*expressiveMouthTreatmentAssignments\(\{\s*assignments: treatmentAssignmentsForMouth,\s*privateConceptions: lensSearch\.privateConceptions,\s*selected,\s*suppliedReality: input\.suppliedReality,\s*\}\)\s*: treatmentAssignmentsForMouth;/s,
+  "Memory Lens Mouth must derive unconditional A/B/C writing identities independently of accepted treatment count",
+);
+mustContain(
+  source,
+  /const AUTHOR_EXPRESSIVE_PRODUCTIONS = \["A", "B", "C"\] as const;/,
+  "Memory Lens Mouth must keep public expressive production identities fixed at A/B/C",
+);
+mustContain(
+  source,
+  /accepted \?\? fallbackMouthTreatmentAssignment/,
+  "Rejected treatment metadata must not delete the public A/B/C Mouth slot",
+);
+mustContain(
+  source,
+  /CREATIVE_TREATMENTS:\s*isMemoryMode\s*\?\s*writingTreatmentAssignments\.map/,
+  "Mouth-facing CREATIVE_TREATMENTS must still come from public writing assignments",
+);
+mustContain(
+  mouthPayload,
+  /\.\.\.\(isMemoryMode && lensSearchEnabled \? \{ PRIVATE_CREATIVE_FIELD: privateCreativeField \} : \{\}\),\s*CREATIVE_TREATMENTS:/,
+  "Mouth payload must send PRIVATE_CREATIVE_FIELD as one shared top-level field before public treatments",
+);
+mustContain(
+  mouthPayload,
+  /CREATIVE_TREATMENTS:\s*isMemoryMode\s*\?\s*writingTreatmentAssignments\.map\(\(assignment\) => \(\{\s*production: assignment\.production,\s*conception: assignment\.treatment,\s*evidenceEventIds: assignment\.evidenceEventIds,\s*\}\)\)/s,
+  "Mouth public treatment identities must remain A/B/C anchors with their existing assignment shape",
+);
+mustContain(
+  source,
+  /Nominate the strongest viable expressive production by its production letter: A, B, or C\./,
+  "Mouth-facing expressive production contract must remain A/B/C",
+);
+mustContain(
+  mouthSchema,
+  /minItems: lensSearchEnabled \? 3 : 4,\s*maxItems: lensSearchEnabled \? 3 : 4,/,
+  "Mouth output schema must request exactly A/B/C in Memory Lens mode regardless of accepted treatment count",
+);
+mustContain(
+  mouthSchema,
+  /production:\s*\{ type: "string", enum: lensSearchEnabled \? \["A", "B", "C"\] : \["A", "B", "C", "D"\] \}/,
+  "Mouth output production enum must remain A/B/C when lens search is enabled",
+);
+mustContain(
+  mouthSchema,
+  /selectedProduction:\s*\{\s*type: "string",\s*enum: lensSearchEnabled \? \["A", "B", "C"\] : \["A", "B", "C", "D"\],\s*\}/,
+  "Mouth selectedProduction enum must remain A/B/C when lens search is enabled",
+);
+mustContain(
+  mouthSchema,
+  /required: \["order", "text", "sourceEventIds"\]/,
+  "Mouth lines must still declare their own sourceEventIds",
+);
+mustContain(
+  mouthPromptAndPayload,
+  /PRIVATE_CREATIVE_FIELD is shared across A\/B\/C; each production may combine, ignore, reinterpret, or recontextualize entries from the field\./,
+  "Mouth prompt must make the private creative field shared across A/B/C",
+);
+mustContain(
+  mouthPromptAndPayload,
+  /PRIVATE_CREATIVE_FIELD is optional creative cognition\. Mouth may use it, combine it, ignore it, or discover a stronger rhetorical stance directly from SUPPLIED_REALITY\./,
+  "Mouth prompt must make the private creative field optional rather than the sole creative source",
+);
+mustContain(
+  mouthPromptAndPayload,
+  /Before writing, silently choose the most interesting rhetorical stance available inside the authorized world\./,
+  "Mouth prompt must restore the recent rhetorical stance operating condition",
+);
+mustContain(
+  mouthPromptAndPayload,
+  /A rhetorical speaker is not necessarily the factual actor\./,
+  "Mouth prompt must distinguish rhetorical speaker from factual actor",
+);
+mustContain(
+  mouthPromptAndPayload,
+  /The subject, an object or detail already present in supplied reality, or an outside narrator may temporarily carry rhetorical attitude without becoming a literal factual speaker\./,
+  "Mouth prompt must allow nonliteral rhetorical attitude carriers",
+);
+mustContain(
+  mouthPromptAndPayload,
+  /Rhetorical speech, personification, opinion, judgment, social observation, attitude, implication, comparison, and self-aware contradiction are discourse, not documentary events\./,
+  "Mouth prompt must preserve discourse/documentary boundary",
+);
+mustContain(
+  mouthPromptAndPayload,
+  /Convert authorized meaning into attitude, humor, rhetorical POV, judgment, implication, contradiction, comparison, personification, object\/subject voice, generalized or social observation, or sharp observation when reality supports it\./,
+  "Mouth prompt must restore attitude realization modes",
+);
+mustContain(
+  mouthPromptAndPayload,
+  /The viewer should experience the attitude, not receive an explanation of the attitude\./,
+  "Mouth prompt must prefer performed attitude over explanation",
+);
+mustContain(
+  mouthPromptAndPayload,
+  /Prefer a line that has a point of view over a line that merely describes significance\./,
+  "Mouth prompt must prefer point of view over significance explanation",
+);
+mustContain(
+  mouthPromptAndPayload,
+  /Prefer specific attitude arising from this event over generic cleverness\./,
+  "Mouth prompt must prefer event-specific attitude",
+);
+mustContain(
+  mouthPromptAndPayload,
+  /Do not simply copy PRIVATE_CREATIVE_FIELD wording\./,
+  "Mouth prompt must forbid copying private field wording as public copy",
+);
+mustContain(
+  mouthPromptAndPayload,
+  /public factual commitments remain controlled by SUPPLIED_REALITY and each line's sourceEventIds/,
+  "Mouth prompt must keep factual authority on supplied reality and line sourceEventIds",
+);
+mustNotContain(
+  mouthPromptAndPayload,
+  /assigned conception/i,
+  "Mouth prompt must not preserve one-assigned-conception exclusivity",
+);
+mustContain(
+  source,
+  /privateConceptions:\s*lensSearch\.privateConceptions,/,
+  "Creative Search diagnostics must expose privateConceptions",
+);
+mustNotContain(
+  source,
+  /parsedTreatments[\s\S]{0,160}privateConceptions[\s\S]{0,80}deterministicBareTreatment/,
+  "Private conceptions must not be promoted wholesale into public treatments",
+);
 
-console.log("AUTHOR CREATIVE SEARCH PROMPT GREEN - NO ATTENTION FIELD - PROVENANCE ONLY - THREE CONCEPTIONS");
+console.log("AUTHOR CREATIVE SEARCH PROMPT GREEN - NO ATTENTION FIELD - PROVENANCE ONLY - EIGHT PRIVATE CONCEPTIONS - THREE PUBLIC TREATMENTS");

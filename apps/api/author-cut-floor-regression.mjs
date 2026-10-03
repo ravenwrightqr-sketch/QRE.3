@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { evaluateAuthorCut } from "./dist/services/authorCutFloor.js";
+import { evaluateAuthorCut } from "./src/services/authorCutFloor.js";
 
 function reasonsFor(text, facts = ["The visit happened."]) {
   return evaluateAuthorCut(text, {
@@ -10,6 +10,25 @@ function reasonsFor(text, facts = ["The visit happened."]) {
       "short visit",
       "long meeting",
       "duration characterization",
+    ],
+  }).reasons;
+}
+
+function cameraReasonsFor(text) {
+  return evaluateAuthorCut(text, {
+    subject: "Maple Street house",
+    facts: [
+      "Front porch photographed on Thursday.",
+      "Afternoon showing.",
+      "Open house on Saturday.",
+      "Offer came Monday.",
+      "Jessica is the listing agent.",
+      "The porch camera caught the delivery.",
+    ],
+    semanticAuthority: [
+      "the house got attention first",
+      "the porch created the first impression",
+      "the timeline made Jessica look caught by events",
     ],
   }).reasons;
 }
@@ -49,4 +68,45 @@ assert.ok(
   "a supplied temporal comparison should not be rejected as unsupported",
 );
 
-console.log("AUTHOR CUT FLOOR REGRESSION GREEN - TEMPORAL COMPARISON IS COMPARATIVE");
+for (const text of [
+  "The Maple Street house got its close-up first.",
+  "The porch stole the spotlight.",
+  "The open house became the second act.",
+  "The listing had already taken its shot.",
+  "The whole thing felt staged by the calendar.",
+  "Jessica got framed by the timeline, not by the camera.",
+  "The porch camera caught the delivery.",
+]) {
+  assert.ok(
+    !cameraReasonsFor(text).includes("camera-language"),
+    `ordinary rhetorical or world-object language must not trigger camera-language: ${text}`,
+  );
+}
+
+for (const text of [
+  "Close-up on the house.",
+  "The camera pans across the porch.",
+  "Cut to the front door.",
+  "Fade to the kitchen.",
+  "We see Jessica enter.",
+  "The scene opens on the porch.",
+  "Final shot: the Monday offer.",
+  "Zoom in on the listing photo.",
+  "The camera lingers on the porch.",
+  "We open on the house.",
+  "A wide shot of the front door.",
+  "Frame Jessica beside the sign.",
+  "Camera: pan across the porch.",
+  "EXT. MAPLE STREET - DAY",
+  "INT. KITCHEN - NIGHT",
+  "The porch got its close-up first, then we fade to Monday.",
+  "The house stole the spotlight. Cut to the front door.",
+  "Jessica got framed by the timeline. The camera pans across the porch.",
+]) {
+  assert.ok(
+    cameraReasonsFor(text).includes("camera-language"),
+    `presentation machinery must trigger camera-language: ${text}`,
+  );
+}
+
+console.log("AUTHOR CUT FLOOR REGRESSION GREEN");

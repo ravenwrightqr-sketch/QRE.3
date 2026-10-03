@@ -50,6 +50,38 @@ Guardrails protect truth, provenance, architecture, and safety. They do not beco
 - The creative target is the minimum reality commitment that produces the maximum viewer reward.
 - **Do not hard-code the example. Generalize the behavior.**
 
+## Design direction: Author subject / participant model
+
+This is product and Author design direction, not implemented runtime behavior.
+
+Future QRE business and service setup may provide persistent world context from the frontend: business or service domain, business name, provider/owner/agent name, customer, pet, property, or other subject identity, roles and relationships, and whether particular real people are permitted to appear personally in generated experiences. Individual creations may later override those defaults.
+
+Keep these distinctions separate:
+
+1. **Who exists / role context** is supplied persistent world truth. Example: Jessica is the listing agent. Coco is the dog receiving grooming service. Milo is the dog being walked.
+2. **Who may appear** is permission and presentation policy. A known person does not automatically have to appear in generated experiences. The product may eventually support dashboard defaults plus per-creation overrides.
+3. **Who or what is the star** should not currently become a rigid database role. Author should retain creative freedom to determine the central subject from the supplied world and event record.
+
+Intended behavior examples:
+
+- In grooming, the business or groomer provides the service and record, while Coco may naturally be the star.
+- In dog walking, the walker provides the service, Milo may naturally be the star, and the walker may appear when authorized and useful.
+- In real estate, the house may be the star. The listing agent may be an authorized participant. If the agent has opted into appearing, Author may use the agent as a secondary character and may lightly tease or roast them when supported by supplied reality.
+
+Conceptually: the house can be the protagonist while the agent becomes part of the joke.
+
+This does not authorize invented actions, motives, events, relationships, or outcomes. Humor and roast must come from interpretation of supplied reality, not fabricated documentary facts.
+
+Core principle: supplied reality determines who and what exists. Permission determines who may be used personally. Author determines emphasis, point of view, who gets attention, who gets lightly teased, and what the experience is actually about.
+
+This is compatible with:
+
+- Reality is closed; discourse is open.
+- Grounding is provenance, not paraphrase.
+- Protect the strange; police the facts.
+
+Product insight: QRE gives the owner/client the meaning of what they paid for, not merely a replay of the service record.
+
 ## Recorded moves
 
 ### 2026-08-26 — Canonical Author convergence

@@ -3,7 +3,7 @@ import { localModelGenerate } from "./localModelRuntime.js";
 import type { LocalModelJsonSchema } from "./localModelRuntime.js";
 import type { AuthorCreativeDiscovery } from "./authorCreativeDiscovery.js";
 import type { AuthorDerivedMeaning } from "./authorDerivedMeaning.js";
-import { evaluateAuthorCut } from "./authorCutFloor.js";
+import { evaluateAuthorCut, hasAuthorCameraLanguage } from "./authorCutFloor.js";
 import { summarizeAuthorBehaviorProfile, type AuthorBehaviorProfile } from "./authorBehaviorProfile.js";
 import { QRE_CREATIVE_OPERATING_DOCTRINE, QRE_AUTHOR_WRITING_BRIEF } from "./authorCreativeDoctrine.js";
 
@@ -575,6 +575,13 @@ export type AuthorCreativeTreatment = {
   intensity: "LIGHT" | "MEDIUM" | "STRONG";
 };
 
+export type AuthorCreativePrivateConception = {
+  id: string;
+  sourceCandidateId: string;
+  evidenceEventIds: string[];
+  conception: string;
+};
+
 function isBareTreatment(treatment: AuthorCreativeTreatment): boolean {
   return /\b(?:none|bare reality|natural|minimal treatment)\b/i.test(
     materialText([
@@ -899,6 +906,62 @@ export function sanitizeAuthorMouthTreatmentAssignments(
   });
 }
 
+const AUTHOR_EXPRESSIVE_PRODUCTIONS = ["A", "B", "C"] as const;
+
+function fallbackMouthTreatmentAssignment(input: {
+  production: "A" | "B" | "C";
+  index: number;
+  privateConceptions: readonly AuthorCreativePrivateConception[];
+  selected: AuthorCreativeDiscovery["selected"];
+  suppliedReality: readonly AuthorCreativeEvent[];
+}): AuthorCreativeTreatmentMouthAssignment {
+  const conception = input.privateConceptions[input.index];
+  const evidenceEventIds = conception?.evidenceEventIds.length
+    ? [...conception.evidenceEventIds]
+    : (
+        input.selected.evidenceEventIds.length
+          ? [...input.selected.evidenceEventIds]
+          : input.suppliedReality.map((event) => event.id)
+      );
+  const text =
+    clean(conception?.conception) ||
+    clean(input.selected.perception) ||
+    clean(input.selected.relationship) ||
+    "Use supplied reality directly; discover the strongest rhetorical stance it supports.";
+
+  return {
+    production: input.production,
+    id: `public-${input.production}`,
+    sourceCandidateId: clean(conception?.sourceCandidateId) || `public-${input.production}`,
+    sourceRelation: clean(input.selected.relationship) || "public production identity",
+    evidenceEventIds,
+    creativePressure: text,
+    hiddenInference: "",
+    treatment: text,
+    perceptionDelta: text,
+    expressiveBehaviors: ["public production identity"],
+    intensity: "MEDIUM",
+  };
+}
+
+function expressiveMouthTreatmentAssignments(input: {
+  assignments: readonly AuthorCreativeTreatmentMouthAssignment[];
+  privateConceptions: readonly AuthorCreativePrivateConception[];
+  selected: AuthorCreativeDiscovery["selected"];
+  suppliedReality: readonly AuthorCreativeEvent[];
+}): AuthorCreativeTreatmentMouthAssignment[] {
+  return AUTHOR_EXPRESSIVE_PRODUCTIONS.map((production, index) => {
+    const accepted = input.assignments.find((assignment) => assignment.production === production);
+    return accepted ?? fallbackMouthTreatmentAssignment({
+      production,
+      index,
+      privateConceptions: input.privateConceptions,
+      selected: input.selected,
+      suppliedReality: input.suppliedReality,
+    });
+  });
+}
+
 export function authorMouthCreativeTreatmentPayload(
   assignments: readonly AuthorCreativeTreatmentMouthAssignment[],
 ): Array<Record<string, unknown>> {
@@ -932,6 +995,7 @@ export type AuthorCreativeTreatmentSearchResult = {
   creativeNotice: AuthorCreativeNotice;
   storyGravity: AuthorStoryGravity;
   failureLessons: AuthorCreativeFailureLesson[];
+  privateConceptions: AuthorCreativePrivateConception[];
   parsedTreatments: AuthorCreativeTreatment[];
   acceptedTreatments: AuthorCreativeTreatmentAssignment[];
   rejectedTreatments: Array<{
@@ -1104,7 +1168,7 @@ export async function searchAuthorCreativeLensTreatments(input: {
           "You are QRE Creative Search.",
           ...QRE_CREATIVE_OPERATING_DOCTRINE,
           "Reality is evidence for thought.",
-          "Return three independent private conceptions that become possible because the supplied reality was noticed.",
+          "Return eight independent private conceptions that become possible because the supplied reality was noticed.",
           "Give the thought made possible by the evidence. Keep evidence description, semantic translation, and explanatory reasoning private.",
           "Think because of the evidence, then give the thought.",
           "The conception must add a perception that was not already contained in the supplied fact wording.",
@@ -1114,7 +1178,7 @@ export async function searchAuthorCreativeLensTreatments(input: {
           "Give the underlying expressive idea and its pressure in private conception language. Leave the opening words, cut count, sequence, and final sentences for Mouth to discover. A conception can sustain changing attention across several cuts.",
           "Give a conception a legible handle in the supplied detail or relationship. Prefer a sharp, fact-dependent thought over a general reassurance or an interchangeable poetic sentiment.",
           "One supplied atom may support an entire conception. Unused supplied facts are completely legal.",
-          "The three conceptions do not need to divide or collectively cover the supplied reality. Multiple conceptions may use the same evidence.",
+          "The eight conceptions do not need to divide or collectively cover the supplied reality. Multiple conceptions may use the same evidence.",
           "evidenceEventIds are provenance only. Choose them because they licensed the thought, not because events need coverage. They are not output slots, rewrite assignments, coverage obligations, or public representation requirements.",
           "Amplify discovered meaning through perspective, attitude, implication, rhetorical status, scale, humor, or delayed realization. Let the discovered relationship supply the pressure and the treatment accelerate it.",
           "Keep concrete participation and world commitments inside supplied evidence: participants, objects, places, physical actions, interactions, observations, sensory facts, measurements, motives, outcomes, recurrence, physical conditions, causality, and chronology.",
@@ -1131,7 +1195,7 @@ export async function searchAuthorCreativeLensTreatments(input: {
           DERIVED_MEANING: input.derivedMeaning ?? { kind: "DERIVED_MEANING", relations: [] },
           REQUESTED_LENS: requestedLens || undefined,
           instruction:
-            "Treat APPROVED_MEANING and the alternatives in DERIVED_MEANING as already grounded cognition. Lens owns expressive treatment of that meaning. Choose a fertile reading for each conception; SUPPLIED_REALITY alone authorizes concrete facts and occurrences. Return exactly three independent notices. Each notice must contain only conception and evidenceEventIds. Give each fact-dependent thought directly; keep explanation and semantic translation private. Amplify the discovered relationship through a distinct perspective, attitude, or rhetorical operation. Evidence IDs carry provenance and may repeat across genuinely different conceptions. Keep Structure's evidence arrangement and Mouth's public realization in their own downstream stages.",
+            "Treat APPROVED_MEANING and the alternatives in DERIVED_MEANING as already grounded cognition. Lens owns expressive treatment of that meaning. Choose a fertile reading for each conception; SUPPLIED_REALITY alone authorizes concrete facts and occurrences. Return exactly eight independent notices. Each notice must contain only conception and evidenceEventIds. Give each fact-dependent thought directly; keep explanation and semantic translation private. Amplify the discovered relationship through a distinct perspective, attitude, or rhetorical operation. Evidence IDs carry provenance and may repeat across genuinely different conceptions. Keep Structure's evidence arrangement and Mouth's public realization in their own downstream stages.",
         }),
       },
     ],
@@ -1146,8 +1210,8 @@ export async function searchAuthorCreativeLensTreatments(input: {
         properties: {
           notices: {
             type: "array",
-            minItems: 3,
-            maxItems: 3,
+            minItems: 8,
+            maxItems: 8,
             items: {
               type: "object",
               additionalProperties: false,
@@ -1196,8 +1260,8 @@ export async function searchAuthorCreativeLensTreatments(input: {
     reason: string;
   }> = [];
   const latentRelations: AuthorCreativeNotice["latentRelations"] = [];
-  const modelTreatments: AuthorCreativeTreatment[] = rawNotices
-    .map((value, index): AuthorCreativeTreatment | undefined => {
+  const privateConceptions: AuthorCreativePrivateConception[] = rawNotices
+    .map((value, index): AuthorCreativePrivateConception | undefined => {
       if (!value || typeof value !== "object") return undefined;
       const record = value as Record<string, unknown>;
       const conception = clean(record.conception);
@@ -1210,28 +1274,40 @@ export async function searchAuthorCreativeLensTreatments(input: {
           )
         : [];
       if (!conception || !evidenceEventIds.length) return undefined;
+
+      return {
+        id: `private-conception-${index + 1}`,
+        sourceCandidateId: `notice[${index}]`,
+        evidenceEventIds,
+        conception,
+      };
+    })
+    .filter((value): value is AuthorCreativePrivateConception => Boolean(value))
+    .slice(0, 8);
+
+  const modelTreatments: AuthorCreativeTreatment[] = privateConceptions
+    .slice(0, 3)
+    .map((privateConception, index): AuthorCreativeTreatment => {
       const sourceRelation = "model-selected evidence provenance";
 
       latentRelations.push({
         relation: sourceRelation,
-        evidenceEventIds,
+        evidenceEventIds: privateConception.evidenceEventIds,
       });
 
       return {
         id: `treatment-${index + 1}`,
-        sourceCandidateId: `notice[${index}]`,
+        sourceCandidateId: privateConception.sourceCandidateId,
         sourceRelation,
-        evidenceEventIds,
-        creativePressure: conception,
+        evidenceEventIds: privateConception.evidenceEventIds,
+        creativePressure: privateConception.conception,
         hiddenInference: "",
-        treatment: conception,
-        perceptionDelta: conception,
+        treatment: privateConception.conception,
+        perceptionDelta: privateConception.conception,
         expressiveBehaviors: ["notice"],
         intensity: "MEDIUM",
       };
-    })
-    .filter((value): value is AuthorCreativeTreatment => Boolean(value))
-    .slice(0, 3);
+    });
 
   const creativeNotice: AuthorCreativeNotice = {
     latentRelations,
@@ -1336,6 +1412,7 @@ export async function searchAuthorCreativeLensTreatments(input: {
     creativeNotice,
     storyGravity,
     failureLessons,
+    privateConceptions,
     parsedTreatments,
     acceptedTreatments,
     rejectedTreatments,
@@ -2756,6 +2833,14 @@ function directAuthorTreatmentSearchResult(input: {
     void semanticMechanic;
     return treatment;
   });
+  const privateConceptions: AuthorCreativePrivateConception[] = parsedTreatments
+    .filter((treatment) => !isBareTreatment(treatment))
+    .map((treatment, index) => ({
+      id: `private-conception-${index + 1}`,
+      sourceCandidateId: treatment.sourceCandidateId,
+      evidenceEventIds: [...treatment.evidenceEventIds],
+      conception: treatment.treatment,
+    }));
 
   return {
     lensSearchEnabled: true,
@@ -2769,6 +2854,7 @@ function directAuthorTreatmentSearchResult(input: {
     creativeNotice: { latentRelations: [] },
     storyGravity: fallbackStoryGravity(input.suppliedReality),
     failureLessons: [],
+    privateConceptions,
     parsedTreatments,
     acceptedTreatments,
     rejectedTreatments: [],
@@ -4283,6 +4369,120 @@ export function verifyAuthorizedAssemblyCandidate(input: {
     },
   };
 }
+
+function assembledCandidateToMemoryProduction(
+  candidate: AuthorAssembledCandidate,
+): AuthorMemoryMouthProduction {
+  return {
+    production: "ASSEMBLED",
+    lines: candidate.lines.map((line) => ({
+      order: line.order,
+      text: line.text,
+      sourceEventIds: [...line.sourceEventIds],
+      ...(line.synthesizedFrom?.length
+        ? { synthesizedFrom: [...line.synthesizedFrom] }
+        : {}),
+      ...(line.auditSpans?.length
+        ? { auditSpans: line.auditSpans.map((span) => ({ ...span })) }
+        : {}),
+    })),
+  };
+}
+
+function attributedCameraLanguageAssemblyRealizationIds(input: {
+  candidate: AuthorAssembledCandidate;
+  truthResult: AuthorAssemblyTruthResult;
+  pool: readonly AuthorizedRealization[];
+}): string[] {
+  const cameraRejectedLines = input.truthResult.scoring?.lines.filter((line) =>
+    line.reasons.includes("camera-language"),
+  ) ?? [];
+  if (!cameraRejectedLines.length) return [];
+
+  const poolById = new Map(input.pool.map((realization) => [realization.id, realization]));
+  const excluded = new Set<string>();
+  const usedCandidateLineIndexes = new Set<number>();
+
+  for (const scoredLine of cameraRejectedLines) {
+    let candidateLineIndex = input.candidate.lines.findIndex((line, index) =>
+      !usedCandidateLineIndexes.has(index) &&
+      line.order === scoredLine.order &&
+      clean(line.text) === clean(scoredLine.text),
+    );
+    if (candidateLineIndex < 0) {
+      candidateLineIndex = input.candidate.lines.findIndex((line, index) =>
+        !usedCandidateLineIndexes.has(index) &&
+        line.order === scoredLine.order,
+      );
+    }
+    if (candidateLineIndex < 0) continue;
+
+    usedCandidateLineIndexes.add(candidateLineIndex);
+    const synthesizedFrom = input.candidate.lines[candidateLineIndex]?.synthesizedFrom ?? [];
+    if (synthesizedFrom.length === 1) {
+      excluded.add(synthesizedFrom[0]!);
+      continue;
+    }
+
+    for (const id of synthesizedFrom) {
+      const realization = poolById.get(id);
+      if (realization && hasAuthorCameraLanguage(realization.text)) {
+        excluded.add(id);
+      }
+    }
+  }
+
+  return [...excluded];
+}
+
+function retryAssemblyWithoutAttributedCameraLanguage(input: {
+  candidate: AuthorAssembledCandidate | undefined;
+  truthResult: AuthorAssemblyTruthResult;
+  pool: readonly AuthorizedRealization[];
+  forbiddenTexts: readonly string[];
+  suppliedReality: readonly AuthorCreativeEvent[];
+  subject: string;
+  realityDirect: boolean;
+}): {
+  candidate?: AuthorAssembledCandidate;
+  truthResult?: AuthorAssemblyTruthResult;
+  excludedRealizationIds: string[];
+} {
+  if (!input.candidate || input.truthResult.eligible) {
+    return { excludedRealizationIds: [] };
+  }
+  const excludedRealizationIds = attributedCameraLanguageAssemblyRealizationIds({
+    candidate: input.candidate,
+    truthResult: input.truthResult,
+    pool: input.pool,
+  });
+  if (!excludedRealizationIds.length) return { excludedRealizationIds };
+
+  const excluded = new Set(excludedRealizationIds);
+  const filteredPool = input.pool.filter((realization) => !excluded.has(realization.id));
+  if (!filteredPool.length || filteredPool.length === input.pool.length) {
+    return { excludedRealizationIds };
+  }
+
+  const candidate = assembleAuthorizedRealizations({
+    pool: filteredPool,
+    suppliedReality: input.suppliedReality,
+  });
+  const truthResult = verifyAuthorizedAssemblyCandidate({
+    candidate,
+    pool: filteredPool,
+    forbiddenTexts: input.forbiddenTexts,
+    suppliedReality: input.suppliedReality,
+    subject: input.subject,
+    realityDirect: input.realityDirect,
+  });
+
+  return {
+    candidate,
+    truthResult,
+    excludedRealizationIds,
+  };
+}
 export async function editDirectAuthorReality(input: {
   suppliedReality: readonly AuthorCreativeEvent[];
   productions: readonly AuthorMemoryMouthProduction[];
@@ -4318,6 +4518,8 @@ export async function editDirectAuthorReality(input: {
           "The supplied reality controls what actually happened.",
           "The text has already been authored. Do not author it again.",
           "Judge independently removable exact text spans from the authored productions.",
+          "Before partitioning an expression into spans, determine its rhetorical or interpretive meaning as a whole in the context of supplied reality and AUTHORIZED_SEMANTIC_AUTHORITY, then determine what additional documentary reality that meaning requires. Do not classify a subject, predicate, or fragment as UNSUPPORTED_REALITY solely because it reads literally in isolation when the whole expression functions as authorized rhetoric; if the whole expression still requires an unsupplied concrete or mental occurrence, classify that proposition as UNSUPPORTED_REALITY.",
+          "A rhetorical or figurative reading does not exempt an asserted completion, transition, outcome, or resulting state: if the viewer must believe that state or outcome actually occurred, it remains UNSUPPORTED_REALITY unless supplied reality establishes it.",
           "First partition each authored production into atomicClaimSpans, then classify each atomicClaimSpan.",
           "Each atomicClaimSpan must be the smallest exact, non-overlapping, semantically independently classifiable authored substring needed to distinguish SUPPORTED_REALITY, KEEP_EXPRESSION, and UNSUPPORTED_REALITY.",
           "A mixed authored sentence must not be represented by one audit span when different semantic claim units inside it can receive different classifications.",
@@ -4743,6 +4945,7 @@ export async function createAuthorExperience(input: {
     creativeNotice: AuthorCreativeNotice;
     storyGravity: AuthorStoryGravity;
     failureLessons: AuthorCreativeFailureLesson[];
+    privateConceptions: AuthorCreativePrivateConception[];
     creativeTreatments: AuthorCreativeTreatmentMouthAssignment[];
     creativeSearchFallbackReason?: string;
     rejectedTreatments: Array<{
@@ -5043,6 +5246,7 @@ export async function createAuthorExperience(input: {
     lensSearchEnabled,
     rawTreatmentResponse: lensSearch.rawTreatmentResponse,
     searchFallbackReason: lensSearch.searchFallbackReason,
+    privateConceptions: lensSearch.privateConceptions,
     treatments: treatmentAssignmentsForMouth,
     rejectedTreatments: lensSearch.rejectedTreatments,
     treatmentSetAssessment: lensSearch.treatmentSetAssessment,
@@ -5073,8 +5277,19 @@ export async function createAuthorExperience(input: {
   // D is already built deterministically downstream. Mixing a literal control
   // into the expressive writing request invites all candidates to copy it.
   const writingTreatmentAssignments = isMemoryMode && lensSearchEnabled
-    ? treatmentAssignmentsForMouth.filter((assignment) => assignment.production !== "D")
+    ? expressiveMouthTreatmentAssignments({
+        assignments: treatmentAssignmentsForMouth,
+        privateConceptions: lensSearch.privateConceptions,
+        selected,
+        suppliedReality: input.suppliedReality,
+      })
     : treatmentAssignmentsForMouth;
+  const privateCreativeField = lensSearch.privateConceptions.map((conception) => ({
+    id: conception.id,
+    sourceCandidateId: conception.sourceCandidateId,
+    evidenceEventIds: [...conception.evidenceEventIds],
+    conception: conception.conception,
+  }));
   const minimumExpressiveCuts = isMemoryMode && lensSearchEnabled && !directCreativeAuthorExperiment ? 3 : 1;
   const mouthResult = directCreativeAuthorExperiment
     ? await generateDirectAuthorMemoryProductions({
@@ -5114,9 +5329,18 @@ export async function createAuthorExperience(input: {
           ...QRE_CREATIVE_OPERATING_DOCTRINE,
           ...QRE_AUTHOR_WRITING_BRIEF,
           "WRITING_PREFERENCES guide wording, rhythm, and nomination only. They authorize no participants, events, states, or history.",
-          "Take expressive direction from APPROVED_MEANING and the assigned conception. The conception supplies pressure, not finished copy; Mouth discovers its wording and progression.",
+          "Take expressive direction from APPROVED_MEANING and PRIVATE_CREATIVE_FIELD. The field is shared private cognition: use it for pressure, relationship, and possibility, not viewer-facing copy.",
+          "PRIVATE_CREATIVE_FIELD is optional creative cognition. Mouth may use it, combine it, ignore it, or discover a stronger rhetorical stance directly from SUPPLIED_REALITY.",
           "Use SUPPLIED_REALITY as the full available factual evidence. Unused facts remain preserved; sourceEventIds authorize each expressive cut independently of cut position.",
-          "For each listed CREATIVE_TREATMENTS identity, realize a different perception and voice across its whole sequence. Keep every concrete commitment inside the cited facts.",
+          "CREATIVE_TREATMENTS supplies public production identities and compatibility anchors. A/B/C may draw from the entire private field, combine or ignore field entries, and must develop meaningfully distinct realizations.",
+          "Before writing, silently choose the most interesting rhetorical stance available inside the authorized world.",
+          "A rhetorical speaker is not necessarily the factual actor.",
+          "The subject, an object or detail already present in supplied reality, or an outside narrator may temporarily carry rhetorical attitude without becoming a literal factual speaker.",
+          "Rhetorical speech, personification, opinion, judgment, social observation, attitude, implication, comparison, and self-aware contradiction are discourse, not documentary events.",
+          "Convert authorized meaning into attitude, humor, rhetorical POV, judgment, implication, contradiction, comparison, personification, object/subject voice, generalized or social observation, or sharp observation when reality supports it.",
+          "The viewer should experience the attitude, not receive an explanation of the attitude.",
+          "Prefer a line that has a point of view over a line that merely describes significance.",
+          "Prefer specific attitude arising from this event over generic cleverness.",
           "Nominate the viable expressive production whose whole sequence creates the strongest fact-dependent inference, attention movement, character, and earned surprise. Choose that strength over brevity or event coverage alone.",
           "Runtime preserves deterministic Bare Reality D independently. Return the listed expressive productions only.",
         ].join("\n") : [
@@ -5144,8 +5368,8 @@ export async function createAuthorExperience(input: {
           "Let the material determine rhythm, voice, form, and length. Every word should strengthen perception, character, consequence, or surprise.",
           "Discover aggressively, interpret boldly, compress freely, and give disproportionate attention to the interesting thing. Surprise must be discovered from the material rather than cosmetically added.",
           "Structure Planner may provide structural and ordering affordances. Creative cognition discovers relationships and perception movement. Mouth owns final verbal realization and may compress, combine, omit, or express selectively inside those constraints. Presentation choices are outside Author.",
-          "Take expressive direction from the approved meaning and assigned conception. Let the realization discover its opening, movement, and landing within supplied reality.",
-          "The conception supplies creative pressure, not finished copy or a line-count template. Discover fresh wording and the sequence that makes its meaning felt. Choose length by the attention gained from each cut, rather than the number of sentences in the private idea.",
+          "Take expressive direction from the approved meaning and shared private creative field. Let each realization discover its opening, movement, and landing within supplied reality.",
+            "The private field is optional creative cognition. It supplies creative pressure, not finished copy, new facts, a required source, or a line-count template. Mouth may ignore it and discover a stronger rhetorical stance directly from supplied reality.",
           ...(realityDirect ? [
             "REALITY-DIRECT MODE: find the perception the supplied facts themselves make possible. Give their detail and relationships expressive force.",
           ] : []),
@@ -5158,11 +5382,19 @@ export async function createAuthorExperience(input: {
               "Favor 1–7 words per cut. Give a single charged word its own arrival when it earns one; keep a longer line only when its added words strengthen the experience.",
               "Make each arrival matter: open an unresolved tension, let later attention build or redirect it, and earn a turn or surprise. Choose the shape this material wants; a role list is not a fixed sequence template.",
               "Separate distinct attention-bearing thoughts so the viewer encounters them in successive cuts. Develop new perception rather than splitting a recap into fragments or repeating a thought to meet the count.",
-              "CREATIVE_TREATMENTS assigns production identities. Give each expressive production its own treatment, perception, and voice across the whole realization.",
+              "CREATIVE_TREATMENTS assigns public production identities. PRIVATE_CREATIVE_FIELD is shared across A/B/C; each production may combine, ignore, reinterpret, or recontextualize entries from the field.",
+              "Before writing, silently choose the most interesting rhetorical stance available inside the authorized world.",
+              "A rhetorical speaker is not necessarily the factual actor.",
+              "The subject, an object or detail already present in supplied reality, or an outside narrator may temporarily carry rhetorical attitude without becoming a literal factual speaker.",
+              "Rhetorical speech, personification, opinion, judgment, social observation, attitude, implication, comparison, and self-aware contradiction are discourse, not documentary events.",
+              "Convert authorized meaning into attitude, humor, rhetorical POV, judgment, implication, contradiction, comparison, personification, object/subject voice, generalized or social observation, or sharp observation when reality supports it.",
+              "The viewer should experience the attitude, not receive an explanation of the attitude.",
+              "Prefer a line that has a point of view over a line that merely describes significance.",
+              "Prefer specific attitude arising from this event over generic cleverness.",
               "Treat approved alternatives as possible readings. Choose the relationship each production can make felt.",
               "For A/B/C, arrange expressive lines around the strongest thought. Their count and sequence follow the realization.",
               "Every A/B/C expressive line declares sourceEventIds for the supplied evidence that authorizes its perception.",
-              "Let the assigned treatment shape implication, rhythm, contrast, attitude, and significance. Its force can remain felt throughout without being named.",
+              "Do not simply copy PRIVATE_CREATIVE_FIELD wording. Let field pressure shape implication, rhythm, contrast, attitude, and significance while public factual commitments remain controlled by SUPPLIED_REALITY and each line's sourceEventIds.",
               "Amplify the supported meaning through rhetorical scale, perspective, status, double meaning, or personification. Keep concrete participants, actions, states, chronology, and outcomes inside the cited facts.",
               "Use private hiddenInference as optional perceptual direction. Give the viewer the realization itself.",
               "Nominate the viable expressive production with the strongest fact-dependent perception, meaningful inference, specificity, surprise, and precision.",
@@ -5212,6 +5444,7 @@ export async function createAuthorExperience(input: {
           LENS_MODE: lensMode,
           REQUESTED_LENS: requestedLens || (autoBusinessLens ? "AUTO" : "NONE"),
           ...(!isMemoryMode ? { STORY_GRAVITY: lensSearch.storyGravity } : {}),
+          ...(isMemoryMode && lensSearchEnabled ? { PRIVATE_CREATIVE_FIELD: privateCreativeField } : {}),
           CREATIVE_TREATMENTS: isMemoryMode
             ? writingTreatmentAssignments.map((assignment) => ({
                 production: assignment.production,
@@ -5223,7 +5456,7 @@ export async function createAuthorExperience(input: {
             ? "Return four candidate realizations of this IDENTITY character cluster. Make personality felt through the supported combination, distinctive voice, and implication. Let the viewer connect the dots. Use no more language than each realization earns. Keep concrete reality inside supplied facts."
             : isMemoryMode
               ? realityDirect
-                ? "Return candidate productions in PRODUCTION-MAJOR form for the listed CREATIVE_TREATMENTS only. Make the perception felt through implication, voice, and contrast. Push each assigned conception as far as supplied reality supports. Give the charged detail disproportionate significance and let the ending earn its implication. Keep concrete reality fixed. Unused facts remain in provenance. Nominate the strongest listed expressive production. Runtime preserves the factual control independently."
+                ? "Return candidate productions in PRODUCTION-MAJOR form for the listed CREATIVE_TREATMENTS only. Make the perception felt through implication, voice, and contrast. Let A/B/C draw from the shared PRIVATE_CREATIVE_FIELD as far as supplied reality supports. Give the charged detail disproportionate significance and let the ending earn its implication. Keep concrete reality fixed. Unused facts remain in provenance. Nominate the strongest listed expressive production. Runtime preserves the factual control independently."
                 : "Return candidate productions in PRODUCTION-MAJOR form for the listed CREATIVE_TREATMENTS only. Make the perception felt through implication, voice, and contrast. Maximize meaningful inference while maintaining grounding. Let the supplied evidence earn the ending. Unused facts remain in provenance. Keep concrete reality fixed. Empty text is legal. Nominate the strongest viable expressive production by its production letter: A, B, or C. Preserve D as the factual fallback."
               : "Return four candidate lines per beat. The semantic plan controls meaning; the supplied event IDs control factual reality.",
         }),
@@ -5243,12 +5476,8 @@ export async function createAuthorExperience(input: {
           ? {
               productions: {
                 type: "array",
-                minItems: lensSearchEnabled
-                  ? Math.max(1, writingTreatmentAssignments.length)
-                  : 4,
-                maxItems: lensSearchEnabled
-                  ? Math.max(1, writingTreatmentAssignments.length)
-                  : 4,
+                minItems: lensSearchEnabled ? 3 : 4,
+                maxItems: lensSearchEnabled ? 3 : 4,
                 items: {
                   type: "object",
                   additionalProperties: false,
@@ -5446,38 +5675,35 @@ export async function createAuthorExperience(input: {
           );
           authorizedRealizationSynthesisModelCalls += synthesisAttempt.modelCalls;
 
+          const deterministicRecovery = retryAssemblyWithoutAttributedCameraLanguage({
+            candidate: deterministicCandidate,
+            truthResult: deterministicTruthResult,
+            pool: authorizedRealizationPool,
+            forbiddenTexts,
+            suppliedReality: input.suppliedReality,
+            subject: input.subject,
+            realityDirect,
+          });
+          const synthesisRecovery = retryAssemblyWithoutAttributedCameraLanguage({
+            candidate: synthesisAttempt.candidate,
+            truthResult: synthesisAttempt.truthResult,
+            pool: authorizedRealizationPool,
+            forbiddenTexts,
+            suppliedReality: input.suppliedReality,
+            subject: input.subject,
+            realityDirect,
+          });
+
           if (deterministicTruthResult.eligible && deterministicCandidate) {
-            assembledMemoryProductions.push({
-              production: "ASSEMBLED",
-              lines: deterministicCandidate.lines.map((line) => ({
-                order: line.order,
-                text: line.text,
-                sourceEventIds: [...line.sourceEventIds],
-                ...(line.synthesizedFrom?.length
-                  ? { synthesizedFrom: [...line.synthesizedFrom] }
-                  : {}),
-                ...(line.auditSpans?.length
-                  ? { auditSpans: line.auditSpans.map((span) => ({ ...span })) }
-                  : {}),
-              })),
-            });
+            assembledMemoryProductions.push(assembledCandidateToMemoryProduction(deterministicCandidate));
+          } else if (deterministicRecovery.truthResult?.eligible && deterministicRecovery.candidate) {
+            assembledMemoryProductions.push(assembledCandidateToMemoryProduction(deterministicRecovery.candidate));
           }
 
           if (synthesisAttempt.truthResult.eligible && synthesisAttempt.candidate) {
-            assembledMemoryProductions.push({
-              production: "ASSEMBLED",
-              lines: synthesisAttempt.candidate.lines.map((line) => ({
-                order: line.order,
-                text: line.text,
-                sourceEventIds: [...line.sourceEventIds],
-                ...(line.synthesizedFrom?.length
-                  ? { synthesizedFrom: [...line.synthesizedFrom] }
-                  : {}),
-                ...(line.auditSpans?.length
-                  ? { auditSpans: line.auditSpans.map((span) => ({ ...span })) }
-                  : {}),
-              })),
-            });
+            assembledMemoryProductions.push(assembledCandidateToMemoryProduction(synthesisAttempt.candidate));
+          } else if (synthesisRecovery.truthResult?.eligible && synthesisRecovery.candidate) {
+            assembledMemoryProductions.push(assembledCandidateToMemoryProduction(synthesisRecovery.candidate));
           }
 
           debug("AUTHORIZED-REALIZATION-POOL", authorizedRealizationPool);
@@ -5912,6 +6138,7 @@ export async function createAuthorExperience(input: {
       creativeNotice: lensSearch.creativeNotice,
       storyGravity: lensSearch.storyGravity,
       failureLessons: lensSearch.failureLessons,
+      privateConceptions: lensSearch.privateConceptions,
       creativeTreatments: treatmentAssignmentsForMouth,
       creativeSearchFallbackReason: lensSearch.searchFallbackReason,
       rejectedTreatments: lensSearch.rejectedTreatments,

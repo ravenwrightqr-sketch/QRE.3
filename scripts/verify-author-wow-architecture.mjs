@@ -108,8 +108,8 @@ if (!failures.length) {
 
   assertContains(
     creative,
-    "Return exactly three independent notices.",
-    "Lens must create exactly three competing expressive conceptions",
+    "Return exactly eight independent notices.",
+    "Lens must create exactly eight private conceptions",
   );
   assertContains(
     creative,
@@ -123,8 +123,13 @@ if (!failures.length) {
   );
   assertContains(
     creative,
-    "CREATIVE_TREATMENTS assigns production identities.",
-    "Mouth prompt must bind treatments to production identities",
+    'const AUTHOR_EXPRESSIVE_PRODUCTIONS = ["A", "B", "C"] as const;',
+    "Mouth must preserve unconditional A/B/C public production identities",
+  );
+  assertContains(
+    creative,
+    "CREATIVE_TREATMENTS assigns public production identities. PRIVATE_CREATIVE_FIELD is shared across A/B/C; each production may combine, ignore, reinterpret, or recontextualize entries from the field.",
+    "Mouth prompt must decouple public production identities from exclusive treatment assignment",
   );
   assertContains(
     creative,

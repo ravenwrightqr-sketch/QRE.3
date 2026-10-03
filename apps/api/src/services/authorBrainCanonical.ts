@@ -37,13 +37,23 @@ import {
   type AuthorCreativeDiscovery,
 } from "./authorCreativeDiscovery.js";
 import { createAuthorExperience } from "./authorCreative.js";
-import { verifyAuthorCreativeGrounding } from "./authorCreativeGroundingVerifier.js";
+import {
+  type AuthorGroundingAtomicAuthority,
+  verifyAuthorCreativeGrounding,
+} from "./authorCreativeGroundingVerifier.js";
 
 const clean = (value: unknown): string =>
   String(value ?? "").replace(/\s+/g, " ").trim();
 
 const unique = (values: readonly string[]): string[] =>
   [...new Set(values.map(clean).filter(Boolean))];
+
+function debugAtomicAuthority(atomicAuthority: readonly AuthorGroundingAtomicAuthority[]): void {
+  if (process.env.QRE_AUTHOR_DEBUG_RAW !== "true") return;
+  console.log(
+    `\n=== ATOMIC AUTHORITY ===\n${JSON.stringify(atomicAuthority, null, 2)}\n=== END ATOMIC AUTHORITY ===\n`,
+  );
+}
 
 function memoryForActiveWorld(input: AuthorBrainTruth): string[] {
   const activeWorldId = clean(input.worldScope?.worldId);
@@ -367,6 +377,7 @@ export async function authorBrainCanonical(
     ]),
     domainContext: input.domainContext,
   });
+  const groundingAtomicAuthority = verifiedCreative.atomicAuthority;
 
   let groundingRecoveryModelCalls = 0;
 
@@ -547,6 +558,8 @@ export async function authorBrainCanonical(
     }
   }
 
+  debugAtomicAuthority(groundingAtomicAuthority);
+
   const usedEvidenceIds = new Set(
     verifiedCreative.scenes.flatMap((scene) => scene.sourceEventIds),
   );
@@ -638,6 +651,7 @@ export async function authorBrainCanonical(
         acceptedScenes: verifiedCreative.scenes.length,
         originalScenes: creativeResult.scenes.length,
         recovered: groundingRecoveryModelCalls > 0,
+        atomicAuthority: groundingAtomicAuthority,
       },
     },
     adaptiveQuestions: [],

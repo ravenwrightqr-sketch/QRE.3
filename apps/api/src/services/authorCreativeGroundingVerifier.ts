@@ -46,6 +46,13 @@ type AtomicVerification = {
   unsupportedClaims?: unknown;
 };
 
+export type AuthorGroundingSupportKind =
+  | "DIRECT"
+  | "PARAPHRASE"
+  | "FIGURATIVE"
+  | "CONTEXTUAL_TEXTURE"
+  | "UNSUPPORTED";
+
 export type AuthorGroundingAuditClassification =
   | "SUPPORTED_REALITY"
   | "KEEP_EXPRESSION"
@@ -68,6 +75,18 @@ export type AuthorGroundingAtomicClause = {
   text: string;
   groundingHint: string[];
   priorAudit?: AuthorGroundingAuditSpan;
+};
+
+export type AuthorGroundingAtomicAuthority = {
+  sceneIndex: number;
+  clauseIndex: number;
+  text: string;
+  groundingHint: string[];
+  supported: boolean;
+  supportKind?: AuthorGroundingSupportKind;
+  sourceEventIds: string[];
+  concreteClaims: string[];
+  unsupportedClaims: string[];
 };
 
 function beatClauseFragments(text: string): string[] {
@@ -121,11 +140,37 @@ export function buildAuthorGroundingAtomicClauses(
   });
 }
 
-export function applyAuthorGroundingVerifications(input: {
+function supportKindFrom(value: unknown): AuthorGroundingSupportKind | undefined {
+  const supportKind = clean(value).toUpperCase();
+  if (
+    supportKind === "DIRECT" ||
+    supportKind === "PARAPHRASE" ||
+    supportKind === "FIGURATIVE" ||
+    supportKind === "CONTEXTUAL_TEXTURE" ||
+    supportKind === "UNSUPPORTED"
+  ) {
+    return supportKind;
+  }
+  return undefined;
+}
+
+function cleanStringArray(value: unknown): string[] {
+  return Array.isArray(value)
+    ? value
+        .filter((item): item is string => typeof item === "string")
+        .map(clean)
+        .filter(Boolean)
+    : [];
+}
+
+function applyAuthorGroundingVerificationsWithAuthority(input: {
   scenes: readonly AuthorGroundingScene[];
   suppliedReality: readonly { id: string; text: string }[];
   verifications: readonly unknown[];
-}): AuthorGroundingScene[] {
+}): {
+  scenes: AuthorGroundingScene[];
+  atomicAuthority: AuthorGroundingAtomicAuthority[];
+} {
   const allowedIds = new Set(input.suppliedReality.map((event) => event.id));
   const suppliedRealityText = input.suppliedReality
     .map((event) => event.text)
@@ -142,83 +187,82 @@ export function applyAuthorGroundingVerifications(input: {
     verificationByClause.set(`${sceneIndex}:${clauseIndex}`, item);
   }
 
+  const authorityByClause = new Map<string, AuthorGroundingAtomicAuthority>();
+
+  for (const clause of buildAuthorGroundingAtomicClauses(input.scenes)) {
+    const item = verificationByClause.get(`${clause.sceneIndex}:${clause.clauseIndex}`);
+    const supportKind = supportKindFrom(item?.supportKind);
+    const supportKindText = supportKind ?? clean(item?.supportKind).toUpperCase();
+    const concreteClaims = cleanStringArray(item?.concreteClaims);
+    const rawUnsupportedClaims = cleanStringArray(item?.unsupportedClaims);
+    const unsupportedClaims = reconciledUnsupportedClaims({
+      clauseText: clause.text,
+      supported: item?.supported,
+      supportKind: supportKindText,
+      concreteClaims,
+      unsupportedClaims: rawUnsupportedClaims,
+    });
+    const allowedSupportKind =
+      supportKind === "DIRECT" ||
+      supportKind === "PARAPHRASE" ||
+      supportKind === "FIGURATIVE" ||
+      supportKind === "CONTEXTUAL_TEXTURE";
+    const contradictoryConcreteFraming =
+      (supportKind === "FIGURATIVE" || supportKind === "CONTEXTUAL_TEXTURE") &&
+      concreteClaims.length > 0;
+    const rawSourceEventIds = item?.sourceEventIds;
+    const sourceEventIds = Array.isArray(rawSourceEventIds)
+      ? unique(
+          rawSourceEventIds
+            .filter((id): id is string => typeof id === "string")
+            .filter((id) => allowedIds.has(id)),
+        )
+      : [];
+    const fragment =
+      beatClauseFragments(input.scenes[clause.sceneIndex]?.text ?? "")[clause.clauseIndex] ?? "";
+    const unsupportedSensoryClaim =
+      hasUnsupportedSensoryClaim(fragment, suppliedRealityText) &&
+      supportKind !== "FIGURATIVE" &&
+      supportKind !== "CONTEXTUAL_TEXTURE";
+    const supported =
+      item?.supported === true &&
+      allowedSupportKind &&
+      !unsupportedClaims.length &&
+      !contradictoryConcreteFraming &&
+      sourceEventIds.length > 0 &&
+      Boolean(fragment) &&
+      !unsupportedSensoryClaim;
+
+    authorityByClause.set(`${clause.sceneIndex}:${clause.clauseIndex}`, {
+      sceneIndex: clause.sceneIndex,
+      clauseIndex: clause.clauseIndex,
+      text: clause.text,
+      groundingHint: [...clause.groundingHint],
+      supported,
+      ...(supportKind ? { supportKind } : {}),
+      sourceEventIds: supported ? sourceEventIds : [],
+      concreteClaims,
+      unsupportedClaims,
+    });
+  }
+
   // Timing words are interpreted semantically by the verifier model and unsupported-claim reconciliation.
   // There is no second vocabulary-level veto here.
-  return input.scenes.flatMap((scene, sceneIndex) => {
+  const scenes = input.scenes.flatMap((scene, sceneIndex) => {
     const fragments = beatClauseFragments(scene.text);
     const clauses = beatClauses(scene.text);
     const supportedIds = new Set<string>();
     const supportedFragments: string[] = [];
 
     for (let clauseIndex = 0; clauseIndex < clauses.length; clauseIndex += 1) {
-      const item = verificationByClause.get(`${sceneIndex}:${clauseIndex}`);
-      if (!item) continue;
-
-      const rawUnsupportedClaims = Array.isArray(item.unsupportedClaims)
-        ? item.unsupportedClaims
-            .filter((claim): claim is string => typeof claim === "string")
-            .map(clean)
-            .filter(Boolean)
-        : [];
-
-      const concreteClaims = Array.isArray(item.concreteClaims)
-        ? item.concreteClaims
-            .filter((claim): claim is string => typeof claim === "string")
-            .map(clean)
-            .filter(Boolean)
-        : [];
-
-      const supportKind = clean(item.supportKind).toUpperCase();
-      const allowedSupportKind =
-        supportKind === "DIRECT" ||
-        supportKind === "PARAPHRASE" ||
-        supportKind === "FIGURATIVE" ||
-        supportKind === "CONTEXTUAL_TEXTURE";
-
-      const unsupportedClaims = reconciledUnsupportedClaims({
-        clauseText: clauses[clauseIndex] ?? "",
-        supported: item.supported,
-        supportKind,
-        concreteClaims,
-        unsupportedClaims: rawUnsupportedClaims,
-      });
-
-      const contradictoryConcreteFraming =
-        (supportKind === "FIGURATIVE" || supportKind === "CONTEXTUAL_TEXTURE") &&
-        concreteClaims.length > 0;
-
-      if (
-        item.supported !== true ||
-        !allowedSupportKind ||
-        unsupportedClaims.length ||
-        contradictoryConcreteFraming
-      ) {
-        continue;
-      }
-
-      const sourceEventIds = Array.isArray(item.sourceEventIds)
-        ? unique(
-            item.sourceEventIds
-              .filter((id): id is string => typeof id === "string")
-              .filter((id) => allowedIds.has(id)),
-          )
-        : [];
-
-      if (!sourceEventIds.length) continue;
+      const authority = authorityByClause.get(`${sceneIndex}:${clauseIndex}`);
+      if (!authority?.supported) continue;
 
       const fragment = fragments[clauseIndex];
       if (!fragment) continue;
-      // No lexical temporal veto. Reject only when semantic verification identifies a real unsupported timing claim.
-      if (
-        hasUnsupportedSensoryClaim(fragment, suppliedRealityText) &&
-        supportKind !== "FIGURATIVE" &&
-        supportKind !== "CONTEXTUAL_TEXTURE"
-      ) {
-        continue;
-      }
 
       supportedFragments.push(fragment);
-      sourceEventIds.forEach((id) => supportedIds.add(id));
+      authority.sourceEventIds.forEach((id) => supportedIds.add(id));
     }
 
     if (!supportedFragments.length || !supportedIds.size) return [];
@@ -231,6 +275,19 @@ export function applyAuthorGroundingVerifications(input: {
       sourceEventIds: [...supportedIds],
     }];
   });
+
+  return {
+    scenes,
+    atomicAuthority: [...authorityByClause.values()],
+  };
+}
+
+export function applyAuthorGroundingVerifications(input: {
+  scenes: readonly AuthorGroundingScene[];
+  suppliedReality: readonly { id: string; text: string }[];
+  verifications: readonly unknown[];
+}): AuthorGroundingScene[] {
+  return applyAuthorGroundingVerificationsWithAuthority(input).scenes;
 }
 
 const SENSORY_CLAIM_LANGUAGE =
@@ -288,12 +345,14 @@ export async function verifyAuthorCreativeGrounding(input: {
   domainContext?: AuthorDomainContext;
 }): Promise<{
   scenes: AuthorGroundingScene[];
+  atomicAuthority: AuthorGroundingAtomicAuthority[];
   model: string;
   modelCalls: number;
 }> {
   if (!input.scenes.length) {
     return {
       scenes: [],
+      atomicAuthority: [],
       model: "none",
       modelCalls: 0,
     };
@@ -464,14 +523,15 @@ export async function verifyAuthorCreativeGrounding(input: {
     ? parsed.verifications
     : [];
 
-  const scenes = applyAuthorGroundingVerifications({
+  const grounded = applyAuthorGroundingVerificationsWithAuthority({
     scenes: input.scenes,
     suppliedReality: input.suppliedReality,
     verifications: raw,
   });
 
   return {
-    scenes,
+    scenes: grounded.scenes,
+    atomicAuthority: grounded.atomicAuthority,
     model: result.model,
     modelCalls: 1,
   };

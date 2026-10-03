@@ -42,8 +42,22 @@ const STOP = new Set([
 
 const INTERNAL =
   /\b(?:qre|compiler|cognition|metadata|prompt|beat plan|candidate|grounding|semantic gate|viewer|audience|author|mouth)\b/i;
-const CAMERA =
-  /\b(?:camera|zoom|close-up|cut to|final shot|fade to|scene opens|we see)\b/i;
+const PRESENTATION_MACHINERY = [
+  /^\s*(?:ext|int)\.\s+.+/i,
+  /\b(?:the\s+)?scene\s+opens\s+(?:on|with|at|in)\b/i,
+  /\bwe\s+see\s+\S+/i,
+  /\bwe\s+open\s+on\s+(?:the|a|an|this|that)\b/i,
+  /\bwe\s+(?:cut|fade|dissolve)\s+to\b/i,
+  /(?:^|[.!?,;:]\s*)(?:cut|fade|dissolve)\s+to\b/i,
+  /(?:^|[.!?,;:]\s*)smash\s+cut\b/i,
+  /\bcamera\s*:\s*(?:pan|pans|zoom|zooms|tilt|tilts|track|tracks|dolly|dollies|linger|lingers|hold|holds|push|pushes|pull|pulls|frame|frames)\b/i,
+  /\bthe\s+camera\s+(?:pan|pans|panned|panning|zoom|zooms|zoomed|zooming|tilt|tilts|tilted|tilting|track|tracks|tracked|tracking|dolly|dollies|dollied|dollying|linger|lingers|lingered|lingering|hold|holds|held|holding|push|pushes|pushed|pushing|pull|pulls|pulled|pulling|frame|frames|framed|framing)\b/i,
+  /(?:^|[.!?,;:]\s*)zoom\s+(?:in|out)(?:\s+on)?\b/i,
+  /(?:^|[.!?,;:]\s*)(?:pan|tilt|dolly|track)\s+(?:across|over|toward|to|from|through|into|around|past)\b/i,
+  /(?:^|[.!?,;:]\s*)close[- ]?up\s+(?:on|of|at)\b/i,
+  /(?:^|[.!?,;:]\s*)(?:a\s+|an\s+|the\s+)?(?:wide|medium|long|establishing|final|opening|closing)\s+shot\s*(?::|\b(?:of|on)\b)/i,
+  /(?:^|[.!?,;:]\s*)frame\s+\S+\s+(?:beside|next\s+to|against|by|near|with|under|over|inside|outside)\b/i,
+] as const;
 const EXPLANATION =
   /\b(?:because|therefore|which means|this means|in other words|the reason|symbolizes?|represents?|shows that|explains?)\b/i;
 const FUTURE =
@@ -63,6 +77,15 @@ const TEMPORAL_COMPARISON =
 
 const RECURRENCE_CLAIM =
   /\b(?:again|returned|returns|returning|back|recurred|recurs|recurring|repeated|repeats|next\s+(?:day|week|month|year))\b/i;
+
+export function isOperatingPresentationMachinery(value: string): boolean {
+  const text = clean(value);
+  return PRESENTATION_MACHINERY.some((pattern) => pattern.test(text));
+}
+
+export function hasAuthorCameraLanguage(value: string): boolean {
+  return isOperatingPresentationMachinery(value);
+}
 
 function words(value: string): string[] {
   return clean(value)
@@ -145,7 +168,7 @@ export function evaluateAuthorCut(
 
   if (!text) reasons.push("empty");
   if (INTERNAL.test(text)) reasons.push("internal-language");
-  if (CAMERA.test(text)) reasons.push("camera-language");
+  if (hasAuthorCameraLanguage(text)) reasons.push("camera-language");
   if (invented >= 0.6) reasons.push("invented-concrete-reality");
 
   if (

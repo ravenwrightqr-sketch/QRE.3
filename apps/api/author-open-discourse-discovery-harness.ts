@@ -8,16 +8,26 @@ import {
 } from "./src/services/authorCreativeDiscovery.js";
 import * as authorCreativeModule from "./src/services/authorCreative.js";
 import {
+  assembleAuthorizedRealizations,
+  attachDirectAuthorProvenanceToProductions,
   buildDirectAuthorMemoryMessages,
   createAuthorExperience,
   directAuthorAttemptsToProductions,
   generateDirectAuthorMemoryProductions,
   editDirectAuthorReality,
+  evaluateAuthorMemoryProductions,
+  harvestAuthorizedRealizationPool,
+  normalizeDirectAuthorProvenanceAssignments,
   parseJson as parseAuthorJson,
   synthesizeAuthorizedRealizations,
+  verifyAuthorizedAssemblyCandidate,
   type AuthorizedRealization,
+  type AuthorAssembledCandidate,
   type AuthorCreativeEvent,
+  type AuthorCreativeTreatmentMouthAssignment,
   type AuthorDirectTextProduction,
+  type AuthorMemoryMouthProduction,
+  type AuthorSemanticPlan,
 } from "./src/services/authorCreative.js";
 import { verifyAuthorCreativeGrounding } from "./src/services/authorCreativeGroundingVerifier.js";
 import { localModelConfig, localModelGenerate } from "./src/services/localModelRuntime.js";
@@ -51,6 +61,10 @@ const SEMANTIC_SCOPE_AB_RUNS = 3;
 
 const DEFAULT_RUNS = 10;
 
+const PLURAL_SURVIVOR_EXPERIMENT_PROVIDER_LABEL = "OpenRouter";
+const PLURAL_SURVIVOR_EXPERIMENT_PROVIDER = "openrouter";
+const PLURAL_SURVIVOR_EXPERIMENT_MODEL = "openai/gpt-5.4-mini";
+
 type DomainId =
   | "coco"
   | "milo"
@@ -79,6 +93,7 @@ type CliOptions = {
   semanticScopeAb: boolean;
   propositionalScopeOnly: boolean;
   classifierRegression: boolean;
+  pluralSurvivorsMouth: boolean;
   classifyText?: string;
   reclassifyFile?: string;
   authorityReplay?: string;
@@ -293,6 +308,9 @@ const DIAGNOSTIC_LABELS: DiagnosticLabel[] = [
 
 const clean = (value: unknown): string =>
   String(value ?? "").replace(/\s+/g, " ").trim();
+
+const unique = (values: readonly string[]): string[] =>
+  [...new Set(values.map(clean).filter(Boolean))];
 
 const record = (value: unknown): Record<string, unknown> =>
   value && typeof value === "object" ? value as Record<string, unknown> : {};
@@ -875,6 +893,7 @@ function parseArgs(argv: string[]): CliOptions {
   let semanticScopeAb = false;
   let propositionalScopeOnly = false;
   let classifierRegression = false;
+  let pluralSurvivorsMouth = false;
   let classifyText: string | undefined;
   let reclassifyFile: string | undefined;
   let authorityReplay: string | undefined;
@@ -905,6 +924,10 @@ function parseArgs(argv: string[]): CliOptions {
     }
     if (arg === "--classifier-regression") {
       classifierRegression = true;
+      continue;
+    }
+    if (arg === "--plural-survivors-mouth") {
+      pluralSurvivorsMouth = true;
       continue;
     }
     if (arg === "--runs") {
@@ -959,6 +982,7 @@ function parseArgs(argv: string[]): CliOptions {
     semanticScopeAb,
     propositionalScopeOnly,
     classifierRegression,
+    pluralSurvivorsMouth,
     classifyText,
     reclassifyFile,
     authorityReplay,
@@ -1568,6 +1592,522 @@ async function realizeGroundedDiscoveryAsMovingText(input: {
   };
 }
 
+type PluralSurvivor = {
+  id: string;
+  perception: string;
+  relationship: string;
+  evidenceEventIds: string[];
+};
+
+function pluralSurvivorSemanticAuthority(
+  survivors: readonly PluralSurvivor[],
+): string[] {
+  return unique(
+    survivors.flatMap((candidate) => [
+      candidate.perception,
+      candidate.relationship,
+    ]),
+  );
+}
+
+function configurePluralSurvivorExperimentModel(): void {
+  process.env.QRE_AI_PROVIDER = PLURAL_SURVIVOR_EXPERIMENT_PROVIDER;
+  process.env.QRE_AUTHOR_FAST_MODEL = PLURAL_SURVIVOR_EXPERIMENT_MODEL;
+
+  const config = localModelConfig();
+  const providerLabel =
+    config.provider === PLURAL_SURVIVOR_EXPERIMENT_PROVIDER
+      ? PLURAL_SURVIVOR_EXPERIMENT_PROVIDER_LABEL
+      : String(config.provider);
+
+  console.log(`EXPERIMENT MODEL PROVIDER: ${providerLabel}`);
+  console.log(`EXPERIMENT MODEL: ${config.model}`);
+
+  if (
+    providerLabel !== PLURAL_SURVIVOR_EXPERIMENT_PROVIDER_LABEL ||
+    config.model !== PLURAL_SURVIVOR_EXPERIMENT_MODEL
+  ) {
+    throw new Error(
+      `Plural survivor experiment requires ${PLURAL_SURVIVOR_EXPERIMENT_PROVIDER_LABEL} ${PLURAL_SURVIVOR_EXPERIMENT_MODEL}; got ${providerLabel} ${config.model}`,
+    );
+  }
+  if (!clean(process.env.OPENROUTER_API_KEY)) {
+    throw new Error("Plural survivor experiment requires OPENROUTER_API_KEY before model calls");
+  }
+}
+
+function pluralSurvivorMouthMessages(input: {
+  subject: string;
+  suppliedReality: readonly AuthorCreativeEvent[];
+  survivors: readonly PluralSurvivor[];
+}): Array<{ role: "system" | "user"; content: string }> {
+  return [
+    {
+      role: "system",
+      content: [
+        "You are the Author in a temporary QRE diagnostic experiment.",
+        "Reality remains closed. Discourse remains open.",
+        "SUPPLIED_REALITY is the only documentary reality: it controls who or what exists, what materially happened, concrete actions, locations, objects, observations, states, causes, outcomes, chronology, and history.",
+        "GROUNDED_DISCOVERY_SURVIVORS are authorized semantic possibilities, not additional facts or events.",
+        "The survivors are permission, not a checklist. Do not assign one survivor to each production. Do not force diversity by distributing candidates across A/B/C.",
+        "For each attempt, privately decide what the supplied reality and authorized semantic possibilities make worth saying.",
+        "A/B/C may independently choose one survivor, combine several, contrast them, ignore some, recontextualize them, or derive expressive implications from them.",
+        "A/B/C may use judgment, attitude, rhetorical POV, generalized or social observation, comparison, humor, implication, personification as voice, object or subject perspective, and movement from particular event to broader observation and back.",
+        "A/B/C may not invent new people, new physical actions, new locations, new real objects, new observations, new motives, new causes, new outcomes, new mental states, new histories, or unsupplied concrete properties.",
+        "Do not explain the experiment. Return public moving-text words only.",
+        "In each text field, separate moving-text cuts with newline characters.",
+        "Return exactly three attempts.",
+      ].join("\n"),
+    },
+    {
+      role: "user",
+      content: JSON.stringify({
+        SUBJECT: input.subject,
+        SUPPLIED_REALITY: input.suppliedReality,
+        GROUNDED_DISCOVERY_SURVIVORS: input.survivors,
+        instruction:
+          "Return exactly three independent Author attempts. The grounded survivors are semantic permission, not required content. Keep documentary reality inside SUPPLIED_REALITY.",
+      }),
+    },
+  ];
+}
+
+async function generatePluralSurvivorMouthProductions(input: {
+  subject: string;
+  suppliedReality: readonly AuthorCreativeEvent[];
+  survivors: readonly PluralSurvivor[];
+}): Promise<{
+  text: string;
+  model: string;
+  provider: "local";
+}> {
+  return localModelGenerate(
+    pluralSurvivorMouthMessages(input),
+    "json",
+    {
+      numPredict: 1600,
+      temperature: 0.98,
+      jsonSchema: {
+        type: "object",
+        additionalProperties: false,
+        required: ["attempts"],
+        properties: {
+          attempts: {
+            type: "array",
+            minItems: 3,
+            maxItems: 3,
+            items: {
+              type: "object",
+              additionalProperties: false,
+              required: ["text"],
+              properties: {
+                text: { type: "string" },
+              },
+            },
+          },
+        },
+      },
+    },
+  );
+}
+
+async function assignExperimentalDirectAuthorProvenance(input: {
+  suppliedReality: readonly AuthorCreativeEvent[];
+  authoredProductions: readonly AuthorDirectTextProduction[];
+}): Promise<{
+  productions: AuthorMemoryMouthProduction[];
+  model: string;
+  modelCalls: number;
+}> {
+  const result = await localModelGenerate(
+    [
+      {
+        role: "system",
+        content: [
+          "You are QRE Direct Author Provenance.",
+          "A creative Author already wrote immutable A/B/C productions.",
+          "Your only job is to attach supplied evidence IDs to each existing line.",
+          "Do not rewrite text. Do not repair text. Do not score creativity. Do not select a winner.",
+          "Do not assign evidence by line position. Do not require full coverage. Do not assign every event to every line.",
+          "Choose only the supplied event IDs that license the already-authored line.",
+          "The same event may support multiple lines. Several events may support one line. Unused supplied events are legal.",
+          "Return evidence IDs only.",
+        ].join("\n"),
+      },
+      {
+        role: "user",
+        content: JSON.stringify({
+          SUPPLIED_REALITY: input.suppliedReality,
+          AUTHORED_PRODUCTIONS: input.authoredProductions,
+          instruction:
+            "For each authored line, return the sourceEventIds that license it. Preserve production letters and line orders. Do not include text.",
+        }),
+      },
+    ],
+    "json",
+    {
+      numPredict: 520,
+      openRouterMaxTokens: 1200,
+      temperature: 0.12,
+      jsonSchema: {
+        type: "object",
+        additionalProperties: false,
+        required: ["assignments"],
+        properties: {
+          assignments: {
+            type: "array",
+            minItems: 3,
+            maxItems: 3,
+            items: {
+              type: "object",
+              additionalProperties: false,
+              required: ["production", "lines"],
+              properties: {
+                production: { type: "string", enum: ["A", "B", "C"] },
+                lines: {
+                  type: "array",
+                  minItems: 0,
+                  maxItems: 12,
+                  items: {
+                    type: "object",
+                    additionalProperties: false,
+                    required: ["order", "sourceEventIds"],
+                    properties: {
+                      order: { type: "integer", minimum: 1 },
+                      sourceEventIds: {
+                        type: "array",
+                        minItems: 1,
+                        maxItems: 32,
+                        items: { type: "string", maxLength: 64 },
+                      },
+                    },
+                  },
+                },
+              },
+            },
+          },
+        },
+      },
+    },
+  );
+
+  const assignments = normalizeDirectAuthorProvenanceAssignments(parseAuthorJson(result.text));
+  return {
+    productions: attachDirectAuthorProvenanceToProductions({
+      authoredProductions: input.authoredProductions,
+      provenanceAssignments: assignments,
+      suppliedReality: input.suppliedReality,
+    }),
+    model: result.model,
+    modelCalls: 1,
+  };
+}
+
+function experimentalMemoryPlan(
+  events: readonly AuthorCreativeEvent[],
+): AuthorSemanticPlan {
+  return {
+    thesis: "Temporary plural-survivor diagnostic memory canvas.",
+    beats: events.map((event, index) => ({
+      order: index + 1,
+      role:
+        index === 0
+          ? "HOOK"
+          : index === events.length - 1
+            ? "PAYOFF"
+            : "BUILD",
+      eventIds: [event.id],
+      attention: event.text,
+      change: event.text,
+    })),
+  };
+}
+
+function experimentalDirectAuthorTreatmentAssignments(
+  events: readonly AuthorCreativeEvent[],
+): AuthorCreativeTreatmentMouthAssignment[] {
+  const evidenceEventIds = events.map((event) => clean(event.id)).filter(Boolean);
+  const expressive = (["A", "B", "C"] as const).map((production, index) => ({
+    production,
+    id: `treatment-${index + 1}`,
+    semanticMechanic: "NONE",
+    sourceCandidateId: `plural-survivor-direct-author[${production}]`,
+    sourceRelation: "line-owned sourceEventIds supply direct creative provenance",
+    evidenceEventIds,
+    creativePressure: "direct expression from plural grounded semantic possibilities",
+    hiddenInference: "",
+    treatment: "direct expressive production",
+    perceptionDelta: "perception authored directly in the production",
+    expressiveBehaviors: ["direct author production"],
+    intensity: "MEDIUM" as const,
+  }));
+
+  return [
+    ...expressive,
+    {
+      production: "D",
+      id: "treatment-4",
+      semanticMechanic: "NONE",
+      sourceCandidateId: "bare",
+      sourceRelation: "bare supplied reality",
+      evidenceEventIds,
+      creativePressure: "BARE",
+      hiddenInference: "",
+      treatment:
+        "NONE / Bare Reality. Present only the supplied facts in their natural sequence with minimal treatment.",
+      perceptionDelta: "No added perception; direct supplied reality remains visible as the control.",
+      expressiveBehaviors: ["bare reality"],
+      intensity: "LIGHT",
+    },
+  ];
+}
+
+function assembledCandidateToHarnessMemoryProduction(
+  candidate: AuthorAssembledCandidate,
+): AuthorMemoryMouthProduction {
+  return {
+    production: "ASSEMBLED",
+    lines: candidate.lines.map((line) => ({
+      order: line.order,
+      text: line.text,
+      sourceEventIds: [...line.sourceEventIds],
+      ...(line.synthesizedFrom?.length
+        ? { synthesizedFrom: [...line.synthesizedFrom] }
+        : {}),
+      ...(line.auditSpans?.length
+        ? { auditSpans: line.auditSpans.map((span) => ({ ...span })) }
+        : {}),
+    })),
+  };
+}
+
+async function runPluralSurvivorMouthExperiment(
+  domain: DiscoveryDomain,
+  runs: number,
+): Promise<RawProductionDiagnostic[]> {
+  const diagnostics: RawProductionDiagnostic[] = [];
+
+  for (let run = 1; run <= runs; run += 1) {
+    printHeader(`${domain.label} PLURAL SURVIVOR MOUTH EXPERIMENT RUN ${run}`);
+    const world = buildDomainRealityGraph(domain);
+    const events = suppliedRealityEventsFromWorld(world);
+    const discoveryResult = await discoverAuthorCreativeDirection({
+      events,
+      relations: world.relations.map((relation) => ({
+        from: relation.from,
+        to: relation.to,
+        kind: relation.kind,
+        strength: relation.strength,
+      })),
+      memory: [],
+      domainContext: domain.domainContext,
+    });
+    const survivors: PluralSurvivor[] = discoveryResult.discovery.candidates
+      .filter((candidate) => candidate.id !== "reality-direct")
+      .map((candidate) => ({
+        id: candidate.id,
+        perception: candidate.perception,
+        relationship: candidate.relationship,
+        evidenceEventIds: [...candidate.evidenceEventIds],
+      }));
+    const semanticAuthority = pluralSurvivorSemanticAuthority(survivors);
+
+    printHeader("PLURAL SURVIVOR DISCOVERY HANDOFF");
+    printJson({
+      model: discoveryResult.model,
+      modelCalls: discoveryResult.modelCalls,
+      selectedCandidateId: discoveryResult.discovery.selectedCandidateId,
+      selected: discoveryResult.discovery.selected,
+      survivorCount: survivors.length,
+      survivors,
+      semanticAuthority,
+      note:
+        "TEMPORARY EXPERIMENT: survivors are semantic permission for Mouth, not assigned per production.",
+    });
+
+    const mouthResult = await generatePluralSurvivorMouthProductions({
+      subject: domain.subject,
+      suppliedReality: events,
+      survivors,
+    });
+    const parsedMouth = parseAuthorJson(mouthResult.text);
+    const authoredProductions = directAuthorAttemptsToProductions(parsedMouth);
+
+    printHeader("PLURAL SURVIVOR MOUTH RAW RESULT");
+    printJson({
+      model: mouthResult.model,
+      provider: mouthResult.provider,
+      directAuthorCalls: 1,
+      selectedDiscoveryNotPrivileged: true,
+      survivorCount: survivors.length,
+      parserAndConverter: "production parseJson -> directAuthorAttemptsToProductions",
+    });
+
+    for (const entry of rawProductionEntries(authoredProductions)) {
+      printHeader(`PLURAL SURVIVOR RAW AUTHOR ${entry.production}`);
+      console.log(entry.text);
+    }
+
+    const provenanceResult = await assignExperimentalDirectAuthorProvenance({
+      suppliedReality: events,
+      authoredProductions,
+    });
+    const editorResult = await editDirectAuthorReality({
+      suppliedReality: events,
+      productions: provenanceResult.productions,
+      semanticAuthority,
+    });
+    const realityEditorDebug = {
+      enabled: true,
+      applied: editorResult.applied,
+      fallbackReason: editorResult.reason,
+      originalAuthorProductions: provenanceResult.productions,
+      auditorSpans: editorResult.diagnostics.map((diagnostic) => ({
+        production: diagnostic.production,
+        originalText: diagnostic.originalText,
+        spans: diagnostic.spans,
+        unusableReason: diagnostic.unusableReason,
+      })),
+      removedSpans: editorResult.diagnostics.map((diagnostic) => ({
+        production: diagnostic.production,
+        removedSpans: diagnostic.removedSpans,
+      })),
+      reconstructedProductions: editorResult.diagnostics.map((diagnostic) => ({
+        production: diagnostic.production,
+        text: diagnostic.reconstructedText,
+      })),
+      after: editorResult.productions,
+    };
+
+    const authorizedRealizationPool = harvestAuthorizedRealizationPool({
+      diagnostics: editorResult.diagnostics,
+      productions: provenanceResult.productions,
+      suppliedReality: events,
+    });
+    const forbiddenTexts = editorResult.diagnostics.flatMap((diagnostic) =>
+      diagnostic.spans
+        .filter((span) => span.classification === "UNSUPPORTED_REALITY")
+        .map((span) => span.exactText),
+    );
+    const assembledCandidate = assembleAuthorizedRealizations({
+      pool: authorizedRealizationPool,
+      suppliedReality: events,
+    });
+    const assemblyTruthResult = verifyAuthorizedAssemblyCandidate({
+      candidate: assembledCandidate,
+      pool: authorizedRealizationPool,
+      forbiddenTexts,
+      suppliedReality: events,
+      subject: domain.subject,
+      realityDirect: false,
+    });
+    const synthesisAttempt = await synthesizeAuthorizedRealizations({
+      subject: domain.subject,
+      suppliedReality: events,
+      pool: authorizedRealizationPool,
+      forbiddenTexts,
+      realityDirect: false,
+    });
+    const assembledMemoryProductions: AuthorMemoryMouthProduction[] = [];
+    if (assemblyTruthResult.eligible && assembledCandidate) {
+      assembledMemoryProductions.push(assembledCandidateToHarnessMemoryProduction(assembledCandidate));
+    }
+    if (synthesisAttempt.truthResult.eligible && synthesisAttempt.candidate) {
+      assembledMemoryProductions.push(assembledCandidateToHarnessMemoryProduction(synthesisAttempt.candidate));
+    }
+
+    const memoryEvaluation = evaluateAuthorMemoryProductions({
+      plan: experimentalMemoryPlan(events),
+      suppliedReality: events,
+      subject: domain.subject,
+      expressiveProductions: editorResult.productions,
+      assembledProductions: assembledMemoryProductions,
+      authorizedRealizationPool,
+      treatmentAssignments: experimentalDirectAuthorTreatmentAssignments(events),
+      lensSearchEnabled: true,
+      realityDirect: false,
+      minimumExpressiveCuts: 1,
+    });
+    const groundingResult = await verifyAuthorCreativeGrounding({
+      scenes: memoryEvaluation.scenes,
+      suppliedReality: events,
+      semanticAuthority,
+      domainContext: domain.domainContext,
+    });
+    const groundingObservation = {
+      ...groundingResult,
+      originalScenes: memoryEvaluation.scenes.length,
+      acceptedScenes: groundingResult.scenes.length,
+    };
+    const synthesizedFromDebug =
+      synthesisAttempt.candidate?.lines.map((line) => ({
+        order: line.order,
+        text: line.text,
+        synthesizedFrom: line.synthesizedFrom ?? [],
+        sourceEventIds: line.sourceEventIds,
+      })) ?? [];
+    const memoryProductionsDebug = {
+      winner: memoryEvaluation.selectedProduction ?? "NONE",
+      productions: memoryEvaluation.productions,
+      scenes: memoryEvaluation.scenes,
+    };
+
+    for (const entry of rawProductionEntries(authoredProductions)) {
+      const diagnostic = labelsForText(entry.text, domain);
+      diagnostics.push({
+        domain: domain.id,
+        condition: "CONTROL",
+        run,
+        production: entry.production,
+        text: entry.text,
+        ...diagnostic,
+        authority: observeAuthority({
+          production: entry.production,
+          realityEditorDebug,
+          memoryProductionsDebug,
+          synthesizedFromDebug,
+          groundingResult: groundingObservation,
+        }),
+      });
+    }
+
+    printHeader("PLURAL SURVIVOR PROVENANCE");
+    printJson(provenanceResult.productions);
+    printHeader("PLURAL SURVIVOR CLAIM AUDITOR");
+    printJson(realityEditorDebug.auditorSpans);
+    printHeader("PLURAL SURVIVOR REALITY EDITOR");
+    printJson(realityEditorDebug);
+    printHeader("PLURAL SURVIVOR AUTHORIZED REALIZATION POOL");
+    printJson(authorizedRealizationPool);
+    printHeader("PLURAL SURVIVOR ASSEMBLER / SYNTHESIZER");
+    printJson({
+      assemblerRawOutput: assembledCandidate?.rawText ?? "",
+      assemblerTruthResult: assemblyTruthResult,
+      synthesizerInput: synthesisAttempt.input,
+      rawSynthesizerOutput: synthesisAttempt.rawOutput,
+      synthesizedFrom: synthesizedFromDebug,
+      synthesisClaimAuditor: synthesisAttempt.claimAuditor ?? null,
+      synthesisRealityEditor: synthesisAttempt.realityEditor ?? null,
+      synthesisEligibility: synthesisAttempt.truthResult,
+    });
+    printHeader("PLURAL SURVIVOR SCORING / LATE SELECTION");
+    printJson(memoryProductionsDebug);
+    printHeader("PLURAL SURVIVOR FINAL GROUNDING");
+    printJson(groundingObservation);
+    printHeader("PLURAL SURVIVOR FINAL SELECTED PRODUCTION");
+    printJson({
+      winner: memoryEvaluation.selectedProduction ?? null,
+      selectedText: memoryEvaluation.scenes.map((scene) => scene.text).join("\n"),
+      scenes: memoryEvaluation.scenes,
+      groundedScenes: groundingResult.scenes,
+    });
+    printHeader("PLURAL SURVIVOR OBSERVATIONAL ANALYSIS");
+    printJson(diagnostics.filter((item) => item.domain === domain.id && item.run === run));
+  }
+
+  return diagnostics;
+}
+
 async function runDomain(
   domain: DiscoveryDomain,
   runs: number,
@@ -1997,6 +2537,9 @@ async function main(): Promise<void> {
   const promptHash = currentDirectAuthorPromptHash();
 
   if (!options.live) {
+    if (options.pluralSurvivorsMouth) {
+      throw new Error("--plural-survivors-mouth requires --live");
+    }
     if (options.semanticScopeAb) {
       printSemanticScopeAbDry(options, selectedDomains);
       return;
@@ -2015,6 +2558,15 @@ async function main(): Promise<void> {
   if (options.propositionalScopeOnly && !options.rawOnly) {
     throw new Error("--propositional-scope-only requires --raw-only");
   }
+  if (options.pluralSurvivorsMouth && options.rawOnly) {
+    throw new Error("--plural-survivors-mouth cannot be combined with --raw-only");
+  }
+  if (options.pluralSurvivorsMouth && (options.semanticScopeAb || options.propositionalScopeOnly)) {
+    throw new Error("--plural-survivors-mouth cannot be combined with semantic-scope modes");
+  }
+  if (options.pluralSurvivorsMouth) {
+    configurePluralSurvivorExperimentModel();
+  }
 
   const experimentDomains = options.semanticScopeAb || options.propositionalScopeOnly
     ? selectedDomains.filter((domain) => SEMANTIC_SCOPE_AB_DOMAIN_IDS.includes(domain.id))
@@ -2031,12 +2583,15 @@ async function main(): Promise<void> {
   console.log(`domains: ${experimentDomains.map((domain) => domain.id).join(", ")}`);
   console.log(`runs per domain: ${experimentRuns}`);
   console.log(`raw-only: ${String(options.rawOnly)}`);
+  console.log(`plural-survivors-mouth: ${String(options.pluralSurvivorsMouth)}`);
   console.log(`direct author source-region hash: ${promptHash}`);
   printJson(localModelConfig());
 
   const allDiagnostics: RawProductionDiagnostic[] = [];
   for (const domain of experimentDomains) {
-    if (options.semanticScopeAb) {
+    if (options.pluralSurvivorsMouth) {
+      allDiagnostics.push(...await runPluralSurvivorMouthExperiment(domain, experimentRuns));
+    } else if (options.semanticScopeAb) {
       allDiagnostics.push(...await runDomain(domain, experimentRuns, true, "CONTROL"));
       allDiagnostics.push(...await runDomain(domain, experimentRuns, true, "SEMANTIC_SCOPE"));
     } else if (options.propositionalScopeOnly) {
