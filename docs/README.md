@@ -1,45 +1,50 @@
 # QRE DOCUMENTATION INDEX
 
-**Branch:** `author/mouth-production-product-final`  
-**Updated:** 2026-08-24
+**Status:** canonical documentation entry point
+**Branch:** `fuck-you-bitch-is-awake`
+**Updated:** 2026-10-03
 
-This directory is organized around **canonical current architecture first**, focused semantic protocols second, and historical material last.
+This directory is intentionally small. Current architecture must have one obvious source of truth. Old competing Author plans, audits, movie-search architecture notes, and duplicate canonical references are removed rather than left available to create drift.
 
-## Canonical references
+## Current canonical references
 
-| Document | Use it for |
+| Document | Purpose |
 |---|---|
-| `AUTHOR_ARCHITECTURE_INDEX.md` | Ownership, boundaries, connected intelligence stack, canonical paths |
-| `AUTHOR_CURRENT_STATE.md` | What Author, memory, learning, Mouth, and acceptance currently do |
-| `RUNTIME_AND_ANALYTICS_CURRENT_STATE.md` | Runtime, event spine, analytics, learning boundary, persistence |
-| `SUPABASE_SETUP.md` | Supabase Postgres env wiring and Prisma migration commands |
-| `QRE_PRODUCTION_TODO.md` | Active work needed to reach universal production Author |
-| `LAUNCH_READINESS.md` | Launch / deployment readiness |
+| `AUTHOR_CURRENT.md` | Current Author doctrine, live architecture, proven behavior, hard boundaries |
+| `AUTHOR_ROADMAP.md` | Ordered finish plan: Identity -> treatment preservation/AUTO -> Playout/media |
+| `PLAYOUT_AND_MEDIA_PLAN.md` | Author-to-presentation boundary, reveal splitting, TEXT/IMAGE/VIDEO composition |
+| `author-validation-20261003.md` | Captured cross-domain validation evidence for the current checkpoint |
+| `RUNTIME_AND_ANALYTICS_CURRENT_STATE.md` | Runtime / analytics boundary outside Author |
+| `LAUNCH_READINESS.md` | Deployment / launch readiness |
+| `SUPABASE_SETUP.md` | Supabase / Prisma setup |
 
-## Focused semantic references
+## Historical evidence
 
-| Document | Use it for |
-|---|---|
-| `AUTHOR_TRUTH_LEDGER.md` | Source-truth and provenance law |
-| `AUTHOR_DECISION_LAW.md` | Author decision rules |
-| `AUTHOR_LATENT_MOVIE_SEARCH.md` | Movie trajectory search semantics |
-| `AUTHOR_VIEWER_MOMENTUM_PROTOCOL.md` | Viewer-state / momentum law |
-| `AUTHOR_BEAT_RECOVERY.md` | Recovery boundary and fallback rules |
-| `AUTHOR_BENCHMARK_PROTOCOL.md` | Benchmark methodology |
-| `QRE_AUTONOMOUS_LEARNING.md` | Autonomous learning architecture |
-| `QRE_MAGNET_CIRCLE.md` | Attention / magnet loop |
-| `MOUTH_FRAME_LENS_STATE.md` | Mouth lens/state boundary |
-| `SEQUENCE_PLAY_ARCHITECTURE.md` | Sequence-play architecture |
-| `SEQUENCE_PLAY_MODEL.md` | Sequence-play model details |
+`AUTHOR_CHANGELOG.md` is history only. It is not current architecture truth.
 
-## Historical reference
+`author-cognition-writing-audit-20261001.md` is retained as dated diagnostic evidence only. It must not override `AUTHOR_CURRENT.md` or `AUTHOR_ROADMAP.md`.
 
-`AUTHOR_CHANGELOG.md` is retained as history. It is not a source of current architecture truth.
+## Precedence
 
-## Documentation rules
+When documents disagree:
 
-1. The canonical current-state documents win when older documents disagree.
-2. Architecture changes must update the canonical reference in the same engineering pass.
-3. A proposed idea does not become architecture until code + acceptance prove it.
-4. Obsolete “next world,” duplicate master/goal, and monolithic reference docs should be deleted rather than left around to compete with current truth.
-5. Every production semantic owner must have one obvious source file and one obvious reference here.
+1. Executed source and deterministic regressions win.
+2. `AUTHOR_CURRENT.md` defines current Author doctrine and boundaries.
+3. `AUTHOR_ROADMAP.md` defines intended next work.
+4. `PLAYOUT_AND_MEDIA_PLAN.md` defines the presentation/media handoff.
+5. Dated validation/audit files are evidence, not architecture authority.
+6. Historical changelog entries never override current docs.
+
+## Documentation law
+
+- Do not create another "canonical", "master", "beast", "next world", or competing Author architecture document.
+- Update `AUTHOR_CURRENT.md` in the same change that alters Author architecture.
+- Update `AUTHOR_ROADMAP.md` when priorities or remaining work change.
+- Update `PLAYOUT_AND_MEDIA_PLAN.md` when the Author/presentation boundary changes.
+- Add dated validation records only when they contain executed evidence.
+- Delete superseded doctrine once its useful information has been absorbed into the canonical documents.
+- Product examples may illustrate behavior but must not become hardcoded prompt law.
+
+## Current checkpoint
+
+The Author checkpoint committed at `e2971c82` preserves strong authorized expressive realizations through synthesis. The next architecture task is Identity unification, followed by universal treatment/stance preservation and deterministic AUTO treatment selection, then `ExperiencePlayout` / `SequenceComposer` with sentence-level reveals and supplied media.
