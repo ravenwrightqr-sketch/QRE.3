@@ -61,17 +61,33 @@ async function discover({
   repaired = [],
 } = {}) {
   const requests = [];
+  const rejected = (id) =>
+    rejectedIds.includes(id) ||
+    (typeof id === "string" && id.startsWith("pov-") && rejectedIds.includes(id.slice(4)));
   const service = loadService("authorCreativeDiscovery", async (messages, format, options) => {
     const payload = JSON.parse(messages[1].content);
     requests.push({ messages, format, options, payload });
     let result;
     if (payload.CURRENT_REALITY) result = response;
     else if (payload.CANDIDATES) {
-      result = { verifications: payload.CANDIDATES.map(({ id }) => ({
-        candidateId: id,
-        grounded: !rejectedIds.includes(id),
-        unsupportedClaims: rejectedIds.includes(id) ? ["unsupported premise"] : [],
-      })) };
+      const semanticVerification = Array.isArray(payload.CANDIDATES) &&
+        payload.CANDIDATES.some((candidate) => candidate && typeof candidate.semanticMove === "string");
+      result = semanticVerification
+        ? { verifications: payload.CANDIDATES.map(({ id }) => ({
+            candidateId: id,
+            valid: !rejected(id),
+            reason: rejected(id) ? "Semantic move is rejected by the failed-closure check." : "Semantic move is valid.",
+          })) }
+        : { verifications: payload.CANDIDATES.map(({ id }) => ({
+            candidateId: id,
+            grounded: !rejected(id),
+            unsupportedClaims: rejected(id) ? ["unsupported premise"] : [],
+          })) };
+    } else if (payload.GROUNDED_CANDIDATES) {
+      result = {
+        selectedCandidateId: payload.GROUNDED_CANDIDATES[0]?.id ?? "",
+        selectionReason: "The grounded read strongest changes what becomes noticeable.",
+      };
     } else if (payload.FAILED_DISCOVERY) result = { candidates: repaired };
     else if (payload.SUPPLIED_REALITY) result = { kind: "DERIVED_MEANING", relations: [] };
     else throw new Error("Unexpected Discovery model request");
@@ -98,6 +114,24 @@ async function discover({
   return { ...result, requests };
 }
 
+function discoveryStageNames(requests) {
+  return requests.map(({ payload }, index) => {
+    if ("CURRENT_REALITY" in payload) {
+      return index === 0 ? "primary-search" : "rhetorical-pov-search";
+    }
+    if ("CANDIDATES" in payload) {
+      return payload.CANDIDATES.some((candidate) => typeof candidate.semanticMove === "string")
+        ? "semantic-move-verification"
+        : "factual-grounding";
+    }
+    if ("GROUNDED_CANDIDATES" in payload) return "grounded-candidate-selection";
+    if ("SUPPLIED_REALITY" in payload) return "relational-abstraction";
+    if ("DERIVED_MEANING_CLAIMS" in payload) return "derived-meaning-authority";
+    if ("FAILED_DISCOVERY" in payload) return "discovery-repair";
+    return "unknown";
+  });
+}
+
 // One fact may carry meaning while every supplied fact stays available. This
 // includes explicit NONE, automatic treatment, and non-business memories.
 let approvedDiscovery;
@@ -105,11 +139,18 @@ for (const domainContext of [businessMemory, { experienceMode: "MEMORY" }]) {
   for (const requestedLens of ["HORROR", "NONE", ""]) {
     const { discovery, requests } = await discover({ domainContext, requestedLens });
     assert.equal(discovery.selected.id, "notice");
-    assert.equal(discovery.candidates.length, 1);
     assert.deepEqual(discovery.selected.evidenceEventIds, ["e4"]);
+    assert.deepEqual(discovery.candidates.map(({ id }) => id), ["notice", "pov-notice"]);
     assert.deepEqual(discovery.playableEventIds, eventIds);
     assert.deepEqual(discovery.backgroundEventIds, []);
-    assert.equal(requests.length, 3, "Discovery verifies its primary read and runs relational abstraction");
+    assert.deepEqual(discoveryStageNames(requests), [
+      "primary-search",
+      "rhetorical-pov-search",
+      "factual-grounding",
+      "semantic-move-verification",
+      "grounded-candidate-selection",
+      "relational-abstraction",
+    ], "Discovery handoff must account for the current search, verification, selection, and relational cognition stages");
     approvedDiscovery = discovery;
   }
 }
@@ -157,7 +198,10 @@ for (const candidates of [[makeCandidate("pair", ["e3", "e4"])], []]) {
   assert.deepEqual(discovery.playableEventIds, eventIds);
   assert.deepEqual(discovery.backgroundEventIds, []);
   assert.equal(discovery.selected.id, candidates.length ? "pair" : "reality-direct");
-  assert.equal(discovery.candidates.length, candidates.length);
+  assert.deepEqual(
+    discovery.candidates.map(({ id }) => id),
+    candidates.length ? ["pair", "pov-pair"] : [],
+  );
 }
 
 // A rejected selection may be replaced, repaired, or fall back without losing

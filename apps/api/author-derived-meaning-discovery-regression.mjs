@@ -126,11 +126,24 @@ for (const experienceMode of ["MEMORY", "IDENTITY"]) {
     let response;
     if (payload.CURRENT_REALITY) response = {
       candidates: [{ id: "notice", perception: "An adornment is contested.", relationship: "",
-        evidenceEventIds: ["b"] }], selectedCandidateId: "notice",
+        evidenceEventIds: ["b"], semanticMove: "PARTICULAR" }], selectedCandidateId: "notice",
     };
-    else if (payload.CANDIDATES) response = { verifications: payload.CANDIDATES.map(({ id }) => ({
-      candidateId: id, grounded: true, unsupportedClaims: [],
-    })) };
+    else if (payload.CANDIDATES) {
+      const semanticMoveVerification = payload.CANDIDATES.some((candidate) =>
+        typeof candidate.semanticMove === "string"
+      );
+      response = semanticMoveVerification
+        ? { verifications: payload.CANDIDATES.map(({ id }) => ({
+            candidateId: id, valid: true, reason: "The claimed semantic move is valid.",
+          })) }
+        : { verifications: payload.CANDIDATES.map(({ id }) => ({
+            candidateId: id, grounded: true, unsupportedClaims: [],
+          })) };
+    }
+    else if (payload.GROUNDED_CANDIDATES) response = {
+      selectedCandidateId: payload.GROUNDED_CANDIDATES[0]?.id ?? "",
+      selectionReason: "The primary grounded read carries the clearest supported thought distance.",
+    };
     else if (payload.DERIVED_MEANING_CLAIMS) response = { verifications: payload.DERIVED_MEANING_CLAIMS.map(({ id }) => ({
       claimId: id, grounded: true, unsupportedClaims: [],
     })) };
@@ -142,7 +155,30 @@ for (const experienceMode of ["MEMORY", "IDENTITY"]) {
   const result = plain(await service.discoverAuthorCreativeDirection({
     events, memory, requestedLens: "HORROR", domainContext: { experienceMode },
   }));
-  assert.equal(result.modelCalls, 4);
+  const stageNames = requests.map((payload, index) => {
+    if ("CURRENT_REALITY" in payload) {
+      return index === 0 ? "primary-search" : "rhetorical-pov-search";
+    }
+    if ("CANDIDATES" in payload) {
+      return payload.CANDIDATES.some((candidate) => typeof candidate.semanticMove === "string")
+        ? "semantic-move-verification"
+        : "factual-grounding";
+    }
+    if ("GROUNDED_CANDIDATES" in payload) return "grounded-candidate-selection";
+    if ("SUPPLIED_REALITY" in payload) return "relational-abstraction";
+    if ("DERIVED_MEANING_CLAIMS" in payload) return "derived-meaning-authority";
+    return "unknown";
+  });
+  assert.equal(result.modelCalls, requests.length);
+  assert.deepEqual(stageNames, [
+    "primary-search",
+    "rhetorical-pov-search",
+    "factual-grounding",
+    "semantic-move-verification",
+    "grounded-candidate-selection",
+    "relational-abstraction",
+    "derived-meaning-authority",
+  ], "Discovery call accounting must track the current seven-stage path");
   assert.deepEqual(result.discovery.derivedMeaning, approved);
   assert.deepEqual(requests[0].MEMORY, memory, "Stored memory still reaches primary Discovery");
   assert.deepEqual(result.discovery.selected.evidenceEventIds, ["b"], "Derived evidence must not rewrite primary evidence");
@@ -202,14 +238,14 @@ assert.equal("STORY_GRAVITY" in mouth, false, "A HARD metadata endpoint must not
 assert.match(mouthSystems[0], /Use a name when identity, contrast, or emphasis earns it/);
 assert.match(mouthSystems[0], /Make the meaning felt through the writing itself/);
 assert.match(mouthSystems[0], /Maximize meaningful inference while maintaining grounding/);
-assert.match(mouthSystems[0], /Each public line is a moving-text cut/);
-assert.match(mouthSystems[0], /One word may establish the charged detail/);
+assert.match(mouthSystems[0], /Each public line is one arriving beat and must earn its own screen/);
+assert.match(mouthSystems[0], /a charged detail, a leading phrase, a single word, or a sentence can carry a whole supported perception/);
 assert.match(mouthSystems[0], /Keep the explanation of how the evidence supports it in private reasoning/);
 assert.match(mouthSystems[0], /A supplied ending state may be used, omitted, or placed earlier/);
 assert.match(mouthSystems[0], /Expand what a truth can mean without expanding what happened/);
 assert.match(mouthSystems[0], /a supplied entity, a rhetorical speaker, or a category already made relevant by the facts/);
 assert.match(mouthSystems[0], /stop cutting when the inference, character, rhythm, or tension gets weaker/);
-assert.doesNotMatch(mouthSystems[0], /Do not|Never/i, "Mouth should direct creation positively");
+assert.match(mouthSystems[0], /Protect the strange; police the facts/);
 assert.doesNotMatch(mouthSystems[0], /Coco|War of the Bows|Peace is temporary/i,
   "Taste references must remain outside production instructions");
 
@@ -241,7 +277,19 @@ assert.equal("APPROVED_BEATS" in expressiveRequest.payload, false);
 assert.equal("STORY_GRAVITY" in expressiveRequest.payload, false);
 assert.deepEqual(expressiveRequest.payload.CREATIVE_TREATMENTS.map(({ production }) => production), ["A", "B", "C"]);
 for (const treatment of expressiveRequest.payload.CREATIVE_TREATMENTS) {
-  assert.deepEqual(Object.keys(treatment).sort(), ["conception", "evidenceEventIds", "production"]);
+  assert.deepEqual(Object.keys(treatment).sort(), [
+    "conception",
+    "creativePressure",
+    "evidenceEventIds",
+    "expressiveBehaviors",
+    "intensity",
+    "perceptionDelta",
+    "production",
+    "treatment",
+  ]);
+  assert.equal(typeof treatment.creativePressure, "string");
+  assert.equal(typeof treatment.perceptionDelta, "string");
+  assert.ok(Array.isArray(treatment.expressiveBehaviors));
 }
 assert.equal(expressiveRequest.options.jsonSchema.properties.productions.minItems, 3);
 assert.equal(expressiveRequest.options.jsonSchema.properties.productions.items.properties.lines.minItems, 3,
