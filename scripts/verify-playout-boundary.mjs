@@ -28,10 +28,15 @@ assert.match(
   /revealIndex: number;/,
   "TEXT Playout items must carry deterministic revealIndex within their source scene",
 );
+assert.match(
+  playoutContract,
+  /durationMs: number;/,
+  "TEXT Playout items must carry current Playout-owned durationMs",
+);
 assert.doesNotMatch(
   playoutContract,
-  /\b(?:duration|durationHintMs|transition|animation|audio|visual|camera)\b/,
-  "Playout v2 reveal contract must not add timing, transition, animation, audio, visual, or camera metadata",
+  /\b(?:durationHintMs|timingHint|cinematicDuration|sceneDuration|transition|animation|audio|visual|camera)\b/,
+  "Playout reveal contract must not add legacy hints, transition, animation, audio, visual, or camera metadata",
 );
 
 const authorBrain = read("packages/contracts/src/author/authorBrain.ts");
@@ -88,6 +93,16 @@ assert.match(
   playoutSource,
   /revealIndex/,
   "ExperiencePlayout output must include revealIndex",
+);
+assert.match(
+  playoutSource,
+  /deriveTextRevealDurationMs/,
+  "ExperiencePlayout must own deterministic TEXT reveal duration derivation",
+);
+assert.match(
+  playoutSource,
+  /durationMs: deriveTextRevealDurationMs\(text\)/,
+  "ExperiencePlayout output must include Playout-owned durationMs",
 );
 
 const experienceService = read("apps/api/src/services/experienceService.ts");

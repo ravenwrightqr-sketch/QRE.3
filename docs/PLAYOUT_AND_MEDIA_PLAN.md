@@ -1,6 +1,6 @@
 # QRE PLAYOUT + MEDIA PLAN
 
-**Status:** Playout v2 deterministic TEXT reveal splitting implemented; media/timing/frontend remain future
+**Status:** Playout v3 deterministic TEXT reveal timing implemented; media/frontend remain future
 **Branch:** `fuck-you-bitch-is-awake`
 **Updated:** 2026-10-03
 
@@ -43,7 +43,7 @@ This is presentation splitting, not Author rewriting.
 
 ## Proposed item model
 
-Implemented v2 text-only contract:
+Implemented v3 text-only contract:
 
 ```ts
 type PlayoutTextItem = {
@@ -52,6 +52,7 @@ type PlayoutTextItem = {
   sourceSceneIndex: number;
   revealIndex: number;
   sourceEventIds: string[];
+  durationMs: number;
 };
 
 type PlayoutItem = PlayoutTextItem;
@@ -126,14 +127,15 @@ Future splitting may consider rhetorical short fragments, readability length, an
 
 Timing is a presentation decision.
 
-Starting tendencies only:
-- very short text: around 1–2 seconds
-- ordinary short text: around 2 seconds
-- longer thought: longer
-- image: enough time to register
-- video: media-defined duration or bounded excerpt
+Implemented v3 TEXT timing:
+- base: 800 ms
+- readable word: +190 ms
+- question/exclamation ending: +180 ms
+- ellipsis ending: +240 ms
+- colon/semicolon: +120 ms
+- clamp: 1100-4200 ms
 
-Future timing can respond to line length, punctuation, media type, interaction, and learned pacing. Do not encode timing into Author cognition.
+Duration uses trimmed reveal text for measurement only; the stored reveal text remains unchanged for exact reconstruction. Future timing can respond to media type, interaction, and learned pacing. Do not encode timing into Author cognition.
 
 ## Frontend responsibilities
 
@@ -161,7 +163,7 @@ If text is semantically wrong, fix Author. If the text is right but paced badly,
 1. Define `PlayoutItem` contract. Implemented for TEXT in `packages/contracts/src/playout/`.
 2. Convert current final Author scenes/beats into TEXT items without behavior change. Implemented by deterministic Author scene -> TEXT transport.
 3. Add sentence/fragment reveal splitting with deterministic tests. Implemented for line and sentence boundaries without rewriting text.
-4. Add timing metadata.
+4. Add timing metadata. Implemented for deterministic TEXT reveal `durationMs`.
 5. Add IMAGE items with provenance.
 6. Add VIDEO items.
 7. Add deterministic placement/composition rules.

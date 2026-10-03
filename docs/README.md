@@ -47,4 +47,4 @@ When documents disagree:
 
 ## Current checkpoint
 
-The current Playout checkpoint keeps Author semantics separate from presentation and adds deterministic TEXT reveal splitting. Remaining presentation work is timing, IMAGE/VIDEO composition, frontend Playout rendering, and item-level analytics.
+The current Playout checkpoint keeps Author semantics separate from presentation and adds deterministic TEXT reveal splitting plus Playout-owned `durationMs`. Remaining presentation work is IMAGE/VIDEO composition, frontend Playout rendering, and item-level analytics.

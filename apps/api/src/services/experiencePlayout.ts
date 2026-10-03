@@ -54,6 +54,25 @@ function wordCount(text: string): number {
   return text.match(/[A-Za-z0-9]+(?:['-][A-Za-z0-9]+)*/g)?.length ?? 0;
 }
 
+function clamp(value: number, minimum: number, maximum: number): number {
+  return Math.max(minimum, Math.min(maximum, value));
+}
+
+export function deriveTextRevealDurationMs(text: string): number {
+  const measured = text.trim();
+  const words = wordCount(measured);
+  const ellipsisPause = /(?:\.{3}|…)(?:["')\]])?$/.test(measured) ? 240 : 0;
+  const questionOrExclamationPause =
+    ellipsisPause === 0 && /[?!](?:["')\]])?$/.test(measured) ? 180 : 0;
+  const colonOrSemicolonPause = /[:;]/.test(measured) ? 120 : 0;
+
+  return clamp(
+    800 + words * 190 + ellipsisPause + questionOrExclamationPause + colonOrSemicolonPause,
+    1100,
+    4200,
+  );
+}
+
 function nextBoundaryEnd(text: string, punctuationIndex: number): number {
   let end = punctuationIndex + 1;
   while (/["')\]]/.test(text[end] ?? "")) {
@@ -131,6 +150,7 @@ export function composeExperiencePlayout(
           sourceSceneIndex: index,
           revealIndex,
           sourceEventIds: [...scene.sourceEventIds],
+          durationMs: deriveTextRevealDurationMs(text),
         }));
     }),
   };

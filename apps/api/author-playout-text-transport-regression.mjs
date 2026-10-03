@@ -21,6 +21,7 @@ assert.deepEqual(single.items[0], {
   sourceSceneIndex: 0,
   revealIndex: 0,
   sourceEventIds: ["event-1"],
+  durationMs: 1180,
 });
 
 const multiple = composeExperiencePlayout([
@@ -131,10 +132,11 @@ const hinted = composeExperiencePlayout([
 
 assert.deepEqual(
   keys(hinted.items[0]),
-  ["kind", "revealIndex", "sourceEventIds", "sourceSceneIndex", "text"],
-  "Playout TEXT items must not invent or transport timing/transition/audio/visual metadata",
+  ["durationMs", "kind", "revealIndex", "sourceEventIds", "sourceSceneIndex", "text"],
+  "Playout TEXT items must only carry current durationMs timing, not legacy presentation hints",
 );
-assert.equal("durationHintMs" in hinted.items[0], false, "no timing metadata may be invented");
+assert.equal(typeof hinted.items[0]?.durationMs, "number", "current Playout duration must be present");
+assert.equal("durationHintMs" in hinted.items[0], false, "legacy timing hints must stay dead");
 assert.equal("transitionHint" in hinted.items[0], false, "no transition hints may be created");
 assert.equal("audioMood" in hinted.items[0], false, "no audio hints may be created");
 assert.equal("visualHint" in hinted.items[0], false, "no visual hints may be created");

@@ -4,6 +4,7 @@ export type PlayoutTextItem = {
   sourceSceneIndex: number;
   revealIndex: number;
   sourceEventIds: string[];
+  durationMs: number;
 };
 
 export type PlayoutItem = PlayoutTextItem;

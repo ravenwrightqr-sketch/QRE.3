@@ -48,8 +48,9 @@ function assertSceneReveals(text, expected, sourceEventIds = ["event-1"]) {
 
   for (const item of items) {
     assert.equal(item.kind, "TEXT", "Playout v2 reveal splitting must only create TEXT items");
-    assert.equal("duration" in item, false, "no timing metadata may exist");
-    assert.equal("durationHintMs" in item, false, "no timing metadata may exist");
+    assert.equal(typeof item.durationMs, "number", "Playout v3 TEXT reveals must carry durationMs");
+    assert.equal("duration" in item, false, "legacy/generic timing metadata must not exist");
+    assert.equal("durationHintMs" in item, false, "legacy Author timing hints must not exist");
     assert.equal("transition" in item, false, "no transition metadata may exist");
     assert.equal("transitionHint" in item, false, "no transition metadata may exist");
     assert.equal("audio" in item, false, "no audio metadata may exist");
@@ -108,6 +109,7 @@ assert.deepEqual(
     revealIndex: item.revealIndex,
     sourceEventIds: item.sourceEventIds,
     kind: item.kind,
+    durationMs: item.durationMs,
   })),
   [
     {
@@ -116,6 +118,7 @@ assert.deepEqual(
       revealIndex: 0,
       sourceEventIds: ["event-a"],
       kind: "TEXT",
+      durationMs: 1180,
     },
     {
       text: "Still first.",
@@ -123,6 +126,7 @@ assert.deepEqual(
       revealIndex: 1,
       sourceEventIds: ["event-a"],
       kind: "TEXT",
+      durationMs: 1180,
     },
     {
       text: "Second scene. ",
@@ -130,6 +134,7 @@ assert.deepEqual(
       revealIndex: 0,
       sourceEventIds: ["event-b"],
       kind: "TEXT",
+      durationMs: 1180,
     },
     {
       text: "Still second.",
@@ -137,6 +142,7 @@ assert.deepEqual(
       revealIndex: 1,
       sourceEventIds: ["event-b"],
       kind: "TEXT",
+      durationMs: 1180,
     },
   ],
   "multiple source scenes must preserve global scene order and reset revealIndex per scene",
