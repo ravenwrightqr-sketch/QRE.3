@@ -86,15 +86,33 @@ assert.deepEqual(
   "IMAGE items must preserve image source order, identity, URL, and truthful provenance",
 );
 
-const firstImageIndex = withMedia.items.findIndex((item) => item.kind === "IMAGE");
+const imageOneIndex = withMedia.items.findIndex(
+  (item) => item.kind === "IMAGE" && item.mediaId === "image-1",
+);
+const imageTwoIndex = withMedia.items.findIndex(
+  (item) => item.kind === "IMAGE" && item.mediaId === "image-2",
+);
+const lastScene0TextIndex = withMedia.items.reduce(
+  (latest, item, index) =>
+    item.kind === "TEXT" && item.sourceSceneIndex === 0 ? index : latest,
+  -1,
+);
+const firstScene1TextIndex = withMedia.items.findIndex(
+  (item) => item.kind === "TEXT" && item.sourceSceneIndex === 1,
+);
 const lastTextIndex = withMedia.items.reduce(
   (latest, item, index) => item.kind === "TEXT" ? index : latest,
   -1,
 );
 
 assert.ok(
-  firstImageIndex > lastTextIndex,
-  "v4 conservative placement must append IMAGE items after all TEXT items",
+  imageOneIndex > lastScene0TextIndex && imageOneIndex < firstScene1TextIndex,
+  "provenance-matched IMAGE must appear after its latest matching scene and before the next scene",
+);
+
+assert.ok(
+  imageTwoIndex > lastTextIndex,
+  "IMAGE without provenance must remain trailing fallback media",
 );
 
 for (const item of imageItems) {
