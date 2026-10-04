@@ -4,8 +4,8 @@ import type {
   MediaAsset,
   PlayoutImageItem,
   PlayoutTextItem,
+  PlayoutVideoItem,
 } from "@qre/contracts";
-
 export type PlayoutSourceScene = AuthorScene & {
   sourceEventIds: readonly string[];
 };
@@ -67,7 +67,7 @@ function clamp(value: number, minimum: number, maximum: number): number {
 export function deriveTextRevealDurationMs(text: string): number {
   const measured = text.trim();
   const words = wordCount(measured);
-  const ellipsisPause = /(?:\.{3}|…)(?:["')\]])?$/.test(measured) ? 240 : 0;
+  const ellipsisPause = /(?:\.{3}|ï¿½)(?:["')\]])?$/.test(measured) ? 240 : 0;
   const questionOrExclamationPause =
     ellipsisPause === 0 && /[?!](?:["')\]])?$/.test(measured) ? 180 : 0;
   const colonOrSemicolonPause = /[:;]/.test(measured) ? 120 : 0;
@@ -190,7 +190,20 @@ function composeImageItems(
       }),
     );
 }
-
+function composeVideoItems(
+  media: readonly MediaAsset[],
+): PlayoutVideoItem[] {
+  return media
+    .filter((asset) => asset.type === "video")
+    .map(
+      (asset): PlayoutVideoItem => ({
+        kind: "VIDEO",
+        mediaId: asset.id,
+        url: asset.url,
+        sourceEventIds: mediaSourceEventIds(asset),
+      }),
+    );
+}
 export function composeExperiencePlayout(
   scenes: readonly PlayoutSourceScene[],
   media: readonly MediaAsset[] = [],
@@ -199,6 +212,7 @@ export function composeExperiencePlayout(
     items: [
       ...composeTextItems(scenes),
       ...composeImageItems(media),
+      ...composeVideoItems(media),
     ],
   };
 }

@@ -109,12 +109,6 @@ for (const item of imageItems) {
   assert.equal("narrativeRole" in item, false, "media must not receive invented narrative authority");
 }
 
-assert.equal(
-  withMedia.items.some((item) => item.kind === "VIDEO"),
-  false,
-  "Playout v4 must not create VIDEO items",
-);
-
 assert.deepEqual(
   composeExperiencePlayout(scenes, []).items,
   textOnly.items,

@@ -14,9 +14,17 @@ export type PlayoutImageItem = {
   sourceEventIds: string[];
 };
 
+export type PlayoutVideoItem = {
+  kind: "VIDEO";
+  mediaId: string;
+  url: string;
+  sourceEventIds: string[];
+};
+
 export type PlayoutItem =
   | PlayoutTextItem
-  | PlayoutImageItem;
+  | PlayoutImageItem
+  | PlayoutVideoItem;
 
 export type ExperiencePlayout = {
   items: PlayoutItem[];

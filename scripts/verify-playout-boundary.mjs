@@ -65,7 +65,35 @@ assert.match(
   /sourceEventIds: string\[\];/,
   "IMAGE Playout items must carry truthful provenance",
 );
+assert.match(
+  playoutContract,
+  /export type PlayoutVideoItem = \{/,
+  "Playout contract must define VIDEO items",
+);
 
+assert.match(
+  playoutContract,
+  /kind: "VIDEO";/,
+  "VIDEO Playout items must use the VIDEO discriminator",
+);
+
+assert.match(
+  playoutContract,
+  /mediaId: string;/,
+  "VIDEO Playout items must preserve canonical media identity",
+);
+
+assert.match(
+  playoutContract,
+  /url: string;/,
+  "VIDEO Playout items must preserve canonical media URL",
+);
+
+assert.match(
+  playoutContract,
+  /sourceEventIds: string\[\];/,
+  "VIDEO Playout items must carry truthful provenance",
+);
 assert.doesNotMatch(
   playoutContract,
   /\b(?:durationHintMs|timingHint|cinematicDuration|sceneDuration|transition|animation|audioMood|visualHint|camera|narrativeRole|placementHint)\b/,
@@ -170,7 +198,23 @@ assert.match(
   /mediaSourceEventIds\(asset\)/,
   "IMAGE composition must preserve only explicit supplied provenance",
 );
+assert.match(
+  playoutSource,
+  /asset\.type === "video"/,
+  "VIDEO composition must derive only from canonical video media",
+);
 
+assert.match(
+  playoutSource,
+  /kind: "VIDEO"/,
+  "VIDEO composition must emit the VIDEO discriminator",
+);
+
+assert.match(
+  playoutSource,
+  /\.\.\.composeVideoItems\(media\)/,
+  "Playout must include deterministic VIDEO composition",
+);
 assert.doesNotMatch(
   playoutSource,
   /\b(?:captionGenerated|visualHint|camera|narrativeRole|placementHint|transitionHint)\b/,
@@ -230,5 +274,5 @@ assert.doesNotMatch(
 );
 
 console.log(
-  "PLAYOUT BOUNDARY GREEN - AUTHOR MEANING - PLAYOUT TEXT/TIMING/IMAGE PRESENTATION - LEGACY QUARANTINED",
+  "PLAYOUT BOUNDARY GREEN - AUTHOR MEANING - PLAYOUT TEXT/TIMING/IMAGE/VIDEO PRESENTATION - LEGACY QUARANTINED",
 );
