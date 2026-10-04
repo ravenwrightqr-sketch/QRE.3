@@ -190,7 +190,8 @@ export async function createExperience(input: CreateExperienceInput) {
     sponsor,
     cinematicSequence,
     authoring: {
-      kind: "qre_creation",
+      kind: "service_experience",
+      creationKind: "qre_creation",
       authoredBy: "qre-author-canonical",
       realizationPath: "authorBrainCanonical",
       memoryAware: true,
