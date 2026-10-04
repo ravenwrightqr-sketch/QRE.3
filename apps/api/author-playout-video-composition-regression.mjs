@@ -137,28 +137,41 @@ assert.equal(
   "audio media must not create AUDIO Playout items",
 );
 
-const lastTextIndex = withMedia.items.reduce(
+const lastScene0TextIndex = withMedia.items.reduce(
   (latest, item, index) =>
-    item.kind === "TEXT" ? index : latest,
+    item.kind === "TEXT" && item.sourceSceneIndex === 0 ? index : latest,
   -1,
 );
-
-const firstImageIndex = withMedia.items.findIndex(
-  (item) => item.kind === "IMAGE",
+const firstScene1TextIndex = withMedia.items.findIndex(
+  (item) => item.kind === "TEXT" && item.sourceSceneIndex === 1,
 );
-
-const firstVideoIndex = withMedia.items.findIndex(
-  (item) => item.kind === "VIDEO",
+const lastTextIndex = withMedia.items.reduce(
+  (latest, item, index) => item.kind === "TEXT" ? index : latest,
+  -1,
+);
+const videoOneIndex = withMedia.items.findIndex(
+  (item) => item.kind === "VIDEO" && item.mediaId === "video-1",
+);
+const imageOneIndex = withMedia.items.findIndex(
+  (item) => item.kind === "IMAGE" && item.mediaId === "image-1",
+);
+const videoTwoIndex = withMedia.items.findIndex(
+  (item) => item.kind === "VIDEO" && item.mediaId === "video-2",
 );
 
 assert.ok(
-  firstImageIndex > lastTextIndex,
-  "IMAGE items must remain after all TEXT items",
+  videoOneIndex > lastScene0TextIndex && videoOneIndex < firstScene1TextIndex,
+  "provenance-matched VIDEO must appear after its latest matching scene and before the next scene",
 );
 
 assert.ok(
-  firstVideoIndex > firstImageIndex,
-  "v5 conservative placement must place VIDEO items after IMAGE items",
+  imageOneIndex > videoOneIndex && imageOneIndex < firstScene1TextIndex,
+  "IMAGE and VIDEO sharing a placement scene must preserve supplied media order",
+);
+
+assert.ok(
+  videoTwoIndex > lastTextIndex,
+  "VIDEO without provenance must remain trailing fallback media",
 );
 
 for (const item of videoItems) {
@@ -183,25 +196,25 @@ for (const item of videoItems) {
   assert.equal(
     "thumbnail" in item,
     false,
-    "Playout v5 must not create thumbnail presentation policy",
+    "Playout v6 must not create thumbnail presentation policy",
   );
 
   assert.equal(
     "autoplay" in item,
     false,
-    "Playout v5 must not create autoplay policy",
+    "Playout v6 must not create autoplay policy",
   );
 
   assert.equal(
     "muted" in item,
     false,
-    "Playout v5 must not create mute policy",
+    "Playout v6 must not create mute policy",
   );
 
   assert.equal(
     "loop" in item,
     false,
-    "Playout v5 must not create looping policy",
+    "Playout v6 must not create looping policy",
   );
 
   assert.equal(
