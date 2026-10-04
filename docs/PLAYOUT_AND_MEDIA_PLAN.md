@@ -1,6 +1,6 @@
 # QRE PLAYOUT + MEDIA PLAN
 
-**Status:** Playout v3 deterministic TEXT reveal timing implemented; media/frontend remain future
+**Status:** Playout v4 deterministic IMAGE composition implemented; VIDEO/frontend remain future
 **Branch:** `fuck-you-bitch-is-awake`
 **Updated:** 2026-10-03
 
@@ -43,7 +43,7 @@ This is presentation splitting, not Author rewriting.
 
 ## Proposed item model
 
-Implemented v3 text-only contract:
+Implemented v4 TEXT + IMAGE contract:
 
 ```ts
 type PlayoutTextItem = {
@@ -55,14 +55,23 @@ type PlayoutTextItem = {
   durationMs: number;
 };
 
-type PlayoutItem = PlayoutTextItem;
+type PlayoutImageItem = {
+  kind: "IMAGE";
+  mediaId: string;
+  url: string;
+  sourceEventIds: string[];
+};
+
+type PlayoutItem =
+  | PlayoutTextItem
+  | PlayoutImageItem;
 
 type ExperiencePlayout = {
   items: PlayoutItem[];
 };
 ```
 
-Future media expansion remains conceptual:
+Future VIDEO expansion remains conceptual:
 
 ```ts
 type PlayoutItem =
@@ -164,8 +173,8 @@ If text is semantically wrong, fix Author. If the text is right but paced badly,
 2. Convert current final Author scenes/beats into TEXT items without behavior change. Implemented by deterministic Author scene -> TEXT transport.
 3. Add sentence/fragment reveal splitting with deterministic tests. Implemented for line and sentence boundaries without rewriting text.
 4. Add timing metadata. Implemented for deterministic TEXT reveal `durationMs`.
-5. Add IMAGE items with provenance.
-6. Add VIDEO items.
+5. Add IMAGE items with provenance. Implemented with canonical MediaAsset identity/URL and truthful supplied provenance.
+6. Add VIDEO items. Future.
 7. Add deterministic placement/composition rules.
 8. Wire frontend renderer.
 9. Add item-level analytics.

@@ -7,7 +7,16 @@ export type PlayoutTextItem = {
   durationMs: number;
 };
 
-export type PlayoutItem = PlayoutTextItem;
+export type PlayoutImageItem = {
+  kind: "IMAGE";
+  mediaId: string;
+  url: string;
+  sourceEventIds: string[];
+};
+
+export type PlayoutItem =
+  | PlayoutTextItem
+  | PlayoutImageItem;
 
 export type ExperiencePlayout = {
   items: PlayoutItem[];

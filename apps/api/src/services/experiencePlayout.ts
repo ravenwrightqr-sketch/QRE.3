@@ -1,4 +1,10 @@
-import type { AuthorScene, ExperiencePlayout } from "@qre/contracts";
+import type {
+  AuthorScene,
+  ExperiencePlayout,
+  MediaAsset,
+  PlayoutImageItem,
+  PlayoutTextItem,
+} from "@qre/contracts";
 
 export type PlayoutSourceScene = AuthorScene & {
   sourceEventIds: readonly string[];
@@ -61,7 +67,7 @@ function clamp(value: number, minimum: number, maximum: number): number {
 export function deriveTextRevealDurationMs(text: string): number {
   const measured = text.trim();
   const words = wordCount(measured);
-  const ellipsisPause = /(?:\.{3}|â€¦)(?:["')\]])?$/.test(measured) ? 240 : 0;
+  const ellipsisPause = /(?:\.{3}|…)(?:["')\]])?$/.test(measured) ? 240 : 0;
   const questionOrExclamationPause =
     ellipsisPause === 0 && /[?!](?:["')\]])?$/.test(measured) ? 180 : 0;
   const colonOrSemicolonPause = /[:;]/.test(measured) ? 120 : 0;
@@ -134,24 +140,65 @@ export function reconstructPlayoutSceneText(reveals: readonly string[]): string 
   return reveals.join("");
 }
 
+export function mediaSourceEventIds(media: MediaAsset): string[] {
+  const sourceEventIds = media.metadata?.sourceEventIds;
+
+  if (!Array.isArray(sourceEventIds)) {
+    return [];
+  }
+
+  return sourceEventIds.filter(
+    (value): value is string =>
+      typeof value === "string" && value.trim().length > 0,
+  );
+}
+
+function composeTextItems(
+  scenes: readonly PlayoutSourceScene[],
+): PlayoutTextItem[] {
+  return scenes.flatMap((scene, index) => {
+    if (!isRenderableText(scene.text)) return [];
+
+    if (!scene.sourceEventIds.length) {
+      throw new Error(`Renderable Author scene ${index} is missing sourceEventIds`);
+    }
+
+    return splitAuthorSceneTextForPlayout(scene.text).map(
+      (text, revealIndex): PlayoutTextItem => ({
+        kind: "TEXT",
+        text,
+        sourceSceneIndex: index,
+        revealIndex,
+        sourceEventIds: [...scene.sourceEventIds],
+        durationMs: deriveTextRevealDurationMs(text),
+      }),
+    );
+  });
+}
+
+function composeImageItems(
+  media: readonly MediaAsset[],
+): PlayoutImageItem[] {
+  return media
+    .filter((asset) => asset.type === "image")
+    .map(
+      (asset): PlayoutImageItem => ({
+        kind: "IMAGE",
+        mediaId: asset.id,
+        url: asset.url,
+        sourceEventIds: mediaSourceEventIds(asset),
+      }),
+    );
+}
+
 export function composeExperiencePlayout(
   scenes: readonly PlayoutSourceScene[],
+  media: readonly MediaAsset[] = [],
 ): ExperiencePlayout {
   return {
-    items: scenes.flatMap((scene, index) => {
-      if (!isRenderableText(scene.text)) return [];
-      if (!scene.sourceEventIds.length) {
-        throw new Error(`Renderable Author scene ${index} is missing sourceEventIds`);
-      }
-
-      return splitAuthorSceneTextForPlayout(scene.text).map((text, revealIndex) => ({
-          kind: "TEXT" as const,
-          text,
-          sourceSceneIndex: index,
-          revealIndex,
-          sourceEventIds: [...scene.sourceEventIds],
-          durationMs: deriveTextRevealDurationMs(text),
-        }));
-    }),
+    items: [
+      ...composeTextItems(scenes),
+      ...composeImageItems(media),
+    ],
   };
 }

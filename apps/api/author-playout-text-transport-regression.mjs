@@ -189,7 +189,7 @@ const experienceServiceSource = readFileSync(
 );
 assert.match(
   experienceServiceSource,
-  /const playout = composeExperiencePlayout\(canonical\.scenes\)/,
+  /const playout = composeExperiencePlayout\(canonical\.scenes,\s*input\.media \?\? \[\]\)/,
   "experience service must compose Playout at the canonical Author boundary",
 );
 assert.match(

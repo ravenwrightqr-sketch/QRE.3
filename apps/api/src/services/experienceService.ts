@@ -1,6 +1,6 @@
 /**
  * QRE CANONICAL AUTHOR LAW
- * ROLE: Production authoring adapter: canonical Author → durable experience/flow.
+ * ROLE: Production authoring adapter: canonical Author ÃƒÂ¢Ã¢â‚¬Â Ã¢â‚¬â„¢ durable experience/flow.
  * LAW: QRE may surprise us.
  * Guardrails protect truth, provenance, architecture, and safety; style is scored.
  */
@@ -17,6 +17,7 @@ import type {
   ExperienceBeat,
   ExperiencePresenceContext,
   MemoryContext,
+  MediaAsset,
 } from "@qre/contracts";
 import type { MemoryRepository } from "../repositories/memoryRepository.js";
 import { createPresenceRepository } from "../repositories/presenceRepository.js";
@@ -254,7 +255,8 @@ export async function compileExperience(input: {
   movieMode?: boolean;
   lens?: string;
   experienceMode?: "IDENTITY" | "MEMORY";
-}): Promise<CompiledExperienceResult> {
+  media?: MediaAsset[];}):
+   Promise<CompiledExperienceResult> {
   const operationId =
   input.operationId ??
   input.sessionId ??
@@ -455,7 +457,7 @@ const authorInput: AuthorBrainTruth = {
   }
 }
   const sourceIds = canonical.sequence.cuts.map((cut) => [...cut.sourceIds]);
-  const playout = composeExperiencePlayout(canonical.scenes);
+  const playout = composeExperiencePlayout(canonical.scenes, input.media ?? []);
   const authoredScenes = canonical.scenes.map((scene) => ({ text: clean(scene.text), kind: scene.kind }));
   const beats = experienceBeats(authoredScenes, sourceIds);
   const renderedMoments = moments(authoredScenes, sourceIds);
@@ -588,4 +590,3 @@ const authorInput: AuthorBrainTruth = {
     warnings,
   };
 }
-
