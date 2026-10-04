@@ -15,7 +15,10 @@ import type {
 } from "@qre/contracts";
 import { createMemoryRepository } from "../repositories/memoryRepository.js";
 import { createStoryDeliveryRepository } from "../repositories/storyDeliveryRepository.js";
-import { compileExperience } from "./experienceService.js";
+import {
+  compileExperience,
+  type GeoAnchorInput,
+} from "./experienceService.js";
 import {
   getCreativeLearningContext,
   learningContextLines,
@@ -43,6 +46,7 @@ export type CreateExperienceInput = {
   sponsor?: SponsorInput;
   receiver?: CreationReceiver;
   media?: MediaAsset[];
+  geoAnchor?: GeoAnchorInput;
 };
 
 function normalize(value: string) {
@@ -119,6 +123,7 @@ export async function createExperience(input: CreateExperienceInput) {
     playoutMode: input.playoutMode,
     memoryRepository,
     media: input.media,
+    geoAnchor: input.geoAnchor,
   });
 
   const authorDiagnostics = compiled.authorDiagnostics as
