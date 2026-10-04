@@ -87,9 +87,10 @@ export interface StoryDeliveryRepository {
   createStorySnapshot(input: {
     assetId: string;
     sessionId: string;
-    moments: unknown;
-    geoStory: unknown;
-    sequence: unknown;
+    playout?: unknown;
+    moments?: unknown;
+    geoStory?: unknown;
+    sequence?: unknown;
   }): Promise<{ id: string }>;
 }
 
@@ -114,7 +115,7 @@ export interface AnalyticsRepository {
 
   getDashboardMetrics(
     assetId: string,
-  ): Promise<unknown>;
+  ): Promise<unknown[]>;
 }
 
 export type GeoProofRecord = {
@@ -192,7 +193,7 @@ export interface PresenceRepository {
     assetId: string,
   ): Promise<unknown[]>;
 
-    getPresenceSessions(
+  getPresenceSessions(
     assetId: string,
   ): Promise<unknown[]>;
 }
