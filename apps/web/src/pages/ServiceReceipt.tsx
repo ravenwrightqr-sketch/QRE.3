@@ -1,6 +1,10 @@
 import { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { createServiceReceipt, getUserAssets } from "../lib/api";
+import {
+  createServiceReceipt,
+  getUserAssets,
+  uploadCreationMedia,
+} from "../lib/api";
 import DashboardLayout from "../components/layout/DashboardLayout";
 
 type Asset = {
@@ -24,7 +28,7 @@ export default function ServiceReceipt() {
   const [funny, setFunny] = useState("");
   const [odd, setOdd] = useState("");
   const [different, setDifferent] = useState("");
-  const [mediaUrl, setMediaUrl] = useState("");
+  const [mediaFiles, setMediaFiles] = useState<File[]>([]);
   const [creating, setCreating] = useState(false);
   const [result, setResult] = useState<Awaited<ReturnType<typeof createServiceReceipt>> | null>(null);
   const [error, setError] = useState("");
@@ -45,11 +49,19 @@ export default function ServiceReceipt() {
     [assets, assetId],
   );
 
-  function capturePhoto(file: File | undefined) {
-    if (!file) return;
+  function selectMedia(files: FileList | null) {
+    const next = files ? Array.from(files).slice(0, 8) : [];
+    setMediaFiles(next);
+    setPhotoPreview("");
+
+    const firstImage = next.find((file) => file.type.startsWith("image/"));
+    if (!firstImage) return;
+
     const reader = new FileReader();
-    reader.onload = () => setPhotoPreview(typeof reader.result === "string" ? reader.result : "");
-    reader.readAsDataURL(file);
+    reader.onload = () => {
+      setPhotoPreview(typeof reader.result === "string" ? reader.result : "");
+    };
+    reader.readAsDataURL(firstImage);
   }
 
   async function captureGeo(): Promise<{
@@ -71,7 +83,13 @@ export default function ServiceReceipt() {
     if (!assetId || !recipient.trim() || creating) return;
     setCreating(true);
     setError("");
+
     try {
+      const media = [];
+      for (const file of mediaFiles) {
+        media.push(await uploadCreationMedia(assetId, file));
+      }
+
       const geo = await captureGeo();
       const timestamp = new Date().toLocaleString();
       const baseFacts = facts.split(/\n|,/).map(clean).filter(Boolean);
@@ -83,7 +101,7 @@ export default function ServiceReceipt() {
         funny: funny.trim(),
         odd: odd.trim(),
         different: different.trim(),
-        mediaUrls: mediaUrl.trim() ? [mediaUrl.trim()] : [],
+        media,
         geo,
       });
       setResult(response);
@@ -98,6 +116,7 @@ export default function ServiceReceipt() {
     const shareUrl = result?.shareUrl;
     if (!shareUrl) return;
     const absolute = `${window.location.origin}${shareUrl}`;
+
     try {
       if (navigator.share) {
         await navigator.share({
@@ -107,6 +126,7 @@ export default function ServiceReceipt() {
         });
         return;
       }
+
       await navigator.clipboard.writeText(absolute);
       window.alert("Receipt link copied.");
     } catch (err) {
@@ -124,8 +144,8 @@ export default function ServiceReceipt() {
             <div style={eyebrow}>SERVICE RECEIPT READY</div>
             <h1 style={title}>{result.experience?.title ?? "Your experience is ready."}</h1>
             <p style={sub}>The customer-facing experience is compiled from the facts you supplied.</p>
-            <div style={film}>
-              {(result.experience?.moments ?? []).map((moment: any, index: number) => (
+            <div style={playoutPreview}>
+              {(result.experience?.moments ?? []).map((moment: { payload?: { text?: unknown }; text?: unknown }, index: number) => (
                 <div key={`${index}-${clean(moment?.payload?.text)}`} style={line}>
                   {clean(moment?.payload?.text ?? moment?.text)}
                 </div>
@@ -148,7 +168,7 @@ export default function ServiceReceipt() {
         <section style={card}>
           <div style={eyebrow}>60-SECOND SERVICE CAPTURE</div>
           <h1 style={title}>Send a service receipt.</h1>
-          <p style={sub}>Tell QRE only what mattered. Time and location are captured automatically.</p>
+          <p style={sub}>Tell QRE only what mattered. Add photos or video when they help. Time and location are captured automatically.</p>
 
           <label style={label}>CLIENT / RECIPIENT<input value={recipient} onChange={(e) => setRecipient(e.target.value)} placeholder="Client name, email, or phone" style={input} /></label>
           <label style={label}>QRE OBJECT<select value={assetId} onChange={(e) => setAssetId(e.target.value)} style={input}>{assets.map((asset) => <option key={asset.id} value={asset.id}>{asset.displayName || asset.slug}</option>)}</select></label>
@@ -161,16 +181,31 @@ export default function ServiceReceipt() {
             <label style={label}>ANYTHING DIFFERENT?<input value={different} onChange={(e) => setDifferent(e.target.value)} placeholder="Cats everywhere" style={input} /></label>
           </div>
 
-          <label style={label}>PHOTO / MEDIA
-            <input type="file" accept="image/*" onChange={(e) => capturePhoto(e.target.files?.[0])} style={fileInput} />
+          <label style={label}>OPTIONAL PHOTOS / VIDEO
+            <input
+              type="file"
+              accept="image/jpeg,image/png,image/webp,image/gif,video/mp4,video/webm,video/quicktime"
+              multiple
+              onChange={(e) => selectMedia(e.target.files)}
+              style={fileInput}
+            />
           </label>
-          <label style={label}>OPTIONAL MEDIA URL<input value={mediaUrl} onChange={(e) => setMediaUrl(e.target.value)} placeholder="Paste a hosted photo/video URL" style={input} /></label>
+
+          {mediaFiles.length > 0 && (
+            <div style={mediaList}>
+              {mediaFiles.map((file) => (
+                <div key={`${file.name}-${file.size}-${file.lastModified}`}>
+                  {file.name} · {(file.size / (1024 * 1024)).toFixed(1)} MB
+                </div>
+              ))}
+            </div>
+          )}
 
           {photoPreview && <img src={photoPreview} alt="Preview" style={photo} />}
           {error && <div style={errorBox}>{error}</div>}
 
           <button type="button" onClick={() => void create()} disabled={!assetId || !recipient.trim() || creating} style={primary}>
-            {creating ? "CREATING FILM…" : "CREATE + SEND"}
+            {creating ? "CREATING QRE…" : "CREATE + SEND"}
           </button>
         </section>
       </main>
@@ -188,10 +223,11 @@ const input = { width: "100%", boxSizing: "border-box" as const, padding: "14px 
 const textarea = { ...input, minHeight: 110, resize: "vertical" as const, lineHeight: 1.5 };
 const fileInput = { ...input, padding: 12 };
 const promptGrid = { display: "grid", gridTemplateColumns: "repeat(3,minmax(0,1fr))", gap: 14 };
-const film = { margin: "20px 0", padding: 24, borderRadius: 20, background: "#020203", border: "1px solid rgba(255,255,255,.08)" };
+const playoutPreview = { margin: "20px 0", padding: 24, borderRadius: 20, background: "#020203", border: "1px solid rgba(255,255,255,.08)" };
 const line = { fontSize: "clamp(20px, 4vw, 34px)", lineHeight: 1.15, marginBottom: 18 };
 const actions = { display: "flex", gap: 12, marginTop: 24 };
 const primary = { border: 0, borderRadius: 999, padding: "15px 24px", background: "#fff", color: "#000", fontWeight: 700, letterSpacing: 1, cursor: "pointer" };
 const secondary = { border: "1px solid rgba(255,255,255,.18)", borderRadius: 999, padding: "15px 24px", background: "transparent", color: "#fff", fontWeight: 600, letterSpacing: 1, cursor: "pointer" };
+const mediaList = { display: "grid", gap: 6, margin: "-4px 0 18px", fontSize: 12, color: "rgba(255,255,255,.65)" };
 const photo = { width: "100%", maxHeight: 420, objectFit: "cover" as const, borderRadius: 18, marginTop: 12 };
 const errorBox = { padding: 14, borderRadius: 12, background: "rgba(255,80,100,.12)", border: "1px solid rgba(255,80,100,.25)", marginBottom: 18, color: "#ffdfe4" };
