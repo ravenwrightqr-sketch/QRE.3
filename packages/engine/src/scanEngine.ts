@@ -90,6 +90,15 @@ function persistedExperiencePlayout(blueprint: unknown): ExperiencePlayout | und
   return valid ? (candidate as unknown as ExperiencePlayout) : undefined;
 }
 
+export function scanVisiblePlayout(
+  access: Experience["access"],
+  blueprint: unknown,
+): ExperiencePlayout | undefined {
+  return access === "UNLOCKED"
+    ? persistedExperiencePlayout(blueprint)
+    : undefined;
+}
+
 function acceptedAuthoredScenes(
   asset: { experiences?: ExperienceChapterRecord[] },
 ): CinematicScene[] {
@@ -223,10 +232,10 @@ export async function scanEngine(
     repos.accessRepository,
   );
 
-  const playout =
-    access.state === "UNLOCKED"
-      ? persistedExperiencePlayout(asset.experience?.blueprint)
-      : undefined;
+  const playout = scanVisiblePlayout(
+    access.state,
+    asset.experience?.blueprint,
+  );
 
   await track("AI_DECISION", {
     stage: "access",
