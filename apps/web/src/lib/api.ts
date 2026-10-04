@@ -1,3 +1,5 @@
+import type { MediaAsset } from "@qre/contracts";
+
 const API_BASE =
   import.meta.env.VITE_API_URL || "http://localhost:3000";
 
@@ -203,6 +205,49 @@ request(
 );
 
 
+
+/**
+ * =========================
+ * CREATION MEDIA
+ * =========================
+ */
+
+export async function uploadCreationMedia(
+  assetId: string,
+  file: File,
+): Promise<MediaAsset> {
+  const token = localStorage.getItem("token");
+
+  if (!token) {
+    throw new Error("Unauthorized");
+  }
+
+  if (!file.type.startsWith("image/") && !file.type.startsWith("video/")) {
+    throw new Error("Only image and video files are supported.");
+  }
+
+  const response = await fetch(`${API_BASE}/api/media/upload`, {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${token}`,
+      "Content-Type": file.type,
+      "x-qre-asset-id": assetId,
+      "x-qre-file-name": encodeURIComponent(file.name),
+    },
+    body: file,
+  });
+
+  const data = await response.json().catch(() => ({})) as {
+    error?: string;
+    media?: MediaAsset;
+  };
+
+  if (!response.ok || !data.media) {
+    throw new Error(data.error || "Media upload failed.");
+  }
+
+  return data.media;
+}
 
 
 
@@ -446,7 +491,7 @@ export type ServiceReceiptInput = {
   odd?: string;
   different?: string;
   notes?: string;
-  mediaUrls?: string[];
+  media?: MediaAsset[];
   geo?: {
     latitude: number;
     longitude: number;
