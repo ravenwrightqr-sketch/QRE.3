@@ -48,7 +48,7 @@ export function createStoryDeliveryRepository(): StoryDeliveryRepository {
           ctaClickWeight: 0,
           rewardScore: 0,
           confidence: 0,
-          dominantLayer: "playout",
+          dominantLayer: "cinematic",
         },
         select: {
           id: true,
