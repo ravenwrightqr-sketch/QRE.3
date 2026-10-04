@@ -1,6 +1,6 @@
 /**
  * QRE CANONICAL AUTHOR LAW
- * ROLE: Production authoring adapter: canonical Author ÃƒÂ¢Ã¢â‚¬Â Ã¢â‚¬â„¢ durable experience/flow.
+ * ROLE: Production authoring adapter: canonical Author -> durable experience/flow.
  * LAW: QRE may surprise us.
  * Guardrails protect truth, provenance, architecture, and safety; style is scored.
  */
@@ -232,15 +232,23 @@ function legacyCinematicScenes(scenes: Array<{ text: string; kind?: string }>, s
   }));
 }
 
-function moments(scenes: Array<{ text: string; kind?: string }>, sourceIds: string[][]): Array<Record<string, unknown>> {
+function moments(
+  scenes: Array<{ text: string; kind?: string }>,
+  sourceIds: string[][],
+): Array<Record<string, unknown>> {
   return scenes.map((scene, index) => ({
     type: "message",
     editable: false,
     demo: false,
     order: index,
-    payload: { text: clean(scene.text), sourceIds: sourceIds[index] ?? [], author: "qre-author-canonical" },
+    payload: {
+      text: clean(scene.text),
+      sourceIds: sourceIds[index] ?? [],
+      author: "qre-author-canonical",
+    },
   }));
 }
+
 export async function compileExperience(input: {
   prompt: string;
   assetId?: string;
@@ -255,36 +263,43 @@ export async function compileExperience(input: {
   movieMode?: boolean;
   lens?: string;
   experienceMode?: "IDENTITY" | "MEMORY";
-  media?: MediaAsset[];}):
-   Promise<CompiledExperienceResult> {
+  media?: MediaAsset[];
+}): Promise<CompiledExperienceResult> {
   const operationId =
-  input.operationId ??
-  input.sessionId ??
-  `experience:${input.assetId ?? "unknown"}:${input.prompt}`;
+    input.operationId ??
+    input.sessionId ??
+    `experience:${input.assetId ?? "unknown"}:${input.prompt}`;
+
   const prompt = clean(input.prompt);
   if (!prompt) throw new Error("Experience prompt required");
+
   const requestedPlayoutMode: AuthorPlayoutMode =
     input.playoutMode ??
     (input.movieMode === false ? "operational" : "experience");
+
   const requestedMovieMode =
     requestedPlayoutMode === "experience";
+
   const warnings: string[] = [];
- if (input.assetId && input.sessionId) {
-  await db.scanSession.upsert({
-    where: {
-      id: input.sessionId,
-    },
-    update: {},
-    create: {
-      id: input.sessionId,
-      assetId: input.assetId,
-      userId: input.userId ?? null,
-      status: "authoring",
-    },
-  });
-}
+
+  if (input.assetId && input.sessionId) {
+    await db.scanSession.upsert({
+      where: {
+        id: input.sessionId,
+      },
+      update: {},
+      create: {
+        id: input.sessionId,
+        assetId: input.assetId,
+        userId: input.userId ?? null,
+        status: "authoring",
+      },
+    });
+  }
+
   let domainContext: AuthorDomainContext | undefined;
   let assetIdentity = "";
+
   if (input.assetId) {
     try {
       const asset = await db.asset.findUnique({
@@ -293,27 +308,44 @@ export async function compileExperience(input: {
           displayName: true,
           category: true,
           templateData: true,
-          account: { select: { name: true, type: true } },
+          account: {
+            select: {
+              name: true,
+              type: true,
+            },
+          },
         },
       });
+
       domainContext = buildAssetDomainContext(asset);
+
       const assetData = asRecord(asset?.templateData);
-      const assetExperienceMode = clean(assetData?.experienceMode).toUpperCase();
-      if (assetExperienceMode === "IDENTITY" || assetExperienceMode === "MEMORY") {
+      const assetExperienceMode = clean(
+        assetData?.experienceMode,
+      ).toUpperCase();
+
+      if (
+        assetExperienceMode === "IDENTITY" ||
+        assetExperienceMode === "MEMORY"
+      ) {
         domainContext = {
           ...(domainContext ?? {}),
           experienceMode: assetExperienceMode,
         };
       }
+
       assetIdentity = clean(
         assetData?.subjectName ||
-        assetData?.subject ||
-        assetData?.petName ||
-        assetData?.identityName ||
-        asset?.displayName,
+          assetData?.subject ||
+          assetData?.petName ||
+          assetData?.identityName ||
+          asset?.displayName,
       );
     } catch (error) {
-      console.warn("[QRE][AUTHORING] Domain context unavailable.", error);
+      console.warn(
+        "[QRE][AUTHORING] Domain context unavailable.",
+        error,
+      );
       warnings.push("domain_context_unavailable");
     }
   }
