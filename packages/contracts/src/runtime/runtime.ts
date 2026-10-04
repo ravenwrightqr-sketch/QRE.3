@@ -3,6 +3,7 @@ import type { GeoStory } from "../geo/geoStory.js";
 import type { CinematicScene } from "../cinematic/cinematic.js";
 import type { MemorySnapshot } from "../memory/memorySnapshot.js";
 import type { ServiceReceipt } from "../commerce/serviceReceipt.js";
+import type { ExperiencePlayout } from "../playout/playout.js";
 
 export type ExperienceAccess = "DEMO" | "UNLOCKED";
 
@@ -37,6 +38,8 @@ export type Experience = {
   asset: AssetSummary | null;
   moments: ExperienceMoment[];
   geoStory: GeoStory | null;
+  /** Canonical persisted presentation. Scan/share surfaces should render this when present. */
+  playout?: ExperiencePlayout;
   /** @deprecated Compatibility scan/player surface. New presentation composition belongs to ExperiencePlayout. */
   cinematicScenes: CinematicScene[];
   memorySnapshot: MemorySnapshot | null;
