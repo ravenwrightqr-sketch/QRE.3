@@ -152,7 +152,6 @@ export function mediaSourceEventIds(media: MediaAsset): string[] {
       typeof value === "string" && value.trim().length > 0,
   );
 }
-
 function composeTextItems(
   scenes: readonly PlayoutSourceScene[],
 ): PlayoutTextItem[] {
@@ -160,7 +159,9 @@ function composeTextItems(
     if (!isRenderableText(scene.text)) return [];
 
     if (!scene.sourceEventIds.length) {
-      throw new Error(`Renderable Author scene ${index} is missing sourceEventIds`);
+      throw new Error(
+        `Renderable Author scene ${index} is missing sourceEventIds`,
+      );
     }
 
     return splitAuthorSceneTextForPlayout(scene.text).map(
@@ -175,44 +176,113 @@ function composeTextItems(
     );
   });
 }
+type PlayoutMediaItem =
+  | PlayoutImageItem
+  | PlayoutVideoItem;
 
-function composeImageItems(
+function composeMediaItems(
   media: readonly MediaAsset[],
-): PlayoutImageItem[] {
-  return media
-    .filter((asset) => asset.type === "image")
-    .map(
-      (asset): PlayoutImageItem => ({
-        kind: "IMAGE",
-        mediaId: asset.id,
-        url: asset.url,
-        sourceEventIds: mediaSourceEventIds(asset),
-      }),
-    );
+): PlayoutMediaItem[] {
+  return media.flatMap((asset): PlayoutMediaItem[] => {
+    if (asset.type === "image") {
+      return [
+        {
+          kind: "IMAGE",
+          mediaId: asset.id,
+          url: asset.url,
+          sourceEventIds: mediaSourceEventIds(asset),
+        },
+      ];
+    }
+
+    if (asset.type === "video") {
+      return [
+        {
+          kind: "VIDEO",
+          mediaId: asset.id,
+          url: asset.url,
+          sourceEventIds: mediaSourceEventIds(asset),
+        },
+      ];
+    }
+
+    return [];
+  });
 }
-function composeVideoItems(
+
+function latestMatchingSceneIndex(
+  item: PlayoutMediaItem,
+  scenes: readonly PlayoutSourceScene[],
+): number | null {
+  if (!item.sourceEventIds.length) {
+    return null;
+  }
+
+  const mediaSourceIds = new Set(item.sourceEventIds);
+  let latestMatch: number | null = null;
+
+  for (let sceneIndex = 0; sceneIndex < scenes.length; sceneIndex += 1) {
+    const scene = scenes[sceneIndex];
+
+    if (
+      scene.sourceEventIds.some((sourceEventId) =>
+        mediaSourceIds.has(sourceEventId),
+      )
+    ) {
+      latestMatch = sceneIndex;
+    }
+  }
+
+  return latestMatch;
+}
+
+function composePlacedItems(
+  scenes: readonly PlayoutSourceScene[],
   media: readonly MediaAsset[],
-): PlayoutVideoItem[] {
-  return media
-    .filter((asset) => asset.type === "video")
-    .map(
-      (asset): PlayoutVideoItem => ({
-        kind: "VIDEO",
-        mediaId: asset.id,
-        url: asset.url,
-        sourceEventIds: mediaSourceEventIds(asset),
-      }),
-    );
+): ExperiencePlayout["items"] {
+  const textItems = composeTextItems(scenes);
+  const mediaItems = composeMediaItems(media);
+
+  const textByScene = new Map<number, PlayoutTextItem[]>();
+  const mediaByScene = new Map<number, PlayoutMediaItem[]>();
+  const trailingMedia: PlayoutMediaItem[] = [];
+
+  for (const item of textItems) {
+    const existing = textByScene.get(item.sourceSceneIndex) ?? [];
+    existing.push(item);
+    textByScene.set(item.sourceSceneIndex, existing);
+  }
+
+  for (const item of mediaItems) {
+    const sceneIndex = latestMatchingSceneIndex(item, scenes);
+
+    if (sceneIndex === null) {
+      trailingMedia.push(item);
+      continue;
+    }
+
+    const existing = mediaByScene.get(sceneIndex) ?? [];
+    existing.push(item);
+    mediaByScene.set(sceneIndex, existing);
+  }
+
+  const items: ExperiencePlayout["items"] = [];
+
+  for (let sceneIndex = 0; sceneIndex < scenes.length; sceneIndex += 1) {
+    items.push(...(textByScene.get(sceneIndex) ?? []));
+    items.push(...(mediaByScene.get(sceneIndex) ?? []));
+  }
+
+  items.push(...trailingMedia);
+
+  return items;
 }
+
 export function composeExperiencePlayout(
   scenes: readonly PlayoutSourceScene[],
   media: readonly MediaAsset[] = [],
 ): ExperiencePlayout {
   return {
-    items: [
-      ...composeTextItems(scenes),
-      ...composeImageItems(media),
-      ...composeVideoItems(media),
-    ],
+    items: composePlacedItems(scenes, media),
   };
 }
