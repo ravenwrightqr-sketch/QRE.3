@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
+import type { MediaAsset } from "@qre/contracts";
 import {
   createServiceReceipt,
   getUserAssets,
@@ -85,7 +86,7 @@ export default function ServiceReceipt() {
     setError("");
 
     try {
-      const media = [];
+      const media: MediaAsset[] = [];
       for (const file of mediaFiles) {
         media.push(await uploadCreationMedia(assetId, file));
       }
