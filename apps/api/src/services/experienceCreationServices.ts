@@ -7,11 +7,19 @@
 
 import { randomUUID } from "node:crypto";
 import { db, type Prisma } from "@qre/db";
+import { buildSponsorPolicy, createStoryDelivery } from "@qre/engine";
+import type {
+  AuthorPlayoutMode,
+  CreationReceiver,
+  MediaAsset,
+} from "@qre/contracts";
 import { createMemoryRepository } from "../repositories/memoryRepository.js";
+import { createStoryDeliveryRepository } from "../repositories/storyDeliveryRepository.js";
 import { compileExperience } from "./experienceService.js";
-import { buildSponsorPolicy } from "@qre/engine";
-import type { AuthorPlayoutMode } from "@qre/contracts";
-import { getCreativeLearningContext, learningContextLines } from "./creativeLearning.js";
+import {
+  getCreativeLearningContext,
+  learningContextLines,
+} from "./creativeLearning.js";
 
 export type SponsorInput = {
   enabled?: boolean;
@@ -33,6 +41,8 @@ export type CreateExperienceInput = {
   userId?: string;
   playoutMode?: AuthorPlayoutMode;
   sponsor?: SponsorInput;
+  receiver?: CreationReceiver;
+  media?: MediaAsset[];
 };
 
 function normalize(value: string) {
@@ -64,7 +74,9 @@ function promptSignals(prompt: string): string[] {
     ["escalation-request", /\bescalat|bigger|wilder|chaos|increasing|eventually|then\b/],
     ["understatement-request", /\bquiet|subtle|understated|restrained|intimate\b/],
   ];
-  for (const [name, pattern] of tests) if (pattern.test(normalized)) signals.push(name);
+  for (const [name, pattern] of tests) {
+    if (pattern.test(normalized)) signals.push(name);
+  }
   return signals;
 }
 
@@ -97,13 +109,16 @@ export async function createExperience(input: CreateExperienceInput) {
     throw new Error("Asset and prompt required.");
   }
 
+  const sessionId = randomUUID();
   const memoryRepository = createMemoryRepository();
   const compiled = await compileExperience({
     prompt: input.prompt.trim(),
     assetId: input.assetId,
     userId: input.userId,
+    sessionId,
     playoutMode: input.playoutMode,
     memoryRepository,
+    media: input.media,
   });
 
   const authorDiagnostics = compiled.authorDiagnostics as
@@ -118,13 +133,30 @@ export async function createExperience(input: CreateExperienceInput) {
     throw new Error("Canonical Author rejected the requested experience.");
   }
 
-  const entityMemory = await resolveExperienceEntity(input.assetId, input.prompt.trim());
-  const sponsor = buildSponsorPolicy(input.sponsor ?? {});
-  const learning = await getCreativeLearningContext({ assetId: input.assetId, userId: input.userId });
-  const authoringMetadata = (compiled.blueprint?.metadata as Record<string, unknown> | undefined)?.authoring as Record<string, unknown> | undefined;
-  const lens = typeof authoringMetadata?.lens === "string" ? authoringMetadata.lens : "neutral";
+  if (!compiled.playout) {
+    throw new Error("Canonical creation is missing ExperiencePlayout.");
+  }
 
-  const cinematicScenes = Array.isArray(compiled.cinematicScenes) ? compiled.cinematicScenes : [];
+  const entityMemory = await resolveExperienceEntity(
+    input.assetId,
+    input.prompt.trim(),
+  );
+  const sponsor = buildSponsorPolicy(input.sponsor ?? {});
+  const learning = await getCreativeLearningContext({
+    assetId: input.assetId,
+    userId: input.userId,
+  });
+  const authoringMetadata = (
+    compiled.blueprint?.metadata as Record<string, unknown> | undefined
+  )?.authoring as Record<string, unknown> | undefined;
+  const lens =
+    typeof authoringMetadata?.lens === "string"
+      ? authoringMetadata.lens
+      : "neutral";
+
+  const cinematicScenes = Array.isArray(compiled.cinematicScenes)
+    ? compiled.cinematicScenes
+    : [];
   const cinematicSequence = {
     version: 1,
     appendOnly: true,
@@ -134,7 +166,10 @@ export async function createExperience(input: CreateExperienceInput) {
       createdAt: new Date().toISOString(),
       sourcePrompt: input.prompt.trim(),
       sceneCount: cinematicScenes.length,
-      estimatedDurationMs: cinematicScenes.reduce((sum: number, scene: any) => sum + Number(scene?.duration || 0), 0),
+      estimatedDurationMs: cinematicScenes.reduce(
+        (sum: number, scene: any) => sum + Number(scene?.duration || 0),
+        0,
+      ),
       scenes: cinematicScenes,
     },
   } as Prisma.InputJsonValue;
@@ -151,10 +186,11 @@ export async function createExperience(input: CreateExperienceInput) {
   const blueprint = {
     ...(compiled.blueprint as Record<string, unknown>),
     sourcePrompt: input.prompt.trim(),
+    playout: compiled.playout,
     sponsor,
     cinematicSequence,
     authoring: {
-      kind: "service_experience",
+      kind: "qre_creation",
       authoredBy: "qre-author-canonical",
       realizationPath: "authorBrainCanonical",
       memoryAware: true,
@@ -169,7 +205,11 @@ export async function createExperience(input: CreateExperienceInput) {
       },
     },
     learningProfile,
-    memory: { scope: "asset", entity: entityMemory ?? null, learned: true },
+    memory: {
+      scope: "asset",
+      entity: entityMemory ?? null,
+      learned: true,
+    },
   } as Prisma.InputJsonValue;
 
   const experience = await db.experience.create({
@@ -185,7 +225,9 @@ export async function createExperience(input: CreateExperienceInput) {
       name: experience.title ?? "Experience",
       version: 1,
       actions: {
-        category: String((compiled.blueprint as Record<string, unknown>).type ?? "experience"),
+        category: String(
+          (compiled.blueprint as Record<string, unknown>).type ?? "experience",
+        ),
         sourcePrompt: input.prompt.trim(),
         sponsor,
         cinematicSequence,
@@ -205,13 +247,38 @@ export async function createExperience(input: CreateExperienceInput) {
 
   await db.experience.update({
     where: { id: experience.id },
-    data: { flow: { connect: { id: flow.id } } },
+    data: {
+      flow: {
+        connect: { id: flow.id },
+      },
+    },
+  });
+
+  const delivery = await createStoryDelivery(
+    {
+      assetId: input.assetId,
+      sessionId,
+      userId: input.userId,
+      recipient: input.receiver,
+      playout: compiled.playout,
+    },
+    createStoryDeliveryRepository(),
+  );
+
+  await db.scanSession.update({
+    where: { id: sessionId },
+    data: {
+      status: "completed",
+      endedAt: new Date(),
+    },
   });
 
   return {
+    sessionId,
     experience,
     flow,
     compiled,
+    delivery,
     entityMemory,
     sponsor,
     cinematicSequence,
