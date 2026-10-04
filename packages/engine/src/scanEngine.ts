@@ -23,6 +23,7 @@ import type {
   ExperienceMoment,
   Experience,
   CinematicScene,
+  ExperiencePlayout,
 } from "@qre/contracts";
 
 type ScanEngineInput = {
@@ -49,6 +50,44 @@ type ExperienceChapterRecord = {
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return Boolean(value) && typeof value === "object" && !Array.isArray(value);
+}
+
+function isStringArray(value: unknown): value is string[] {
+  return Array.isArray(value) && value.every((item) => typeof item === "string");
+}
+
+function persistedExperiencePlayout(blueprint: unknown): ExperiencePlayout | undefined {
+  if (!isRecord(blueprint)) return undefined;
+
+  const candidate = blueprint.playout;
+  if (!isRecord(candidate) || !Array.isArray(candidate.items)) return undefined;
+
+  const valid = candidate.items.every((item) => {
+    if (!isRecord(item) || typeof item.kind !== "string") return false;
+
+    if (item.kind === "TEXT") {
+      return (
+        typeof item.text === "string" &&
+        Number.isInteger(item.sourceSceneIndex) &&
+        Number.isInteger(item.revealIndex) &&
+        isStringArray(item.sourceEventIds) &&
+        typeof item.durationMs === "number" &&
+        Number.isFinite(item.durationMs)
+      );
+    }
+
+    if (item.kind === "IMAGE" || item.kind === "VIDEO") {
+      return (
+        typeof item.mediaId === "string" &&
+        typeof item.url === "string" &&
+        isStringArray(item.sourceEventIds)
+      );
+    }
+
+    return false;
+  });
+
+  return valid ? (candidate as unknown as ExperiencePlayout) : undefined;
 }
 
 function acceptedAuthoredScenes(
@@ -184,6 +223,11 @@ export async function scanEngine(
     repos.accessRepository,
   );
 
+  const playout =
+    access.state === "UNLOCKED"
+      ? persistedExperiencePlayout(asset.experience?.blueprint)
+      : undefined;
+
   await track("AI_DECISION", {
     stage: "access",
     accessState: access.state,
@@ -195,6 +239,8 @@ export async function scanEngine(
           | undefined
       )?.sponsor,
     ),
+    persistedPlayout: Boolean(playout),
+    playoutItems: playout?.items.length ?? 0,
   });
 
   const moments: ExperienceMoment[] = [
@@ -396,6 +442,8 @@ try {
     completed: true,
     moments: moments.length,
     cinematicScenes: cinematicScenes.length,
+    persistedPlayout: Boolean(playout),
+    playoutItems: playout?.items.length ?? 0,
     memoryLearned: Boolean(memorySnapshot),
     serviceExperience: Boolean(receipt),
   });
@@ -407,6 +455,7 @@ try {
     timestamp: new Date().toISOString(),
     moments,
     geoStory,
+    playout,
     cinematicScenes,
     memorySnapshot,
     receipt,
