@@ -115,7 +115,7 @@ export interface AnalyticsRepository {
 
   getDashboardMetrics(
     assetId: string,
-  ): Promise<unknown[]>;
+  ): Promise<Record<string, number>>;
 }
 
 export type GeoProofRecord = {
