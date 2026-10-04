@@ -5,7 +5,7 @@ import type {
 } from "@qre/contracts";
 import { buildServiceReceipt } from "@qre/engine";
 import { requireAuth } from "../middleware/requireAuth.js";
-import { db } from "@qre/db";
+import { db, type Prisma } from "@qre/db";
 import { createExperience } from "../services/experienceCreationServices.js";
 
 const router = Router();
@@ -216,7 +216,7 @@ router.post("/create", requireAuth, async (req, res) => {
     await db.scanSession.update({
       where: { id: creation.sessionId },
       data: {
-        receipt: toJson(receipt) as any,
+        receipt: toJson(receipt) as Prisma.InputJsonValue,
       },
     });
 
