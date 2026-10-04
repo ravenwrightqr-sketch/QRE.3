@@ -184,20 +184,21 @@ assert.match(
 assert.match(
   playoutSource,
   /mediaId: asset\.id/,
-  "IMAGE composition must preserve source media identity",
+  "media composition must preserve source media identity",
 );
 
 assert.match(
   playoutSource,
   /url: asset\.url/,
-  "IMAGE composition must preserve source media URL",
+  "media composition must preserve source media URL",
 );
 
 assert.match(
   playoutSource,
   /mediaSourceEventIds\(asset\)/,
-  "IMAGE composition must preserve only explicit supplied provenance",
+  "media composition must preserve only explicit supplied provenance",
 );
+
 assert.match(
   playoutSource,
   /asset\.type === "video"/,
@@ -212,13 +213,26 @@ assert.match(
 
 assert.match(
   playoutSource,
-  /\.\.\.composeVideoItems\(media\)/,
-  "Playout must include deterministic VIDEO composition",
+  /function composeMediaItems\(/,
+  "Playout must compose IMAGE and VIDEO through one deterministic supplied-media stream",
 );
+
+assert.match(
+  playoutSource,
+  /function latestMatchingSceneIndex\(/,
+  "Playout must derive provenance placement from matching Author scene boundaries",
+);
+
+assert.match(
+  playoutSource,
+  /items: composePlacedItems\(scenes, media\)/,
+  "Playout must use deterministic provenance-aware item placement",
+);
+
 assert.doesNotMatch(
   playoutSource,
   /\b(?:captionGenerated|visualHint|camera|narrativeRole|placementHint|transitionHint)\b/,
-  "IMAGE composition must not invent captions, camera direction, narrative role, or placement hints",
+  "media composition must not invent captions, camera direction, narrative role, or placement hints",
 );
 
 const experienceService = read("apps/api/src/services/experienceService.ts");
@@ -274,5 +288,5 @@ assert.doesNotMatch(
 );
 
 console.log(
-  "PLAYOUT BOUNDARY GREEN - AUTHOR MEANING - PLAYOUT TEXT/TIMING/IMAGE/VIDEO PRESENTATION - LEGACY QUARANTINED",
+  "PLAYOUT BOUNDARY GREEN - AUTHOR MEANING - PLAYOUT TEXT/TIMING/MEDIA PROVENANCE PLACEMENT - LEGACY QUARANTINED",
 );
